@@ -191,6 +191,17 @@ set and retrieval database:
 uv run python -m scripts.build_retrieval_report
 ```
 
+## Gradio chat
+
+After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
+
+```bash
+uv run python app.py
+```
+
+Each response shows its BM25 source labels, full book hierarchy, and PDF pages.
+Conversation history is visible, but each question is retrieved independently.
+
 ## Tests
 
 ```bash
