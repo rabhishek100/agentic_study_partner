@@ -11,6 +11,13 @@ wheels/
 
 # Editor
 .vscode/
+.DS_Store
 
 # Source materials (large/copyrighted files)
 sources/
+
+# Generated parser and database artifacts
+cache/
+data/*.sqlite3
+data/*.sqlite3-shm
+data/*.sqlite3-wal
