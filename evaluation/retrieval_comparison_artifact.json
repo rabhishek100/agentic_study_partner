@@ -3,9 +3,9 @@
   "manifest": {
     "version": 1,
     "surface": "report",
-    "title": "Retrieval Evaluation: BM25 vs Vector vs Hybrid",
-    "description": "Gold-set comparison of lexical, semantic, and fused retrieval.",
-    "generatedAt": "2026-07-18T20:23:18.213014+00:00",
+    "title": "Retrieval Evaluation: Four Ranking Strategies",
+    "description": "Gold-set comparison of lexical, semantic, fused, and cross-encoder-reranked retrieval.",
+    "generatedAt": "2026-07-19T01:25:37.364300+00:00",
     "cards": [
       {
         "id": "bm25-quality",
@@ -57,6 +57,37 @@
           {
             "label": "MRR@5",
             "field": "hybrid_mrr_at_5",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "hybrid_rerank-quality",
+        "dataset": "summary_metrics",
+        "description": "Hybrid + reranker required-node coverage and first-hit rank.",
+        "sourceId": "retrieval-comparison",
+        "metrics": [
+          {
+            "label": "Hybrid + reranker Recall@5",
+            "field": "hybrid_rerank_recall_at_5",
+            "format": "percent"
+          },
+          {
+            "label": "MRR@5",
+            "field": "hybrid_rerank_mrr_at_5",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "reranker-shortlist-quality",
+        "dataset": "summary_metrics",
+        "description": "Required evidence available to the cross-encoder before reranking.",
+        "sourceId": "retrieval-comparison",
+        "metrics": [
+          {
+            "label": "Reranker candidate Recall@20",
+            "field": "hybrid_rerank_candidate_recall_at_20",
             "format": "percent"
           }
         ]
@@ -988,11 +1019,11 @@
         "label": "Gold-set retrieval comparison",
         "path": "evaluation/retrieval_gold_seed.json",
         "query": {
-          "engine": "Python, SQLite FTS5, and local Chroma",
+          "engine": "Python, SQLite FTS5, local Chroma, and a local cross-encoder",
           "language": "python",
-          "description": "Runs the frozen gold questions against BM25, dense vector search, and unweighted reciprocal rank fusion.",
+          "description": "Runs the frozen gold questions against BM25, dense vector search, reciprocal rank fusion, and cross-encoder reranking.",
           "sql": "SELECT id, source_book_id, source_node_id, toc_index, chunk_index, section_title, path_text, start_page, end_page, text, content_types_json FROM chunks WHERE source_book_id = :book_id ORDER BY toc_index, chunk_index",
-          "executed_at": "2026-07-18T20:23:18.213014+00:00",
+          "executed_at": "2026-07-19T01:25:37.364300+00:00",
           "tables_used": [
             "data/retrieval.sqlite3: chunks",
             "data/retrieval.sqlite3: chunks_fts",
@@ -1001,28 +1032,39 @@
           "filters": [
             "Gold-set source SHA-256 must match the indexed book",
             "Top five distinct TOC nodes retained per question",
+            "Reranker scores the top 20 RRF chunks before node collapse",
             "Unanswerable probes excluded from recall and MRR"
           ],
           "metric_definitions": [
             "Recall@k is required evidence nodes found in the first k distinct retrieved nodes divided by all required evidence nodes.",
             "MRR@5 is the reciprocal rank of the first required evidence node within five distinct nodes; zero when absent.",
-            "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks."
+            "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks.",
+            "Candidate Recall@20 measures whether required nodes are present before cross-encoder reranking.",
+            "Hybrid + reranker scores the 20 RRF candidates with a pinned local cross-encoder and then keeps five distinct nodes."
           ],
           "model": {
-            "collection": "book_text_chunks",
-            "embedding_model": "Alibaba-NLP/gte-modernbert-base",
-            "embedding_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
-            "embedding_dimension": 768,
-            "embedding_device": "cpu",
-            "max_sequence_length": 8192,
-            "document_format_version": "hierarchy-v1",
-            "distance_metric": "cosine",
-            "index": "hnsw",
-            "book_ids": [
-              1
-            ],
-            "vector_count": 332,
-            "built_at": "2026-07-18T20:22:37.028395+00:00"
+            "vector_index": {
+              "collection": "book_text_chunks",
+              "embedding_model": "Alibaba-NLP/gte-modernbert-base",
+              "embedding_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+              "embedding_dimension": 768,
+              "embedding_device": "cpu",
+              "max_sequence_length": 8192,
+              "document_format_version": "hierarchy-v1",
+              "distance_metric": "cosine",
+              "index": "hnsw",
+              "book_ids": [
+                1
+              ],
+              "vector_count": 332,
+              "built_at": "2026-07-18T20:22:37.028395+00:00"
+            },
+            "reranker": {
+              "model": "Alibaba-NLP/gte-reranker-modernbert-base",
+              "revision": "f7481e6055501a30fb19d090657df9ec1f79ab2c",
+              "device": "cpu",
+              "candidate_limit": 20
+            }
           }
         }
       }
@@ -1031,13 +1073,13 @@
       {
         "id": "title",
         "type": "markdown",
-        "body": "# Retrieval Evaluation: BM25 vs Vector vs Hybrid",
+        "body": "# Retrieval Evaluation: Four Ranking Strategies",
         "layout": "full"
       },
       {
         "id": "technical-summary",
         "type": "markdown",
-        "body": "## Technical summary\n\n**Hybrid has the strongest aggregate retrieval result on this seed set.** Its Recall@5 is 93.1% and MRR@5 is 89.6%. Hybrid changes Recall@5 by +4.2% versus the frozen BM25 baseline, while changing MRR@5 by -2.1%. Vector alone changes Recall@5 by -4.2%. Hybrid is therefore defensible for the five-source QA context, but BM25 remains the stronger early-ranking baseline.",
+        "body": "## Technical summary\n\n**Hybrid + reranker has the strongest aggregate retrieval result on this seed set.** Its Recall@5 is 93.1% and MRR@5 is 91.7%. Hybrid changes Recall@5 by +4.2% versus the frozen BM25 baseline, while changing MRR@5 by -2.1%. Vector alone changes Recall@5 by -4.2%. Cross-encoder reranking changes Recall@5 by +0.0% and MRR@5 by +2.1% versus hybrid. The 20-candidate shortlist has 100.0% required-node recall, separating candidate-generation misses from ranking errors. Because reranking does not improve Recall@5 on this set and adds a model inference stage, hybrid remains the interactive default until traced latency justifies changing it.",
         "sourceId": "retrieval-comparison",
         "layout": "full"
       },
@@ -1047,14 +1089,16 @@
         "cardIds": [
           "bm25-quality",
           "vector-quality",
-          "hybrid-quality"
+          "hybrid-quality",
+          "hybrid_rerank-quality",
+          "reranker-shortlist-quality"
         ],
         "layout": "full"
       },
       {
         "id": "aggregate-finding",
         "type": "markdown",
-        "body": "## Aggregate quality differs by retrieval method\n\nHybrid raises Recall@5 from 88.9% to 93.1%, but its MRR@5 is 89.6% versus 91.7% for BM25. The fusion retrieves more of the complete five-node evidence set at the cost of slightly weaker first-hit ordering.",
+        "body": "## Reranking is measured against the fused shortlist\n\nHybrid raises Recall@5 from 88.9% to 93.1%, but its MRR@5 is 89.6% versus 91.7% for BM25. Reranking changes the fused result to 93.1% Recall@5 and 91.7% MRR@5. Candidate Recall@20 is 100.0%; any remaining expected node outside that shortlist cannot be recovered by the reranker.",
         "layout": "full"
       },
       {
@@ -1066,7 +1110,7 @@
       {
         "id": "category-finding",
         "type": "markdown",
-        "body": "## Category-level results show where semantic retrieval helps\n\nHybrid reaches 100% Recall@5 for exact-term and paraphrase questions, while multi-section Recall@5 remains 72.2%. Vector-only paraphrase Recall@5 is 75.0%, so semantic retrieval does not independently improve the paraphrase subset in this small gold set.",
+        "body": "## Category results locate ranking gains and regressions\n\nHybrid reaches 100% Recall@5 for exact-term and paraphrase questions, while multi-section Recall@5 remains 72.2%. Vector-only paraphrase Recall@5 is 75.0%, while reranked paraphrase Recall@5 is 100.0%. These category cuts are diagnostic because each contains only three to five scored questions.",
         "layout": "full"
       },
       {
@@ -1078,27 +1122,27 @@
       {
         "id": "scope-definitions",
         "type": "markdown",
-        "body": "## Scope and metric definitions\n\nThe evaluated corpus contains 332 citation-aware chunks from 146 TOC nodes in one technical book. Twelve answerable questions contribute to Recall@3, Recall@5, and MRR@5; three unanswerable questions are diagnostic probes. All methods are evaluated against the same node-level evidence judgments and the same derived chunks.",
+        "body": "## Scope and metric definitions\n\nThe evaluated corpus contains 332 citation-aware chunks from 146 TOC nodes in one technical book. 12 answerable questions contribute to Recall@3, Recall@5, and MRR@5; three unanswerable questions are diagnostic probes. All methods are evaluated against the same node-level evidence judgments and the same derived chunks.",
         "sourceId": "retrieval-comparison",
         "layout": "full"
       },
       {
         "id": "methodology",
         "type": "markdown",
-        "body": "## Methods use one corpus but different ranking signals\n\nBM25 uses weighted SQLite FTS5 fields: section title 5×, hierarchy path 2×, and body 1×. Vector search embeds book and hierarchy context plus the complete chunk body, then searches a cosine HNSW index in local Chroma. Hybrid applies unweighted reciprocal rank fusion with constant 60 to the top 20 chunks from each method. Each ranked list is collapsed to distinct TOC nodes before scoring.",
+        "body": "## Methods use one corpus but different ranking signals\n\nBM25 uses weighted SQLite FTS5 fields: section title 5×, hierarchy path 2×, and body 1×. Vector search embeds book and hierarchy context plus the complete chunk body, then searches a cosine HNSW index in local Chroma. Hybrid applies unweighted reciprocal rank fusion with constant 60 to the top 20 chunks from each method. The reranked mode applies the pinned `Alibaba-NLP/gte-reranker-modernbert-base` cross-encoder to the first 20 RRF chunks. Each query is paired with the chunk hierarchy and complete body; inputs are checked against the model's 8,192-token limit instead of being silently truncated. The final ranked lists are collapsed to distinct TOC nodes before evaluation.",
         "sourceId": "retrieval-comparison",
         "layout": "full"
       },
       {
         "id": "question-audit-intro",
         "type": "markdown",
-        "body": "## Question-by-question retrieval audit\n\nEach section lists the expected evidence and the five highest-ranked distinct nodes from all three methods. Raw BM25, cosine-similarity, and RRF scores are method-specific and must not be compared across methods.",
+        "body": "## Question-by-question retrieval audit\n\nEach section lists the expected evidence and the five highest-ranked distinct nodes from all four methods. Raw BM25, cosine-similarity, RRF, and cross-encoder scores are method-specific and must not be compared across methods.",
         "layout": "full"
       },
       {
         "id": "ret-001-summary",
         "type": "markdown",
-        "body": "## ret-001 — Retrieval comparison\n\n**Question:** How does reservoir sampling maintain a sample of k items when the total number of streaming items is unknown?\n\n**Required evidence:**\n\n- Node 59, Chapter 4. Training Data :: Sampling :: Reservoir Sampling (PDF pp. 106) — Defines reservoir sampling for streaming data and gives the replacement procedure for maintaining k samples.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-001 — Retrieval comparison\n\n**Question:** How does reservoir sampling maintain a sample of k items when the total number of streaming items is unknown?\n\n**Required evidence:**\n\n- Node 59, Chapter 4. Training Data :: Sampling :: Reservoir Sampling (PDF pp. 106) — Defines reservoir sampling for streaming data and gives the replacement procedure for maintaining k samples.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1110,7 +1154,7 @@
       {
         "id": "ret-002-summary",
         "type": "markdown",
-        "body": "## ret-002 — Retrieval comparison\n\n**Question:** What are the main differences between batch prediction and online prediction in timing, suitable use cases, and optimization goals?\n\n**Required evidence:**\n\n- Node 106, Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction (PDF pp. 217–220) — Defines synchronous online and asynchronous batch prediction; Table 7-1 contrasts their frequency, use cases, throughput, and latency priorities.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-002 — Retrieval comparison\n\n**Question:** What are the main differences between batch prediction and online prediction in timing, suitable use cases, and optimization goals?\n\n**Required evidence:**\n\n- Node 106, Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction (PDF pp. 217–220) — Defines synchronous online and asynchronous batch prediction; Table 7-1 contrasts their frequency, use cases, throughput, and latency priorities.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1122,7 +1166,7 @@
       {
         "id": "ret-003-summary",
         "type": "markdown",
-        "body": "## ret-003 — Retrieval comparison\n\n**Question:** Compare weak supervision, semi-supervision, transfer learning, and active learning by how they obtain labels and whether they require ground-truth examples.\n\n**Required evidence:**\n\n- Node 64, Chapter 4. Training Data :: Labeling :: Handling the Lack of Labels (PDF pp. 114–116, 118–120) — Introduces all four approaches and tabulates how each generates labels and its ground-truth requirements.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-003 — Retrieval comparison\n\n**Question:** Compare weak supervision, semi-supervision, transfer learning, and active learning by how they obtain labels and whether they require ground-truth examples.\n\n**Required evidence:**\n\n- Node 64, Chapter 4. Training Data :: Labeling :: Handling the Lack of Labels (PDF pp. 114–116, 118–120) — Introduces all four approaches and tabulates how each generates labels and its ground-truth requirements.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1134,7 +1178,7 @@
       {
         "id": "ret-004-summary",
         "type": "markdown",
-        "body": "## ret-004 — Retrieval comparison\n\n**Question:** What is data leakage, and how can leakage caused by time-correlated splits, preprocessing statistics, or related examples be prevented?\n\n**Required evidence:**\n\n- Node 82, Chapter 5. Feature Engineering :: Data Leakage (PDF pp. 155–156) — Defines leakage as label information entering features despite being unavailable at inference and explains why it causes misleading evaluation.\n- Node 83, Chapter 5. Feature Engineering :: Data Leakage :: Common Causes for Data Leakage (PDF pp. 157–159) — Covers time-based splitting, fitting preprocessing only on training statistics, and keeping correlated groups within one split.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 50.0%; missing nodes [82].\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 50.0%, Recall@5 100.0%.",
+        "body": "## ret-004 — Retrieval comparison\n\n**Question:** What is data leakage, and how can leakage caused by time-correlated splits, preprocessing statistics, or related examples be prevented?\n\n**Required evidence:**\n\n- Node 82, Chapter 5. Feature Engineering :: Data Leakage (PDF pp. 155–156) — Defines leakage as label information entering features despite being unavailable at inference and explains why it causes misleading evaluation.\n- Node 83, Chapter 5. Feature Engineering :: Data Leakage :: Common Causes for Data Leakage (PDF pp. 157–159) — Covers time-based splitting, fitting preprocessing only on training statistics, and keeping correlated groups within one split.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 50.0%; missing nodes [82].\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 50.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 50.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1146,7 +1190,7 @@
       {
         "id": "ret-005-summary",
         "type": "markdown",
-        "body": "## ret-005 — Retrieval comparison\n\n**Question:** How does shadow deployment evaluate a candidate model without exposing users to its predictions?\n\n**Required evidence:**\n\n- Node 140, Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment (PDF pp. 302) — Routes each request to both existing and candidate models, serves only the existing model, and logs candidate predictions for analysis.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-005 — Retrieval comparison\n\n**Question:** How does shadow deployment evaluate a candidate model without exposing users to its predictions?\n\n**Required evidence:**\n\n- Node 140, Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment (PDF pp. 302) — Routes each request to both existing and candidate models, serves only the existing model, and logs candidate predictions for analysis.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1158,7 +1202,7 @@
       {
         "id": "ret-006-summary",
         "type": "markdown",
-        "body": "## ret-006 — Retrieval comparison\n\n**Question:** Two cancer classifiers both report 90% overall accuracy, but one detects only 10 of 100 cancer cases while the other detects 90. Which evaluation measures reveal the meaningful difference, and why?\n\n**Required evidence:**\n\n- Node 67, Chapter 4. Training Data :: Class Imbalance :: Handling Class Imbalance (PDF pp. 126–127) — Uses the two cancer confusion matrices to show that class-specific recall and F1 distinguish models whose overall accuracy is identical.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-006 — Retrieval comparison\n\n**Question:** Two cancer classifiers both report 90% overall accuracy, but one detects only 10 of 100 cancer cases while the other detects 90. Which evaluation measures reveal the meaningful difference, and why?\n\n**Required evidence:**\n\n- Node 67, Chapter 4. Training Data :: Class Imbalance :: Handling Class Imbalance (PDF pp. 126–127) — Uses the two cancer confusion matrices to show that class-specific recall and F1 distinguish models whose overall accuracy is identical.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1170,7 +1214,7 @@
       {
         "id": "ret-007-summary",
         "type": "markdown",
-        "body": "## ret-007 — Retrieval comparison\n\n**Question:** How can model B look better than model A after two groups are combined even though model A performs better within each group?\n\n**Required evidence:**\n\n- Node 98, Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods (PDF pp. 206–207) — Explains Simpson's paradox and demonstrates why aggregate performance can reverse the trend present in each subgroup.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-007 — Retrieval comparison\n\n**Question:** How can model B look better than model A after two groups are combined even though model A performs better within each group?\n\n**Required evidence:**\n\n- Node 98, Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods (PDF pp. 206–207) — Explains Simpson's paradox and demonstrates why aggregate performance can reverse the trend present in each subgroup.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1182,7 +1226,7 @@
       {
         "id": "ret-008-summary",
         "type": "markdown",
-        "body": "## ret-008 — Retrieval comparison\n\n**Question:** A marketing campaign brings in a wealthier user population, but users with the same income still convert at the same rate as before. What kind of production data change is this?\n\n**Required evidence:**\n\n- Node 123, Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Types of Data Distribution Shifts (PDF pp. 258–259) — Defines covariate shift as a change in the input distribution while the conditional output relationship remains unchanged and gives this marketing example.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-008 — Retrieval comparison\n\n**Question:** A marketing campaign brings in a wealthier user population, but users with the same income still convert at the same rate as before. What kind of production data change is this?\n\n**Required evidence:**\n\n- Node 123, Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Types of Data Distribution Shifts (PDF pp. 258–259) — Defines covariate shift as a change in the input distribution while the conditional output relationship remains unchanged and gives this marketing example.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1194,7 +1238,7 @@
       {
         "id": "ret-009-summary",
         "type": "markdown",
-        "body": "## ret-009 — Retrieval comparison\n\n**Question:** A model has strong overall performance but may disadvantage underrepresented groups. What should the team audit and document before deciding it is responsible to deploy?\n\n**Required evidence:**\n\n- Node 172, Chapter 11. The Human Side of Machine Learning :: Responsible AI :: A Framework for Responsible AI (PDF pp. 367–372) — Provides a responsible-AI audit covering bias sources, subgroup evaluation, real-world tradeoffs, early intervention, and model-card documentation.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 0.0%; missing nodes [172].\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "body": "## ret-009 — Retrieval comparison\n\n**Question:** A model has strong overall performance but may disadvantage underrepresented groups. What should the team audit and document before deciding it is responsible to deploy?\n\n**Required evidence:**\n\n- Node 172, Chapter 11. The Human Side of Machine Learning :: Responsible AI :: A Framework for Responsible AI (PDF pp. 367–372) — Provides a responsible-AI audit covering bias sources, subgroup evaluation, real-world tradeoffs, early intervention, and model-card documentation.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 0.0%; missing nodes [172].\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 100.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1206,7 +1250,7 @@
       {
         "id": "ret-010-summary",
         "type": "markdown",
-        "body": "## ret-010 — Retrieval comparison\n\n**Question:** Why is a small improvement in an offline ML metric not enough to justify deploying a model, and what broader comparisons should determine whether the project is useful?\n\n**Required evidence:**\n\n- Node 22, Chapter 2. Introduction to Machine Learning Systems Design :: Business and ML Objectives (PDF pp. 46–47) — Argues that ML metrics matter only when tied to business outcomes and that controlled experiments may be needed to establish that connection.\n- Node 98, Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods (PDF pp. 201) — Requires comparison with existing solutions and notes that a slightly weaker model may still be valuable if it is cheaper or easier to use.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 50.0%; missing nodes [22].\n- Hybrid: Recall@3 0.0%, Recall@5 50.0%; missing nodes [22].",
+        "body": "## ret-010 — Retrieval comparison\n\n**Question:** Why is a small improvement in an offline ML metric not enough to justify deploying a model, and what broader comparisons should determine whether the project is useful?\n\n**Required evidence:**\n\n- Node 22, Chapter 2. Introduction to Machine Learning Systems Design :: Business and ML Objectives (PDF pp. 46–47) — Argues that ML metrics matter only when tied to business outcomes and that controlled experiments may be needed to establish that connection.\n- Node 98, Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods (PDF pp. 201) — Requires comparison with existing solutions and notes that a slightly weaker model may still be valuable if it is cheaper or easier to use.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 50.0%; missing nodes [22].\n- Hybrid: Recall@3 0.0%, Recall@5 50.0%; missing nodes [22].\n- Hybrid + reranker: Recall@3 50.0%, Recall@5 50.0%; missing nodes [22]; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1218,7 +1262,7 @@
       {
         "id": "ret-011-summary",
         "type": "markdown",
-        "body": "## ret-011 — Retrieval comparison\n\n**Question:** What does stateful training offer over retraining from scratch, and what operational challenges must be solved before continual learning is safe?\n\n**Required evidence:**\n\n- Node 134, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Stateless Retraining Versus Stateful Training (PDF pp. 285–287) — Contrasts training from scratch with continuing from a prior state and discusses data, compute, privacy, and model-iteration tradeoffs.\n- Node 136, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Continual Learning Challenges (PDF pp. 290–293) — Identifies fresh-data access, reliable evaluation, and algorithm support as the major continual-learning challenges.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 50.0%; missing nodes [136].\n- Vector: Recall@3 50.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 50.0%, Recall@5 100.0%.",
+        "body": "## ret-011 — Retrieval comparison\n\n**Question:** What does stateful training offer over retraining from scratch, and what operational challenges must be solved before continual learning is safe?\n\n**Required evidence:**\n\n- Node 134, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Stateless Retraining Versus Stateful Training (PDF pp. 285–287) — Contrasts training from scratch with continuing from a prior state and discusses data, compute, privacy, and model-iteration tradeoffs.\n- Node 136, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Continual Learning Challenges (PDF pp. 290–293) — Identifies fresh-data access, reliable evaluation, and algorithm support as the major continual-learning challenges.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 50.0%; missing nodes [136].\n- Vector: Recall@3 50.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 50.0%, Recall@5 100.0%.\n- Hybrid + reranker: Recall@3 50.0%, Recall@5 100.0%; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1230,7 +1274,7 @@
       {
         "id": "ret-012-summary",
         "type": "markdown",
-        "body": "## ret-012 — Retrieval comparison\n\n**Question:** A production model has delayed ground-truth labels and the team suspects distribution shift. How can they detect a meaningful change, decide whether it should trigger an update, and validate the candidate without showing its predictions to users?\n\n**Required evidence:**\n\n- Node 125, Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Detecting Data Distribution Shifts (PDF pp. 262–264) — Explains why delayed labels limit direct performance monitoring and describes monitoring input distributions, summary statistics, and statistical tests.\n- Node 138, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models (PDF pp. 299) — Lists drift-based update triggers while warning that noisy monitoring can cause unnecessary retraining.\n- Node 140, Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment (PDF pp. 302) — Provides the safe candidate-validation step: run both models but serve only the existing model's prediction.\n\n**Coverage by method:**\n\n- BM25: Recall@3 33.3%, Recall@5 66.7%; missing nodes [140].\n- Vector: Recall@3 66.7%, Recall@5 66.7%; missing nodes [138].\n- Hybrid: Recall@3 33.3%, Recall@5 66.7%; missing nodes [140].",
+        "body": "## ret-012 — Retrieval comparison\n\n**Question:** A production model has delayed ground-truth labels and the team suspects distribution shift. How can they detect a meaningful change, decide whether it should trigger an update, and validate the candidate without showing its predictions to users?\n\n**Required evidence:**\n\n- Node 125, Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Detecting Data Distribution Shifts (PDF pp. 262–264) — Explains why delayed labels limit direct performance monitoring and describes monitoring input distributions, summary statistics, and statistical tests.\n- Node 138, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models (PDF pp. 299) — Lists drift-based update triggers while warning that noisy monitoring can cause unnecessary retraining.\n- Node 140, Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment (PDF pp. 302) — Provides the safe candidate-validation step: run both models but serve only the existing model's prediction.\n\n**Coverage by method:**\n\n- BM25: Recall@3 33.3%, Recall@5 66.7%; missing nodes [140].\n- Vector: Recall@3 66.7%, Recall@5 66.7%; missing nodes [138].\n- Hybrid: Recall@3 33.3%, Recall@5 66.7%; missing nodes [140].\n- Hybrid + reranker: Recall@3 66.7%, Recall@5 66.7%; missing nodes [138]; candidate Recall@20 100.0%.",
         "layout": "full"
       },
       {
@@ -1278,26 +1322,26 @@
       {
         "id": "limitations",
         "type": "markdown",
-        "body": "## Limits keep this result diagnostic\n\nThe seed set is small, node-level, and authored alongside the relevance judgments, so it is not a population estimate. HNSW is approximate, though index scale is tiny. Unanswerable behavior and citation correctness still need answer-level evaluation. Review the pooled union of all three methods for missing relevance judgments before treating small differences as conclusive.",
+        "body": "## Limits keep this result diagnostic\n\nThe seed set is small, node-level, and authored alongside the relevance judgments, so it is not a population estimate. HNSW is approximate, though index scale is tiny. Unanswerable behavior and citation correctness still need answer-level evaluation. Review the pooled union of all four methods for missing relevance judgments before treating small differences as conclusive.",
         "layout": "full"
       },
       {
         "id": "next-steps",
         "type": "markdown",
-        "body": "## Next steps follow the measured failures\n\n1. Review newly surfaced vector-only nodes and update the gold set only when they are genuinely relevant.\n2. Keep the strongest justified retriever as the QA default and retain all modes for debugging.\n3. Add answer-level citation and abstention evaluation.\n4. Add decomposition or hierarchy expansion only for remaining multi-section misses.",
+        "body": "## Next steps follow the measured failures\n\n1. Review newly surfaced vector- and reranker-only nodes and update the gold set only when they are genuinely relevant.\n2. Keep hybrid as the interactive default while using the reranked mode as an explicit quality experiment; compare traced latency before promoting it.\n3. Add answer-level citation and abstention evaluation.\n4. Add decomposition or hierarchy expansion only for remaining multi-section misses.",
         "layout": "full"
       },
       {
         "id": "further-questions",
         "type": "markdown",
-        "body": "## Further questions\n\n- Do pooled judgments change the apparent winner?\n- Does hybrid improve paraphrases without displacing exact term matches?\n- Which remaining misses require query decomposition rather than another retrieval index?",
+        "body": "## Further questions\n\n- Do pooled judgments change the apparent winner?\n- Does reranking improve multi-section coverage without displacing exact-term matches?\n- Which remaining misses require query decomposition rather than another retrieval index?",
         "layout": "full"
       }
     ]
   },
   "snapshot": {
     "version": 1,
-    "generatedAt": "2026-07-18T20:23:18.213014+00:00",
+    "generatedAt": "2026-07-19T01:25:37.364300+00:00",
     "status": "ready",
     "datasets": {
       "summary_metrics": [
@@ -1307,7 +1351,10 @@
           "vector_recall_at_5": 0.8472222222222222,
           "vector_mrr_at_5": 0.75,
           "hybrid_recall_at_5": 0.9305555555555555,
-          "hybrid_mrr_at_5": 0.8958333333333334
+          "hybrid_mrr_at_5": 0.8958333333333334,
+          "hybrid_rerank_recall_at_5": 0.9305555555555555,
+          "hybrid_rerank_mrr_at_5": 0.9166666666666666,
+          "hybrid_rerank_candidate_recall_at_20": 1.0
         }
       ],
       "method_metrics": [
@@ -1364,6 +1411,24 @@
           "metric": "MRR@5",
           "value": 0.8958333333333334,
           "question_count": 12
+        },
+        {
+          "method": "Hybrid + reranker",
+          "metric": "Recall@3",
+          "value": 0.8472222222222222,
+          "question_count": 12
+        },
+        {
+          "method": "Hybrid + reranker",
+          "metric": "Recall@5",
+          "value": 0.9305555555555555,
+          "question_count": 12
+        },
+        {
+          "method": "Hybrid + reranker",
+          "metric": "MRR@5",
+          "value": 0.9166666666666666,
+          "question_count": 12
         }
       ],
       "category_recall": [
@@ -1418,6 +1483,24 @@
         {
           "category": "Paraphrase",
           "method": "Hybrid",
+          "recall_at_5": 1.0,
+          "question_count": 4
+        },
+        {
+          "category": "Exact Term",
+          "method": "Hybrid + reranker",
+          "recall_at_5": 1.0,
+          "question_count": 5
+        },
+        {
+          "category": "Multi Section",
+          "method": "Hybrid + reranker",
+          "recall_at_5": 0.7222222222222222,
+          "question_count": 3
+        },
+        {
+          "category": "Paraphrase",
+          "method": "Hybrid + reranker",
           "recall_at_5": 1.0,
           "question_count": 4
         }
@@ -1572,6 +1655,56 @@
           "pages": "223–224",
           "score": 0.0278,
           "excerpt": "Batch prediction is a workaround for when online prediction isn’t cheap enough or isn’t fast enough. Why generate one million predictions in advance and worry about storing and retrieving them if you …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 59,
+          "section": "Reservoir Sampling",
+          "pages": "106",
+          "score": 0.9509,
+          "excerpt": "Figure 4-1. Sample weights can affect the decision boundary. On the left is when all samples are given equal weights. On the right is when samples are given different weights. Source: scikit-learn6 Re…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 60,
+          "section": "Importance Sampling",
+          "pages": "107",
+          "score": 0.8681,
+          "excerpt": "This means that each incoming nth element has k n probability of being in the reser‐ voir. You can also prove that each element in the reservoir has k n probability of being there. This means that all…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 58,
+          "section": "Weighted Sampling",
+          "pages": "105",
+          "score": 0.6926,
+          "excerpt": "One drawback of this sampling method is that it isn’t always possible, such as when it’s impossible to divide all samples into groups. This is especially challenging when one sample might belong to mu…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 118,
+          "section": "Chapter 8. Data Distribution Shifts and Monitoring",
+          "pages": "245",
+          "score": 0.664,
+          "excerpt": "CHAPTER 8 Data Distribution Shifts and Monitoring Let’s start the chapter with a story I was told by an executive that many readers might be able to relate to. About two years ago, his company hired a…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "294",
+          "score": 0.6558,
+          "excerpt": "with a new data sample, but if your matrix is large, the dimensionality reduction step would be too slow and expensive to perform frequently. Therefore, this model is less suitable for learning with a…"
         }
       ],
       "ret-002-retrievals": [
@@ -1723,6 +1856,56 @@
           "section": "Model Store",
           "pages": "341–342",
           "score": 0.0269,
+          "excerpt": "services, doing batch prediction is usually trickier.29 Some tools allow you to batch requests together for online prediction, which is different from batch prediction. Many companies have separate de…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 107,
+          "section": "From Batch Prediction to Online Prediction",
+          "pages": "221–222",
+          "score": 0.9411,
+          "excerpt": "Batch Prediction Versus Online Prediction | 201 Because the predictions are precomputed, you don’t have to worry about how long it’ll take your models to generate predictions. For this reason, batch p…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "expected",
+          "node_id": 106,
+          "section": "Batch Prediction Versus Online Prediction",
+          "pages": "218–220",
+          "score": 0.9353,
+          "excerpt": "Figure 7-4 shows a simplified architecture for batch prediction, and Figure 7-5 shows a simplified version of online prediction using only batch features. We’ll go over what it means to use only batch…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 108,
+          "section": "Unifying Batch Pipeline and Streaming Pipeline",
+          "pages": "223–224",
+          "score": 0.9222,
+          "excerpt": "Batch prediction is a workaround for when online prediction isn’t cheap enough or isn’t fast enough. Why generate one million predictions in advance and worry about storing and retrieving them if you …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 117,
+          "section": "Summary",
+          "pages": "243–244",
+          "score": 0.8448,
+          "excerpt": "A more promising approach is WebAssembly (WASM). WASM is an open standard that allows you to run executable programs in browsers. After you’ve built your models in scikit-learn, PyTorch, TensorFlow, o…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 158,
+          "section": "Model Store",
+          "pages": "341–342",
+          "score": 0.8316,
           "excerpt": "services, doing batch prediction is usually trickier.29 Some tools allow you to batch requests together for online prediction, which is different from batch prediction. Many companies have separate de…"
         }
       ],
@@ -1876,6 +2059,56 @@
           "pages": "108–109",
           "score": 0.0272,
           "excerpt": "Labeling Despite the promise of unsupervised ML, most ML models in production today are supervised, which means that they need labeled data to learn from. The performance of an ML model still depends …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "114–115",
+          "score": 0.9369,
+          "excerpt": "happen hours after when the ad is shown.10 This means that this type of label tends to give an underestimate of the actual click-through rate. If you only record 1,000 POSITIVE labels, the actual numb…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 72,
+          "section": "Summary",
+          "pages": "138",
+          "score": 0.8864,
+          "excerpt": "Summary Training data still forms the foundation of modern ML algorithms. No matter how clever your algorithms might be, if your training data is bad, your algorithms won’t be able to perform well. It…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 63,
+          "section": "Natural Labels",
+          "pages": "111–112",
+          "score": 0.8444,
+          "excerpt": "Natural Labels Hand-labeling isn’t the only source for labels. You might be lucky enough to work on tasks with natural ground truth labels. Tasks with natural labels are tasks where the model’s predic…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 125,
+          "section": "Detecting Data Distribution Shifts",
+          "pages": "262–263",
+          "score": 0.8102,
+          "excerpt": "With regression tasks, label schema change could happen because of changes in the possible range of label values. Imagine you’re building a model to predict someone’s credit score. Originally, you use…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 62,
+          "section": "Hand Labels",
+          "pages": "108–109",
+          "score": 0.8028,
+          "excerpt": "Labeling Despite the promise of unsupervised ML, most ML models in production today are supervised, which means that they need labeled data to learn from. The performance of an ML model still depends …"
         }
       ],
       "ret-004-retrievals": [
@@ -2028,6 +2261,56 @@
           "pages": "364–365",
           "score": 0.0284,
           "excerpt": "Case study II: The danger of “anonymized” data This case study is interesting to me because here, the algorithm is not an explicit culprit. Rather it’s how the interface and collection of data is desi…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 83,
+          "section": "Common Causes for Data Leakage",
+          "pages": "157–158",
+          "score": 0.942,
+          "excerpt": "Common Causes for Data Leakage In this section, we’ll go over some common causes for data leakage and how to avoid them. Splitting time-correlated data randomly instead of by time When I learned ML in…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 84,
+          "section": "Detecting Data Leakage",
+          "pages": "160",
+          "score": 0.892,
+          "excerpt": "Leakage from data generation process The example earlier about how information on whether a CT scan shows signs of lung cancer is leaked via the scan machine is an example of this type of leakage. Det…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 87,
+          "section": "Feature Generalization",
+          "pages": "165",
+          "score": 0.8517,
+          "excerpt": "Coverage of a feature can differ wildly between different slices of data and even in the same slice of data over time. If the coverage of a feature differs a lot between the train and test split (such…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 88,
+          "section": "Summary",
+          "pages": "166–167",
+          "score": 0.8447,
+          "excerpt": "On the other hand, HOUR_OF_THE_DAY is a great feature, because the time in the day affects the traffic too, and the range of values for this feature in the train split overlaps with the test split 100…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "expected",
+          "node_id": 82,
+          "section": "Data Leakage",
+          "pages": "156",
+          "score": 0.83,
+          "excerpt": "Data leakage can happen not only with newcomers to the field, but has also happened to several experienced researchers whose work I admire, and in one of my own projects. Despite its prevalence, data …"
         }
       ],
       "ret-005-retrievals": [
@@ -2180,6 +2463,56 @@
           "pages": "305–306",
           "score": 0.0289,
           "excerpt": "Canary Release Canary release is a technique to reduce the risk of introducing a new software version in production by slowly rolling out the change to a small subset of users before rolling it out to…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 140,
+          "section": "Shadow Deployment",
+          "pages": "302",
+          "score": 0.9592,
+          "excerpt": "The first type of model evaluation you might think about is the good old test splits that you can use to evaluate your models offline, as discussed in Chapter 6. These test splits are usually static a…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 141,
+          "section": "A/B Testing",
+          "pages": "303–304",
+          "score": 0.8781,
+          "excerpt": "Because you don’t serve the new model’s predictions to users until you’ve made sure that the model’s predictions are satisfactory, the risk of this new model doing something funky is low, at least not…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 143,
+          "section": "Interleaving Experiments",
+          "pages": "305–306",
+          "score": 0.8633,
+          "excerpt": "Canary Release Canary release is a technique to reduce the risk of introducing a new software version in production by slowly rolling out the change to a small subset of users before rolling it out to…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 158,
+          "section": "Model Store",
+          "pages": "341–342",
+          "score": 0.8204,
+          "excerpt": "services, doing batch prediction is usually trickier.29 Some tools allow you to batch requests together for online prediction, which is different from batch prediction. Many companies have separate de…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 107,
+          "section": "From Batch Prediction to Online Prediction",
+          "pages": "221–222",
+          "score": 0.7946,
+          "excerpt": "In many applications, online prediction and batch prediction are used side by side for different use cases. For example, food ordering apps like DoorDash and UberEats use batch prediction to generate …"
         }
       ],
       "ret-006-retrievals": [
@@ -2332,6 +2665,56 @@
           "pages": "176–177",
           "score": 0.0265,
           "excerpt": "Tractability Let X be the input and Z be the latent representation of X. Every generative model makes the assumption that it’s tractable to compute the probability P(Z|X). Boundaries A linear classifi…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 67,
+          "section": "Handling Class Imbalance",
+          "pages": "125–127",
+          "score": 0.9412,
+          "excerpt": "34 Wan Ding, Dong-Yan Huang, Zhuo Chen, Xinguo Yu, and Weisi Lin, “Facial Action Recognition Using Very Deep Networks for Highly Imbalanced Class Distribution,” 2017 Asia-Pacific Signal and Informatio…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": 0.8279,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 66,
+          "section": "Challenges of Class Imbalance",
+          "pages": "123–124",
+          "score": 0.7783,
+          "excerpt": "(actual $20k, predicted $10k). Therefore, we might have to train the model to be better at predicting 95th percentile bills, even if it reduces the overall metrics. Challenges of Class Imbalance ML, e…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 97,
+          "section": "Baselines",
+          "pages": "199–200",
+          "score": 0.7459,
+          "excerpt": "Ideally, the evaluation methods should be the same during both development and production. But in many cases, the ideal is impossible because during development, you have ground truth labels, but in p…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 91,
+          "section": "Evaluating ML Models",
+          "pages": "173–174",
+          "score": 0.7265,
+          "excerpt": "There are a lot of human biases in evaluating models. Part of the process of evaluating an ML architecture is to experiment with different features and different sets of hyperparameters to find the be…"
         }
       ],
       "ret-007-retrievals": [
@@ -2484,6 +2867,56 @@
           "pages": "63–64",
           "score": 0.025,
           "excerpt": "You can combine the models’ outputs and rank posts by their combined scores: ɑ quality_score + β engagement_score Now you can tweak α and β without retraining your models! In general, when there are m…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": 0.9562,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 141,
+          "section": "A/B Testing",
+          "pages": "304",
+          "score": 0.8529,
+          "excerpt": "Second, your A/B test should be run on a sufficient number of samples to gain enough confidence about the outcome. How to calculate the number of samples needed for an A/B test is a simple question wi…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 143,
+          "section": "Interleaving Experiments",
+          "pages": "305–306",
+          "score": 0.8224,
+          "excerpt": "Canary Release Canary release is a technique to reduce the risk of introducing a new software version in production by slowly rolling out the change to a small subset of users before rolling it out to…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "33–34",
+          "score": 0.8038,
+          "excerpt": "a A subfield of research focuses on continual learning: developing models to work with changing data distributions. We’ll cover continual learning in Chapter 9. Different stakeholders and requirements…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 67,
+          "section": "Handling Class Imbalance",
+          "pages": "125–127",
+          "score": 0.8,
+          "excerpt": "34 Wan Ding, Dong-Yan Huang, Zhuo Chen, Xinguo Yu, and Weisi Lin, “Facial Action Recognition Using Very Deep Networks for Highly Imbalanced Class Distribution,” 2017 Asia-Pacific Signal and Informatio…"
         }
       ],
       "ret-008-retrievals": [
@@ -2635,6 +3068,56 @@
           "section": "Monitoring Toolbox",
           "pages": "277–278",
           "score": 0.0267,
+          "excerpt": "52 “Log Management Market Size, Share and Global Market Forecast to 2026,” MarketsandMarkets, 2021, https://oreil.ly/q0xgh. 53 For readers unfamiliar with stream processing, please refer to the sectio…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 123,
+          "section": "Types of Data Distribution Shifts",
+          "pages": "259–260",
+          "score": 0.9403,
+          "excerpt": "Covariate shifts can also happen because the training data is artificially altered to make it easier for your model to learn. As discussed in Chapter 4, it’s hard for ML models to learn from imbalance…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 79,
+          "section": "Encoding Categorical Features",
+          "pages": "149–150",
+          "score": 0.8298,
+          "excerpt": "• Lower income: less than $35,000/year • Middle income: between $35,000 and $100,000/year • Upper income: more than $100,000/year Instead of having to learn an infinite number of possible incomes, our…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 127,
+          "section": "Monitoring and Observability",
+          "pages": "270",
+          "score": 0.8061,
+          "excerpt": "You might also want to design your system to make it easier for it to adapt to shifts. For example, housing prices might change a lot faster in major cities like San Francisco than in rural Arizona, s…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 124,
+          "section": "General Data Distribution Shifts",
+          "pages": "261",
+          "score": 0.7956,
+          "excerpt": "Concept drift Concept drift, also known as posterior shift, is when the input distribution remains the same but the conditional distribution of the output given an input changes. You can think of this…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 129,
+          "section": "Monitoring Toolbox",
+          "pages": "277–278",
+          "score": 0.7736,
           "excerpt": "52 “Log Management Market Size, Share and Global Market Forecast to 2026,” MarketsandMarkets, 2021, https://oreil.ly/q0xgh. 53 For readers unfamiliar with stream processing, please refer to the sectio…"
         }
       ],
@@ -2788,6 +3271,56 @@
           "pages": "209",
           "score": 0.0164,
           "excerpt": "We ended the chapter with how to evaluate your models to pick the best one to deploy. Evaluation metrics don’t mean much unless you have a baseline to compare them to, and we covered different types o…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": 0.9022,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "expected",
+          "node_id": 172,
+          "section": "A Framework for Responsible AI",
+          "pages": "369–370",
+          "score": 0.8394,
+          "excerpt": "Differential privacy is a popular technique used on training data for ML models. The trade-off here is that the higher the level of privacy that differential privacy can provide, the lower the model’s…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 99,
+          "section": "Summary",
+          "pages": "209",
+          "score": 0.8322,
+          "excerpt": "We ended the chapter with how to evaluate your models to pick the best one to deploy. Evaluation metrics don’t mean much unless you have a baseline to compare them to, and we covered different types o…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 171,
+          "section": "Irresponsible AI: Case Studies",
+          "pages": "362–363",
+          "score": 0.8181,
+          "excerpt": "tration of the public. If you’ve read this book thus far, you know that coarse-grained accuracy alone is nowhere close to being sufficient to evaluate a model’s performance, especially for a model who…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "39–40",
+          "score": 0.813,
+          "excerpt": "Figure 1-5 has been adapted from a great graphic by Andrej Karpathy, director of AI at Tesla, that illustrates the data problems he encountered during his PhD compared to his time at Tesla. Figure 1-5…"
         }
       ],
       "ret-010-retrievals": [
@@ -2940,6 +3473,56 @@
           "pages": "172–173",
           "score": 0.0279,
           "excerpt": "Researchers often only evaluate models in academic settings, which means that a model being state of the art often means that it performs better than existing models on some static datasets. It doesn’…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "201–202",
+          "score": 0.8974,
+          "excerpt": "you might never be able to convince your users to trust this system. Even if your system isn’t meant to replace human experts and only to aid them in improving their productivity, it’s still important…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "34–35",
+          "score": 0.8689,
+          "excerpt": "Production having different requirements from research is one of the reasons why successful research projects might not always be used in production. For example, ensembling is a technique popular amo…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 97,
+          "section": "Baselines",
+          "pages": "200",
+          "score": 0.8679,
+          "excerpt": "the table. Table 6-2. F1 and accuracy scores of a baseline model predicting at random Meaning F1 Accuracy Predicting each label with equal probability (50%) 0.167 0.5 Task’s label distribution Predict…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 96,
+          "section": "Model Offline Evaluation",
+          "pages": "198",
+          "score": 0.8671,
+          "excerpt": "According to Martin Zinkevich in his magnificent “Rules of Machine Learning: Best Practices for ML Engineering”: “If you think that machine learning will give you a 100% boost, then a heuristic will g…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 91,
+          "section": "Evaluating ML Models",
+          "pages": "173–174",
+          "score": 0.8636,
+          "excerpt": "There are a lot of human biases in evaluating models. Part of the process of evaluating an ML architecture is to experiment with different features and different sets of hyperparameters to find the be…"
         }
       ],
       "ret-011-retrievals": [
@@ -3092,6 +3675,56 @@
           "pages": "292–293",
           "score": 0.0266,
           "excerpt": "for ML. Evaluation challenge The biggest challenge of continual learning isn’t in writing a function to continually update your model—you can do that by writing a script! The biggest challenge is in m…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 134,
+          "section": "Stateless Retraining Versus Stateful Training",
+          "pages": "285–286",
+          "score": 0.9296,
+          "excerpt": "Figure 9-1. A simplification of how continual learning might work in production. In reality, the process of handling the failed challenger is a lot more sophisticated than simply discarding it. Still,…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "297–298",
+          "score": 0.913,
+          "excerpt": "The third factor you’ll need is a model store to automatically version and store all the artifacts needed to reproduce a model. The simplest model store is probably just an S3 bucket that stores seria…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268–269",
+          "score": 0.8455,
+          "excerpt": "44 Zachary C. Lipton, Yu-Xiang Wang, and Alex Smola, “Detecting and Correcting for Label Shift with Black Box Predictors,” arXiv, February 12, 2018, https://oreil.ly/zKSlj. 248 | Chapter 8: Data Distr…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "expected",
+          "node_id": 136,
+          "section": "Continual Learning Challenges",
+          "pages": "292–293",
+          "score": 0.8292,
+          "excerpt": "for ML. Evaluation challenge The biggest challenge of continual learning isn’t in writing a function to continually update your model—you can do that by writing a script! The biggest challenge is in m…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 132,
+          "section": "Chapter 9. Continual Learning and Test in Production",
+          "pages": "283",
+          "score": 0.817,
+          "excerpt": "CHAPTER 9 Continual Learning and Test in Production In Chapter 8, we discussed various ways an ML system can fail in production. We focused on one especially thorny problem that has generated much dis…"
         }
       ],
       "ret-012-retrievals": [
@@ -3243,6 +3876,56 @@
           "section": "Summary",
           "pages": "281–282",
           "score": 0.0276,
+          "excerpt": "Monitoring centers around metrics, and metrics are usually aggregated. Observability allows more fine-grain metrics, so that you can know not only when a model’s performance degrades but also for what…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 125,
+          "section": "Detecting Data Distribution Shifts",
+          "pages": "262–263",
+          "score": 0.8926,
+          "excerpt": "With regression tasks, label schema change could happen because of changes in the possible range of label values. Imagine you’re building a model to predict someone’s credit score. Originally, you use…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "expected",
+          "node_id": 140,
+          "section": "Shadow Deployment",
+          "pages": "302",
+          "score": 0.8744,
+          "excerpt": "The first type of model evaluation you might think about is the good old test splits that you can use to evaluate your models offline, as discussed in Chapter 6. These test splits are usually static a…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268",
+          "score": 0.8609,
+          "excerpt": "Addressing Data Distribution Shifts How companies address data shifts depends on how sophisticated their ML infra‐ structure setups are. At one end of the spectrum, we have companies that have just st…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 128,
+          "section": "ML-Specific Metrics",
+          "pages": "272–273",
+          "score": 0.8609,
+          "excerpt": "It’s also possible to engineer your system so that you can collect users’ feedback. For example, Google Translate has the option for users to upvote or downvote a translation, as shown in Figure 8-6. …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 131,
+          "section": "Summary",
+          "pages": "281–282",
+          "score": 0.8526,
           "excerpt": "Monitoring centers around metrics, and metrics are usually aggregated. Observability allows more fine-grain metrics, so that you can know not only when a model’s performance degrades but also for what…"
         }
       ],
@@ -3396,6 +4079,56 @@
           "pages": "90",
           "score": 0.0161,
           "excerpt": "and Teradata.21 In this paradigm, the data can be stored in the same place, with a processing layer on top that can be optimized for different types of queries. Third, “online” has become an overloade…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 95,
+          "section": "AutoML",
+          "pages": "194–195",
+          "score": 0.6108,
+          "excerpt": "25 auto-sklearn 2.0 also provides basic model selection capacity. 26 Our team at NVIDIA developed Milano, a framework-agnostic tool for automatic hyperparameter tuning using random search. 27 A common…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268–269",
+          "score": 0.577,
+          "excerpt": "44 Zachary C. Lipton, Yu-Xiang Wang, and Alex Smola, “Detecting and Correcting for Label Shift with Black Box Predictors,” arXiv, February 12, 2018, https://oreil.ly/zKSlj. 248 | Chapter 8: Data Distr…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 77,
+          "section": "Scaling",
+          "pages": "146–147",
+          "score": 0.553,
+          "excerpt": "4 Feature scaling once boosted my model’s performance by almost 10%. 126 | Chapter 5: Feature Engineering An intuitive way to scale your features is to get them to be in the range [0, 1]. Given a vari…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "295–297",
+          "score": 0.5498,
+          "excerpt": "23 We’ll cover ML platforms in the section “ML Platform” on page 319. Continual Learning | 275 previous stage has grown into a pain point too big to be ignored. Your team decides to write a script to …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "119–120",
+          "score": 0.5429,
+          "excerpt": "In some cases, semi-supervision approaches have reached the performance of purely supervised learning, even when a substantial portion of the labels in a given dataset has been discarded.17 Semi-super…"
         }
       ],
       "ret-014-retrievals": [
@@ -3548,6 +4281,56 @@
           "pages": "334–335",
           "score": 0.0285,
           "excerpt": "quotas (i.e., the maximum number of instances a user can use at a given time), etc. Orchestrators deal with lower-level abstractions like machines, instances, clusters, service-level grouping, replica…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 117,
+          "section": "Summary",
+          "pages": "244",
+          "score": 0.7454,
+          "excerpt": "Chapter 7: Model Deployment and Prediction Service"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 25,
+          "section": "Scalability",
+          "pages": "50",
+          "score": 0.7054,
+          "excerpt": "Scalability There are multiple ways an ML system can grow. It can grow in complexity. Last year you used a logistic regression model that fit into an Amazon Web Services (AWS) free tier instance with …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 115,
+          "section": "Compiling and Optimizing Models for Edge Devices",
+          "pages": "240–241",
+          "score": 0.6937,
+          "excerpt": "To estimate how much time a path through a computation graph will take to run turns out to be difficult, as it requires making a lot of assumptions about that graph. It’s much easier to focus on a sma…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 114,
+          "section": "ML on the Cloud and on the Edge",
+          "pages": "233",
+          "score": 0.6793,
+          "excerpt": "41 See slide #53, CS 329S’s Lecture 8: Deployment - Prediction Service, 2022, https://oreil.ly/cXTou. 42 “Internet of Things (IoT) and Non-IoT Active Device Connections Worldwide from 2010 to 2025,” S…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 127,
+          "section": "Monitoring and Observability",
+          "pages": "270",
+          "score": 0.6569,
+          "excerpt": "You might also want to design your system to make it easier for it to adapt to shifts. For example, housing prices might change a lot faster in major cities like San Francisco than in rural Arizona, s…"
         }
       ],
       "ret-015-retrievals": [
@@ -3700,6 +4483,56 @@
           "pages": "328–329",
           "score": 0.0279,
           "excerpt": "The fourth benefit, which I would argue is the biggest benefit for companies that do production on the cloud, is that having your dev environment on the cloud reduces the gap between the dev environme…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 151,
+          "section": "Standardizing Dev Environments",
+          "pages": "326–327",
+          "score": 0.7379,
+          "excerpt": "25 For the uninitiated, a new pull request can be understood as a new piece of code being added to the codebase. 306 | Chapter 10: Infrastructure and Tooling for MLOps When using a cloud dev environme…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 2,
+          "judgment": "near miss",
+          "node_id": 107,
+          "section": "From Batch Prediction to Online Prediction",
+          "pages": "221–222",
+          "score": 0.6509,
+          "excerpt": "In many applications, online prediction and batch prediction are used side by side for different use cases. For example, food ordering apps like DoorDash and UberEats use batch prediction to generate …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 25,
+          "section": "Scalability",
+          "pages": "50",
+          "score": 0.6226,
+          "excerpt": "Scalability There are multiple ways an ML system can grow. It can grow in complexity. Last year you used a logistic regression model that fit into an Amazon Web Services (AWS) free tier instance with …"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 148,
+          "section": "Public Cloud Versus Private Data Centers",
+          "pages": "320–321",
+          "score": 0.6128,
+          "excerpt": "Public Cloud Versus Private Data Centers Like data storage, the compute layer is largely commoditized. This means that instead of setting up their own data centers for storage and compute, companies c…"
+        },
+        {
+          "method": "Hybrid + reranker",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 152,
+          "section": "From Dev to Prod: Containers",
+          "pages": "328–329",
+          "score": 0.6076,
+          "excerpt": "The fourth benefit, which I would argue is the biggest benefit for companies that do production on the cloud, is that having your dev environment on the cloud reduces the gap between the dev environme…"
         }
       ]
     }
@@ -3710,11 +4543,11 @@
       "label": "Gold-set retrieval comparison",
       "path": "evaluation/retrieval_gold_seed.json",
       "query": {
-        "engine": "Python, SQLite FTS5, and local Chroma",
+        "engine": "Python, SQLite FTS5, local Chroma, and a local cross-encoder",
         "language": "python",
-        "description": "Runs the frozen gold questions against BM25, dense vector search, and unweighted reciprocal rank fusion.",
+        "description": "Runs the frozen gold questions against BM25, dense vector search, reciprocal rank fusion, and cross-encoder reranking.",
         "sql": "SELECT id, source_book_id, source_node_id, toc_index, chunk_index, section_title, path_text, start_page, end_page, text, content_types_json FROM chunks WHERE source_book_id = :book_id ORDER BY toc_index, chunk_index",
-        "executed_at": "2026-07-18T20:23:18.213014+00:00",
+        "executed_at": "2026-07-19T01:25:37.364300+00:00",
         "tables_used": [
           "data/retrieval.sqlite3: chunks",
           "data/retrieval.sqlite3: chunks_fts",
@@ -3723,28 +4556,39 @@
         "filters": [
           "Gold-set source SHA-256 must match the indexed book",
           "Top five distinct TOC nodes retained per question",
+          "Reranker scores the top 20 RRF chunks before node collapse",
           "Unanswerable probes excluded from recall and MRR"
         ],
         "metric_definitions": [
           "Recall@k is required evidence nodes found in the first k distinct retrieved nodes divided by all required evidence nodes.",
           "MRR@5 is the reciprocal rank of the first required evidence node within five distinct nodes; zero when absent.",
-          "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks."
+          "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks.",
+          "Candidate Recall@20 measures whether required nodes are present before cross-encoder reranking.",
+          "Hybrid + reranker scores the 20 RRF candidates with a pinned local cross-encoder and then keeps five distinct nodes."
         ],
         "model": {
-          "collection": "book_text_chunks",
-          "embedding_model": "Alibaba-NLP/gte-modernbert-base",
-          "embedding_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
-          "embedding_dimension": 768,
-          "embedding_device": "cpu",
-          "max_sequence_length": 8192,
-          "document_format_version": "hierarchy-v1",
-          "distance_metric": "cosine",
-          "index": "hnsw",
-          "book_ids": [
-            1
-          ],
-          "vector_count": 332,
-          "built_at": "2026-07-18T20:22:37.028395+00:00"
+          "vector_index": {
+            "collection": "book_text_chunks",
+            "embedding_model": "Alibaba-NLP/gte-modernbert-base",
+            "embedding_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+            "embedding_dimension": 768,
+            "embedding_device": "cpu",
+            "max_sequence_length": 8192,
+            "document_format_version": "hierarchy-v1",
+            "distance_metric": "cosine",
+            "index": "hnsw",
+            "book_ids": [
+              1
+            ],
+            "vector_count": 332,
+            "built_at": "2026-07-18T20:22:37.028395+00:00"
+          },
+          "reranker": {
+            "model": "Alibaba-NLP/gte-reranker-modernbert-base",
+            "revision": "f7481e6055501a30fb19d090657df9ec1f79ab2c",
+            "device": "cpu",
+            "candidate_limit": 20
+          }
         }
       }
     }

@@ -39,6 +39,17 @@ def connect(path: str | Path) -> sqlite3.Connection:
     return connection
 
 
+def connect_readonly(path: str | Path) -> sqlite3.Connection:
+    """Open canonical storage without permitting accidental writes."""
+
+    uri = Path(path).resolve().as_uri() + "?mode=ro"
+    connection = sqlite3.connect(uri, uri=True)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 5000")
+    return connection
+
+
 def initialize(connection: sqlite3.Connection) -> None:
     """Create the canonical tables and indexes if they do not exist."""
 

@@ -1,15 +1,26 @@
-"""Compare BM25, vector, and hybrid retrieval against the gold set."""
+"""Compare lexical, semantic, fused, and reranked retrieval."""
 
 import argparse
 import json
 from pathlib import Path
 import sqlite3
 
-from retrieval.search import RetrievalMode, retrieve
-from retrieval.vector import LocalEmbedder, persistent_client
+from retrieval.reranker import LocalCrossEncoder, rerank
+from retrieval.search import (
+    RERANK_CANDIDATE_LIMIT,
+    RetrievalMode,
+    hybrid_candidates,
+    retrieve,
+)
+from retrieval.vector import DEFAULT_COLLECTION, LocalEmbedder, persistent_client
 
 
-RETRIEVAL_MODES: tuple[RetrievalMode, ...] = ("bm25", "vector", "hybrid")
+RETRIEVAL_MODES: tuple[RetrievalMode, ...] = (
+    "bm25",
+    "vector",
+    "hybrid",
+    "hybrid_rerank",
+)
 
 
 def result_rows(results: list, expected_nodes: set[int]) -> list[dict]:
@@ -79,11 +90,21 @@ def _metrics(results: list[dict]) -> dict:
     def mean(field: str) -> float:
         return sum(result[field] for result in results) / len(results)
 
-    return {
+    metrics = {
         "mean_recall_at_3": mean("recall_at_3"),
         "mean_recall_at_5": mean("recall_at_5"),
         "mrr_at_5": mean("reciprocal_rank_at_5"),
     }
+    candidate_recalls = [
+        result["candidate_recall_at_20"]
+        for result in results
+        if "candidate_recall_at_20" in result
+    ]
+    if candidate_recalls:
+        metrics["mean_candidate_recall_at_20"] = sum(candidate_recalls) / len(
+            candidate_recalls
+        )
+    return metrics
 
 
 def _category_metrics(results: list[dict]) -> dict:
@@ -109,6 +130,7 @@ def _evaluate_mode(
     chroma_path: Path,
     client,
     embedder,
+    reranker,
 ) -> dict:
     answerable_results = []
     for question in gold["questions"]:
@@ -117,16 +139,48 @@ def _evaluate_mode(
         expected = {
             evidence["node_id"] for evidence in question["expected_evidence"]
         }
-        ranked = retrieve(
-            connection,
-            question["query"],
-            mode=mode,
-            book_id=book_id,
-            limit=5,
-            unique_nodes=True,
-            chroma_path=chroma_path,
-            client=client,
-            embedder=embedder,
+        candidate_fields = {}
+        if mode == "hybrid_rerank":
+            candidates = hybrid_candidates(
+                connection,
+                question["query"],
+                book_id=book_id,
+                candidate_limit=RERANK_CANDIDATE_LIMIT,
+                collection_name=DEFAULT_COLLECTION,
+                client=client,
+                embedder=embedder,
+            )
+            candidate_nodes = {
+                candidate.source_node_id for candidate in candidates
+            }
+            candidate_fields = {
+                "candidate_nodes_at_20": sorted(candidate_nodes),
+                "candidate_recall_at_20": (
+                    len(expected.intersection(candidate_nodes)) / len(expected)
+                ),
+            }
+
+        ranked = (
+            rerank(
+                question["query"],
+                candidates,
+                reranker=reranker,
+                limit=5,
+                unique_nodes=True,
+            )
+            if mode == "hybrid_rerank"
+            else retrieve(
+                connection,
+                question["query"],
+                mode=mode,
+                book_id=book_id,
+                limit=5,
+                unique_nodes=True,
+                chroma_path=chroma_path,
+                client=client,
+                embedder=embedder,
+                reranker=reranker,
+            )
         )
         retrieved = [result.source_node_id for result in ranked]
         recall_at_5 = len(expected.intersection(retrieved)) / len(expected)
@@ -160,6 +214,7 @@ def _evaluate_mode(
                 "reciprocal_rank_at_5": (
                     1 / first_relevant_rank if first_relevant_rank else 0
                 ),
+                **candidate_fields,
             }
         )
 
@@ -177,6 +232,7 @@ def _evaluate_mode(
             chroma_path=chroma_path,
             client=client,
             embedder=embedder,
+            reranker=reranker,
         )
         unanswerable_results.append(
             {
@@ -238,9 +294,11 @@ def evaluate(
         if build is None:
             raise ValueError("retrieval database has no build matching the gold set")
 
-        uses_vectors = any(mode in ("vector", "hybrid") for mode in modes)
+        uses_vectors = any(mode != "bm25" for mode in modes)
+        uses_reranker = "hybrid_rerank" in modes
         client = persistent_client(chroma_path) if uses_vectors else None
         embedder = LocalEmbedder() if uses_vectors else None
+        reranker = LocalCrossEncoder() if uses_reranker else None
         retrievers = {
             mode: _evaluate_mode(
                 connection,
@@ -250,6 +308,7 @@ def evaluate(
                 chroma_path=chroma_path,
                 client=client,
                 embedder=embedder,
+                reranker=reranker,
             )
             for mode in modes
         }

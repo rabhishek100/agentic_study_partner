@@ -42,6 +42,24 @@ class FakeEmbedder:
         return self._embed(text)
 
 
+class FakeReranker:
+    model_name = "test-reranker-v1"
+    model_revision = "test-revision"
+    device = "cpu"
+    max_sequence_length = 4096
+
+    def __init__(self) -> None:
+        self.candidate_count = 0
+
+    def score(self, query: str, documents: list[str]) -> list[float]:
+        del query
+        self.candidate_count = len(documents)
+        return [
+            1.0 if "Online prediction architecture" in document else 0.0
+            for document in documents
+        ]
+
+
 def sample_book() -> ParsedBook:
     return ParsedBook(
         source="sources/books/retrieval.pdf",
@@ -362,6 +380,47 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(results[0].section_title, "Prediction modes")
         self.assertTrue(
             all(result.retrieval_method == "hybrid" for result in results)
+        )
+
+    def test_hybrid_rerank_scores_the_rrf_shortlist(self) -> None:
+        rebuild(
+            self.source,
+            self.destination,
+            self.book_id,
+            config=self.config,
+        )
+        client = chromadb.EphemeralClient()
+        embedder = FakeEmbedder()
+        reranker = FakeReranker()
+        rebuild_vector_index(
+            self.destination,
+            self.source,
+            client=client,
+            embedder=embedder,
+            collection_name="reranker-test",
+        )
+
+        results = retrieve(
+            self.destination,
+            "online prediction architecture",
+            mode="hybrid_rerank",
+            book_id=self.book_id,
+            limit=3,
+            unique_nodes=True,
+            client=client,
+            embedder=embedder,
+            reranker=reranker,
+            collection_name="reranker-test",
+        )
+
+        self.assertTrue(results)
+        self.assertLessEqual(reranker.candidate_count, 20)
+        self.assertEqual(results[0].section_title, "Prediction modes")
+        self.assertTrue(
+            all(
+                result.retrieval_method == "hybrid_rerank"
+                for result in results
+            )
         )
 
 

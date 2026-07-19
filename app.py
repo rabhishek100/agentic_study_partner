@@ -16,7 +16,7 @@ demo = gr.ChatInterface(
     description="Ask a question about Designing Machine Learning Systems.",
     additional_inputs=[
         gr.Dropdown(
-            choices=["hybrid", "bm25", "vector"],
+            choices=["hybrid", "hybrid_rerank", "bm25", "vector"],
             value="hybrid",
             label="Retrieval mode",
         )

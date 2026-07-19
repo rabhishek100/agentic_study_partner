@@ -2,7 +2,20 @@
 
 from .chunking import CHUNKER_VERSION, build_book_chunks
 from .models import Chunk, ChunkSource, ChunkingConfig
-from .search import RetrievalMode, reciprocal_rank_fusion, retrieve
+from .reranker import (
+    DEFAULT_RERANKER_MODEL,
+    DEFAULT_RERANKER_REVISION,
+    LocalCrossEncoder,
+    rerank,
+    reranker_document,
+)
+from .search import (
+    RERANK_CANDIDATE_LIMIT,
+    RetrievalMode,
+    hybrid_candidates,
+    reciprocal_rank_fusion,
+    retrieve,
+)
 from .sqlite import (
     BuildSummary,
     SearchResult,
@@ -37,7 +50,11 @@ __all__ = [
     "DEFAULT_COLLECTION",
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_EMBEDDING_REVISION",
+    "DEFAULT_RERANKER_MODEL",
+    "DEFAULT_RERANKER_REVISION",
     "LocalEmbedder",
+    "LocalCrossEncoder",
+    "RERANK_CANDIDATE_LIMIT",
     "RetrievalMode",
     "SearchResult",
     "VectorBuildSummary",
@@ -47,10 +64,13 @@ __all__ = [
     "connect_source",
     "embedding_document",
     "initialize",
+    "hybrid_candidates",
     "persistent_client",
     "rebuild",
     "rebuild_vector_index",
     "reciprocal_rank_fusion",
+    "rerank",
+    "reranker_document",
     "retrieve",
     "search",
     "search_result_from_row",

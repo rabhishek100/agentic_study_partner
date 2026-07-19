@@ -16,10 +16,10 @@ It contains 15 questions:
 | Multi-section | 3 | Test whether all required evidence is retrieved |
 | Unanswerable | 3 | Test whether plausible near-matches cause false confidence |
 
-The questions are frozen inputs for BM25, vector, and hybrid experiments. Do
-not rewrite them to make a particular retriever look better. If a question is
-found to be ambiguous or incorrectly judged, record the reason and increment
-the dataset version.
+The questions are frozen inputs for BM25, vector, hybrid, and reranking
+experiments. Do not rewrite them to make a particular retriever look better.
+If a question is found to be ambiguous or incorrectly judged, record the
+reason and increment the dataset version.
 
 ## Judgment policy
 
@@ -78,10 +78,15 @@ All methods rank the same rebuildable chunks:
   collection.
 - **Hybrid:** unweighted reciprocal rank fusion with rank constant 60 over the
   top 20 chunks from BM25 and vector retrieval.
+- **Hybrid + reranker:** the pinned local
+  `Alibaba-NLP/gte-reranker-modernbert-base` cross-encoder scores the 20 RRF
+  candidates using each chunk's hierarchy and complete body, then returns the
+  five highest-ranked distinct TOC nodes.
 
 Results are collapsed to distinct TOC nodes before scoring. Raw scores are not
-compared across methods because BM25, cosine similarity, and RRF use different
-scales.
+compared across methods because BM25, cosine similarity, RRF, and cross-encoder
+scores use different scales. Candidate Recall@20 is also reported for the
+reranked mode: it shows whether the expected nodes reached the reranker at all.
 
 Build and evaluate with:
 

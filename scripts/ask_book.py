@@ -73,7 +73,7 @@ def main() -> None:
     parser.add_argument("question")
     parser.add_argument(
         "--retrieval-mode",
-        choices=("bm25", "vector", "hybrid"),
+        choices=("bm25", "vector", "hybrid", "hybrid_rerank"),
         default="hybrid",
     )
     parser.add_argument("--book-id", type=int)

@@ -1,10 +1,11 @@
-"""Unified BM25, vector, and reciprocal-rank-fusion retrieval."""
+"""Unified lexical, semantic, fused, and reranked retrieval."""
 
 from dataclasses import replace
 from pathlib import Path
 import sqlite3
 from typing import Literal
 
+from .reranker import LocalCrossEncoder, Reranker, rerank
 from .sqlite import SearchResult, search as bm25_search
 from .vector import (
     DEFAULT_CHROMA_PATH,
@@ -16,8 +17,9 @@ from .vector import (
 )
 
 
-RetrievalMode = Literal["bm25", "vector", "hybrid"]
+RetrievalMode = Literal["bm25", "vector", "hybrid", "hybrid_rerank"]
 RRF_RANK_CONSTANT = 60
+RERANK_CANDIDATE_LIMIT = 20
 
 
 def reciprocal_rank_fusion(
@@ -69,47 +71,18 @@ def reciprocal_rank_fusion(
     return fused
 
 
-def retrieve(
+def hybrid_candidates(
     connection: sqlite3.Connection,
     query: str,
     *,
-    mode: RetrievalMode = "hybrid",
-    book_id: int | None = None,
-    limit: int = 5,
-    unique_nodes: bool = False,
-    chroma_path: str | Path = DEFAULT_CHROMA_PATH,
-    collection_name: str = DEFAULT_COLLECTION,
-    client=None,
-    embedder: Embedder | None = None,
+    book_id: int | None,
+    candidate_limit: int,
+    collection_name: str,
+    client,
+    embedder: Embedder,
 ) -> list[SearchResult]:
-    """Run one explicit retrieval strategy over the same SQLite chunks."""
+    """Build an RRF-ordered shortlist from lexical and semantic candidates."""
 
-    if mode == "bm25":
-        return bm25_search(
-            connection,
-            query,
-            book_id=book_id,
-            limit=limit,
-            unique_nodes=unique_nodes,
-        )
-    if mode not in ("vector", "hybrid"):
-        raise ValueError(f"unsupported retrieval mode: {mode}")
-
-    client = client or persistent_client(chroma_path)
-    embedder = embedder or LocalEmbedder()
-    if mode == "vector":
-        return vector_search(
-            connection,
-            query,
-            client=client,
-            embedder=embedder,
-            collection_name=collection_name,
-            book_id=book_id,
-            limit=limit,
-            unique_nodes=unique_nodes,
-        )
-
-    candidate_limit = max(20, limit * 4)
     lexical = bm25_search(
         connection,
         query,
@@ -129,6 +102,94 @@ def retrieve(
     )
     return reciprocal_rank_fusion(
         [lexical, semantic],
+        limit=candidate_limit,
+        unique_nodes=False,
+    )
+
+
+def _take_ranked(
+    candidates: list[SearchResult],
+    *,
+    limit: int,
+    unique_nodes: bool,
+) -> list[SearchResult]:
+    results: list[SearchResult] = []
+    seen_nodes: set[int] = set()
+    for result in candidates:
+        if unique_nodes and result.source_node_id in seen_nodes:
+            continue
+        seen_nodes.add(result.source_node_id)
+        results.append(result)
+        if len(results) == limit:
+            break
+    return results
+
+
+def retrieve(
+    connection: sqlite3.Connection,
+    query: str,
+    *,
+    mode: RetrievalMode = "hybrid",
+    book_id: int | None = None,
+    limit: int = 5,
+    unique_nodes: bool = False,
+    chroma_path: str | Path = DEFAULT_CHROMA_PATH,
+    collection_name: str = DEFAULT_COLLECTION,
+    client=None,
+    embedder: Embedder | None = None,
+    reranker: Reranker | None = None,
+) -> list[SearchResult]:
+    """Run one explicit retrieval strategy over the same SQLite chunks."""
+
+    if mode == "bm25":
+        return bm25_search(
+            connection,
+            query,
+            book_id=book_id,
+            limit=limit,
+            unique_nodes=unique_nodes,
+        )
+    if mode not in ("vector", "hybrid", "hybrid_rerank"):
+        raise ValueError(f"unsupported retrieval mode: {mode}")
+
+    client = client or persistent_client(chroma_path)
+    embedder = embedder or LocalEmbedder()
+    if mode == "vector":
+        return vector_search(
+            connection,
+            query,
+            client=client,
+            embedder=embedder,
+            collection_name=collection_name,
+            book_id=book_id,
+            limit=limit,
+            unique_nodes=unique_nodes,
+        )
+
+    candidate_limit = (
+        RERANK_CANDIDATE_LIMIT
+        if mode == "hybrid_rerank"
+        else max(20, limit * 4)
+    )
+    fused = hybrid_candidates(
+        connection,
+        query,
+        book_id=book_id,
+        candidate_limit=candidate_limit,
+        collection_name=collection_name,
+        client=client,
+        embedder=embedder,
+    )
+    if mode == "hybrid":
+        return _take_ranked(
+            fused,
+            limit=limit,
+            unique_nodes=unique_nodes,
+        )
+    return rerank(
+        query,
+        fused,
+        reranker=reranker or LocalCrossEncoder(),
         limit=limit,
         unique_nodes=unique_nodes,
     )
