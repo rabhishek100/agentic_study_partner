@@ -1,4 +1,4 @@
-"""Build the canonical artifact input for the detailed BM25 HTML report."""
+"""Build the canonical BM25/vector/hybrid comparison report artifact."""
 
 import argparse
 from datetime import datetime, timezone
@@ -6,31 +6,30 @@ import json
 from pathlib import Path
 import sqlite3
 
-from scripts.evaluate_retrieval import evaluate
+from scripts.evaluate_retrieval import RETRIEVAL_MODES, evaluate
 
 
-TITLE = "BM25 Retrieval Evaluation"
-RETRIEVAL_SQL = """
-SELECT
-    chunks.*,
-    bm25(chunks_fts, 5.0, 2.0, 1.0) AS score
-FROM chunks_fts
-JOIN chunks ON chunks.rowid = chunks_fts.rowid
-WHERE chunks_fts MATCH :query
-  AND chunks.source_book_id = :book_id
-ORDER BY score, chunks.toc_index, chunks.chunk_index
-LIMIT :candidate_limit
-""".strip()
+TITLE = "Retrieval Evaluation: BM25 vs Vector vs Hybrid"
+MODE_LABELS = {
+    "bm25": "BM25",
+    "vector": "Vector",
+    "hybrid": "Hybrid",
+}
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Build the canonical artifact JSON for the BM25 HTML report."
+        description="Build the retrieval comparison report artifact."
     )
     parser.add_argument(
         "--database",
         type=Path,
         default=Path("data/retrieval.sqlite3"),
+    )
+    parser.add_argument(
+        "--chroma-path",
+        type=Path,
+        default=Path("data/chroma"),
     )
     parser.add_argument(
         "--gold-set",
@@ -40,7 +39,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("evaluation/bm25_report_artifact.json"),
+        default=Path("evaluation/retrieval_comparison_artifact.json"),
     )
     return parser
 
@@ -50,8 +49,6 @@ def _percent(value: float) -> str:
 
 
 def _format_pages(pages: list[int]) -> str:
-    """Format sorted page numbers as compact ranges."""
-
     if not pages:
         return "unknown"
     ranges = []
@@ -66,131 +63,154 @@ def _format_pages(pages: list[int]) -> str:
     return ", ".join(ranges)
 
 
-def _source(generated_at: str) -> dict:
+def _source(generated_at: str, model_manifest: dict) -> dict:
     return {
-        "id": "bm25-evaluation",
-        "label": "BM25 evaluation over citation-aware chunks",
-        "path": "data/retrieval.sqlite3",
+        "id": "retrieval-comparison",
+        "label": "Gold-set retrieval comparison",
+        "path": "evaluation/retrieval_gold_seed.json",
         "query": {
-            "engine": "SQLite FTS5",
-            "language": "sql",
-            "sql": RETRIEVAL_SQL,
+            "engine": "Python, SQLite FTS5, and local Chroma",
+            "language": "python",
             "description": (
-                "Ranks citation-aware chunks with FTS5 BM25 and collapses "
-                "results to the first occurrence of each source node."
+                "Runs the frozen gold questions against BM25, dense vector "
+                "search, and unweighted reciprocal rank fusion."
+            ),
+            "sql": (
+                "SELECT id, source_book_id, source_node_id, toc_index, "
+                "chunk_index, section_title, path_text, start_page, end_page, "
+                "text, content_types_json FROM chunks "
+                "WHERE source_book_id = :book_id "
+                "ORDER BY toc_index, chunk_index"
             ),
             "executed_at": generated_at,
-            "tables_used": ["chunks_fts", "chunks", "chunk_sources"],
+            "tables_used": [
+                "data/retrieval.sqlite3: chunks",
+                "data/retrieval.sqlite3: chunks_fts",
+                "data/chroma: book_text_chunks",
+            ],
             "filters": [
-                "One indexed book identified by source SHA-256",
-                "Navigation-only nodes excluded during chunk construction",
-                "Top five distinct source nodes retained per question",
+                "Gold-set source SHA-256 must match the indexed book",
+                "Top five distinct TOC nodes retained per question",
+                "Unanswerable probes excluded from recall and MRR",
             ],
             "metric_definitions": [
-                "Recall@k: required evidence nodes found in the first k distinct retrieved nodes divided by all required evidence nodes.",
-                "MRR@5: reciprocal rank of the first required evidence node within the first five distinct retrieved nodes; zero if absent.",
-                "Unanswerable questions are retrieval probes and are excluded from recall and MRR.",
+                "Recall@k is required evidence nodes found in the first k distinct retrieved nodes divided by all required evidence nodes.",
+                "MRR@5 is the reciprocal rank of the first required evidence node within five distinct nodes; zero when absent.",
+                "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks.",
             ],
+            "model": model_manifest,
         },
     }
 
 
-def _question_markdown(result: dict) -> str:
-    status_labels = {
-        "full": "Full coverage",
-        "partial": "Partial coverage",
-        "miss": "Miss",
-        "probe": "Unanswerable probe",
-    }
+def _result_map(evaluation: dict) -> dict[str, dict[str, dict]]:
+    mapped: dict[str, dict[str, dict]] = {}
+    for mode, result in evaluation["retrievers"].items():
+        for question in [
+            *result["answerable_results"],
+            *result["unanswerable_probes"],
+        ]:
+            mapped.setdefault(question["id"], {})[mode] = question
+    return mapped
+
+
+def _question_markdown(mode_results: dict[str, dict]) -> str:
+    first = next(iter(mode_results.values()))
     lines = [
-        f"## {result['id']} — {status_labels[result['status']]}",
+        f"## {first['id']} — Retrieval comparison",
         "",
-        f"**Question:** {result['query']}",
+        f"**Question:** {first['query']}",
         "",
     ]
-    if result["status"] == "probe":
+    if first["status"] == "probe":
         lines.extend(
             [
-                f"**Expected behavior:** Abstain. {result['answerability_reason']}",
+                f"**Expected behavior:** Abstain. {first['answerability_reason']}",
                 "",
                 "**Plausible near-miss sections:**",
                 "",
             ]
         )
-        for evidence in result["near_miss_evidence"]:
-            pages = _format_pages(evidence["pages"])
+        for evidence in first["near_miss_evidence"]:
             lines.append(
                 f"- Node {evidence['node_id']}, {evidence['path']} "
-                f"(PDF pp. {pages}) — {evidence['reason_not_sufficient']}"
+                f"(PDF pp. {_format_pages(evidence['pages'])}) — "
+                f"{evidence['reason_not_sufficient']}"
             )
         lines.extend(
             [
                 "",
-                "The ranked rows below are diagnostic only; retrieval alone "
-                "cannot establish that the question is answerable.",
+                "These rows diagnose what each retriever surfaces; retrieval "
+                "alone does not establish answerability.",
             ]
         )
         return "\n".join(lines)
 
     lines.extend(["**Required evidence:**", ""])
-    for evidence in result["expected_evidence"]:
-        pages = _format_pages(evidence["pages"])
+    for evidence in first["expected_evidence"]:
         lines.append(
             f"- Node {evidence['node_id']}, {evidence['path']} "
-            f"(PDF pp. {pages}) — {evidence['evidence_summary']}"
+            f"(PDF pp. {_format_pages(evidence['pages'])}) — "
+            f"{evidence['evidence_summary']}"
         )
-    found = len(
-        set(result["expected_nodes"]).intersection(result["retrieved_nodes_at_5"])
-    )
-    lines.extend(
-        [
-            "",
-            f"**Top-five coverage:** {found}/{len(result['expected_nodes'])} "
-            f"required nodes; Recall@3 {_percent(result['recall_at_3'])}; "
-            f"Recall@5 {_percent(result['recall_at_5'])}.",
-        ]
-    )
-    missing = sorted(
-        set(result["expected_nodes"]) - set(result["retrieved_nodes_at_5"])
-    )
-    if missing:
-        lines.append(f"**Missing expected nodes:** {', '.join(map(str, missing))}.")
+    lines.extend(["", "**Coverage by method:**", ""])
+    for mode in RETRIEVAL_MODES:
+        result = mode_results[mode]
+        missing = sorted(
+            set(result["expected_nodes"]) - set(result["retrieved_nodes_at_5"])
+        )
+        suffix = f"; missing nodes {missing}" if missing else ""
+        lines.append(
+            f"- {MODE_LABELS[mode]}: Recall@3 "
+            f"{_percent(result['recall_at_3'])}, Recall@5 "
+            f"{_percent(result['recall_at_5'])}{suffix}."
+        )
     return "\n".join(lines)
 
 
-def _retrieval_rows(result: dict) -> list[dict]:
+def _retrieval_rows(mode_results: dict[str, dict]) -> list[dict]:
     rows = []
-    for retrieval in result["retrievals"]:
-        judgment = retrieval["judgment"]
-        if result["status"] == "probe":
-            judgment = "near miss" if judgment == "expected" else "other"
-        rows.append(
-            {
-                "rank": retrieval["rank"],
-                "judgment": judgment,
-                "node_id": retrieval["node_id"],
-                "section": retrieval["section"],
-                "pages": retrieval["pages"],
-                "score": round(retrieval["score"], 4),
-                "excerpt": retrieval["excerpt"],
-            }
-        )
+    for mode in RETRIEVAL_MODES:
+        result = mode_results[mode]
+        for retrieval in result["retrievals"]:
+            judgment = retrieval["judgment"]
+            if result["status"] == "probe":
+                judgment = "near miss" if judgment == "expected" else "other"
+            rows.append(
+                {
+                    "method": MODE_LABELS[mode],
+                    "rank": retrieval["rank"],
+                    "judgment": judgment,
+                    "node_id": retrieval["node_id"],
+                    "section": retrieval["section"],
+                    "pages": retrieval["pages"],
+                    "score": round(retrieval["score"], 4),
+                    "excerpt": retrieval["excerpt"],
+                }
+            )
     return rows
 
 
-def build_artifact(database: Path, gold_set: Path) -> dict:
-    evaluation = evaluate(database, gold_set)
+def build_artifact(
+    database: Path,
+    gold_set: Path,
+    *,
+    chroma_path: Path,
+) -> dict:
+    evaluation = evaluate(
+        database,
+        gold_set,
+        chroma_path=chroma_path,
+    )
     generated_at = datetime.now(timezone.utc).isoformat()
-    all_results = [
-        *evaluation["answerable_results"],
-        *evaluation["unanswerable_probes"],
-    ]
-    full_count = sum(
-        result["status"] == "full" for result in evaluation["answerable_results"]
+    manifest_path = chroma_path / "index_manifest.json"
+    model_manifest = (
+        json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest_path.exists()
+        else {"status": "manifest unavailable"}
     )
-    partial_count = sum(
-        result["status"] == "partial" for result in evaluation["answerable_results"]
-    )
+    source = _source(generated_at, model_manifest)
+    by_question = _result_map(evaluation)
 
     connection = sqlite3.connect(
         database.resolve().as_uri() + "?mode=ro",
@@ -203,81 +223,138 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
     finally:
         connection.close()
 
+    comparisons = {
+        row["mode"]: row for row in evaluation["comparison"]
+    }
+    best_mode = max(
+        RETRIEVAL_MODES,
+        key=lambda mode: (
+            comparisons[mode]["mean_recall_at_5"],
+            comparisons[mode]["mrr_at_5"],
+        ),
+    )
+    bm25_recall = comparisons["bm25"]["mean_recall_at_5"]
+    vector_recall = comparisons["vector"]["mean_recall_at_5"]
+    hybrid_recall = comparisons["hybrid"]["mean_recall_at_5"]
+    hybrid_delta = hybrid_recall - bm25_recall
+    vector_delta = vector_recall - bm25_recall
+    hybrid_mrr_delta = (
+        comparisons["hybrid"]["mrr_at_5"] - comparisons["bm25"]["mrr_at_5"]
+    )
+    hybrid_categories = evaluation["retrievers"]["hybrid"]["metrics_by_category"]
+    vector_categories = evaluation["retrievers"]["vector"]["metrics_by_category"]
+
     datasets = {
         "summary_metrics": [
             {
-                "recall_at_3": evaluation["metrics"]["mean_recall_at_3"],
-                "recall_at_5": evaluation["metrics"]["mean_recall_at_5"],
-                "mrr_at_5": evaluation["metrics"]["mrr_at_5"],
+                f"{mode}_{metric}": comparisons[mode][field]
+                for mode in RETRIEVAL_MODES
+                for metric, field in (
+                    ("recall_at_5", "mean_recall_at_5"),
+                    ("mrr_at_5", "mrr_at_5"),
+                )
             }
+        ],
+        "method_metrics": [
+            {
+                "method": MODE_LABELS[mode],
+                "metric": metric_label,
+                "value": comparisons[mode][field],
+                "question_count": evaluation["answerable_question_count"],
+            }
+            for mode in RETRIEVAL_MODES
+            for metric_label, field in (
+                ("Recall@3", "mean_recall_at_3"),
+                ("Recall@5", "mean_recall_at_5"),
+                ("MRR@5", "mrr_at_5"),
+            )
         ],
         "category_recall": [
             {
                 "category": category.replace("_", " ").title(),
-                "metric": metric_label,
-                "recall": metrics[metric_field],
+                "method": MODE_LABELS[mode],
+                "recall_at_5": metrics["mean_recall_at_5"],
                 "question_count": metrics["question_count"],
             }
-            for category, metrics in evaluation["metrics_by_category"].items()
-            for metric_label, metric_field in (
-                ("Recall@3", "mean_recall_at_3"),
-                ("Recall@5", "mean_recall_at_5"),
-            )
+            for mode in RETRIEVAL_MODES
+            for category, metrics in evaluation["retrievers"][mode][
+                "metrics_by_category"
+            ].items()
         ],
     }
+
     cards = [
         {
-            "id": "recall-3",
+            "id": f"{mode}-quality",
             "dataset": "summary_metrics",
-            "description": "Mean required-node coverage within three distinct nodes.",
-            "sourceId": "bm25-evaluation",
+            "description": (
+                f"{MODE_LABELS[mode]} required-node coverage and first-hit rank."
+            ),
+            "sourceId": "retrieval-comparison",
             "metrics": [
                 {
-                    "label": "Recall@3",
-                    "field": "recall_at_3",
+                    "label": f"{MODE_LABELS[mode]} Recall@5",
+                    "field": f"{mode}_recall_at_5",
                     "format": "percent",
-                }
-            ],
-        },
-        {
-            "id": "recall-5",
-            "dataset": "summary_metrics",
-            "description": "Mean required-node coverage within five distinct nodes.",
-            "sourceId": "bm25-evaluation",
-            "metrics": [
-                {
-                    "label": "Recall@5",
-                    "field": "recall_at_5",
-                    "format": "percent",
-                }
-            ],
-        },
-        {
-            "id": "mrr-5",
-            "dataset": "summary_metrics",
-            "description": "Mean reciprocal rank of the first required node.",
-            "sourceId": "bm25-evaluation",
-            "metrics": [
+                },
                 {
                     "label": "MRR@5",
-                    "field": "mrr_at_5",
+                    "field": f"{mode}_mrr_at_5",
                     "format": "percent",
-                }
+                },
             ],
-        },
+        }
+        for mode in RETRIEVAL_MODES
     ]
     charts = [
         {
-            "id": "category-recall-chart",
-            "title": "Recall by question category",
+            "id": "method-quality-chart",
+            "title": "Retrieval quality by method",
             "subtitle": (
-                "Multi-section questions have lower evidence coverage than "
-                "exact-term and paraphrased questions."
+                "Mean node-level scores across 12 answerable gold questions."
+            ),
+            "type": "bar",
+            "intent": "comparison",
+            "dataset": "method_metrics",
+            "sourceId": "retrieval-comparison",
+            "encodings": {
+                "x": {
+                    "field": "method",
+                    "type": "nominal",
+                    "label": "Retrieval method",
+                },
+                "y": {
+                    "field": "value",
+                    "type": "quantitative",
+                    "format": "percent",
+                    "label": "Mean score",
+                },
+                "color": {
+                    "field": "metric",
+                    "type": "nominal",
+                    "label": "Metric",
+                },
+            },
+            "settings": {
+                "groupMode": "grouped",
+                "orientation": "vertical",
+                "showValues": True,
+            },
+            "legend": {"position": "bottom", "title": "Metric"},
+            "palette": {"kind": "categorical"},
+            "layout": "full",
+        },
+        {
+            "id": "category-recall-chart",
+            "title": "Recall@5 by question category",
+            "subtitle": (
+                "Required-node coverage for exact-term, paraphrase, and "
+                "multi-section questions."
             ),
             "type": "bar",
             "intent": "comparison",
             "dataset": "category_recall",
-            "sourceId": "bm25-evaluation",
+            "sourceId": "retrieval-comparison",
             "encodings": {
                 "x": {
                     "field": "category",
@@ -285,19 +362,23 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
                     "label": "Question category",
                 },
                 "y": {
-                    "field": "recall",
+                    "field": "recall_at_5",
                     "type": "quantitative",
                     "format": "percent",
-                    "label": "Mean recall",
+                    "label": "Mean Recall@5",
                 },
                 "color": {
-                    "field": "metric",
+                    "field": "method",
                     "type": "nominal",
-                    "label": "Cutoff",
+                    "label": "Retrieval method",
                 },
                 "tooltip": [
                     {"field": "question_count", "type": "quantitative"},
-                    {"field": "recall", "type": "quantitative", "format": "percent"},
+                    {
+                        "field": "recall_at_5",
+                        "type": "quantitative",
+                        "format": "percent",
+                    },
                 ],
             },
             "settings": {
@@ -305,10 +386,10 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
                 "orientation": "vertical",
                 "showValues": True,
             },
-            "legend": {"position": "bottom", "title": "Cutoff"},
+            "legend": {"position": "bottom", "title": "Method"},
             "palette": {"kind": "categorical"},
             "layout": "full",
-        }
+        },
     ]
     tables = []
     blocks = [
@@ -323,31 +404,58 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
             "type": "markdown",
             "body": (
                 "## Technical summary\n\n"
-                f"BM25 fully retrieves all required evidence for {full_count} of "
-                f"12 answerable questions and partially covers {partial_count}. "
-                f"Overall Recall@5 is {_percent(evaluation['metrics']['mean_recall_at_5'])} "
-                f"and MRR@5 is {_percent(evaluation['metrics']['mrr_at_5'])}. "
-                "The main measured weakness is multi-section coverage, not "
-                "paraphrased single-concept retrieval."
+                f"**{MODE_LABELS[best_mode]} has the strongest aggregate "
+                "retrieval result on this seed set.** Its Recall@5 is "
+                f"{_percent(comparisons[best_mode]['mean_recall_at_5'])} and "
+                f"MRR@5 is {_percent(comparisons[best_mode]['mrr_at_5'])}. "
+                f"Hybrid changes Recall@5 by {hybrid_delta:+.1%} versus the "
+                f"frozen BM25 baseline, while changing MRR@5 by "
+                f"{hybrid_mrr_delta:+.1%}. Vector alone changes Recall@5 by "
+                f"{vector_delta:+.1%}. Hybrid is therefore defensible for the "
+                "five-source QA context, but BM25 remains the stronger "
+                "early-ranking baseline."
             ),
+            "sourceId": "retrieval-comparison",
             "layout": "full",
         },
         {
             "id": "headline-metrics",
             "type": "metric-strip",
-            "cardIds": ["recall-3", "recall-5", "mrr-5"],
+            "cardIds": [f"{mode}-quality" for mode in RETRIEVAL_MODES],
             "layout": "full",
         },
         {
-            "id": "key-finding",
+            "id": "aggregate-finding",
             "type": "markdown",
             "body": (
-                "## Multi-section questions account for most missing evidence\n\n"
-                "Exact-term Recall@5 is 90.0% and paraphrase Recall@5 is "
-                "100.0%, while multi-section Recall@5 is 72.2%. The chart "
-                "shows the same comparison at both retrieval cutoffs. This "
-                "supports adding decomposition or hierarchy expansion before "
-                "considering a vector index."
+                "## Aggregate quality differs by retrieval method\n\n"
+                f"Hybrid raises Recall@5 from {_percent(bm25_recall)} to "
+                f"{_percent(hybrid_recall)}, but its MRR@5 is "
+                f"{_percent(comparisons['hybrid']['mrr_at_5'])} versus "
+                f"{_percent(comparisons['bm25']['mrr_at_5'])} for BM25. The "
+                "fusion retrieves more of the complete five-node evidence set "
+                "at the cost of slightly weaker first-hit ordering."
+            ),
+            "layout": "full",
+        },
+        {
+            "id": "method-quality",
+            "type": "chart",
+            "chartId": "method-quality-chart",
+            "layout": "full",
+        },
+        {
+            "id": "category-finding",
+            "type": "markdown",
+            "body": (
+                "## Category-level results show where semantic retrieval helps\n\n"
+                "Hybrid reaches 100% Recall@5 for exact-term and paraphrase "
+                f"questions, while multi-section Recall@5 remains "
+                f"{_percent(hybrid_categories['multi_section']['mean_recall_at_5'])}. "
+                "Vector-only paraphrase Recall@5 is "
+                f"{_percent(vector_categories['paraphrase']['mean_recall_at_5'])}, "
+                "so semantic retrieval does not independently improve the "
+                "paraphrase subset in this small gold set."
             ),
             "layout": "full",
         },
@@ -363,27 +471,29 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
             "body": (
                 "## Scope and metric definitions\n\n"
                 f"The evaluated corpus contains {chunk_count} citation-aware "
-                f"chunks from {node_count} content nodes for one book. Twelve "
-                "answerable questions are scored; three deliberately "
-                "unanswerable questions are shown only as diagnostic probes. "
-                "Retrieval is collapsed to distinct TOC nodes before computing "
-                "Recall@3, Recall@5, and MRR@5. PDF page numbers are physical "
-                "source pages stored in canonical SQLite."
+                f"chunks from {node_count} TOC nodes in one technical book. "
+                "Twelve answerable questions contribute to Recall@3, Recall@5, "
+                "and MRR@5; three unanswerable questions are diagnostic probes. "
+                "All methods are evaluated against the same node-level evidence "
+                "judgments and the same derived chunks."
             ),
+            "sourceId": "retrieval-comparison",
             "layout": "full",
         },
         {
             "id": "methodology",
             "type": "markdown",
             "body": (
-                "## Methodology\n\n"
-                "Each natural-language question is converted to an OR query "
-                "over unique normalized terms. FTS5 ranks chunks with weighted "
-                "BM25 fields: section title 5×, hierarchy path 2×, and chunk "
-                "body 1×. Results are ordered by score, collapsed to the first "
-                "chunk for each node, and compared with the frozen node-level "
-                "judgments in the seed gold set."
+                "## Methods use one corpus but different ranking signals\n\n"
+                "BM25 uses weighted SQLite FTS5 fields: section title 5×, "
+                "hierarchy path 2×, and body 1×. Vector search embeds book and "
+                "hierarchy context plus the complete chunk body, then searches "
+                "a cosine HNSW index in local Chroma. Hybrid applies unweighted "
+                "reciprocal rank fusion with constant 60 to the top 20 chunks "
+                "from each method. Each ranked list is collapsed to distinct "
+                "TOC nodes before scoring."
             ),
+            "sourceId": "retrieval-comparison",
             "layout": "full",
         },
         {
@@ -391,37 +501,40 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
             "type": "markdown",
             "body": (
                 "## Question-by-question retrieval audit\n\n"
-                "Each section lists the expected evidence followed by the five "
-                "highest-ranked distinct nodes. “Expected” marks a gold node; "
-                "“extra” is a retrieved node not required by the current "
-                "judgment. BM25 scores are negative in SQLite, so more negative "
-                "values rank higher."
+                "Each section lists the expected evidence and the five "
+                "highest-ranked distinct nodes from all three methods. Raw "
+                "BM25, cosine-similarity, and RRF scores are method-specific "
+                "and must not be compared across methods."
             ),
             "layout": "full",
         },
     ]
 
-    for result in all_results:
-        dataset_id = f"{result['id']}-retrievals"
-        table_id = f"{result['id']}-table"
-        datasets[dataset_id] = _retrieval_rows(result)
+    for question_id, mode_results in by_question.items():
+        dataset_id = f"{question_id}-retrievals"
+        table_id = f"{question_id}-table"
+        datasets[dataset_id] = _retrieval_rows(mode_results)
         tables.append(
             {
                 "id": table_id,
-                "title": f"{result['id']} ranked retrievals",
-                "subtitle": "Top five distinct source nodes with citation metadata.",
+                "title": f"{question_id} ranked retrievals",
+                "subtitle": (
+                    "Five distinct source nodes per method with citations and "
+                    "gold-set judgments."
+                ),
                 "dataset": dataset_id,
                 "defaultSort": {"field": "rank", "direction": "asc"},
                 "density": "dense",
-                "sourceId": "bm25-evaluation",
+                "sourceId": "retrieval-comparison",
                 "layout": "full",
                 "columns": [
+                    {"field": "method", "label": "Method", "type": "text"},
                     {"field": "rank", "label": "Rank", "type": "number"},
                     {"field": "judgment", "label": "Judgment", "type": "text"},
                     {"field": "node_id", "label": "Node", "type": "number"},
                     {"field": "section", "label": "Section", "type": "text"},
                     {"field": "pages", "label": "PDF pages", "type": "text"},
-                    {"field": "score", "label": "BM25 score", "type": "number"},
+                    {"field": "score", "label": "Method score", "type": "number"},
                     {"field": "excerpt", "label": "Chunk excerpt", "type": "text"},
                 ],
             }
@@ -429,13 +542,13 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
         blocks.extend(
             [
                 {
-                    "id": f"{result['id']}-summary",
+                    "id": f"{question_id}-summary",
                     "type": "markdown",
-                    "body": _question_markdown(result),
+                    "body": _question_markdown(mode_results),
                     "layout": "full",
                 },
                 {
-                    "id": f"{result['id']}-results",
+                    "id": f"{question_id}-results",
                     "type": "table",
                     "tableId": table_id,
                     "layout": "full",
@@ -449,14 +562,14 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
                 "id": "limitations",
                 "type": "markdown",
                 "body": (
-                    "## Limitations and robustness notes\n\n"
-                    "The seed set is intentionally small and node-level, so "
-                    "these values are diagnostic rather than population "
-                    "estimates. The same author created the questions and "
-                    "judgments. Unanswerable handling cannot be scored until a "
-                    "sufficiency or answer-generation stage exists. Pooling "
-                    "results from a materially different retriever may reveal "
-                    "additional relevant nodes that should be adjudicated."
+                    "## Limits keep this result diagnostic\n\n"
+                    "The seed set is small, node-level, and authored alongside "
+                    "the relevance judgments, so it is not a population "
+                    "estimate. HNSW is approximate, though index scale is tiny. "
+                    "Unanswerable behavior and citation correctness still need "
+                    "answer-level evaluation. Review the pooled union of all "
+                    "three methods for missing relevance judgments before "
+                    "treating small differences as conclusive."
                 ),
                 "layout": "full",
             },
@@ -464,14 +577,14 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
                 "id": "next-steps",
                 "type": "markdown",
                 "body": (
-                    "## Recommended next steps\n\n"
-                    "1. Add a minimal grounded-answer path over the retrieved "
-                    "chunks.\n"
-                    "2. Measure citation correctness and unsupported claims.\n"
-                    "3. Add query decomposition or hierarchy expansion for the "
-                    "three partially covered multi-node questions.\n"
-                    "4. Re-run this unchanged report before considering dense "
-                    "or hybrid retrieval."
+                    "## Next steps follow the measured failures\n\n"
+                    "1. Review newly surfaced vector-only nodes and update the "
+                    "gold set only when they are genuinely relevant.\n"
+                    "2. Keep the strongest justified retriever as the QA "
+                    "default and retain all modes for debugging.\n"
+                    "3. Add answer-level citation and abstention evaluation.\n"
+                    "4. Add decomposition or hierarchy expansion only for "
+                    "remaining multi-section misses."
                 ),
                 "layout": "full",
             },
@@ -480,19 +593,17 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
                 "type": "markdown",
                 "body": (
                     "## Further questions\n\n"
-                    "- Does parent or sibling expansion recover the missing "
-                    "required nodes without reducing precision?\n"
-                    "- Do chunk-level judgments change the apparent advantage "
-                    "of BM25 on paraphrased questions?\n"
-                    "- Can a deterministic sufficiency rule reject the three "
-                    "unanswerable probes before introducing an LLM judge?"
+                    "- Do pooled judgments change the apparent winner?\n"
+                    "- Does hybrid improve paraphrases without displacing exact "
+                    "term matches?\n"
+                    "- Which remaining misses require query decomposition "
+                    "rather than another retrieval index?"
                 ),
                 "layout": "full",
             },
         ]
     )
 
-    source = _source(generated_at)
     return {
         "surface": "report",
         "manifest": {
@@ -500,7 +611,7 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
             "surface": "report",
             "title": TITLE,
             "description": (
-                "Detailed expected-versus-actual audit of the seed BM25 retrieval run."
+                "Gold-set comparison of lexical, semantic, and fused retrieval."
             ),
             "generatedAt": generated_at,
             "cards": cards,
@@ -521,7 +632,11 @@ def build_artifact(database: Path, gold_set: Path) -> dict:
 
 def main() -> None:
     args = build_argument_parser().parse_args()
-    artifact = build_artifact(args.database, args.gold_set)
+    artifact = build_artifact(
+        args.database,
+        args.gold_set,
+        chroma_path=args.chroma_path,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(artifact, ensure_ascii=False, indent=2),

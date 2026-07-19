@@ -28,6 +28,7 @@ class BuildSummary:
 @dataclass(frozen=True)
 class SearchResult:
     chunk_id: str
+    source_book_id: int
     source_node_id: int
     toc_index: int
     chunk_index: int
@@ -38,6 +39,7 @@ class SearchResult:
     text: str
     content_types: tuple[str, ...]
     score: float
+    retrieval_method: str = "bm25"
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
@@ -248,6 +250,7 @@ def search(
         results.append(
             SearchResult(
                 chunk_id=row["id"],
+                source_book_id=row["source_book_id"],
                 source_node_id=row["source_node_id"],
                 toc_index=row["toc_index"],
                 chunk_index=row["chunk_index"],
@@ -258,8 +261,50 @@ def search(
                 text=row["text"],
                 content_types=tuple(json.loads(row["content_types_json"])),
                 score=row["score"],
+                retrieval_method="bm25",
             )
         )
         if len(results) == limit:
             break
     return results
+
+
+def chunks_by_id(
+    connection: sqlite3.Connection,
+    chunk_ids: list[str],
+) -> dict[str, sqlite3.Row]:
+    """Load derived chunks by stable ID without changing caller rank order."""
+
+    if not chunk_ids:
+        return {}
+    placeholders = ",".join("?" for _ in chunk_ids)
+    rows = connection.execute(
+        f"SELECT * FROM chunks WHERE id IN ({placeholders})",
+        chunk_ids,
+    ).fetchall()
+    return {row["id"]: row for row in rows}
+
+
+def search_result_from_row(
+    row: sqlite3.Row,
+    *,
+    score: float,
+    retrieval_method: str,
+) -> SearchResult:
+    """Convert one derived chunk row to the common retrieval result."""
+
+    return SearchResult(
+        chunk_id=row["id"],
+        source_book_id=row["source_book_id"],
+        source_node_id=row["source_node_id"],
+        toc_index=row["toc_index"],
+        chunk_index=row["chunk_index"],
+        section_title=row["section_title"],
+        path_text=row["path_text"],
+        start_page=row["start_page"],
+        end_page=row["end_page"],
+        text=row["text"],
+        content_types=tuple(json.loads(row["content_types_json"])),
+        score=score,
+        retrieval_method=retrieval_method,
+    )

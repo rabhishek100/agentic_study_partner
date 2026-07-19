@@ -16,10 +16,10 @@ It contains 15 questions:
 | Multi-section | 3 | Test whether all required evidence is retrieved |
 | Unanswerable | 3 | Test whether plausible near-matches cause false confidence |
 
-The questions are frozen inputs for the first BM25 experiment. Do not rewrite
-them to make a particular retriever look better. If a question is found to be
-ambiguous or incorrectly judged, record the reason and increment the dataset
-version.
+The questions are frozen inputs for BM25, vector, and hybrid experiments. Do
+not rewrite them to make a particular retriever look better. If a question is
+found to be ambiguous or incorrectly judged, record the reason and increment
+the dataset version.
 
 ## Judgment policy
 
@@ -63,10 +63,33 @@ answers:
   should explicitly include unanswerable requests and measure rejection
   behavior.
 
-The first run should report node-level Recall@3, Recall@5, and mean reciprocal
-rank. For multi-section questions, also report required-node coverage so a
-partial retrieval is not mistaken for success. Unanswerable questions should
-be reported separately; retrieval scores alone cannot determine abstention.
+Every run reports node-level Recall@3, Recall@5, and mean reciprocal rank. For
+multi-section questions, it also reports required-node coverage so a partial
+retrieval is not mistaken for success. Unanswerable questions remain separate;
+retrieval scores alone cannot determine abstention.
+
+## Current comparison protocol
+
+All methods rank the same rebuildable chunks:
+
+- **BM25:** SQLite FTS5 over weighted section title, hierarchy, and body fields.
+- **Vector:** hierarchy-aware text embedded locally with the pinned
+  `Alibaba-NLP/gte-modernbert-base` model and searched in a cosine HNSW Chroma
+  collection.
+- **Hybrid:** unweighted reciprocal rank fusion with rank constant 60 over the
+  top 20 chunks from BM25 and vector retrieval.
+
+Results are collapsed to distinct TOC nodes before scoring. Raw scores are not
+compared across methods because BM25, cosine similarity, and RRF use different
+scales.
+
+Build and evaluate with:
+
+```bash
+uv run python -m scripts.build_vector_index
+uv run python -m scripts.evaluate_retrieval
+uv run python -m scripts.build_retrieval_report
+```
 
 After BM25 and one materially different retrieval method have produced ranked
 results, review the union of their top results and add any genuinely relevant

@@ -1,16 +1,45 @@
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
+import chromadb
+
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
 from retrieval.models import ChunkingConfig
+from retrieval.search import retrieve
 from retrieval.sqlite import connect, initialize, rebuild, search
+from retrieval.vector import rebuild_vector_index, vector_search
 from storage.sqlite import connect as connect_canonical
 from storage.sqlite import ingest_book, initialize as initialize_canonical
 
 
 FILE_HASH = "b" * 64
+
+
+class FakeEmbedder:
+    model_name = "test-embedding-v1"
+    model_revision = "test-revision"
+    device = "cpu"
+    dimension = 4
+    max_sequence_length = 4096
+
+    @staticmethod
+    def _embed(text: str) -> list[float]:
+        words = set(re.findall(r"\w+", text.casefold()))
+        return [
+            float(bool(words.intersection({"online", "architecture"}))),
+            float(bool(words.intersection({"batch", "throughput"}))),
+            float(bool(words.intersection({"monitoring", "failures"}))),
+            float(bool(words.intersection({"table", "compares"}))),
+        ]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return [self._embed(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._embed(text)
 
 
 def sample_book() -> ParsedBook:
@@ -256,6 +285,84 @@ class RetrievalTests(unittest.TestCase):
             "Monitoring detects failures quickly.",
         ):
             self.assertTrue(any(sentence in text for text in chunk_texts))
+
+    def test_vector_index_is_idempotent_and_hydrates_sqlite_chunks(self) -> None:
+        rebuild(
+            self.source,
+            self.destination,
+            self.book_id,
+            config=self.config,
+        )
+        client = chromadb.EphemeralClient()
+        embedder = FakeEmbedder()
+
+        first = rebuild_vector_index(
+            self.destination,
+            self.source,
+            client=client,
+            embedder=embedder,
+            collection_name="idempotent-test",
+        )
+        second = rebuild_vector_index(
+            self.destination,
+            self.source,
+            client=client,
+            embedder=embedder,
+            collection_name="idempotent-test",
+        )
+
+        self.assertGreater(first.embedded_count, 0)
+        self.assertEqual(second.embedded_count, 0)
+        self.assertEqual(second.unchanged_count, first.total_count)
+
+        results = vector_search(
+            self.destination,
+            "online prediction architecture",
+            client=client,
+            embedder=embedder,
+            collection_name="idempotent-test",
+            limit=3,
+            unique_nodes=True,
+        )
+        self.assertTrue(results)
+        self.assertEqual(results[0].section_title, "Prediction modes")
+        self.assertEqual(results[0].retrieval_method, "vector")
+        self.assertEqual(results[0].source_book_id, self.book_id)
+
+    def test_hybrid_retrieval_returns_fused_results(self) -> None:
+        rebuild(
+            self.source,
+            self.destination,
+            self.book_id,
+            config=self.config,
+        )
+        client = chromadb.EphemeralClient()
+        embedder = FakeEmbedder()
+        rebuild_vector_index(
+            self.destination,
+            self.source,
+            client=client,
+            embedder=embedder,
+            collection_name="hybrid-test",
+        )
+
+        results = retrieve(
+            self.destination,
+            "online prediction architecture",
+            mode="hybrid",
+            book_id=self.book_id,
+            limit=3,
+            unique_nodes=True,
+            client=client,
+            embedder=embedder,
+            collection_name="hybrid-test",
+        )
+
+        self.assertTrue(results)
+        self.assertEqual(results[0].section_title, "Prediction modes")
+        self.assertTrue(
+            all(result.retrieval_method == "hybrid" for result in results)
+        )
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 # Agentic Study Partner
 
 The project parses a PDF into a table-of-contents-aligned `ParsedBook`,
-persists that parser output in lossless primary SQLite storage, and builds a
-separate, disposable SQLite BM25 index from citation-aware chunks.
+persists that parser output in lossless primary SQLite storage, and builds
+disposable BM25 and Chroma vector indexes from citation-aware chunks.
 
 The primary database intentionally contains no summaries, chunks, embeddings,
 keyword indexes, or other derived data. It stores only source metadata, the TOC
@@ -28,6 +28,9 @@ PDF
                                      ├─ chunks
                                      ├─ chunk_sources
                                      └─ chunks_fts
+                                         │
+                                         └─ data/chroma/ (derived)
+                                             └─ book_text_chunks
 ```
 
 The canonical implementation has four core files:
@@ -43,13 +46,17 @@ The derived retrieval layer has four corresponding files:
 - `retrieval/chunking.py`: deterministic ordered-block chunk construction.
 - `retrieval/schema.sql`: disposable chunk and FTS5 schema.
 - `retrieval/sqlite.py`: atomic rebuild and BM25 search.
+- `retrieval/vector.py`: idempotent local Chroma ingestion and vector search.
+- `retrieval/search.py`: explicit BM25, vector, and RRF hybrid strategies.
+- `retrieval/langchain.py`: thin LangChain adapter over those strategies.
 
 The scripts are intentionally thin:
 
 - `scripts/parse_book.py`: parse the configured PDF.
 - `scripts/import_book.py`: rebuild SQLite from cached parser output.
 - `scripts/build_chunks.py`: rebuild chunks and the FTS5 index.
-- `scripts/evaluate_retrieval.py`: evaluate BM25 against the seed gold set.
+- `scripts/build_vector_index.py`: synchronize local Chroma from the chunks.
+- `scripts/evaluate_retrieval.py`: compare all retrieval modes.
 
 ## Parse the source PDF
 
@@ -153,7 +160,34 @@ uv run python -m scripts.build_chunks \
   --overlap-tokens 80
 ```
 
-## Evaluate BM25
+## Build the local vector index
+
+The vector index runs locally with no Docker or server:
+
+```bash
+uv run python -m scripts.build_vector_index
+```
+
+The first run downloads the pinned
+`Alibaba-NLP/gte-modernbert-base` model. It embeds the book title, full
+hierarchy path, and complete chunk body into a 768-dimensional vector, then
+stores it in a cosine HNSW Chroma collection under `data/chroma/`.
+
+The model supports 8,192 tokens, so the existing 800-token chunk limit is not
+silently truncated. The command is idempotent: unchanged chunk IDs are
+skipped, new chunks are embedded, and stale vectors are deleted. Index
+provenance is written to `data/chroma/index_manifest.json`.
+
+Embedding defaults to CPU for a reproducible no-GPU setup. On a compatible
+CUDA installation, opt in with `EMBEDDING_DEVICE=cuda`.
+
+To intentionally recreate an incompatible derived collection:
+
+```bash
+uv run python -m scripts.build_vector_index --reset
+```
+
+## Evaluate retrieval
 
 The retrieval gold set and judgment policy live under `evaluation/`. Run:
 
@@ -161,8 +195,16 @@ The retrieval gold set and judgment policy live under `evaluation/`. Run:
 uv run python -m scripts.evaluate_retrieval
 ```
 
-For the current 15-question seed set, the initial node-level BM25 baseline on
-the 12 answerable questions is:
+This evaluates BM25, vector, and hybrid retrieval against the same frozen
+node-level judgments. Hybrid uses unweighted reciprocal rank fusion over the
+top 20 chunks from each retriever. To run only the frozen BM25 baseline:
+
+```bash
+uv run python -m scripts.evaluate_retrieval --modes bm25
+```
+
+For the current 15-question seed set, the original BM25 baseline on the 12
+answerable questions is:
 
 | Metric | Result |
 |---|---:|
@@ -174,18 +216,19 @@ The remaining misses are concentrated in questions whose required evidence
 spans multiple sections. Unanswerable questions are shown as retrieval probes
 but are not scored until a downstream sufficiency/abstention step exists.
 
-### Detailed HTML report
+### Detailed comparison report
 
-Open [`evaluation/bm25_report.html`](evaluation/bm25_report.html) for a
-self-contained report containing:
+Open
+[`evaluation/retrieval_comparison.html`](evaluation/retrieval_comparison.html)
+for the self-contained comparison containing:
 
-- Overall and category-level retrieval metrics.
+- Overall and category-level metrics for all three methods.
 - Every gold-set question and its expected source nodes and PDF pages.
-- The top five BM25 results, ranks, scores, citations, and chunk excerpts.
+- The top five results from each method with citations and excerpts.
 - Explicit missing-node and unanswerable-probe diagnostics.
 
-The report's rebuildable source artifact is generated directly from the gold
-set and retrieval database:
+The report's rebuildable source artifact is generated from the frozen gold
+set, derived SQLite chunks, and local Chroma collection:
 
 ```bash
 uv run python -m scripts.build_retrieval_report
@@ -199,8 +242,19 @@ After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
 uv run python app.py
 ```
 
-Each response shows its BM25 source labels, full book hierarchy, and PDF pages.
-Conversation history is visible, but each question is retrieved independently.
+Each response shows source labels, full book hierarchy, and PDF pages.
+The UI can switch between BM25, vector, and hybrid retrieval; hybrid is the
+initial default. Search spans all indexed books unless a `book_id` filter is
+provided programmatically. Conversation history is visible, but each question
+is retrieved independently.
+
+The CLI exposes the same retrieval choice:
+
+```bash
+uv run python -m scripts.ask_book \
+  --retrieval-mode hybrid \
+  "How does reservoir sampling work?"
+```
 
 ## Tests
 

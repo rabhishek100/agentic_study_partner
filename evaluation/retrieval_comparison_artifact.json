@@ -1,0 +1,3752 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "Retrieval Evaluation: BM25 vs Vector vs Hybrid",
+    "description": "Gold-set comparison of lexical, semantic, and fused retrieval.",
+    "generatedAt": "2026-07-18T20:23:18.213014+00:00",
+    "cards": [
+      {
+        "id": "bm25-quality",
+        "dataset": "summary_metrics",
+        "description": "BM25 required-node coverage and first-hit rank.",
+        "sourceId": "retrieval-comparison",
+        "metrics": [
+          {
+            "label": "BM25 Recall@5",
+            "field": "bm25_recall_at_5",
+            "format": "percent"
+          },
+          {
+            "label": "MRR@5",
+            "field": "bm25_mrr_at_5",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "vector-quality",
+        "dataset": "summary_metrics",
+        "description": "Vector required-node coverage and first-hit rank.",
+        "sourceId": "retrieval-comparison",
+        "metrics": [
+          {
+            "label": "Vector Recall@5",
+            "field": "vector_recall_at_5",
+            "format": "percent"
+          },
+          {
+            "label": "MRR@5",
+            "field": "vector_mrr_at_5",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "hybrid-quality",
+        "dataset": "summary_metrics",
+        "description": "Hybrid required-node coverage and first-hit rank.",
+        "sourceId": "retrieval-comparison",
+        "metrics": [
+          {
+            "label": "Hybrid Recall@5",
+            "field": "hybrid_recall_at_5",
+            "format": "percent"
+          },
+          {
+            "label": "MRR@5",
+            "field": "hybrid_mrr_at_5",
+            "format": "percent"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "method-quality-chart",
+        "title": "Retrieval quality by method",
+        "subtitle": "Mean node-level scores across 12 answerable gold questions.",
+        "type": "bar",
+        "intent": "comparison",
+        "dataset": "method_metrics",
+        "sourceId": "retrieval-comparison",
+        "encodings": {
+          "x": {
+            "field": "method",
+            "type": "nominal",
+            "label": "Retrieval method"
+          },
+          "y": {
+            "field": "value",
+            "type": "quantitative",
+            "format": "percent",
+            "label": "Mean score"
+          },
+          "color": {
+            "field": "metric",
+            "type": "nominal",
+            "label": "Metric"
+          }
+        },
+        "settings": {
+          "groupMode": "grouped",
+          "orientation": "vertical",
+          "showValues": true
+        },
+        "legend": {
+          "position": "bottom",
+          "title": "Metric"
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "layout": "full"
+      },
+      {
+        "id": "category-recall-chart",
+        "title": "Recall@5 by question category",
+        "subtitle": "Required-node coverage for exact-term, paraphrase, and multi-section questions.",
+        "type": "bar",
+        "intent": "comparison",
+        "dataset": "category_recall",
+        "sourceId": "retrieval-comparison",
+        "encodings": {
+          "x": {
+            "field": "category",
+            "type": "nominal",
+            "label": "Question category"
+          },
+          "y": {
+            "field": "recall_at_5",
+            "type": "quantitative",
+            "format": "percent",
+            "label": "Mean Recall@5"
+          },
+          "color": {
+            "field": "method",
+            "type": "nominal",
+            "label": "Retrieval method"
+          },
+          "tooltip": [
+            {
+              "field": "question_count",
+              "type": "quantitative"
+            },
+            {
+              "field": "recall_at_5",
+              "type": "quantitative",
+              "format": "percent"
+            }
+          ]
+        },
+        "settings": {
+          "groupMode": "grouped",
+          "orientation": "vertical",
+          "showValues": true
+        },
+        "legend": {
+          "position": "bottom",
+          "title": "Method"
+        },
+        "palette": {
+          "kind": "categorical"
+        },
+        "layout": "full"
+      }
+    ],
+    "tables": [
+      {
+        "id": "ret-001-table",
+        "title": "ret-001 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-001-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-002-table",
+        "title": "ret-002 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-002-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-003-table",
+        "title": "ret-003 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-003-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-004-table",
+        "title": "ret-004 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-004-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-005-table",
+        "title": "ret-005 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-005-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-006-table",
+        "title": "ret-006 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-006-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-007-table",
+        "title": "ret-007 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-007-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-008-table",
+        "title": "ret-008 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-008-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-009-table",
+        "title": "ret-009 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-009-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-010-table",
+        "title": "ret-010 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-010-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-011-table",
+        "title": "ret-011 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-011-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-012-table",
+        "title": "ret-012 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-012-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-013-table",
+        "title": "ret-013 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-013-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-014-table",
+        "title": "ret-014 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-014-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "id": "ret-015-table",
+        "title": "ret-015 ranked retrievals",
+        "subtitle": "Five distinct source nodes per method with citations and gold-set judgments.",
+        "dataset": "ret-015-retrievals",
+        "defaultSort": {
+          "field": "rank",
+          "direction": "asc"
+        },
+        "density": "dense",
+        "sourceId": "retrieval-comparison",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "rank",
+            "label": "Rank",
+            "type": "number"
+          },
+          {
+            "field": "judgment",
+            "label": "Judgment",
+            "type": "text"
+          },
+          {
+            "field": "node_id",
+            "label": "Node",
+            "type": "number"
+          },
+          {
+            "field": "section",
+            "label": "Section",
+            "type": "text"
+          },
+          {
+            "field": "pages",
+            "label": "PDF pages",
+            "type": "text"
+          },
+          {
+            "field": "score",
+            "label": "Method score",
+            "type": "number"
+          },
+          {
+            "field": "excerpt",
+            "label": "Chunk excerpt",
+            "type": "text"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "retrieval-comparison",
+        "label": "Gold-set retrieval comparison",
+        "path": "evaluation/retrieval_gold_seed.json",
+        "query": {
+          "engine": "Python, SQLite FTS5, and local Chroma",
+          "language": "python",
+          "description": "Runs the frozen gold questions against BM25, dense vector search, and unweighted reciprocal rank fusion.",
+          "sql": "SELECT id, source_book_id, source_node_id, toc_index, chunk_index, section_title, path_text, start_page, end_page, text, content_types_json FROM chunks WHERE source_book_id = :book_id ORDER BY toc_index, chunk_index",
+          "executed_at": "2026-07-18T20:23:18.213014+00:00",
+          "tables_used": [
+            "data/retrieval.sqlite3: chunks",
+            "data/retrieval.sqlite3: chunks_fts",
+            "data/chroma: book_text_chunks"
+          ],
+          "filters": [
+            "Gold-set source SHA-256 must match the indexed book",
+            "Top five distinct TOC nodes retained per question",
+            "Unanswerable probes excluded from recall and MRR"
+          ],
+          "metric_definitions": [
+            "Recall@k is required evidence nodes found in the first k distinct retrieved nodes divided by all required evidence nodes.",
+            "MRR@5 is the reciprocal rank of the first required evidence node within five distinct nodes; zero when absent.",
+            "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks."
+          ],
+          "model": {
+            "collection": "book_text_chunks",
+            "embedding_model": "Alibaba-NLP/gte-modernbert-base",
+            "embedding_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+            "embedding_dimension": 768,
+            "embedding_device": "cpu",
+            "max_sequence_length": 8192,
+            "document_format_version": "hierarchy-v1",
+            "distance_metric": "cosine",
+            "index": "hnsw",
+            "book_ids": [
+              1
+            ],
+            "vector_count": 332,
+            "built_at": "2026-07-18T20:22:37.028395+00:00"
+          }
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# Retrieval Evaluation: BM25 vs Vector vs Hybrid",
+        "layout": "full"
+      },
+      {
+        "id": "technical-summary",
+        "type": "markdown",
+        "body": "## Technical summary\n\n**Hybrid has the strongest aggregate retrieval result on this seed set.** Its Recall@5 is 93.1% and MRR@5 is 89.6%. Hybrid changes Recall@5 by +4.2% versus the frozen BM25 baseline, while changing MRR@5 by -2.1%. Vector alone changes Recall@5 by -4.2%. Hybrid is therefore defensible for the five-source QA context, but BM25 remains the stronger early-ranking baseline.",
+        "sourceId": "retrieval-comparison",
+        "layout": "full"
+      },
+      {
+        "id": "headline-metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "bm25-quality",
+          "vector-quality",
+          "hybrid-quality"
+        ],
+        "layout": "full"
+      },
+      {
+        "id": "aggregate-finding",
+        "type": "markdown",
+        "body": "## Aggregate quality differs by retrieval method\n\nHybrid raises Recall@5 from 88.9% to 93.1%, but its MRR@5 is 89.6% versus 91.7% for BM25. The fusion retrieves more of the complete five-node evidence set at the cost of slightly weaker first-hit ordering.",
+        "layout": "full"
+      },
+      {
+        "id": "method-quality",
+        "type": "chart",
+        "chartId": "method-quality-chart",
+        "layout": "full"
+      },
+      {
+        "id": "category-finding",
+        "type": "markdown",
+        "body": "## Category-level results show where semantic retrieval helps\n\nHybrid reaches 100% Recall@5 for exact-term and paraphrase questions, while multi-section Recall@5 remains 72.2%. Vector-only paraphrase Recall@5 is 75.0%, so semantic retrieval does not independently improve the paraphrase subset in this small gold set.",
+        "layout": "full"
+      },
+      {
+        "id": "category-recall",
+        "type": "chart",
+        "chartId": "category-recall-chart",
+        "layout": "full"
+      },
+      {
+        "id": "scope-definitions",
+        "type": "markdown",
+        "body": "## Scope and metric definitions\n\nThe evaluated corpus contains 332 citation-aware chunks from 146 TOC nodes in one technical book. Twelve answerable questions contribute to Recall@3, Recall@5, and MRR@5; three unanswerable questions are diagnostic probes. All methods are evaluated against the same node-level evidence judgments and the same derived chunks.",
+        "sourceId": "retrieval-comparison",
+        "layout": "full"
+      },
+      {
+        "id": "methodology",
+        "type": "markdown",
+        "body": "## Methods use one corpus but different ranking signals\n\nBM25 uses weighted SQLite FTS5 fields: section title 5×, hierarchy path 2×, and body 1×. Vector search embeds book and hierarchy context plus the complete chunk body, then searches a cosine HNSW index in local Chroma. Hybrid applies unweighted reciprocal rank fusion with constant 60 to the top 20 chunks from each method. Each ranked list is collapsed to distinct TOC nodes before scoring.",
+        "sourceId": "retrieval-comparison",
+        "layout": "full"
+      },
+      {
+        "id": "question-audit-intro",
+        "type": "markdown",
+        "body": "## Question-by-question retrieval audit\n\nEach section lists the expected evidence and the five highest-ranked distinct nodes from all three methods. Raw BM25, cosine-similarity, and RRF scores are method-specific and must not be compared across methods.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-001-summary",
+        "type": "markdown",
+        "body": "## ret-001 — Retrieval comparison\n\n**Question:** How does reservoir sampling maintain a sample of k items when the total number of streaming items is unknown?\n\n**Required evidence:**\n\n- Node 59, Chapter 4. Training Data :: Sampling :: Reservoir Sampling (PDF pp. 106) — Defines reservoir sampling for streaming data and gives the replacement procedure for maintaining k samples.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-001-results",
+        "type": "table",
+        "tableId": "ret-001-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-002-summary",
+        "type": "markdown",
+        "body": "## ret-002 — Retrieval comparison\n\n**Question:** What are the main differences between batch prediction and online prediction in timing, suitable use cases, and optimization goals?\n\n**Required evidence:**\n\n- Node 106, Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction (PDF pp. 217–220) — Defines synchronous online and asynchronous batch prediction; Table 7-1 contrasts their frequency, use cases, throughput, and latency priorities.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-002-results",
+        "type": "table",
+        "tableId": "ret-002-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-003-summary",
+        "type": "markdown",
+        "body": "## ret-003 — Retrieval comparison\n\n**Question:** Compare weak supervision, semi-supervision, transfer learning, and active learning by how they obtain labels and whether they require ground-truth examples.\n\n**Required evidence:**\n\n- Node 64, Chapter 4. Training Data :: Labeling :: Handling the Lack of Labels (PDF pp. 114–116, 118–120) — Introduces all four approaches and tabulates how each generates labels and its ground-truth requirements.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-003-results",
+        "type": "table",
+        "tableId": "ret-003-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-004-summary",
+        "type": "markdown",
+        "body": "## ret-004 — Retrieval comparison\n\n**Question:** What is data leakage, and how can leakage caused by time-correlated splits, preprocessing statistics, or related examples be prevented?\n\n**Required evidence:**\n\n- Node 82, Chapter 5. Feature Engineering :: Data Leakage (PDF pp. 155–156) — Defines leakage as label information entering features despite being unavailable at inference and explains why it causes misleading evaluation.\n- Node 83, Chapter 5. Feature Engineering :: Data Leakage :: Common Causes for Data Leakage (PDF pp. 157–159) — Covers time-based splitting, fitting preprocessing only on training statistics, and keeping correlated groups within one split.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 50.0%; missing nodes [82].\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 50.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-004-results",
+        "type": "table",
+        "tableId": "ret-004-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-005-summary",
+        "type": "markdown",
+        "body": "## ret-005 — Retrieval comparison\n\n**Question:** How does shadow deployment evaluate a candidate model without exposing users to its predictions?\n\n**Required evidence:**\n\n- Node 140, Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment (PDF pp. 302) — Routes each request to both existing and candidate models, serves only the existing model, and logs candidate predictions for analysis.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-005-results",
+        "type": "table",
+        "tableId": "ret-005-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-006-summary",
+        "type": "markdown",
+        "body": "## ret-006 — Retrieval comparison\n\n**Question:** Two cancer classifiers both report 90% overall accuracy, but one detects only 10 of 100 cancer cases while the other detects 90. Which evaluation measures reveal the meaningful difference, and why?\n\n**Required evidence:**\n\n- Node 67, Chapter 4. Training Data :: Class Imbalance :: Handling Class Imbalance (PDF pp. 126–127) — Uses the two cancer confusion matrices to show that class-specific recall and F1 distinguish models whose overall accuracy is identical.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-006-results",
+        "type": "table",
+        "tableId": "ret-006-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-007-summary",
+        "type": "markdown",
+        "body": "## ret-007 — Retrieval comparison\n\n**Question:** How can model B look better than model A after two groups are combined even though model A performs better within each group?\n\n**Required evidence:**\n\n- Node 98, Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods (PDF pp. 206–207) — Explains Simpson's paradox and demonstrates why aggregate performance can reverse the trend present in each subgroup.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 100.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-007-results",
+        "type": "table",
+        "tableId": "ret-007-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-008-summary",
+        "type": "markdown",
+        "body": "## ret-008 — Retrieval comparison\n\n**Question:** A marketing campaign brings in a wealthier user population, but users with the same income still convert at the same rate as before. What kind of production data change is this?\n\n**Required evidence:**\n\n- Node 123, Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Types of Data Distribution Shifts (PDF pp. 258–259) — Defines covariate shift as a change in the input distribution while the conditional output relationship remains unchanged and gives this marketing example.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-008-results",
+        "type": "table",
+        "tableId": "ret-008-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-009-summary",
+        "type": "markdown",
+        "body": "## ret-009 — Retrieval comparison\n\n**Question:** A model has strong overall performance but may disadvantage underrepresented groups. What should the team audit and document before deciding it is responsible to deploy?\n\n**Required evidence:**\n\n- Node 172, Chapter 11. The Human Side of Machine Learning :: Responsible AI :: A Framework for Responsible AI (PDF pp. 367–372) — Provides a responsible-AI audit covering bias sources, subgroup evaluation, real-world tradeoffs, early intervention, and model-card documentation.\n\n**Coverage by method:**\n\n- BM25: Recall@3 100.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 0.0%; missing nodes [172].\n- Hybrid: Recall@3 100.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-009-results",
+        "type": "table",
+        "tableId": "ret-009-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-010-summary",
+        "type": "markdown",
+        "body": "## ret-010 — Retrieval comparison\n\n**Question:** Why is a small improvement in an offline ML metric not enough to justify deploying a model, and what broader comparisons should determine whether the project is useful?\n\n**Required evidence:**\n\n- Node 22, Chapter 2. Introduction to Machine Learning Systems Design :: Business and ML Objectives (PDF pp. 46–47) — Argues that ML metrics matter only when tied to business outcomes and that controlled experiments may be needed to establish that connection.\n- Node 98, Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods (PDF pp. 201) — Requires comparison with existing solutions and notes that a slightly weaker model may still be valuable if it is cheaper or easier to use.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 100.0%.\n- Vector: Recall@3 0.0%, Recall@5 50.0%; missing nodes [22].\n- Hybrid: Recall@3 0.0%, Recall@5 50.0%; missing nodes [22].",
+        "layout": "full"
+      },
+      {
+        "id": "ret-010-results",
+        "type": "table",
+        "tableId": "ret-010-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-011-summary",
+        "type": "markdown",
+        "body": "## ret-011 — Retrieval comparison\n\n**Question:** What does stateful training offer over retraining from scratch, and what operational challenges must be solved before continual learning is safe?\n\n**Required evidence:**\n\n- Node 134, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Stateless Retraining Versus Stateful Training (PDF pp. 285–287) — Contrasts training from scratch with continuing from a prior state and discusses data, compute, privacy, and model-iteration tradeoffs.\n- Node 136, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Continual Learning Challenges (PDF pp. 290–293) — Identifies fresh-data access, reliable evaluation, and algorithm support as the major continual-learning challenges.\n\n**Coverage by method:**\n\n- BM25: Recall@3 50.0%, Recall@5 50.0%; missing nodes [136].\n- Vector: Recall@3 50.0%, Recall@5 100.0%.\n- Hybrid: Recall@3 50.0%, Recall@5 100.0%.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-011-results",
+        "type": "table",
+        "tableId": "ret-011-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-012-summary",
+        "type": "markdown",
+        "body": "## ret-012 — Retrieval comparison\n\n**Question:** A production model has delayed ground-truth labels and the team suspects distribution shift. How can they detect a meaningful change, decide whether it should trigger an update, and validate the candidate without showing its predictions to users?\n\n**Required evidence:**\n\n- Node 125, Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Detecting Data Distribution Shifts (PDF pp. 262–264) — Explains why delayed labels limit direct performance monitoring and describes monitoring input distributions, summary statistics, and statistical tests.\n- Node 138, Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models (PDF pp. 299) — Lists drift-based update triggers while warning that noisy monitoring can cause unnecessary retraining.\n- Node 140, Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment (PDF pp. 302) — Provides the safe candidate-validation step: run both models but serve only the existing model's prediction.\n\n**Coverage by method:**\n\n- BM25: Recall@3 33.3%, Recall@5 66.7%; missing nodes [140].\n- Vector: Recall@3 66.7%, Recall@5 66.7%; missing nodes [138].\n- Hybrid: Recall@3 33.3%, Recall@5 66.7%; missing nodes [140].",
+        "layout": "full"
+      },
+      {
+        "id": "ret-012-results",
+        "type": "table",
+        "tableId": "ret-012-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-013-summary",
+        "type": "markdown",
+        "body": "## ret-013 — Retrieval comparison\n\n**Question:** How should an engineer choose the rank and target modules when applying LoRA to fine-tune a transformer?\n\n**Expected behavior:** Abstain. The inspected book contains no discussion of Low-Rank Adaptation as a transformer fine-tuning method.\n\n**Plausible near-miss sections:**\n\n- Node 110, Chapter 7. Model Deployment and Prediction Service :: Model Compression :: Low-Rank Factorization (PDF pp. 226–227) — The section discusses low-rank factorization for model compression, not LoRA fine-tuning, target-module selection, or LoRA rank selection.\n\nThese rows diagnose what each retriever surfaces; retrieval alone does not establish answerability.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-013-results",
+        "type": "table",
+        "tableId": "ret-013-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-014-summary",
+        "type": "markdown",
+        "body": "## ret-014 — Retrieval comparison\n\n**Question:** Which Kubernetes Horizontal Pod Autoscaler algorithm and GPU utilization thresholds should be configured for this book's model-serving architecture?\n\n**Expected behavior:** Abstain. The book mentions Kubernetes conceptually but does not define a concrete serving architecture or prescribe Horizontal Pod Autoscaler settings.\n\n**Plausible near-miss sections:**\n\n- Node 152, Chapter 10. Infrastructure and Tooling for MLOps :: Development Environment :: From Dev to Prod: Containers (PDF pp. 328–330) — The section gives a high-level description of containers and Kubernetes but does not specify HPA algorithms or GPU thresholds.\n- Node 155, Chapter 10. Infrastructure and Tooling for MLOps :: Resource Management :: Data Science Workflow Management (PDF pp. 334) — The section names Kubernetes as an orchestrator but provides no autoscaler configuration.\n\nThese rows diagnose what each retriever surfaces; retrieval alone does not establish answerability.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-014-results",
+        "type": "table",
+        "tableId": "ret-014-table",
+        "layout": "full"
+      },
+      {
+        "id": "ret-015-summary",
+        "type": "markdown",
+        "body": "## ret-015 — Retrieval comparison\n\n**Question:** What is the exact July 2026 hourly price of the recommended Amazon SageMaker instance for deploying this system?\n\n**Expected behavior:** Abstain. The question asks for a current external price and a deployment recommendation that are not present in the static book.\n\n**Plausible near-miss sections:**\n\n- Node 107, Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction :: From Batch Prediction to Online Prediction (PDF pp. 221) — The section mentions SageMaker as a way to expose a model endpoint but gives no current pricing or recommended instance.\n- Node 157, Chapter 10. Infrastructure and Tooling for MLOps :: ML Platform :: Model Deployment (PDF pp. 340) — The section lists SageMaker as a deployment service but does not provide July 2026 prices.\n\nThese rows diagnose what each retriever surfaces; retrieval alone does not establish answerability.",
+        "layout": "full"
+      },
+      {
+        "id": "ret-015-results",
+        "type": "table",
+        "tableId": "ret-015-table",
+        "layout": "full"
+      },
+      {
+        "id": "limitations",
+        "type": "markdown",
+        "body": "## Limits keep this result diagnostic\n\nThe seed set is small, node-level, and authored alongside the relevance judgments, so it is not a population estimate. HNSW is approximate, though index scale is tiny. Unanswerable behavior and citation correctness still need answer-level evaluation. Review the pooled union of all three methods for missing relevance judgments before treating small differences as conclusive.",
+        "layout": "full"
+      },
+      {
+        "id": "next-steps",
+        "type": "markdown",
+        "body": "## Next steps follow the measured failures\n\n1. Review newly surfaced vector-only nodes and update the gold set only when they are genuinely relevant.\n2. Keep the strongest justified retriever as the QA default and retain all modes for debugging.\n3. Add answer-level citation and abstention evaluation.\n4. Add decomposition or hierarchy expansion only for remaining multi-section misses.",
+        "layout": "full"
+      },
+      {
+        "id": "further-questions",
+        "type": "markdown",
+        "body": "## Further questions\n\n- Do pooled judgments change the apparent winner?\n- Does hybrid improve paraphrases without displacing exact term matches?\n- Which remaining misses require query decomposition rather than another retrieval index?",
+        "layout": "full"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-07-18T20:23:18.213014+00:00",
+    "status": "ready",
+    "datasets": {
+      "summary_metrics": [
+        {
+          "bm25_recall_at_5": 0.8888888888888888,
+          "bm25_mrr_at_5": 0.9166666666666666,
+          "vector_recall_at_5": 0.8472222222222222,
+          "vector_mrr_at_5": 0.75,
+          "hybrid_recall_at_5": 0.9305555555555555,
+          "hybrid_mrr_at_5": 0.8958333333333334
+        }
+      ],
+      "method_metrics": [
+        {
+          "method": "BM25",
+          "metric": "Recall@3",
+          "value": 0.8194444444444445,
+          "question_count": 12
+        },
+        {
+          "method": "BM25",
+          "metric": "Recall@5",
+          "value": 0.8888888888888888,
+          "question_count": 12
+        },
+        {
+          "method": "BM25",
+          "metric": "MRR@5",
+          "value": 0.9166666666666666,
+          "question_count": 12
+        },
+        {
+          "method": "Vector",
+          "metric": "Recall@3",
+          "value": 0.6805555555555555,
+          "question_count": 12
+        },
+        {
+          "method": "Vector",
+          "metric": "Recall@5",
+          "value": 0.8472222222222222,
+          "question_count": 12
+        },
+        {
+          "method": "Vector",
+          "metric": "MRR@5",
+          "value": 0.75,
+          "question_count": 12
+        },
+        {
+          "method": "Hybrid",
+          "metric": "Recall@3",
+          "value": 0.7777777777777778,
+          "question_count": 12
+        },
+        {
+          "method": "Hybrid",
+          "metric": "Recall@5",
+          "value": 0.9305555555555555,
+          "question_count": 12
+        },
+        {
+          "method": "Hybrid",
+          "metric": "MRR@5",
+          "value": 0.8958333333333334,
+          "question_count": 12
+        }
+      ],
+      "category_recall": [
+        {
+          "category": "Exact Term",
+          "method": "BM25",
+          "recall_at_5": 0.9,
+          "question_count": 5
+        },
+        {
+          "category": "Multi Section",
+          "method": "BM25",
+          "recall_at_5": 0.7222222222222222,
+          "question_count": 3
+        },
+        {
+          "category": "Paraphrase",
+          "method": "BM25",
+          "recall_at_5": 1.0,
+          "question_count": 4
+        },
+        {
+          "category": "Exact Term",
+          "method": "Vector",
+          "recall_at_5": 1.0,
+          "question_count": 5
+        },
+        {
+          "category": "Multi Section",
+          "method": "Vector",
+          "recall_at_5": 0.7222222222222222,
+          "question_count": 3
+        },
+        {
+          "category": "Paraphrase",
+          "method": "Vector",
+          "recall_at_5": 0.75,
+          "question_count": 4
+        },
+        {
+          "category": "Exact Term",
+          "method": "Hybrid",
+          "recall_at_5": 1.0,
+          "question_count": 5
+        },
+        {
+          "category": "Multi Section",
+          "method": "Hybrid",
+          "recall_at_5": 0.7222222222222222,
+          "question_count": 3
+        },
+        {
+          "category": "Paraphrase",
+          "method": "Hybrid",
+          "recall_at_5": 1.0,
+          "question_count": 4
+        }
+      ],
+      "ret-001-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 59,
+          "section": "Reservoir Sampling",
+          "pages": "106",
+          "score": -25.3484,
+          "excerpt": "Figure 4-1. Sample weights can affect the decision boundary. On the left is when all samples are given equal weights. On the right is when samples are given different weights. Source: scikit-learn6 Re…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 60,
+          "section": "Importance Sampling",
+          "pages": "107",
+          "score": -22.5373,
+          "excerpt": "This means that each incoming nth element has k n probability of being in the reser‐ voir. You can also prove that each element in the reservoir has k n probability of being there. This means that all…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 67,
+          "section": "Handling Class Imbalance",
+          "pages": "132",
+          "score": -12.3308,
+          "excerpt": "The problem with this loss function is that you have to manually define the cost matrix, which is different for different tasks at different scales. Class-balanced loss. What might happen with a model…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 58,
+          "section": "Weighted Sampling",
+          "pages": "105",
+          "score": -12.0379,
+          "excerpt": "One drawback of this sampling method is that it isn’t always possible, such as when it’s impossible to divide all samples into groups. This is especially challenging when one sample might belong to mu…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 144,
+          "section": "Bandits",
+          "pages": "309–310",
+          "score": -10.9846,
+          "excerpt": "34 William R. Thompson, “On the Likelihood that One Unknown Probability Exceeds Another in View of the Evidence of Two Samples,” Biometrika 25, no. 3/4 (December 1933): 285–94, https://oreil.ly/TH1HC.…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 59,
+          "section": "Reservoir Sampling",
+          "pages": "106",
+          "score": 0.7938,
+          "excerpt": "Figure 4-1. Sample weights can affect the decision boundary. On the left is when all samples are given equal weights. On the right is when samples are given different weights. Source: scikit-learn6 Re…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 60,
+          "section": "Importance Sampling",
+          "pages": "107",
+          "score": 0.7384,
+          "excerpt": "This means that each incoming nth element has k n probability of being in the reser‐ voir. You can also prove that each element in the reservoir has k n probability of being there. This means that all…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 136,
+          "section": "Continual Learning Challenges",
+          "pages": "291–292",
+          "score": 0.6519,
+          "excerpt": "Being able to pull fresh data isn’t enough. If your model needs labeled data to update, as most models today do, this data will need to be labeled as well. In many applications, the speed at which a m…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "298",
+          "score": 0.6496,
+          "excerpt": "solution in-house. If you want to pull fresh data from the real-time transports instead of from data warehouses, as discussed in the section “Fresh data access challenge” on page 270, and your streami…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 57,
+          "section": "Stratified Sampling",
+          "pages": "104",
+          "score": 0.6303,
+          "excerpt": "A third example is data for training self-driving cars. Initially, data collected for self-driving cars came largely from two areas: Phoenix, Arizona (because of its lax regulations), and the Bay Area…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 59,
+          "section": "Reservoir Sampling",
+          "pages": "106",
+          "score": 0.0328,
+          "excerpt": "Figure 4-1. Sample weights can affect the decision boundary. On the left is when all samples are given equal weights. On the right is when samples are given different weights. Source: scikit-learn6 Re…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 60,
+          "section": "Importance Sampling",
+          "pages": "107",
+          "score": 0.0323,
+          "excerpt": "This means that each incoming nth element has k n probability of being in the reser‐ voir. You can also prove that each element in the reservoir has k n probability of being there. This means that all…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 58,
+          "section": "Weighted Sampling",
+          "pages": "105",
+          "score": 0.0303,
+          "excerpt": "One drawback of this sampling method is that it isn’t always possible, such as when it’s impossible to divide all samples into groups. This is especially challenging when one sample might belong to mu…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "294",
+          "score": 0.0284,
+          "excerpt": "with a new data sample, but if your matrix is large, the dimensionality reduction step would be too slow and expensive to perform frequently. Therefore, this model is less suitable for learning with a…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 108,
+          "section": "Unifying Batch Pipeline and Streaming Pipeline",
+          "pages": "223–224",
+          "score": 0.0278,
+          "excerpt": "Batch prediction is a workaround for when online prediction isn’t cheap enough or isn’t fast enough. Why generate one million predictions in advance and worry about storing and retrieving them if you …"
+        }
+      ],
+      "ret-002-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 106,
+          "section": "Batch Prediction Versus Online Prediction",
+          "pages": "218–220",
+          "score": -10.9124,
+          "excerpt": "Figure 7-4 shows a simplified architecture for batch prediction, and Figure 7-5 shows a simplified version of online prediction using only batch features. We’ll go over what it means to use only batch…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 107,
+          "section": "From Batch Prediction to Online Prediction",
+          "pages": "221–222",
+          "score": -9.9335,
+          "excerpt": "In many applications, online prediction and batch prediction are used side by side for different use cases. For example, food ordering apps like DoorDash and UberEats use batch prediction to generate …"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 108,
+          "section": "Unifying Batch Pipeline and Streaming Pipeline",
+          "pages": "224–225",
+          "score": -9.0858,
+          "excerpt": "Figure 7-7. Having two different pipelines for training and inference is a common source for bugs for ML in production Figure 7-8 shows a more detailed but also more complex feature of the data pipeli…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 31,
+          "section": "Objective Functions",
+          "pages": "61–62",
+          "score": -8.9857,
+          "excerpt": "Decoupling objectives Framing ML problems can be tricky when you want to minimize multiple objective functions. Imagine you’re building a system to rank items on users’ newsfeeds. Your original goal i…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "294",
+          "score": -8.5296,
+          "excerpt": "with a new data sample, but if your matrix is large, the dimensionality reduction step would be too slow and expensive to perform frequently. Therefore, this model is less suitable for learning with a…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 107,
+          "section": "From Batch Prediction to Online Prediction",
+          "pages": "221–222",
+          "score": 0.8285,
+          "excerpt": "In many applications, online prediction and batch prediction are used side by side for different use cases. For example, food ordering apps like DoorDash and UberEats use batch prediction to generate …"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "expected",
+          "node_id": 106,
+          "section": "Batch Prediction Versus Online Prediction",
+          "pages": "218–220",
+          "score": 0.8223,
+          "excerpt": "Figure 7-4 shows a simplified architecture for batch prediction, and Figure 7-5 shows a simplified version of online prediction using only batch features. We’ll go over what it means to use only batch…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 108,
+          "section": "Unifying Batch Pipeline and Streaming Pipeline",
+          "pages": "223–224",
+          "score": 0.8157,
+          "excerpt": "Batch prediction is a workaround for when online prediction isn’t cheap enough or isn’t fast enough. Why generate one million predictions in advance and worry about storing and retrieving them if you …"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 51,
+          "section": "Batch Processing Versus Stream Processing",
+          "pages": "98",
+          "score": 0.6986,
+          "excerpt": "Batch Processing Versus Stream Processing Once your data arrives in data storage engines like databases, data lakes, or data warehouses, it becomes historical data. This is opposed to streaming data (…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 113,
+          "section": "Quantization",
+          "pages": "230–231",
+          "score": 0.682,
+          "excerpt": "34 Shibo Wang and Pankaj Kanwar, “BFloat16: The Secret to High Performance on Cloud TPUs,” Google Cloud Blog, August 23, 2019, https://oreil.ly/ZG5p0. 35 Itay Hubara, Matthieu Courbariaux, Daniel Soud…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 106,
+          "section": "Batch Prediction Versus Online Prediction",
+          "pages": "218–220",
+          "score": 0.0325,
+          "excerpt": "Figure 7-4 shows a simplified architecture for batch prediction, and Figure 7-5 shows a simplified version of online prediction using only batch features. We’ll go over what it means to use only batch…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 107,
+          "section": "From Batch Prediction to Online Prediction",
+          "pages": "221–222",
+          "score": 0.0323,
+          "excerpt": "In many applications, online prediction and batch prediction are used side by side for different use cases. For example, food ordering apps like DoorDash and UberEats use batch prediction to generate …"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 108,
+          "section": "Unifying Batch Pipeline and Streaming Pipeline",
+          "pages": "223–224",
+          "score": 0.0308,
+          "excerpt": "Batch prediction is a workaround for when online prediction isn’t cheap enough or isn’t fast enough. Why generate one million predictions in advance and worry about storing and retrieving them if you …"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 117,
+          "section": "Summary",
+          "pages": "243–244",
+          "score": 0.0286,
+          "excerpt": "A more promising approach is WebAssembly (WASM). WASM is an open standard that allows you to run executable programs in browsers. After you’ve built your models in scikit-learn, PyTorch, TensorFlow, o…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 158,
+          "section": "Model Store",
+          "pages": "341–342",
+          "score": 0.0269,
+          "excerpt": "services, doing batch prediction is usually trickier.29 Some tools allow you to batch requests together for online prediction, which is different from batch prediction. Many companies have separate de…"
+        }
+      ],
+      "ret-003-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "114–115",
+          "score": -36.3298,
+          "excerpt": "happen hours after when the ad is shown.10 This means that this type of label tends to give an underestimate of the actual click-through rate. If you only record 1,000 POSITIVE labels, the actual numb…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 72,
+          "section": "Summary",
+          "pages": "138",
+          "score": -23.9581,
+          "excerpt": "Summary Training data still forms the foundation of modern ML algorithms. No matter how clever your algorithms might be, if your training data is bad, your algorithms won’t be able to perform well. It…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 63,
+          "section": "Natural Labels",
+          "pages": "112–113",
+          "score": -16.8166,
+          "excerpt": "different label sources.9 In the previous example, a recommendation that doesn’t get clicked on after a period of time can be presumed to be bad. This is called an implicit label, as this negative lab…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 125,
+          "section": "Detecting Data Distribution Shifts",
+          "pages": "262–263",
+          "score": -16.6958,
+          "excerpt": "With regression tasks, label schema change could happen because of changes in the possible range of label values. Imagine you’re building a model to predict someone’s credit score. Originally, you use…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 62,
+          "section": "Hand Labels",
+          "pages": "108–109",
+          "score": -14.6092,
+          "excerpt": "Labeling Despite the promise of unsupervised ML, most ML models in production today are supervised, which means that they need labeled data to learn from. The performance of an ML model still depends …"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "117–119",
+          "score": 0.7899,
+          "excerpt": "14 The two tasks in this study use only 18 and 20 LFs respectively. In practice, I’ve seen teams using hundreds of LFs for each task. 15 Dummon et al., “Cross-Modal Data Programming.” Labeling | 97 yo…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 63,
+          "section": "Natural Labels",
+          "pages": "111–112",
+          "score": 0.6949,
+          "excerpt": "Natural Labels Hand-labeling isn’t the only source for labels. You might be lucky enough to work on tasks with natural ground truth labels. Tasks with natural labels are tasks where the model’s predic…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 71,
+          "section": "Data Synthesis",
+          "pages": "136–137",
+          "score": 0.691,
+          "excerpt": "52 Seyed-Mohsen Moosavi-Dezfooli, Alhussein Fawzi, and Pascal Frossard, “DeepFool: A Simple and Accurate Method to Fool Deep Neural Networks,” in Proceedings of IEEE Conference on Computer Vision and …"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 65,
+          "section": "Class Imbalance",
+          "pages": "122",
+          "score": 0.6817,
+          "excerpt": "Another common heuristic is based on disagreement among multiple candidate models. This method is called query-by-committee, an example of an ensemble method.23 You need a committee of several candida…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268–269",
+          "score": 0.674,
+          "excerpt": "44 Zachary C. Lipton, Yu-Xiang Wang, and Alex Smola, “Detecting and Correcting for Label Shift with Black Box Predictors,” arXiv, February 12, 2018, https://oreil.ly/zKSlj. 248 | Chapter 8: Data Distr…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "117–119",
+          "score": 0.0325,
+          "excerpt": "14 The two tasks in this study use only 18 and 20 LFs respectively. In practice, I’ve seen teams using hundreds of LFs for each task. 15 Dummon et al., “Cross-Modal Data Programming.” Labeling | 97 yo…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 71,
+          "section": "Data Synthesis",
+          "pages": "136–137",
+          "score": 0.0284,
+          "excerpt": "52 Seyed-Mohsen Moosavi-Dezfooli, Alhussein Fawzi, and Pascal Frossard, “DeepFool: A Simple and Accurate Method to Fool Deep Neural Networks,” in Proceedings of IEEE Conference on Computer Vision and …"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 63,
+          "section": "Natural Labels",
+          "pages": "111–112",
+          "score": 0.0282,
+          "excerpt": "Natural Labels Hand-labeling isn’t the only source for labels. You might be lucky enough to work on tasks with natural ground truth labels. Tasks with natural labels are tasks where the model’s predic…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 125,
+          "section": "Detecting Data Distribution Shifts",
+          "pages": "262–263",
+          "score": 0.0279,
+          "excerpt": "With regression tasks, label schema change could happen because of changes in the possible range of label values. Imagine you’re building a model to predict someone’s credit score. Originally, you use…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 62,
+          "section": "Hand Labels",
+          "pages": "108–109",
+          "score": 0.0272,
+          "excerpt": "Labeling Despite the promise of unsupervised ML, most ML models in production today are supervised, which means that they need labeled data to learn from. The performance of an ML model still depends …"
+        }
+      ],
+      "ret-004-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 83,
+          "section": "Common Causes for Data Leakage",
+          "pages": "157–158",
+          "score": -26.9711,
+          "excerpt": "Common Causes for Data Leakage In this section, we’ll go over some common causes for data leakage and how to avoid them. Splitting time-correlated data randomly instead of by time When I learned ML in…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 84,
+          "section": "Detecting Data Leakage",
+          "pages": "160",
+          "score": -14.3364,
+          "excerpt": "Leakage from data generation process The example earlier about how information on whether a CT scan shows signs of lung cancer is leaked via the scan machine is an example of this type of leakage. Det…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 93,
+          "section": "Experiment Tracking and Versioning",
+          "pages": "186–187",
+          "score": -13.8045,
+          "excerpt": "Poor choice of hyperparameters With the same model, one set of hyperparameters can give you the state-of-the- art result but another set of hyperparameters might cause the model to never converge. The…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 88,
+          "section": "Summary",
+          "pages": "166–167",
+          "score": -11.2723,
+          "excerpt": "On the other hand, HOUR_OF_THE_DAY is a great feature, because the time in the day affects the traffic too, and the range of values for this feature in the train split overlaps with the test split 100…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 87,
+          "section": "Feature Generalization",
+          "pages": "165",
+          "score": -10.2781,
+          "excerpt": "Coverage of a feature can differ wildly between different slices of data and even in the same slice of data over time. If the coverage of a feature differs a lot between the train and test split (such…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 83,
+          "section": "Common Causes for Data Leakage",
+          "pages": "157–158",
+          "score": 0.8347,
+          "excerpt": "Common Causes for Data Leakage In this section, we’ll go over some common causes for data leakage and how to avoid them. Splitting time-correlated data randomly instead of by time When I learned ML in…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 84,
+          "section": "Detecting Data Leakage",
+          "pages": "160",
+          "score": 0.7697,
+          "excerpt": "Leakage from data generation process The example earlier about how information on whether a CT scan shows signs of lung cancer is leaked via the scan machine is an example of this type of leakage. Det…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "expected",
+          "node_id": 82,
+          "section": "Data Leakage",
+          "pages": "155–156",
+          "score": 0.7647,
+          "excerpt": "Figure 5-6. Example of fixed position embedding. H is the dimension of the outputs produced by the model. Fixed positional embedding is a special case of what is known as Fourier features. If position…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "269",
+          "score": 0.6986,
+          "excerpt": "45 Some monitoring vendors claim that their solutions are able to detect not only when your model should be retrained, but also what data to retrain on. I haven’t been able to verify the validity of t…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 87,
+          "section": "Feature Generalization",
+          "pages": "165",
+          "score": 0.6914,
+          "excerpt": "Coverage of a feature can differ wildly between different slices of data and even in the same slice of data over time. If the coverage of a feature differs a lot between the train and test split (such…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 83,
+          "section": "Common Causes for Data Leakage",
+          "pages": "157–158",
+          "score": 0.0328,
+          "excerpt": "Common Causes for Data Leakage In this section, we’ll go over some common causes for data leakage and how to avoid them. Splitting time-correlated data randomly instead of by time When I learned ML in…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 84,
+          "section": "Detecting Data Leakage",
+          "pages": "160",
+          "score": 0.0317,
+          "excerpt": "Leakage from data generation process The example earlier about how information on whether a CT scan shows signs of lung cancer is leaked via the scan machine is an example of this type of leakage. Det…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 87,
+          "section": "Feature Generalization",
+          "pages": "165",
+          "score": 0.0299,
+          "excerpt": "Coverage of a feature can differ wildly between different slices of data and even in the same slice of data over time. If the coverage of a feature differs a lot between the train and test split (such…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "expected",
+          "node_id": 82,
+          "section": "Data Leakage",
+          "pages": "155–156",
+          "score": 0.0297,
+          "excerpt": "Figure 5-6. Example of fixed position embedding. H is the dimension of the outputs produced by the model. Fixed positional embedding is a special case of what is known as Fourier features. If position…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 171,
+          "section": "Irresponsible AI: Case Studies",
+          "pages": "364–365",
+          "score": 0.0284,
+          "excerpt": "Case study II: The danger of “anonymized” data This case study is interesting to me because here, the algorithm is not an explicit culprit. Rather it’s how the interface and collection of data is desi…"
+        }
+      ],
+      "ret-005-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 140,
+          "section": "Shadow Deployment",
+          "pages": "302",
+          "score": -20.2088,
+          "excerpt": "The first type of model evaluation you might think about is the good old test splits that you can use to evaluate your models offline, as discussed in Chapter 6. These test splits are usually static a…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 143,
+          "section": "Interleaving Experiments",
+          "pages": "305–306",
+          "score": -16.2576,
+          "excerpt": "Canary Release Canary release is a technique to reduce the risk of introducing a new software version in production by slowly rolling out the change to a small subset of users before rolling it out to…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 141,
+          "section": "A/B Testing",
+          "pages": "303–304",
+          "score": -9.6489,
+          "excerpt": "Because you don’t serve the new model’s predictions to users until you’ve made sure that the model’s predictions are satisfactory, the risk of this new model doing something funky is low, at least not…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 100,
+          "section": "Chapter 7. Model Deployment and Prediction Service",
+          "pages": "211–212",
+          "score": -9.5811,
+          "excerpt": "CHAPTER 7 Model Deployment and Prediction Service In Chapters 4 through 6, we have discussed the considerations for developing an ML model, from creating training data, extracting features, and develo…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 157,
+          "section": "Model Deployment",
+          "pages": "340",
+          "score": -9.1895,
+          "excerpt": "discussion. Here, I’ll focus on the components that I most often see in ML platforms, which include model development, model store, and feature store. Evaluating a tool for each of these categories de…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 140,
+          "section": "Shadow Deployment",
+          "pages": "302",
+          "score": 0.8106,
+          "excerpt": "The first type of model evaluation you might think about is the good old test splits that you can use to evaluate your models offline, as discussed in Chapter 6. These test splits are usually static a…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 103,
+          "section": "Myth 2: If We Don’t Do Anything, Model Performance Remains the Same",
+          "pages": "215",
+          "score": 0.7392,
+          "excerpt": "Figure 7-2. Different tasks that leverage ML at Netflix. Source: Ville Tuulos5 In fact, Uber has thousands of models in production.6 At any given moment, Google has thousands of models training concur…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 100,
+          "section": "Chapter 7. Model Deployment and Prediction Service",
+          "pages": "211–212",
+          "score": 0.7354,
+          "excerpt": "CHAPTER 7 Model Deployment and Prediction Service In Chapters 4 through 6, we have discussed the considerations for developing an ML model, from creating training data, extracting features, and develo…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 102,
+          "section": "Myth 1: You Only Deploy One or Two ML Models at a Time",
+          "pages": "214",
+          "score": 0.7287,
+          "excerpt": "If you come from an academic background, some of the topics discussed in this chapter might be outside your comfort zone. If an unfamiliar term comes up, take a moment to look it up. If a section beco…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 157,
+          "section": "Model Deployment",
+          "pages": "340",
+          "score": 0.7276,
+          "excerpt": "discussion. Here, I’ll focus on the components that I most often see in ML platforms, which include model development, model store, and feature store. Evaluating a tool for each of these categories de…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 140,
+          "section": "Shadow Deployment",
+          "pages": "302",
+          "score": 0.0328,
+          "excerpt": "The first type of model evaluation you might think about is the good old test splits that you can use to evaluate your models offline, as discussed in Chapter 6. These test splits are usually static a…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 100,
+          "section": "Chapter 7. Model Deployment and Prediction Service",
+          "pages": "211–212",
+          "score": 0.0315,
+          "excerpt": "CHAPTER 7 Model Deployment and Prediction Service In Chapters 4 through 6, we have discussed the considerations for developing an ML model, from creating training data, extracting features, and develo…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 157,
+          "section": "Model Deployment",
+          "pages": "340",
+          "score": 0.0308,
+          "excerpt": "discussion. Here, I’ll focus on the components that I most often see in ML platforms, which include model development, model store, and feature store. Evaluating a tool for each of these categories de…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 158,
+          "section": "Model Store",
+          "pages": "341–342",
+          "score": 0.0296,
+          "excerpt": "services, doing batch prediction is usually trickier.29 Some tools allow you to batch requests together for online prediction, which is different from batch prediction. Many companies have separate de…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 143,
+          "section": "Interleaving Experiments",
+          "pages": "305–306",
+          "score": 0.0289,
+          "excerpt": "Canary Release Canary release is a technique to reduce the risk of introducing a new software version in production by slowly rolling out the change to a small subset of users before rolling it out to…"
+        }
+      ],
+      "ret-006-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 67,
+          "section": "Handling Class Imbalance",
+          "pages": "125–127",
+          "score": -30.1254,
+          "excerpt": "34 Wan Ding, Dong-Yan Huang, Zhuo Chen, Xinguo Yu, and Weisi Lin, “Facial Action Recognition Using Very Deep Networks for Highly Imbalanced Class Distribution,” 2017 Asia-Pacific Signal and Informatio…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "204–205",
+          "score": -20.681,
+          "excerpt": "Figure 6-11. The calibration curves of different models on a toy task. The logistic regression model is the best calibrated model because it directly optimizes logistic loss. Source: scikit-learn To c…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 97,
+          "section": "Baselines",
+          "pages": "199–200",
+          "score": -18.2274,
+          "excerpt": "Ideally, the evaluation methods should be the same during both development and production. But in many cases, the ideal is impossible because during development, you have ground truth labels, but in p…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "40–41",
+          "score": -15.6754,
+          "excerpt": "Interpretability In early 2020, the Turing Award winner Professor Geoffrey Hinton proposed a heatedly debated question about the importance of interpretability in ML systems. “Suppose you have cancer …"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 66,
+          "section": "Challenges of Class Imbalance",
+          "pages": "123–124",
+          "score": -15.4885,
+          "excerpt": "(actual $20k, predicted $10k). Therefore, we might have to train the model to be better at predicting 95th percentile bills, even if it reduces the overall metrics. Challenges of Class Imbalance ML, e…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 67,
+          "section": "Handling Class Imbalance",
+          "pages": "125–127",
+          "score": 0.7256,
+          "excerpt": "34 Wan Ding, Dong-Yan Huang, Zhuo Chen, Xinguo Yu, and Weisi Lin, “Facial Action Recognition Using Very Deep Networks for Highly Imbalanced Class Distribution,” 2017 Asia-Pacific Signal and Informatio…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "204–205",
+          "score": 0.68,
+          "excerpt": "Figure 6-11. The calibration curves of different models on a toy task. The logistic regression model is the best calibrated model because it directly optimizes logistic loss. Source: scikit-learn To c…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 128,
+          "section": "ML-Specific Metrics",
+          "pages": "271–272",
+          "score": 0.6698,
+          "excerpt": "percentage of time a system is up. The conditions to determine whether a system is up are defined in the service level objectives (SLOs) or service level agreements (SLAs). For example, an SLA may spe…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "38–39",
+          "score": 0.6649,
+          "excerpt": "It’s usually better to think in percentiles, as they tell you something about a certain percentage of your requests. The most common percentile is the 50th percentile, abbreviated as p50. It’s also kn…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 91,
+          "section": "Evaluating ML Models",
+          "pages": "173–174",
+          "score": 0.6625,
+          "excerpt": "There are a lot of human biases in evaluating models. Part of the process of evaluating an ML architecture is to experiment with different features and different sets of hyperparameters to find the be…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 67,
+          "section": "Handling Class Imbalance",
+          "pages": "125–127",
+          "score": 0.0328,
+          "excerpt": "34 Wan Ding, Dong-Yan Huang, Zhuo Chen, Xinguo Yu, and Weisi Lin, “Facial Action Recognition Using Very Deep Networks for Highly Imbalanced Class Distribution,” 2017 Asia-Pacific Signal and Informatio…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "204–205",
+          "score": 0.0323,
+          "excerpt": "Figure 6-11. The calibration curves of different models on a toy task. The logistic regression model is the best calibrated model because it directly optimizes logistic loss. Source: scikit-learn To c…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 97,
+          "section": "Baselines",
+          "pages": "199–200",
+          "score": 0.0301,
+          "excerpt": "Ideally, the evaluation methods should be the same during both development and production. But in many cases, the ideal is impossible because during development, you have ground truth labels, but in p…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 66,
+          "section": "Challenges of Class Imbalance",
+          "pages": "123–124",
+          "score": 0.0287,
+          "excerpt": "(actual $20k, predicted $10k). Therefore, we might have to train the model to be better at predicting 95th percentile bills, even if it reduces the overall metrics. Challenges of Class Imbalance ML, e…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 92,
+          "section": "Ensembles",
+          "pages": "176–177",
+          "score": 0.0265,
+          "excerpt": "Tractability Let X be the input and Z be the latent representation of X. Every generative model makes the assumption that it’s tractable to compute the probability P(Z|X). Boundaries A linear classifi…"
+        }
+      ],
+      "ret-007-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": -19.4853,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 143,
+          "section": "Interleaving Experiments",
+          "pages": "305–306",
+          "score": -13.5598,
+          "excerpt": "Canary Release Canary release is a technique to reduce the risk of introducing a new software version in production by slowly rolling out the change to a small subset of users before rolling it out to…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 171,
+          "section": "Irresponsible AI: Case Studies",
+          "pages": "362–363",
+          "score": -13.2562,
+          "excerpt": "tration of the public. If you’ve read this book thus far, you know that coarse-grained accuracy alone is nowhere close to being sufficient to evaluate a model’s performance, especially for a model who…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 95,
+          "section": "AutoML",
+          "pages": "193–194",
+          "score": -11.6619,
+          "excerpt": "hyperparameter to tune.23 With different sets of hyperparameters, the same model can give drastically different performances on the same dataset. Melis et al. showed in their 2018 paper “On the State …"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 172,
+          "section": "A Framework for Responsible AI",
+          "pages": "368–369",
+          "score": -11.6456,
+          "excerpt": "Model’s objective Are you optimizing your model using an objective that enables fairness to all users? For example, are you prioritizing your model’s performance on all users, which skews your model t…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": 0.7376,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 143,
+          "section": "Interleaving Experiments",
+          "pages": "306",
+          "score": 0.6636,
+          "excerpt": "Figure 9-6 shows how interleaving differs from A/B testing. In A/B testing, core metrics like retention and streaming are measured and compared between the two groups. In interleaving, the two algorit…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 92,
+          "section": "Ensembles",
+          "pages": "176–177",
+          "score": 0.6504,
+          "excerpt": "Tractability Let X be the input and Z be the latent representation of X. Every generative model makes the assumption that it’s tractable to compute the probability P(Z|X). Boundaries A linear classifi…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 91,
+          "section": "Evaluating ML Models",
+          "pages": "173–174",
+          "score": 0.642,
+          "excerpt": "There are a lot of human biases in evaluating models. Part of the process of evaluating an ML architecture is to experiment with different features and different sets of hyperparameters to find the be…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 67,
+          "section": "Handling Class Imbalance",
+          "pages": "125–127",
+          "score": 0.6401,
+          "excerpt": "34 Wan Ding, Dong-Yan Huang, Zhuo Chen, Xinguo Yu, and Weisi Lin, “Facial Action Recognition Using Very Deep Networks for Highly Imbalanced Class Distribution,” 2017 Asia-Pacific Signal and Informatio…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": 0.0328,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 143,
+          "section": "Interleaving Experiments",
+          "pages": "306",
+          "score": 0.0313,
+          "excerpt": "Figure 9-6 shows how interleaving differs from A/B testing. In A/B testing, core metrics like retention and streaming are measured and compared between the two groups. In interleaving, the two algorit…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "33–34",
+          "score": 0.0274,
+          "excerpt": "a A subfield of research focuses on continual learning: developing models to work with changing data distributions. We’ll cover continual learning in Chapter 9. Different stakeholders and requirements…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 141,
+          "section": "A/B Testing",
+          "pages": "304",
+          "score": 0.0269,
+          "excerpt": "Second, your A/B test should be run on a sufficient number of samples to gain enough confidence about the outcome. How to calculate the number of samples needed for an A/B test is a simple question wi…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 32,
+          "section": "Mind Versus Data",
+          "pages": "63–64",
+          "score": 0.025,
+          "excerpt": "You can combine the models’ outputs and rank posts by their combined scores: ɑ quality_score + β engagement_score Now you can tweak α and β without retraining your models! In general, when there are m…"
+        }
+      ],
+      "ret-008-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 123,
+          "section": "Types of Data Distribution Shifts",
+          "pages": "259–260",
+          "score": -18.7204,
+          "excerpt": "Covariate shifts can also happen because the training data is artificially altered to make it easier for your model to learn. As discussed in Chapter 4, it’s hard for ML models to learn from imbalance…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 155,
+          "section": "Data Science Workflow Management",
+          "pages": "336–337",
+          "score": -12.3427,
+          "excerpt": "Second, Airflow’s DAGs are not parameterized, which means you can’t pass param‐ eters into your workflows. So if you want to run the same model with different learning rates, you’ll have to create dif…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 127,
+          "section": "Monitoring and Observability",
+          "pages": "270",
+          "score": -11.9364,
+          "excerpt": "You might also want to design your system to make it easier for it to adapt to shifts. For example, housing prices might change a lot faster in major cities like San Francisco than in rural Arizona, s…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 79,
+          "section": "Encoding Categorical Features",
+          "pages": "149–150",
+          "score": -10.2561,
+          "excerpt": "• Lower income: less than $35,000/year • Middle income: between $35,000 and $100,000/year • Upper income: more than $100,000/year Instead of having to learn an infinite number of possible incomes, our…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 45,
+          "section": "Transactional and Analytical Processing",
+          "pages": "87–88",
+          "score": -9.9621,
+          "excerpt": "Lisa, 43 Jack, 23 Huyen, 59 Unstructured data also allows for more flexible storage options. For example, if your storage follows a schema, you can only store data following that schema. But if your s…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268",
+          "score": 0.6477,
+          "excerpt": "Addressing Data Distribution Shifts How companies address data shifts depends on how sophisticated their ML infra‐ structure setups are. At one end of the spectrum, we have companies that have just st…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 124,
+          "section": "General Data Distribution Shifts",
+          "pages": "261",
+          "score": 0.6475,
+          "excerpt": "Concept drift Concept drift, also known as posterior shift, is when the input distribution remains the same but the conditional distribution of the output given an input changes. You can think of this…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 138,
+          "section": "How Often to Update Your Models",
+          "pages": "300",
+          "score": 0.6429,
+          "excerpt": "Figure 9-5. To get a sense of the performance gain you can get from fresher data, train your model on data from different time windows in the past and test on data from today to see how the performanc…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "expected",
+          "node_id": 123,
+          "section": "Types of Data Distribution Shifts",
+          "pages": "259–260",
+          "score": 0.6411,
+          "excerpt": "Covariate shifts can also happen because the training data is artificially altered to make it easier for your model to learn. As discussed in Chapter 4, it’s hard for ML models to learn from imbalance…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 79,
+          "section": "Encoding Categorical Features",
+          "pages": "149–150",
+          "score": 0.6293,
+          "excerpt": "• Lower income: less than $35,000/year • Middle income: between $35,000 and $100,000/year • Upper income: more than $100,000/year Instead of having to learn an infinite number of possible incomes, our…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 123,
+          "section": "Types of Data Distribution Shifts",
+          "pages": "259–260",
+          "score": 0.032,
+          "excerpt": "Covariate shifts can also happen because the training data is artificially altered to make it easier for your model to learn. As discussed in Chapter 4, it’s hard for ML models to learn from imbalance…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 79,
+          "section": "Encoding Categorical Features",
+          "pages": "149–150",
+          "score": 0.0306,
+          "excerpt": "• Lower income: less than $35,000/year • Middle income: between $35,000 and $100,000/year • Upper income: more than $100,000/year Instead of having to learn an infinite number of possible incomes, our…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 127,
+          "section": "Monitoring and Observability",
+          "pages": "270",
+          "score": 0.0298,
+          "excerpt": "You might also want to design your system to make it easier for it to adapt to shifts. For example, housing prices might change a lot faster in major cities like San Francisco than in rural Arizona, s…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 35,
+          "section": "Data Sources",
+          "pages": "71–72",
+          "score": 0.028,
+          "excerpt": "something interesting happens.1 Because debugging ML systems is hard, it’s a common practice to log everything you can. This means that your volume of logs can grow very, very quickly. This leads to t…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 129,
+          "section": "Monitoring Toolbox",
+          "pages": "277–278",
+          "score": 0.0267,
+          "excerpt": "52 “Log Management Market Size, Share and Global Market Forecast to 2026,” MarketsandMarkets, 2021, https://oreil.ly/q0xgh. 53 For readers unfamiliar with stream processing, please refer to the sectio…"
+        }
+      ],
+      "ret-009-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": -19.4672,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "expected",
+          "node_id": 172,
+          "section": "A Framework for Responsible AI",
+          "pages": "369–370",
+          "score": -15.7767,
+          "excerpt": "Differential privacy is a popular technique used on training data for ML models. The trade-off here is that the higher the level of privacy that differential privacy can provide, the lower the model’s…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 6,
+          "section": "What This Book Is Not",
+          "pages": "15",
+          "score": -13.1786,
+          "excerpt": "• You have been given a business problem and a lot of raw data. You want to • engineer this data and choose the right metrics to solve this problem. • Your initial models perform well in offline exper…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 171,
+          "section": "Irresponsible AI: Case Studies",
+          "pages": "362–363",
+          "score": -11.8487,
+          "excerpt": "tration of the public. If you’ve read this book thus far, you know that coarse-grained accuracy alone is nowhere close to being sufficient to evaluate a model’s performance, especially for a model who…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 173,
+          "section": "Summary",
+          "pages": "373–374",
+          "score": -11.5452,
+          "excerpt": "Model cards are a step toward increasing transparency into the development of ML models. They are especially important in cases where people who use a model aren’t the same people who developed this m…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 99,
+          "section": "Summary",
+          "pages": "209",
+          "score": 0.6934,
+          "excerpt": "We ended the chapter with how to evaluate your models to pick the best one to deploy. Evaluation metrics don’t mean much unless you have a baseline to compare them to, and we covered different types o…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": 0.6922,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 171,
+          "section": "Irresponsible AI: Case Studies",
+          "pages": "363–364",
+          "score": 0.6906,
+          "excerpt": "schools.”13 Because the model took into account each school’s historical performance, Ofqual acknowledged that their model didn’t have enough data for small schools. For these schools, instead of usin…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 103,
+          "section": "Myth 2: If We Don’t Do Anything, Model Performance Remains the Same",
+          "pages": "215",
+          "score": 0.6871,
+          "excerpt": "Figure 7-2. Different tasks that leverage ML at Netflix. Source: Ville Tuulos5 In fact, Uber has thousands of models in production.6 At any given moment, Google has thousands of models training concur…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 140,
+          "section": "Shadow Deployment",
+          "pages": "302",
+          "score": 0.685,
+          "excerpt": "The first type of model evaluation you might think about is the good old test splits that you can use to evaluate your models offline, as discussed in Chapter 6. These test splits are usually static a…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": 0.0325,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "expected",
+          "node_id": 172,
+          "section": "A Framework for Responsible AI",
+          "pages": "369–370",
+          "score": 0.0313,
+          "excerpt": "Differential privacy is a popular technique used on training data for ML models. The trade-off here is that the higher the level of privacy that differential privacy can provide, the lower the model’s…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 158,
+          "section": "Model Store",
+          "pages": "341–342",
+          "score": 0.0294,
+          "excerpt": "services, doing batch prediction is usually trickier.29 Some tools allow you to batch requests together for online prediction, which is different from batch prediction. Many companies have separate de…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 173,
+          "section": "Summary",
+          "pages": "373–374",
+          "score": 0.0289,
+          "excerpt": "Model cards are a step toward increasing transparency into the development of ML models. They are especially important in cases where people who use a model aren’t the same people who developed this m…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 99,
+          "section": "Summary",
+          "pages": "209",
+          "score": 0.0164,
+          "excerpt": "We ended the chapter with how to evaluate your models to pick the best one to deploy. Evaluation metrics don’t mean much unless you have a baseline to compare them to, and we covered different types o…"
+        }
+      ],
+      "ret-010-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "34–35",
+          "score": -14.8011,
+          "excerpt": "Production having different requirements from research is one of the reasons why successful research projects might not always be used in production. For example, ensembling is a technique popular amo…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "205–206",
+          "score": -14.4127,
+          "excerpt": "Model Offline Evaluation | 185 If a company focuses only on overall metrics, they might go with model A. They might be very happy with this model’s high accuracy until, one day, their end users discov…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 91,
+          "section": "Evaluating ML Models",
+          "pages": "171–172",
+          "score": -11.3601,
+          "excerpt": "If your client wants you to build a system to detect fraudulent transactions, you know that this is the classic abnormality detection problem—fraudulent transactions are abnormalities that you want to…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 93,
+          "section": "Experiment Tracking and Versioning",
+          "pages": "184–185",
+          "score": -11.068,
+          "excerpt": "There are a few reasons why data versioning is challenging. One reason is that because data is often much larger than code, we can’t use the same strategy that people usually use to version code to ve…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "expected",
+          "node_id": 22,
+          "section": "Business and ML Objectives",
+          "pages": "47–48",
+          "score": -11.036,
+          "excerpt": "One of the reasons why predicting ad click-through rates and fraud detection are among the most popular use cases for ML today is that it’s easy to map ML models’ performance to business metrics: ever…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 96,
+          "section": "Model Offline Evaluation",
+          "pages": "198",
+          "score": 0.7827,
+          "excerpt": "According to Martin Zinkevich in his magnificent “Rules of Machine Learning: Best Practices for ML Engineering”: “If you think that machine learning will give you a 100% boost, then a heuristic will g…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 91,
+          "section": "Evaluating ML Models",
+          "pages": "173–174",
+          "score": 0.7821,
+          "excerpt": "There are a lot of human biases in evaluating models. Part of the process of evaluating an ML architecture is to experiment with different features and different sets of hyperparameters to find the be…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 99,
+          "section": "Summary",
+          "pages": "209",
+          "score": 0.772,
+          "excerpt": "We ended the chapter with how to evaluate your models to pick the best one to deploy. Evaluation metrics don’t mean much unless you have a baseline to compare them to, and we covered different types o…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "201–202",
+          "score": 0.7701,
+          "excerpt": "you might never be able to convince your users to trust this system. Even if your system isn’t meant to replace human experts and only to aid them in improving their productivity, it’s still important…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 97,
+          "section": "Baselines",
+          "pages": "199–200",
+          "score": 0.7651,
+          "excerpt": "Ideally, the evaluation methods should be the same during both development and production. But in many cases, the ideal is impossible because during development, you have ground truth labels, but in p…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "extra",
+          "node_id": 18,
+          "section": "Machine Learning in Research Versus in Production",
+          "pages": "34–35",
+          "score": 0.0313,
+          "excerpt": "Production having different requirements from research is one of the reasons why successful research projects might not always be used in production. For example, ensembling is a technique popular amo…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 96,
+          "section": "Model Offline Evaluation",
+          "pages": "198",
+          "score": 0.0307,
+          "excerpt": "According to Martin Zinkevich in his magnificent “Rules of Machine Learning: Best Practices for ML Engineering”: “If you think that machine learning will give you a 100% boost, then a heuristic will g…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 97,
+          "section": "Baselines",
+          "pages": "199–200",
+          "score": 0.0299,
+          "excerpt": "Ideally, the evaluation methods should be the same during both development and production. But in many cases, the ideal is impossible because during development, you have ground truth labels, but in p…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "expected",
+          "node_id": 98,
+          "section": "Evaluation Methods",
+          "pages": "201–202",
+          "score": 0.0297,
+          "excerpt": "you might never be able to convince your users to trust this system. Even if your system isn’t meant to replace human experts and only to aid them in improving their productivity, it’s still important…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 91,
+          "section": "Evaluating ML Models",
+          "pages": "172–173",
+          "score": 0.0279,
+          "excerpt": "Researchers often only evaluate models in academic settings, which means that a model being state of the art often means that it performs better than existing models on some static datasets. It doesn’…"
+        }
+      ],
+      "ret-011-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 134,
+          "section": "Stateless Retraining Versus Stateful Training",
+          "pages": "286–287",
+          "score": -21.849,
+          "excerpt": "3 Alex Egg, “Online Learning for Recommendations at Grubhub,” arXiv, July 15, 2021, https://oreil.ly/FBBUw. Chapter 9: Continual Learning and Test in Production Stateful training doesn’t mean no train…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "297–298",
+          "score": -16.5047,
+          "excerpt": "The third factor you’ll need is a model store to automatically version and store all the artifacts needed to reproduce a model. The simplest model store is probably just an S3 bucket that stores seria…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268–269",
+          "score": -13.3363,
+          "excerpt": "44 Zachary C. Lipton, Yu-Xiang Wang, and Alex Smola, “Detecting and Correcting for Label Shift with Black Box Predictors,” arXiv, February 12, 2018, https://oreil.ly/zKSlj. 248 | Chapter 8: Data Distr…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 132,
+          "section": "Chapter 9. Continual Learning and Test in Production",
+          "pages": "283",
+          "score": -12.3973,
+          "excerpt": "CHAPTER 9 Continual Learning and Test in Production In Chapter 8, we discussed various ways an ML system can fail in production. We focused on one especially thorny problem that has generated much dis…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 21,
+          "section": "Chapter 2. Introduction to Machine Learning Systems Design",
+          "pages": "45",
+          "score": -10.9665,
+          "excerpt": "CHAPTER 2 Introduction to Machine Learning Systems Design Now that we’ve walked through an overview of ML systems in the real world, we can get to the fun part of actually designing an ML system. To r…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 134,
+          "section": "Stateless Retraining Versus Stateful Training",
+          "pages": "285–286",
+          "score": 0.8554,
+          "excerpt": "Figure 9-1. A simplification of how continual learning might work in production. In reality, the process of handling the failed challenger is a lot more sophisticated than simply discarding it. Still,…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "297–298",
+          "score": 0.7808,
+          "excerpt": "The third factor you’ll need is a model store to automatically version and store all the artifacts needed to reproduce a model. The simplest model store is probably just an S3 bucket that stores seria…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 135,
+          "section": "Why Continual Learning?",
+          "pages": "288–289",
+          "score": 0.7423,
+          "excerpt": "Terminology Ambiguity I use the term “continual learning” instead of “online learning” because when I say “online learning,” people usually think of online education. If you enter “online learning” on…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 133,
+          "section": "Continual Learning",
+          "pages": "284",
+          "score": 0.7344,
+          "excerpt": "automate the update. All of these concepts allow us to design an ML system that is maintainable and adaptable to changing environments. This is the chapter I’m most excited to write about, and I hope …"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "expected",
+          "node_id": 136,
+          "section": "Continual Learning Challenges",
+          "pages": "290–291",
+          "score": 0.7327,
+          "excerpt": "If we could make our models adapt to each user within their visiting session, the models would be able to make accurate, relevant predictions to users even on their first visit. TikTok, for example, h…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 134,
+          "section": "Stateless Retraining Versus Stateful Training",
+          "pages": "285–286",
+          "score": 0.0325,
+          "excerpt": "Figure 9-1. A simplification of how continual learning might work in production. In reality, the process of handling the failed challenger is a lot more sophisticated than simply discarding it. Still,…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "297–298",
+          "score": 0.0317,
+          "excerpt": "The third factor you’ll need is a model store to automatically version and store all the artifacts needed to reproduce a model. The simplest model store is probably just an S3 bucket that stores seria…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 132,
+          "section": "Chapter 9. Continual Learning and Test in Production",
+          "pages": "283",
+          "score": 0.0289,
+          "excerpt": "CHAPTER 9 Continual Learning and Test in Production In Chapter 8, we discussed various ways an ML system can fail in production. We focused on one especially thorny problem that has generated much dis…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268–269",
+          "score": 0.0288,
+          "excerpt": "44 Zachary C. Lipton, Yu-Xiang Wang, and Alex Smola, “Detecting and Correcting for Label Shift with Black Box Predictors,” arXiv, February 12, 2018, https://oreil.ly/zKSlj. 248 | Chapter 8: Data Distr…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "expected",
+          "node_id": 136,
+          "section": "Continual Learning Challenges",
+          "pages": "292–293",
+          "score": 0.0266,
+          "excerpt": "for ML. Evaluation challenge The biggest challenge of continual learning isn’t in writing a function to continually update your model—you can do that by writing a script! The biggest challenge is in m…"
+        }
+      ],
+      "ret-012-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 125,
+          "section": "Detecting Data Distribution Shifts",
+          "pages": "262–263",
+          "score": -27.3124,
+          "excerpt": "With regression tasks, label schema change could happen because of changes in the possible range of label values. Imagine you’re building a model to predict someone’s credit score. Originally, you use…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 128,
+          "section": "ML-Specific Metrics",
+          "pages": "272–273",
+          "score": -22.8164,
+          "excerpt": "It’s also possible to engineer your system so that you can collect users’ feedback. For example, Google Translate has the option for users to upvote or downvote a translation, as shown in Figure 8-6. …"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "114–115",
+          "score": -20.2573,
+          "excerpt": "happen hours after when the ad is shown.10 This means that this type of label tends to give an underestimate of the actual click-through rate. If you only record 1,000 POSITIVE labels, the actual numb…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "expected",
+          "node_id": 138,
+          "section": "How Often to Update Your Models",
+          "pages": "299–300",
+          "score": -18.0128,
+          "excerpt": "Requirements. The move from stage 3 to stage 4 is steep. You’ll first need a mecha‐ nism to trigger model updates. This trigger can be: Time-based For example, every five minutes Performance-based For…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 97,
+          "section": "Baselines",
+          "pages": "199–200",
+          "score": -16.2198,
+          "excerpt": "Ideally, the evaluation methods should be the same during both development and production. But in many cases, the ideal is impossible because during development, you have ground truth labels, but in p…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 125,
+          "section": "Detecting Data Distribution Shifts",
+          "pages": "262–264",
+          "score": 0.7824,
+          "excerpt": "Chapter 8: Data Distribution Shifts and Monitoring When ground truth labels are unavailable or too delayed to be useful, we can monitor other distributions of interest instead. The distributions of in…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268",
+          "score": 0.7558,
+          "excerpt": "Addressing Data Distribution Shifts How companies address data shifts depends on how sophisticated their ML infra‐ structure setups are. At one end of the spectrum, we have companies that have just st…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "expected",
+          "node_id": 140,
+          "section": "Shadow Deployment",
+          "pages": "302",
+          "score": 0.7485,
+          "excerpt": "The first type of model evaluation you might think about is the good old test splits that you can use to evaluate your models offline, as discussed in Chapter 6. These test splits are usually static a…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "extra",
+          "node_id": 123,
+          "section": "Types of Data Distribution Shifts",
+          "pages": "259–260",
+          "score": 0.7392,
+          "excerpt": "Covariate shifts can also happen because the training data is artificially altered to make it easier for your model to learn. As discussed in Chapter 4, it’s hard for ML models to learn from imbalance…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 124,
+          "section": "General Data Distribution Shifts",
+          "pages": "261",
+          "score": 0.7255,
+          "excerpt": "Concept drift Concept drift, also known as posterior shift, is when the input distribution remains the same but the conditional distribution of the output given an input changes. You can think of this…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "expected",
+          "node_id": 125,
+          "section": "Detecting Data Distribution Shifts",
+          "pages": "262–263",
+          "score": 0.0325,
+          "excerpt": "With regression tasks, label schema change could happen because of changes in the possible range of label values. Imagine you’re building a model to predict someone’s credit score. Originally, you use…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "extra",
+          "node_id": 128,
+          "section": "ML-Specific Metrics",
+          "pages": "272–273",
+          "score": 0.0296,
+          "excerpt": "It’s also possible to engineer your system so that you can collect users’ feedback. For example, Google Translate has the option for users to upvote or downvote a translation, as shown in Figure 8-6. …"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "extra",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "269",
+          "score": 0.0281,
+          "excerpt": "45 Some monitoring vendors claim that their solutions are able to detect not only when your model should be retrained, but also what data to retrain on. I haven’t been able to verify the validity of t…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "expected",
+          "node_id": 138,
+          "section": "How Often to Update Your Models",
+          "pages": "299–300",
+          "score": 0.0277,
+          "excerpt": "Requirements. The move from stage 3 to stage 4 is steep. You’ll first need a mecha‐ nism to trigger model updates. This trigger can be: Time-based For example, every five minutes Performance-based For…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "extra",
+          "node_id": 131,
+          "section": "Summary",
+          "pages": "281–282",
+          "score": 0.0276,
+          "excerpt": "Monitoring centers around metrics, and metrics are usually aggregated. Observability allows more fine-grain metrics, so that you can know not only when a model’s performance degrades but also for what…"
+        }
+      ],
+      "ret-013-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268–269",
+          "score": -15.0025,
+          "excerpt": "44 Zachary C. Lipton, Yu-Xiang Wang, and Alex Smola, “Detecting and Correcting for Label Shift with Black Box Predictors,” arXiv, February 12, 2018, https://oreil.ly/zKSlj. 248 | Chapter 8: Data Distr…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 46,
+          "section": "ETL: Extract, Transform, and Load",
+          "pages": "90",
+          "score": -9.9503,
+          "excerpt": "and Teradata.21 In this paradigm, the data can be stored in the same place, with a processing layer on top that can be optimized for different types of queries. Third, “online” has become an overloade…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 95,
+          "section": "AutoML",
+          "pages": "194–195",
+          "score": -9.6822,
+          "excerpt": "25 auto-sklearn 2.0 also provides basic model selection capacity. 26 Our team at NVIDIA developed Milano, a framework-agnostic tool for automatic hyperparameter tuning using random search. 27 A common…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 31,
+          "section": "Objective Functions",
+          "pages": "61–62",
+          "score": -9.352,
+          "excerpt": "Decoupling objectives Framing ML problems can be tricky when you want to minimize multiple objective functions. Imagine you’re building a system to rank items on users’ newsfeeds. Your original goal i…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "120–121",
+          "score": -9.1404,
+          "excerpt": "downstream task.19 Sometimes, you might need to modify the inputs using a template to prompt the base model to generate the outputs you want.20 For example, to use a language model as the base model f…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "294–296",
+          "score": 0.626,
+          "excerpt": "22 Zohar Karnin, Kevin Lang, and Edo Liberty, “Optimal Quantile Approximation in Streams,” arXiv, March 17, 2016, https://oreil.ly/bUu4H. 274 | Chapter 9: Continual Learning and Test in Production lea…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 95,
+          "section": "AutoML",
+          "pages": "194–195",
+          "score": 0.6141,
+          "excerpt": "25 auto-sklearn 2.0 also provides basic model selection capacity. 26 Our team at NVIDIA developed Milano, a framework-agnostic tool for automatic hyperparameter tuning using random search. 27 A common…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 132,
+          "section": "Chapter 9. Continual Learning and Test in Production",
+          "pages": "283",
+          "score": 0.6093,
+          "excerpt": "CHAPTER 9 Continual Learning and Test in Production In Chapter 8, we discussed various ways an ML system can fail in production. We focused on one especially thorny problem that has generated much dis…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "119–120",
+          "score": 0.6054,
+          "excerpt": "In some cases, semi-supervision approaches have reached the performance of purely supervised learning, even when a substantial portion of the labels in a given dataset has been discarded.17 Semi-super…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "269",
+          "score": 0.605,
+          "excerpt": "45 Some monitoring vendors claim that their solutions are able to detect not only when your model should be retrained, but also what data to retrain on. I haven’t been able to verify the validity of t…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 95,
+          "section": "AutoML",
+          "pages": "194–195",
+          "score": 0.0317,
+          "excerpt": "25 auto-sklearn 2.0 also provides basic model selection capacity. 26 Our team at NVIDIA developed Milano, a framework-agnostic tool for automatic hyperparameter tuning using random search. 27 A common…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 126,
+          "section": "Addressing Data Distribution Shifts",
+          "pages": "268–269",
+          "score": 0.0307,
+          "excerpt": "44 Zachary C. Lipton, Yu-Xiang Wang, and Alex Smola, “Detecting and Correcting for Label Shift with Black Box Predictors,” arXiv, February 12, 2018, https://oreil.ly/zKSlj. 248 | Chapter 8: Data Distr…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 64,
+          "section": "Handling the Lack of Labels",
+          "pages": "119–120",
+          "score": 0.0288,
+          "excerpt": "In some cases, semi-supervision approaches have reached the performance of purely supervised learning, even when a substantial portion of the labels in a given dataset has been discarded.17 Semi-super…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 137,
+          "section": "Four Stages of Continual Learning",
+          "pages": "294–296",
+          "score": 0.0164,
+          "excerpt": "22 Zohar Karnin, Kevin Lang, and Edo Liberty, “Optimal Quantile Approximation in Streams,” arXiv, March 17, 2016, https://oreil.ly/bUu4H. 274 | Chapter 9: Continual Learning and Test in Production lea…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 46,
+          "section": "ETL: Extract, Transform, and Load",
+          "pages": "90",
+          "score": 0.0161,
+          "excerpt": "and Teradata.21 In this paradigm, the data can be stored in the same place, with a processing layer on top that can be optimized for different types of queries. Third, “online” has become an overloade…"
+        }
+      ],
+      "ret-014-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 147,
+          "section": "Storage and Compute",
+          "pages": "317–318",
+          "score": -13.8739,
+          "excerpt": "Even if two companies have the exact same infrastructure needs, their resulting infra‐ structure might look different depending on their approaches to build versus buy decisions—i.e., what they want t…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 115,
+          "section": "Compiling and Optimizing Models for Edge Devices",
+          "pages": "236–238",
+          "score": -10.5914,
+          "excerpt": "216 | Chapter 7: Model Deployment and Prediction Service This vision comes together in the AI Engineering team, where our expertise is used to develop AI algorithms and models that are optimized for o…"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 95,
+          "section": "AutoML",
+          "pages": "195–196",
+          "score": -10.4574,
+          "excerpt": "29 You can make the search space continuous to allow differentiation, but the resulting architecture has to be converted into a discrete architecture. See “DARTS: Differentiable Architecture Search” (…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 127,
+          "section": "Monitoring and Observability",
+          "pages": "270",
+          "score": -10.386,
+          "excerpt": "You might also want to design your system to make it easier for it to adapt to shifts. For example, housing prices might change a lot faster in major cities like San Francisco than in rural Arizona, s…"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 169,
+          "section": "End-to-End Data Scientists",
+          "pages": "356–358",
+          "score": -10.3703,
+          "excerpt": "Communication and coordination overhead A team can become blockers for other teams. According to Frederick P. Brooks, “What one programmer can do in one month, two programmers can do in two months.” D…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "near miss",
+          "node_id": 152,
+          "section": "From Dev to Prod: Containers",
+          "pages": "330",
+          "score": 0.6948,
+          "excerpt": "However, each of your containers might run on its own host, and this is where Docker Compose is at its limits. Kubernetes (K8s) is a tool for exactly that. K8s creates a network for containers to comm…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 114,
+          "section": "ML on the Cloud and on the Edge",
+          "pages": "233",
+          "score": 0.6883,
+          "excerpt": "41 See slide #53, CS 329S’s Lecture 8: Deployment - Prediction Service, 2022, https://oreil.ly/cXTou. 42 “Internet of Things (IoT) and Non-IoT Active Device Connections Worldwide from 2010 to 2025,” S…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 103,
+          "section": "Myth 2: If We Don’t Do Anything, Model Performance Remains the Same",
+          "pages": "215",
+          "score": 0.6879,
+          "excerpt": "Figure 7-2. Different tasks that leverage ML at Netflix. Source: Ville Tuulos5 In fact, Uber has thousands of models in production.6 At any given moment, Google has thousands of models training concur…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 99,
+          "section": "Summary",
+          "pages": "209",
+          "score": 0.6822,
+          "excerpt": "We ended the chapter with how to evaluate your models to pick the best one to deploy. Evaluation metrics don’t mean much unless you have a baseline to compare them to, and we covered different types o…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 147,
+          "section": "Storage and Compute",
+          "pages": "318–319",
+          "score": 0.6801,
+          "excerpt": "To execute a job, you first need to load the required data into your compute unit’s memory, then execute the required operations—addition, multiplication, division, convolution, etc.—on that data. For…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 147,
+          "section": "Storage and Compute",
+          "pages": "317–318",
+          "score": 0.0315,
+          "excerpt": "Even if two companies have the exact same infrastructure needs, their resulting infra‐ structure might look different depending on their approaches to build versus buy decisions—i.e., what they want t…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "near miss",
+          "node_id": 152,
+          "section": "From Dev to Prod: Containers",
+          "pages": "330",
+          "score": 0.0299,
+          "excerpt": "However, each of your containers might run on its own host, and this is where Docker Compose is at its limits. Kubernetes (K8s) is a tool for exactly that. K8s creates a network for containers to comm…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 115,
+          "section": "Compiling and Optimizing Models for Edge Devices",
+          "pages": "238–240",
+          "score": 0.0292,
+          "excerpt": "46 For a helpful visualization of loop tiling, see slide 33 from Colfax Research’s presentation “Access to Caches and Memory”, session 10 of their Programming and Optimization for Intel Architecture: …"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 25,
+          "section": "Scalability",
+          "pages": "50",
+          "score": 0.0288,
+          "excerpt": "Scalability There are multiple ways an ML system can grow. It can grow in complexity. Last year you used a logistic regression model that fit into an Amazon Web Services (AWS) free tier instance with …"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "near miss",
+          "node_id": 155,
+          "section": "Data Science Workflow Management",
+          "pages": "334–335",
+          "score": 0.0285,
+          "excerpt": "quotas (i.e., the maximum number of instances a user can use at a given time), etc. Orchestrators deal with lower-level abstractions like machines, instances, clusters, service-level grouping, replica…"
+        }
+      ],
+      "ret-015-retrievals": [
+        {
+          "method": "BM25",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 151,
+          "section": "Standardizing Dev Environments",
+          "pages": "326–327",
+          "score": -12.8366,
+          "excerpt": "25 For the uninitiated, a new pull request can be understood as a new piece of code being added to the codebase. 306 | Chapter 10: Infrastructure and Tooling for MLOps When using a cloud dev environme…"
+        },
+        {
+          "method": "BM25",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 25,
+          "section": "Scalability",
+          "pages": "50",
+          "score": -9.6703,
+          "excerpt": "Scalability There are multiple ways an ML system can grow. It can grow in complexity. Last year you used a logistic regression model that fit into an Amazon Web Services (AWS) free tier instance with …"
+        },
+        {
+          "method": "BM25",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 147,
+          "section": "Storage and Compute",
+          "pages": "319",
+          "score": -9.6623,
+          "excerpt": "When evaluating a new compute unit, it’s important to evaluate how long it will take this compute unit to do common workloads. For example, MLPerf is a popular benchmark for hardware vendors to measur…"
+        },
+        {
+          "method": "BM25",
+          "rank": 4,
+          "judgment": "near miss",
+          "node_id": 107,
+          "section": "From Batch Prediction to Online Prediction",
+          "pages": "221–222",
+          "score": -8.9474,
+          "excerpt": "In many applications, online prediction and batch prediction are used side by side for different use cases. For example, food ordering apps like DoorDash and UberEats use batch prediction to generate …"
+        },
+        {
+          "method": "BM25",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 129,
+          "section": "Monitoring Toolbox",
+          "pages": "276–277",
+          "score": -8.6559,
+          "excerpt": "50 Andrew Morgan, “Data Engineering in Badoo: Handling 20 Billion Events Per Day,” InfoQ, August 9, 2019, https://oreil.ly/qnnuV. 51 Charity Majors, “Observability—A 3-Year Retrospective,” The New Sta…"
+        },
+        {
+          "method": "Vector",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 148,
+          "section": "Public Cloud Versus Private Data Centers",
+          "pages": "320–321",
+          "score": 0.6437,
+          "excerpt": "Public Cloud Versus Private Data Centers Like data storage, the compute layer is largely commoditized. This means that instead of setting up their own data centers for storage and compute, companies c…"
+        },
+        {
+          "method": "Vector",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 25,
+          "section": "Scalability",
+          "pages": "50",
+          "score": 0.6252,
+          "excerpt": "9 Sean Wolfe, “Amazon’s One Hour of Downtime on Prime Day May Have Cost It up to $100 Million in Lost Sales,” Business Insider, July 19, 2018, https://oreil.ly/VBezI. Chapter 2: Introduction to Machin…"
+        },
+        {
+          "method": "Vector",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 151,
+          "section": "Standardizing Dev Environments",
+          "pages": "326–327",
+          "score": 0.6055,
+          "excerpt": "25 For the uninitiated, a new pull request can be understood as a new piece of code being added to the codebase. 306 | Chapter 10: Infrastructure and Tooling for MLOps When using a cloud dev environme…"
+        },
+        {
+          "method": "Vector",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 147,
+          "section": "Storage and Compute",
+          "pages": "319",
+          "score": 0.6053,
+          "excerpt": "When evaluating a new compute unit, it’s important to evaluate how long it will take this compute unit to do common workloads. For example, MLPerf is a popular benchmark for hardware vendors to measur…"
+        },
+        {
+          "method": "Vector",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 114,
+          "section": "ML on the Cloud and on the Edge",
+          "pages": "232",
+          "score": 0.5783,
+          "excerpt": "ML on the Cloud and on the Edge Another decision you’ll want to consider is where your model’s computation will happen: on the cloud or on the edge. On the cloud means a large chunk of compu‐ tation i…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 1,
+          "judgment": "other",
+          "node_id": 151,
+          "section": "Standardizing Dev Environments",
+          "pages": "326–327",
+          "score": 0.0323,
+          "excerpt": "25 For the uninitiated, a new pull request can be understood as a new piece of code being added to the codebase. 306 | Chapter 10: Infrastructure and Tooling for MLOps When using a cloud dev environme…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 2,
+          "judgment": "other",
+          "node_id": 147,
+          "section": "Storage and Compute",
+          "pages": "319",
+          "score": 0.0315,
+          "excerpt": "When evaluating a new compute unit, it’s important to evaluate how long it will take this compute unit to do common workloads. For example, MLPerf is a popular benchmark for hardware vendors to measur…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 3,
+          "judgment": "other",
+          "node_id": 148,
+          "section": "Public Cloud Versus Private Data Centers",
+          "pages": "320–321",
+          "score": 0.0307,
+          "excerpt": "Public Cloud Versus Private Data Centers Like data storage, the compute layer is largely commoditized. This means that instead of setting up their own data centers for storage and compute, companies c…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 4,
+          "judgment": "other",
+          "node_id": 25,
+          "section": "Scalability",
+          "pages": "50",
+          "score": 0.0306,
+          "excerpt": "9 Sean Wolfe, “Amazon’s One Hour of Downtime on Prime Day May Have Cost It up to $100 Million in Lost Sales,” Business Insider, July 19, 2018, https://oreil.ly/VBezI. Chapter 2: Introduction to Machin…"
+        },
+        {
+          "method": "Hybrid",
+          "rank": 5,
+          "judgment": "other",
+          "node_id": 152,
+          "section": "From Dev to Prod: Containers",
+          "pages": "328–329",
+          "score": 0.0279,
+          "excerpt": "The fourth benefit, which I would argue is the biggest benefit for companies that do production on the cloud, is that having your dev environment on the cloud reduces the gap between the dev environme…"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "retrieval-comparison",
+      "label": "Gold-set retrieval comparison",
+      "path": "evaluation/retrieval_gold_seed.json",
+      "query": {
+        "engine": "Python, SQLite FTS5, and local Chroma",
+        "language": "python",
+        "description": "Runs the frozen gold questions against BM25, dense vector search, and unweighted reciprocal rank fusion.",
+        "sql": "SELECT id, source_book_id, source_node_id, toc_index, chunk_index, section_title, path_text, start_page, end_page, text, content_types_json FROM chunks WHERE source_book_id = :book_id ORDER BY toc_index, chunk_index",
+        "executed_at": "2026-07-18T20:23:18.213014+00:00",
+        "tables_used": [
+          "data/retrieval.sqlite3: chunks",
+          "data/retrieval.sqlite3: chunks_fts",
+          "data/chroma: book_text_chunks"
+        ],
+        "filters": [
+          "Gold-set source SHA-256 must match the indexed book",
+          "Top five distinct TOC nodes retained per question",
+          "Unanswerable probes excluded from recall and MRR"
+        ],
+        "metric_definitions": [
+          "Recall@k is required evidence nodes found in the first k distinct retrieved nodes divided by all required evidence nodes.",
+          "MRR@5 is the reciprocal rank of the first required evidence node within five distinct nodes; zero when absent.",
+          "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks."
+        ],
+        "model": {
+          "collection": "book_text_chunks",
+          "embedding_model": "Alibaba-NLP/gte-modernbert-base",
+          "embedding_revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+          "embedding_dimension": 768,
+          "embedding_device": "cpu",
+          "max_sequence_length": 8192,
+          "document_format_version": "hierarchy-v1",
+          "distance_metric": "cosine",
+          "index": "hnsw",
+          "book_ids": [
+            1
+          ],
+          "vector_count": 332,
+          "built_at": "2026-07-18T20:22:37.028395+00:00"
+        }
+      }
+    }
+  ]
+}
