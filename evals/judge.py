@@ -23,12 +23,18 @@ class OpenRouterAnswerJudge:
         from langchain_openai import ChatOpenAI
 
         model = ChatOpenAI(
-            model=os.getenv("OPENROUTER_CONTROL_MODEL", "x-ai/grok-4.5"),
+            model=os.getenv(
+                "OPENROUTER_JUDGE_MODEL",
+                "google/gemini-3-flash-preview",
+            ),
             api_key=key,
             base_url="https://openrouter.ai/api/v1",
             max_retries=1,
             reasoning={
-                "effort": os.getenv("OPENROUTER_CONTROL_REASONING", "high"),
+                "effort": os.getenv(
+                    "OPENROUTER_JUDGE_REASONING",
+                    "high",
+                ),
                 "exclude": True,
             },
         )

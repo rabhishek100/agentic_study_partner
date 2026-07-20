@@ -75,14 +75,24 @@ def openrouter_model(*, max_tokens: int | None = None) -> ChatModel:
     from langchain_openai import ChatOpenAI
 
     options = {"max_tokens": max_tokens} if max_tokens is not None else {}
+    reasoning_effort = os.getenv(
+        "OPENROUTER_GENERATION_REASONING",
+        "none",
+    )
     return ChatOpenAI(
         model=os.getenv(
             "OPENROUTER_GENERATION_MODEL",
-            os.getenv("OPENROUTER_MODEL", "openai/gpt-5.6-luna"),
+            os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash"),
         ),
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
         max_retries=2,
+        extra_body={
+            "reasoning": {
+                "effort": reasoning_effort,
+                "exclude": True,
+            }
+        },
         **options,
     )
 

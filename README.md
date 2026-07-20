@@ -420,6 +420,21 @@ After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
 uv run python app.py
 ```
 
+The default model split is deliberately task-specific:
+
+- DeepSeek V4 Flash, with reasoning disabled, writes grounded answers and
+  complete-scope summaries.
+- Gemini 3.1 Flash Lite at high reasoning handles the small structured
+  conversation-routing decision.
+- Gemini 3 Flash Preview at high reasoning is used only when the optional
+  semantic answer judge is enabled.
+
+All three choices are environment overrides in `.env.example`. Retrieval,
+scope resolution, citation validation, and state updates remain deterministic
+Python regardless of model choice. The benchmark, pricing, live acceptance
+results, and rejected alternatives are recorded in
+[`docs/model-selection.md`](docs/model-selection.md).
+
 The UI keeps independent in-memory state for each browser session. Explicit
 chapter or section summaries/listings establish the active scope. Ordinary
 questions use BM25, vector, hybrid, or hybrid-rerank retrieval with one

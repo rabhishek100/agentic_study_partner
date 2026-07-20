@@ -59,7 +59,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=os.getenv("OPENROUTER_MODEL", "openai/gpt-5.6-luna"),
+        default=os.getenv(
+            "OPENROUTER_GENERATION_MODEL",
+            os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash"),
+        ),
     )
     parser.add_argument(
         "--context-window",
@@ -167,6 +170,15 @@ def main() -> None:
             api_key=api_key,
             base_url="https://openrouter.ai/api/v1",
             max_tokens=config.max_output_tokens,
+            extra_body={
+                "reasoning": {
+                    "effort": os.getenv(
+                        "OPENROUTER_GENERATION_REASONING",
+                        "none",
+                    ),
+                    "exclude": True,
+                }
+            },
         )
         print(
             f"Sending {budget.input_tokens} prompt tokens to OpenRouter; "
