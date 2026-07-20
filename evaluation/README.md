@@ -1,7 +1,40 @@
 # Retrieval evaluation
 
-This directory contains human-reviewed evaluation data derived from the
-canonical book content in `data/books.sqlite3`.
+This directory contains evaluation data derived from the canonical book
+content in `data/books.sqlite3`. Each dataset records its own review
+provenance; do not assume every artifact is human-verified.
+
+## Multi-turn conversation set
+
+`multiturn_gold.json` is the frozen synthetic seed set for implementing
+conversation state and routing. It contains 11 four-turn conversations that
+exercise chapter and section summaries, hierarchy listings, follow-up
+questions, explicit scope switches, cross-chapter synthesis, answer
+transformations, clarification, and grounded abstention.
+
+The set is **model-adjudicated, not human-verified**. Independent subagent
+roles reviewed its evidence/citations, conversation semantics, and
+methodology. The runtime did not expose a selectable or independently
+verifiable reviewer model identity, so the JSON makes no model-name claim.
+
+Validate every node, page, route contract, dependency, hierarchy outline, and
+complete-summary subtree against canonical SQLite:
+
+```bash
+uv run python -m scripts.validate_multiturn_gold
+```
+
+Build the self-contained review page:
+
+```bash
+uv run python -m scripts.build_multiturn_report
+```
+
+Open `evaluation/multiturn_gold.html` to filter the 44 turns by route,
+history dependency, outcome, or free-text search and inspect the expected
+scope, standalone meaning, state transition, evidence, near misses,
+citations, and reviewer decisions. The HTML is derived and rebuildable; edit
+the JSON only through a versioned correction, never by changing the report.
 
 ## Seed set
 

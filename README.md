@@ -357,6 +357,23 @@ set, derived SQLite chunks, and local Chroma collection:
 uv run python -m scripts.build_retrieval_report
 ```
 
+### Multi-turn implementation gold set
+
+The model-adjudicated synthetic seed set for conversation routing contains 11
+conversations and 44 turns. It is grounded in the canonical SQLite book but is
+explicitly not human-verified. Validate it and rebuild its offline inspection
+page with:
+
+```bash
+uv run python -m scripts.validate_multiturn_gold
+uv run python -m scripts.build_multiturn_report
+```
+
+Open
+[`evaluation/multiturn_gold.html`](evaluation/multiturn_gold.html)
+to inspect questions, reference answers, citations, expected retrieval
+evidence, near misses, routes, resolved scopes, and state transitions.
+
 ## Gradio chat
 
 After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
