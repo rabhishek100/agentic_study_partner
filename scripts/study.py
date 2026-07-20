@@ -24,7 +24,7 @@ from study.summarize import (
     append_references,
     build_summary_messages,
     prompt_budget,
-    summarize_scope,
+    summarize_scope_with_repair,
 )
 
 
@@ -174,7 +174,7 @@ def main() -> None:
             file=sys.stderr,
             flush=True,
         )
-        result = summarize_scope(
+        result = summarize_scope_with_repair(
             model,
             scope=scope,
             context=context,

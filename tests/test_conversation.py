@@ -3,79 +3,83 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import langsmith as ls
+from langchain_core.callbacks import BaseCallbackHandler
+
 from parsing.models import ParsedBook, Section, TextBlock
 from storage.sqlite import connect, ingest_book, initialize
-from study.contracts import (
-    ConversationState,
-    ScopeRef,
-    StateUpdate,
-    SufficiencyDecision,
-    TurnAnalysis,
-    TurnResult,
-)
-from study.conversation import (
-    execute_conversation_turn,
-    new_conversation_state,
-)
+from study.contracts import ConversationState, ScopeRef, TurnResult
+from study.conversation import execute_conversation_turn, new_conversation_state
+from study.graph import StudyGraphContext, study_turn_graph
 from tests.test_query_routing import CitationSummaryModel
 
 
-class FakeAnalysisModel:
-    def __init__(self, result) -> None:
+class FakeModel:
+    def __init__(self, result):
         self.result = result
-        self.calls = []
 
     def invoke(self, messages, config=None):
-        self.calls.append((messages, config))
         return self.result
 
 
-def conversation_book() -> ParsedBook:
+class TraceRecorder(BaseCallbackHandler):
+    def __init__(self):
+        self.starts = []
+
+    def on_chain_start(
+        self,
+        serialized,
+        inputs,
+        *,
+        run_id,
+        parent_run_id=None,
+        name=None,
+        metadata=None,
+        **kwargs,
+    ):
+        del serialized, inputs, kwargs
+        self.starts.append(
+            {
+                "name": name,
+                "run_id": run_id,
+                "parent_run_id": parent_run_id,
+                "metadata": metadata or {},
+            }
+        )
+
+
+def conversation_book():
     sections = [
         Section(
             path=["Chapter 1. Foundations"],
             level=1,
             start_page=1,
             end_page=1,
-            texts=[
-                TextBlock(
-                    text="Foundations overview.",
-                    category="NarrativeText",
-                    page=1,
-                )
-            ],
+            texts=[TextBlock(text="Foundations overview.", category="NarrativeText", page=1)],
         ),
         Section(
             path=["Chapter 1. Foundations", "Dataflow Modes"],
             level=2,
             start_page=2,
             end_page=2,
-            texts=[
-                TextBlock(
-                    text="Database, service, and event dataflow.",
-                    category="NarrativeText",
-                    page=2,
-                )
-            ],
+            texts=[TextBlock(text="Database, service, and event dataflow.", category="NarrativeText", page=2)],
         ),
     ]
     return ParsedBook(
         source="sources/books/conversation.pdf",
-        toc=[
-            (section.level, section.title, section.start_page)
-            for section in sections
-        ],
+        toc=[(section.level, section.title, section.start_page) for section in sections],
         sections=sections,
     )
 
 
 class ConversationTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temporary_directory = tempfile.TemporaryDirectory()
-        self.source_path = (
-            Path(self.temporary_directory.name) / "books.sqlite3"
-        )
-        with connect(self.source_path) as connection:
+    def setUp(self):
+        tracing = ls.tracing_context(enabled=False)
+        tracing.__enter__()
+        self.addCleanup(tracing.__exit__, None, None, None)
+        self.directory = tempfile.TemporaryDirectory()
+        self.source = Path(self.directory.name) / "books.sqlite3"
+        with connect(self.source) as connection:
             initialize(connection)
             self.book_id = ingest_book(
                 connection,
@@ -86,248 +90,183 @@ class ConversationTests(unittest.TestCase):
                 page_count=2,
                 parser_version="test-v1",
             )
-            self.nodes = {
-                row["title"]: dict(row)
-                for row in connection.execute(
-                    "SELECT * FROM nodes ORDER BY toc_index"
-                )
-            }
+            self.chapter = dict(
+                connection.execute(
+                    "SELECT * FROM nodes WHERE node_type = 'chapter'"
+                ).fetchone()
+            )
 
-    def tearDown(self) -> None:
-        self.temporary_directory.cleanup()
+    def tearDown(self):
+        self.directory.cleanup()
 
-    def scope(self, title: str, *, kind: str) -> ScopeRef:
-        node = self.nodes[title]
+    def state(self, **updates):
+        values = {
+            "conversation_id": "conversation-1",
+            "book_id": self.book_id,
+        }
+        values.update(updates)
+        return ConversationState(**values)
+
+    def scope(self):
         return ScopeRef(
-            kind=kind,
+            kind="chapter",
             book_id=self.book_id,
-            node_id=node["id"],
-            display_path=node["path_text"],
-            start_page=node["start_page"],
-            end_page=node["end_page"],
+            node_id=self.chapter["id"],
+            display_path=self.chapter["path_text"],
+            start_page=1,
+            end_page=2,
         )
 
-    def retrieval_result(self, question: str) -> TurnResult:
+    def retrieval_result(self, question):
         return TurnResult(
             question=question,
             answer="Grounded answer. [S1]",
             route="retrieval_qa",
             history_dependency="independent",
             standalone_query=question,
-            scope_behavior="global",
-            sufficiency=SufficiencyDecision(status="sufficient"),
             outcome="answer",
             retrieval_mode="hybrid",
         )
 
-    def test_explicit_summary_sets_active_scope_and_records_turn(self):
+    def test_summary_sets_scope_and_records_answer(self):
         result, state = execute_conversation_turn(
             "Summarize Chapter 1.",
-            new_conversation_state(
-                book_id=self.book_id,
-                conversation_id="conversation-1",
-            ),
-            source_path=self.source_path,
-            book_id=self.book_id,
+            new_conversation_state(book_id=self.book_id, conversation_id="c1"),
+            source_path=self.source,
             generation_model=CitationSummaryModel(),
         )
 
         self.assertEqual(result.route, "hierarchy_summary")
-        self.assertEqual(
-            state.active_scope.node_id,
-            self.nodes["Chapter 1. Foundations"]["id"],
-        )
-        self.assertEqual(result.state_update.active_scope, "set_active_scope")
+        self.assertEqual(state.active_scope.node_id, self.chapter["id"])
         self.assertEqual(len(state.messages), 2)
         self.assertEqual(state.previous_answer, result.answer)
 
-    def test_ordinary_followup_uses_rewrite_but_retains_active_scope(self):
-        chapter = self.scope("Chapter 1. Foundations", kind="chapter")
-        state = new_conversation_state(
-            book_id=self.book_id,
-            conversation_id="conversation-2",
-        ).model_copy(update={"active_scope": chapter})
-        analysis_model = FakeAnalysisModel(
-            TurnAnalysis(
-                route="retrieval_qa",
-                history_dependency="dependent",
-                standalone_query=(
-                    "Compare database, service, and event dataflow "
-                    "in Chapter 1."
-                ),
-                scope_behavior="prefer_scope",
-                resolved_scope=chapter,
-                state_update=StateUpdate(
-                    active_scope="set_active_scope"
-                ),
-                decision_reason="The follow-up refers to the chapter modes.",
-                decision_source="llm",
-            )
+    def test_followup_uses_rewritten_query_and_retains_scope(self):
+        scope = self.scope()
+        analysis = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "dependent",
+                "standalone_query": "Compare the dataflow modes in Chapter 1.",
+                "scope_node_id": scope.node_id,
+                "reason": "The question refers to the active chapter.",
+            }
         )
-
         with patch(
             "study.conversation.execute_query",
             return_value=self.retrieval_result("rewritten"),
         ) as execute:
-            result, updated = execute_conversation_turn(
-                "Compare the three modes.",
-                state,
-                source_path=self.source_path,
-                book_id=self.book_id,
-                analysis_model=analysis_model,
+            result, state = execute_conversation_turn(
+                "Compare the modes.",
+                self.state(active_scope=scope),
+                source_path=self.source,
+                analysis_model=analysis,
             )
 
         self.assertEqual(
-            execute.call_args.args[0],
-            "Compare database, service, and event dataflow in Chapter 1.",
+            execute.call_args.args[0], "Compare the dataflow modes in Chapter 1."
         )
-        self.assertEqual(updated.active_scope, chapter)
-        self.assertIsNone(result.resolved_scope)
-        self.assertEqual(result.scope_behavior, "global")
-        self.assertEqual(result.state_update.active_scope, "retain")
+        self.assertEqual(state.active_scope, scope)
+        self.assertEqual(result.history_dependency, "dependent")
 
-    def test_independent_topic_switch_does_not_replace_saved_scope(self):
-        chapter = self.scope("Chapter 1. Foundations", kind="chapter")
-        state = new_conversation_state(
-            book_id=self.book_id,
-            conversation_id="conversation-3",
-        ).model_copy(update={"active_scope": chapter})
-        analysis_model = FakeAnalysisModel(
-            TurnAnalysis(
-                route="retrieval_qa",
-                history_dependency="independent",
-                standalone_query="How does reservoir sampling work?",
-                scope_behavior="global",
-                state_update=StateUpdate(active_scope="retain"),
-                decision_reason="This is a new topic.",
-                decision_source="llm",
-            )
+    def test_ambiguity_clarifies_without_retrieval(self):
+        analysis = FakeModel(
+            {
+                "route": "clarify",
+                "history_dependency": "ambiguous",
+                "clarification_question": "Which approach do you mean?",
+                "reason": "There is no prior list.",
+            }
         )
-
-        with patch(
-            "study.conversation.execute_query",
-            return_value=self.retrieval_result("reservoir"),
-        ):
-            result, updated = execute_conversation_turn(
-                "How does reservoir sampling work?",
-                state,
-                source_path=self.source_path,
-                book_id=self.book_id,
-                analysis_model=analysis_model,
-            )
-
-        self.assertEqual(result.history_dependency, "independent")
-        self.assertEqual(updated.active_scope, chapter)
-
-    def test_ambiguous_reference_returns_clarification_without_retrieval(self):
-        analysis_model = FakeAnalysisModel(
-            TurnAnalysis(
-                route="clarify",
-                history_dependency="ambiguous",
-                scope_behavior="clarify",
-                state_update=StateUpdate(
-                    pending_clarification="set"
-                ),
-                clarification_question=(
-                    "Which approaches are you referring to?"
-                ),
-                decision_reason="There is no prior list.",
-                decision_source="llm",
-            )
-        )
-
         with patch("study.conversation.execute_query") as execute:
             result, state = execute_conversation_turn(
                 "Explain the second approach.",
-                new_conversation_state(
-                    book_id=self.book_id,
-                    conversation_id="conversation-4",
-                ),
-                source_path=self.source_path,
-                book_id=self.book_id,
-                analysis_model=analysis_model,
+                self.state(),
+                source_path=self.source,
+                analysis_model=analysis,
             )
 
         execute.assert_not_called()
         self.assertEqual(result.outcome, "clarify")
-        self.assertEqual(
-            result.answer,
-            "Which approaches are you referring to?",
-        )
-        self.assertEqual(
-            state.pending_clarification,
-            "Explain the second approach.",
-        )
+        self.assertEqual(state.pending_clarification, "Explain the second approach.")
 
-    def test_resolved_clarification_is_cleared_after_answer(self):
-        state = new_conversation_state(
-            book_id=self.book_id,
-            conversation_id="conversation-5",
-        ).model_copy(
-            update={"pending_clarification": "Which approach?"}
+    def test_answer_clears_pending_clarification(self):
+        analysis = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "dependent",
+                "standalone_query": "Explain service dataflow.",
+                "reason": "The user supplied the referent.",
+            }
         )
-        analysis_model = FakeAnalysisModel(
-            TurnAnalysis(
-                route="retrieval_qa",
-                history_dependency="dependent",
-                standalone_query="Explain service dataflow in Chapter 1.",
-                scope_behavior="global",
-                state_update=StateUpdate(),
-                decision_reason="The user supplied the missing referent.",
-                decision_source="llm",
-            )
-        )
-
         with patch(
             "study.conversation.execute_query",
-            return_value=self.retrieval_result("service dataflow"),
+            return_value=self.retrieval_result("service"),
         ):
-            result, updated = execute_conversation_turn(
+            _, state = execute_conversation_turn(
                 "I mean service dataflow.",
-                state,
-                source_path=self.source_path,
-                book_id=self.book_id,
-                analysis_model=analysis_model,
+                self.state(pending_clarification="Which approach?"),
+                source_path=self.source,
+                analysis_model=analysis,
             )
+        self.assertIsNone(state.pending_clarification)
 
-        self.assertIsNone(updated.pending_clarification)
-        self.assertEqual(
-            result.state_update.pending_clarification,
-            "clear",
+    def test_changing_books_starts_a_new_conversation(self):
+        analysis = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "independent",
+                "standalone_query": "What is dataflow?",
+                "reason": "Independent question.",
+            }
         )
-
-    def test_changing_book_starts_a_fresh_internal_conversation(self):
-        original = ConversationState(
-            conversation_id="old",
-            book_id=99,
-        )
-        analysis_model = FakeAnalysisModel(
-            TurnAnalysis(
-                route="retrieval_qa",
-                history_dependency="independent",
-                standalone_query="What is dataflow?",
-                scope_behavior="global",
-                state_update=StateUpdate(),
-                decision_reason="Independent question.",
-                decision_source="llm",
-            )
-        )
-
         with patch(
             "study.conversation.execute_query",
             return_value=self.retrieval_result("dataflow"),
         ):
-            _, updated = execute_conversation_turn(
+            _, state = execute_conversation_turn(
                 "What is dataflow?",
-                original,
-                source_path=self.source_path,
+                ConversationState(conversation_id="old", book_id=99),
+                source_path=self.source,
                 book_id=self.book_id,
-                analysis_model=analysis_model,
+                analysis_model=analysis,
             )
+        self.assertNotEqual(state.conversation_id, "old")
+        self.assertEqual(state.book_id, self.book_id)
 
-        self.assertNotEqual(updated.conversation_id, "old")
-        self.assertEqual(updated.book_id, self.book_id)
-        self.assertEqual(len(updated.messages), 2)
+    def test_graph_groups_the_turn_and_steps_under_one_trace(self):
+        recorder = TraceRecorder()
+        output = study_turn_graph.invoke(
+            {
+                "question": "What sections are present in Chapter 1?",
+                "conversation": self.state(),
+            },
+            config={
+                "run_name": "study_turn",
+                "callbacks": [recorder],
+                "metadata": {"thread_id": "conversation-1"},
+            },
+            context=StudyGraphContext(
+                source_path=self.source,
+                retrieval_mode="bm25",
+            ),
+        )
+
+        starts = {item["name"]: item for item in recorder.starts}
+        root = starts["study_turn"]
+        self.assertIsNone(root["parent_run_id"])
+        for name in (
+            "plan_turn",
+            "route_turn",
+            "execute_hierarchy",
+            "update_state",
+        ):
+            self.assertIsNotNone(starts[name]["parent_run_id"])
+            self.assertEqual(
+                starts[name]["metadata"]["thread_id"],
+                "conversation-1",
+            )
+        self.assertEqual(output["result"].route, "hierarchy_list")
 
 
 if __name__ == "__main__":

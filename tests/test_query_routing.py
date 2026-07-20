@@ -4,7 +4,6 @@ from unittest.mock import patch
 import tempfile
 import unittest
 
-from app import respond
 from storage.sqlite import connect, ingest_book, initialize
 from study.query import answer_query, execute_query
 from tests.test_storage import FILE_HASH, sample_book
@@ -168,18 +167,6 @@ class QueryRoutingTests(unittest.TestCase):
         self.assertIn("A grounded retrieval answer. [S1]", answer)
         self.assertIn("_Retrieval: hybrid_", answer)
         self.assertIn("Sample Book → Chapter 1 → Core idea", answer)
-
-    def test_gradio_handler_uses_the_same_router_and_book_filter(self):
-        with patch("app.answer_query", return_value="routed") as routed:
-            answer = respond("Summarize Chapter 1", [], "hybrid", 1.0)
-
-        self.assertEqual(answer, "routed")
-        routed.assert_called_once_with(
-            "Summarize Chapter 1",
-            retrieval_mode="hybrid",
-            book_id=1,
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -58,6 +58,17 @@ ranking components:
   hybrid shortlist.
 - `retrieval/langchain.py`: thin LangChain adapter over those strategies.
 
+The interactive runtime adds a deliberately small orchestration layer:
+
+- `study/analyze.py`: deterministic hierarchy routing plus one structured
+  control-model decision for non-obvious turns.
+- `study/graph.py`: LangGraph `plan -> conditional execution -> state update`.
+- `study/conversation.py`: graph entry point and explicit conversation state.
+
+Each user message is one `study_turn` LangSmith trace. Planning, the selected
+execution branch, retrieval/model calls, and state update appear as nested
+runs. Turns share the conversation ID as LangSmith `thread_id`.
+
 The scripts are intentionally thin:
 
 - `scripts/parse_book.py`: parse the configured PDF.
@@ -378,11 +389,11 @@ Open
 to inspect questions, reference answers, citations, expected retrieval
 evidence, near misses, routes, resolved scopes, and state transitions.
 
-The frozen one-turn baseline and isolated analyzer can be measured against
-this set. The interactive Gradio path now also retains per-session
-conversation state, rewrites follow-up questions, and executes the existing
-summary and retrieval paths. Real evaluation runs require OpenRouter and
-LangSmith configuration from `.env.example`.
+The evaluator replays predicted state through the real conversational
+coordinator. The Gradio path uses the same coordinator, rewrites follow-up
+questions, and executes the existing summary and retrieval paths. Real runs
+require OpenRouter configuration from `.env.example`; standard LangSmith
+environment variables enable tracing.
 
 Start with the three-conversation smoke set:
 
@@ -436,7 +447,8 @@ The CLI and UI share one deterministic query router:
 Each response shows its route plus full hierarchy and PDF-page references.
 The optional UI Book ID disambiguates hierarchy requests when multiple books
 are present. Search spans all indexed books when it is left blank.
-Conversation history is visible, but each question is handled independently.
+Conversation state is retained per browser session; non-obvious follow-ups
+are rewritten once by the control model before retrieval.
 
 The CLI exposes the same router and retrieval choice:
 

@@ -12,8 +12,7 @@ from study.contracts import (
     EvidenceRef,
     ScopeCandidate,
     ScopeRef,
-    StateUpdate,
-    TurnAnalysis,
+    TurnDecision,
 )
 from study.scope_candidates import find_scope_candidates
 
@@ -242,47 +241,36 @@ class ScopeCandidateTests(unittest.TestCase):
             self.candidates("Chapter 3", limit=0)
 
 
-class TurnAnalysisContractTests(unittest.TestCase):
-    def test_valid_retrieval_analysis(self):
-        analysis = TurnAnalysis(
+class ConversationContractTests(unittest.TestCase):
+    def test_valid_retrieval_decision(self):
+        decision = TurnDecision(
             route="retrieval_qa",
             history_dependency="dependent",
             standalone_query="What does low-rank factorization cover?",
-            scope_behavior="prefer_scope",
-            state_update=StateUpdate(active_scope="retain"),
-            decision_reason="The question refers to the prior section.",
-            decision_source="llm",
+            reason="The question refers to the prior section.",
         )
 
-        self.assertEqual(analysis.route, "retrieval_qa")
+        self.assertEqual(decision.route, "retrieval_qa")
 
     def test_route_specific_requirements_are_enforced(self):
         with self.assertRaisesRegex(
             ValidationError,
-            "retrieval_qa requires a standalone query",
+            "retrieval QA requires a standalone query",
         ):
-            TurnAnalysis(
+            TurnDecision(
                 route="retrieval_qa",
                 history_dependency="independent",
-                scope_behavior="global",
-                state_update=StateUpdate(),
-                decision_reason="Ordinary global question.",
-                decision_source="deterministic",
+                reason="Ordinary global question.",
             )
 
         with self.assertRaisesRegex(
             ValidationError,
-            "clarify requires a clarification question",
+            "clarify requires a question",
         ):
-            TurnAnalysis(
+            TurnDecision(
                 route="clarify",
                 history_dependency="ambiguous",
-                scope_behavior="clarify",
-                state_update=StateUpdate(
-                    pending_clarification="set"
-                ),
-                decision_reason="The ordinal has no known list.",
-                decision_source="llm",
+                reason="The ordinal has no known list.",
             )
 
     def test_candidate_rejects_invalid_pages_and_extra_fields(self):
@@ -298,7 +286,7 @@ class TurnAnalysisContractTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(
             ValidationError,
-            "end_page must be greater",
+            "end_page must be at least start_page",
         ):
             ScopeCandidate(**values)
         values["end_page"] = 3

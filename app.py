@@ -2,37 +2,12 @@
 
 import gradio as gr
 
-from study.analyze import TurnAnalysisError
+from study.analyze import ConversationDecisionError
 from study.contracts import ConversationState
 from study.conversation import execute_conversation_turn
-from study.query import (
-    QueryExecutionError,
-    answer_query,
-)
+from study.query import QueryExecutionError
 from study.scope import ScopeResolutionError
 from study.summarize import ContextWindowExceededError
-
-
-def respond(
-    message: str,
-    history: list,
-    retrieval_mode: str,
-    book_id: float | None,
-) -> str:
-    del history
-    selected_book_id = int(book_id) if book_id is not None else None
-    try:
-        return answer_query(
-            message,
-            retrieval_mode=retrieval_mode,
-            book_id=selected_book_id,
-        )
-    except (
-        ContextWindowExceededError,
-        QueryExecutionError,
-        ScopeResolutionError,
-    ) as error:
-        return f"**Unable to complete request:** {error}"
 
 
 def _conversation_state(
@@ -85,7 +60,7 @@ def respond_conversation(
         ContextWindowExceededError,
         QueryExecutionError,
         ScopeResolutionError,
-        TurnAnalysisError,
+        ConversationDecisionError,
     ) as error:
         return (
             f"**Unable to complete request:** {error}",

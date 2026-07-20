@@ -14,10 +14,8 @@ from storage.sqlite import connect_readonly
 from .content import load_scope_content
 from .contracts import (
     CitationRef,
-    ConversationState,
     EvidenceRef,
     ScopeRef,
-    SufficiencyDecision,
     TurnResult,
 )
 from .context import build_scope_context
@@ -141,13 +139,8 @@ def _answer_hierarchy_request(
             standalone_query=(
                 f"List sections in {scope.display_path}."
             ),
-            scope_behavior="hard_filter",
             resolved_scope=_scope_ref(scope),
             outline_node_ids=[node.id for node in scope.nodes[1:]],
-            sufficiency=SufficiencyDecision(
-                status="sufficient",
-                reason="Canonical hierarchy resolved without retrieval.",
-            ),
             outcome="answer",
         )
 
@@ -237,14 +230,9 @@ def _answer_hierarchy_request(
         route="hierarchy_summary",
         history_dependency="independent",
         standalone_query=f"Summarize {scope.display_path}.",
-        scope_behavior="hard_filter",
         resolved_scope=_scope_ref(scope),
         evidence=evidence,
         citations=citations,
-        sufficiency=SufficiencyDecision(
-            status="sufficient",
-            reason="Complete subtree passed summary citation validation.",
-        ),
         outcome="answer",
         warnings=list(result.validation.warnings),
     )
@@ -285,11 +273,6 @@ def _answer_retrieval_question(
             route="retrieval_qa",
             history_dependency="independent",
             standalone_query=question,
-            scope_behavior="global",
-            sufficiency=SufficiencyDecision(
-                status="insufficient",
-                reason="The current retriever returned no documents.",
-            ),
             outcome="abstain",
             retrieval_mode=retrieval_mode,
         )
@@ -364,7 +347,6 @@ def _answer_retrieval_question(
         route="retrieval_qa",
         history_dependency="independent",
         standalone_query=question,
-        scope_behavior="global",
         evidence=evidence_refs,
         citations=citations,
         outcome="answer",
@@ -381,12 +363,10 @@ def execute_query(
     retrieval_mode: RetrievalMode = "hybrid",
     *,
     model: ChatModel | None = None,
-    state: ConversationState | None = None,
 ) -> TurnResult:
-    """Execute the current one-turn behavior and expose structured internals."""
+    """Execute a single self-contained hierarchy or retrieval request."""
 
     load_dotenv()
-    del state  # The frozen baseline intentionally ignores conversation state.
     hierarchy = _resolve_hierarchy_request(
         question,
         source_path=source_path,

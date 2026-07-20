@@ -29,7 +29,7 @@ class ScopeNode:
 
 
 @dataclass(frozen=True)
-class ScopeCandidate:
+class ScopeMatch:
     """A reader-facing scope match used in ambiguity errors."""
 
     book_id: int
@@ -78,7 +78,7 @@ class AmbiguousScopeError(ScopeResolutionError):
         self,
         kind: ResolutionKind,
         reference: object,
-        candidates: tuple[ScopeCandidate, ...],
+        candidates: tuple[ScopeMatch, ...],
     ) -> None:
         self.kind = kind
         self.reference = reference
@@ -112,8 +112,8 @@ def _node(row: sqlite3.Row) -> ScopeNode:
     )
 
 
-def _candidate(row: sqlite3.Row) -> ScopeCandidate:
-    return ScopeCandidate(
+def _candidate(row: sqlite3.Row) -> ScopeMatch:
+    return ScopeMatch(
         book_id=row["book_id"],
         book_title=row["book_title"],
         node_id=row["id"],
@@ -142,8 +142,8 @@ def _book_rows(
     return rows
 
 
-def _book_candidate(row: sqlite3.Row) -> ScopeCandidate:
-    return ScopeCandidate(
+def _book_candidate(row: sqlite3.Row) -> ScopeMatch:
+    return ScopeMatch(
         book_id=row["id"],
         book_title=row["title"],
         node_id=None,
