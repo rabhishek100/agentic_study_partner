@@ -36,6 +36,82 @@ scope, standalone meaning, state transition, evidence, near misses,
 citations, and reviewer decisions. The HTML is derived and rebuildable; edit
 the JSON only through a versioned correction, never by changing the report.
 
+## Multi-turn baseline runs
+
+The first implementation stage evaluates the existing one-turn system without
+adding conversation behavior. It exposes a structured result beneath the
+existing Markdown interface, then replays the frozen conversations and records
+where the current system fails to use history.
+
+Copy the non-secret defaults from `.env.example`, add OpenRouter and LangSmith
+credentials, and run the agreed three-conversation smoke set:
+
+```bash
+uv run python -m scripts.evaluate_multiturn \
+  --conversation mt-001 \
+  --conversation mt-009 \
+  --conversation mt-010
+```
+
+Run one dependent turn after replaying its prerequisites:
+
+```bash
+uv run python -m scripts.evaluate_multiturn --turn mt-001-t3
+```
+
+Run the complete 44-turn baseline only after inspecting the smoke report:
+
+```bash
+uv run python -m scripts.evaluate_multiturn --all
+```
+
+Every run writes `results.json` and `report.html` beneath a unique directory in
+`evaluation/runs/`. Routine runs are gitignored. Promote only deliberately
+selected baselines into a versioned `evaluation/baselines/<name>/` directory.
+
+The report separates:
+
+- End-to-end predictions from the current user query.
+- Component judgments for route, dependency, scope, state, outcome, evidence,
+  citations, and safety invariants.
+- An oracle-query retrieval probe using the gold standalone query with
+  hybrid-plus-reranker retrieval. Scoped cases are transparently labeled as a
+  top-20 book-wide retrieval followed by scope post-filtering in this baseline
+  harness.
+- Grok rubric scores for semantic answer quality. These scores are diagnostic,
+  never safety gates.
+
+Gold standalone queries are not exact-string scored. The report retains the
+exact comparison only as a debugging aid; retrieval coverage and semantic
+answer judging measure whether meaning was preserved.
+
+## Isolated turn-analysis evaluation
+
+Batch 2 analysis can be evaluated without retrieval or answer generation.
+Prior conversation state is reconstructed from the gold set, so an earlier
+prediction error cannot distort the next turn's analyzer score.
+
+Run the targeted difficult turns:
+
+```bash
+uv run python -m scripts.evaluate_turn_analysis \
+  --turn mt-001-t2 --turn mt-001-t3 --turn mt-001-t4 \
+  --turn mt-009-t1 --turn mt-009-t2 --turn mt-009-t3 \
+  --turn mt-009-t4 --turn mt-010-t2 --turn mt-010-t3
+```
+
+Run one conversation:
+
+```bash
+uv run python -m scripts.evaluate_turn_analysis --conversation mt-009
+```
+
+Use `--all` only after inspecting the targeted report. Each run writes
+`results.json` and `report.html` under `evaluation/runs/` and links every live
+component call to LangSmith. The semantic standalone-query judge is
+diagnostic; Python-enforced schema and canonical-scope checks remain the
+safety boundary.
+
 ## Seed set
 
 `retrieval_gold_seed.json` is the first retrieval-only gold set. It is

@@ -17,7 +17,9 @@ from study.summarize import (
     ContextWindowExceededError,
     SummaryConfig,
     append_references,
+    normalize_citation_syntax,
     summarize_scope,
+    summarize_scope_with_repair,
     validate_summary,
 )
 from tests.test_storage import FILE_HASH, sample_book
@@ -31,6 +33,19 @@ class FakeSummaryModel:
     def invoke(self, messages):
         self.messages = messages
         return SimpleNamespace(content=self.response)
+
+
+class SequenceSummaryModel:
+    def __init__(self, *responses: str) -> None:
+        self.responses = responses
+        self.messages = []
+
+    def invoke(self, messages):
+        self.messages.append(messages)
+        return SimpleNamespace(
+            content=self.responses[len(self.messages) - 1],
+            response_metadata={"finish_reason": "stop"},
+        )
 
 
 class StudySummaryTests(unittest.TestCase):
@@ -204,6 +219,70 @@ class StudySummaryTests(unittest.TestCase):
         self.assertTrue(
             any("out-of-scope citations" in error for error in validation.errors)
         )
+
+    def test_grouped_citation_syntax_is_split_without_changing_values(self):
+        normalized = normalize_citation_syntax(
+            "Two claims. [N81:P153; N81:P154] Third. [N82:P155]"
+        )
+
+        self.assertEqual(
+            normalized,
+            "Two claims. [N81:P153] [N81:P154] Third. [N82:P155]",
+        )
+
+    def test_invalid_citation_gets_one_feedback_driven_repair(self) -> None:
+        scope, context = self._chapter_context()
+        allowed = sorted(context.allowed_citations)
+        first_node, _ = allowed[0]
+        other_page = next(
+            page for node_id, page in allowed if node_id != first_node
+        )
+        valid_citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id in sorted(context.expected_node_ids)
+            for candidate_node, page in allowed
+            if candidate_node == node_id
+        )
+        invalid = f"Bad citation. [N{first_node}:P{other_page}]"
+        repaired = f"Complete repaired summary. {valid_citations}"
+        model = SequenceSummaryModel(invalid, repaired)
+
+        result = summarize_scope_with_repair(
+            model,
+            scope=scope,
+            context=context,
+        )
+
+        self.assertTrue(result.validation.valid)
+        self.assertEqual(result.attempt_count, 2)
+        self.assertTrue(result.initial_errors)
+        self.assertEqual(len(model.messages), 2)
+        second_prompt = model.messages[1][1][1]
+        self.assertIn("previous draft was rejected", second_prompt)
+        self.assertIn(
+            f"[N{first_node}:P{other_page}]",
+            second_prompt,
+        )
+
+    def test_valid_summary_does_not_trigger_repair(self) -> None:
+        scope, context = self._chapter_context()
+        citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id in sorted(context.expected_node_ids)
+            for candidate_node, page in sorted(context.allowed_citations)
+            if candidate_node == node_id
+        )
+        model = SequenceSummaryModel(f"Valid summary. {citations}")
+
+        result = summarize_scope_with_repair(
+            model,
+            scope=scope,
+            context=context,
+        )
+
+        self.assertTrue(result.validation.valid)
+        self.assertEqual(result.attempt_count, 1)
+        self.assertEqual(len(model.messages), 1)
 
     def test_missing_recap_node_is_a_warning_not_an_error(self) -> None:
         scope, context = self._chapter_context()

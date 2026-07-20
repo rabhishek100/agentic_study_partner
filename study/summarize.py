@@ -1,6 +1,6 @@
 """One-call grounded summarization for a complete resolved scope."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 from typing import Protocol
 
@@ -11,6 +11,9 @@ from .scope import ResolvedScope
 
 
 CITATION = re.compile(r"\[N(\d+):P(\d+)]")
+GROUPED_CITATION = re.compile(
+    r"\[((?:N\d+:P\d+)(?:\s*;\s*N\d+:P\d+)+)]"
+)
 OPTIONAL_RECAP_TITLES = frozenset({"summary", "conclusion"})
 
 
@@ -93,11 +96,15 @@ class SummaryResult:
     validation: SummaryValidation
     budget: PromptBudget
     finish_reason: str | None
+    attempt_count: int = 1
+    initial_errors: tuple[str, ...] = ()
 
 
 def build_summary_messages(
     scope: ResolvedScope,
     context: ScopeContext,
+    *,
+    validation_feedback: tuple[str, ...] = (),
 ) -> list[tuple[str, str]]:
     """Build the grounded prompt over the complete formatted scope."""
 
@@ -126,6 +133,15 @@ def build_summary_messages(
         "not omitted. Do not add a references or sources section; the "
         "application appends exact source metadata after validation."
     )
+    correction = ""
+    if validation_feedback:
+        correction = (
+            "\n\nA previous draft was rejected by deterministic validation:\n"
+            + "\n".join(f"- {error}" for error in validation_feedback)
+            + "\nRegenerate the complete summary. Fix every listed problem. "
+            "Use only citation markers present in Required coverage or "
+            "Complete evidence; do not guess or combine node IDs and pages.\n"
+        )
     human = f"""
 Summarize this complete {scope.kind} scope:
 
@@ -149,6 +165,7 @@ If space becomes limited, shorten items 2, 4, 5, and 6 before omitting any
 required node from item 3.
 
 Use citations such as [N14:P21]. Do not cite the block suffix.
+{correction}
 
 Complete evidence:
 
@@ -244,6 +261,18 @@ def validate_summary(
     )
 
 
+def normalize_citation_syntax(text: str) -> str:
+    """Split grouped valid marker syntax without changing citation values."""
+
+    return GROUPED_CITATION.sub(
+        lambda match: " ".join(
+            f"[{marker.strip()}]"
+            for marker in match.group(1).split(";")
+        ),
+        text,
+    )
+
+
 def append_references(text: str, *, scope: ResolvedScope) -> str:
     """Append exact hierarchy/page references used by the summary."""
 
@@ -293,16 +322,21 @@ def summarize_scope(
     scope: ResolvedScope,
     context: ScopeContext,
     config: SummaryConfig | None = None,
+    validation_feedback: tuple[str, ...] = (),
 ) -> SummaryResult:
     """Make one complete-scope call and validate the returned citations."""
 
     config = config or SummaryConfig()
-    messages = build_summary_messages(scope, context)
+    messages = build_summary_messages(
+        scope,
+        context,
+        validation_feedback=validation_feedback,
+    )
     budget = prompt_budget(messages, config=config)
     if not budget.fits:
         raise ContextWindowExceededError(budget)
     response = model.invoke(messages)
-    text = _response_text(response)
+    text = normalize_citation_syntax(_response_text(response))
     return SummaryResult(
         text=text,
         validation=validate_summary(
@@ -312,4 +346,35 @@ def summarize_scope(
         ),
         budget=budget,
         finish_reason=_finish_reason(response),
+    )
+
+
+def summarize_scope_with_repair(
+    model: SummaryModel,
+    *,
+    scope: ResolvedScope,
+    context: ScopeContext,
+    config: SummaryConfig | None = None,
+) -> SummaryResult:
+    """Retry one invalid summary with exact deterministic feedback."""
+
+    first = summarize_scope(
+        model,
+        scope=scope,
+        context=context,
+        config=config,
+    )
+    if first.validation.valid:
+        return first
+    repaired = summarize_scope(
+        model,
+        scope=scope,
+        context=context,
+        config=config,
+        validation_feedback=first.validation.errors,
+    )
+    return replace(
+        repaired,
+        attempt_count=2,
+        initial_errors=first.validation.errors,
     )

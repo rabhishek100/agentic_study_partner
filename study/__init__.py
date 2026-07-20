@@ -29,8 +29,10 @@ from .summarize import (
     SummaryValidation,
     append_references,
     build_summary_messages,
+    normalize_citation_syntax,
     prompt_budget,
     summarize_scope,
+    summarize_scope_with_repair,
     validate_summary,
 )
 
@@ -58,6 +60,7 @@ __all__ = [
     "build_scope_context",
     "append_references",
     "build_summary_messages",
+    "normalize_citation_syntax",
     "prompt_budget",
     "resolve_book",
     "resolve_chapter",
@@ -65,5 +68,6 @@ __all__ = [
     "resolve_section",
     "resolve_study_request",
     "summarize_scope",
+    "summarize_scope_with_repair",
     "validate_summary",
 ]

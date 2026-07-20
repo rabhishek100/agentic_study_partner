@@ -8,6 +8,10 @@ The primary database intentionally contains no summaries, chunks, embeddings,
 keyword indexes, or other derived data. It stores only source metadata, the TOC
 hierarchy, ordered content blocks, tables, and images.
 
+For the current conversational RAG implementation status, frozen design
+decisions, batch plan, evaluation baseline, and continuation instructions, see
+[`docs/conversational-rag-handoff.md`](docs/conversational-rag-handoff.md).
+
 ## Architecture
 
 ```text
@@ -374,6 +378,29 @@ Open
 to inspect questions, reference answers, citations, expected retrieval
 evidence, near misses, routes, resolved scopes, and state transitions.
 
+The frozen one-turn baseline and isolated analyzer can be measured against
+this set. The interactive Gradio path now also retains per-session
+conversation state, rewrites follow-up questions, and executes the existing
+summary and retrieval paths. Real evaluation runs require OpenRouter and
+LangSmith configuration from `.env.example`.
+
+Start with the three-conversation smoke set:
+
+```bash
+uv run python -m scripts.evaluate_multiturn \
+  --conversation mt-001 \
+  --conversation mt-009 \
+  --conversation mt-010
+```
+
+The command saves a machine-readable result and a self-contained HTML report
+under `evaluation/runs/<run-id>/`. Routine runs are ignored by Git. After
+checking the smoke report, explicitly request the full baseline with:
+
+```bash
+uv run python -m scripts.evaluate_multiturn --all
+```
+
 ## Gradio chat
 
 After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
@@ -381,6 +408,20 @@ After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
 ```bash
 uv run python app.py
 ```
+
+The UI keeps independent in-memory state for each browser session. Explicit
+chapter or section summaries/listings establish the active scope. Ordinary
+questions use BM25, vector, hybrid, or hybrid-rerank retrieval with one
+standalone follow-up rewrite, while Python applies the state changes.
+
+Try:
+
+1. `What sections are present in Chapter 1?`
+2. `Which one discusses differences between research and production?`
+
+Open **Turn diagnostics** to inspect the selected route, standalone retrieval
+query, active scope, and retrieval mode. **Clear conversation** clears both
+the visible transcript and its internal state.
 
 The CLI and UI share one deterministic query router:
 

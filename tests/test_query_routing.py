@@ -6,7 +6,7 @@ import unittest
 
 from app import respond
 from storage.sqlite import connect, ingest_book, initialize
-from study.query import answer_query
+from study.query import answer_query, execute_query
 from tests.test_storage import FILE_HASH, sample_book
 
 
@@ -21,6 +21,28 @@ class CitationSummaryModel:
         )
         return SimpleNamespace(
             content=f"# Chapter 1\n\nComplete grounded summary. {citations}"
+        )
+
+
+class RepairingCitationSummaryModel:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, messages):
+        self.calls += 1
+        if self.calls == 1:
+            return SimpleNamespace(
+                content="# Chapter 1\n\nBad citation. [N999:P999]",
+                response_metadata={"finish_reason": "stop"},
+            )
+        markers = re.findall(r"\[N(\d+):P(\d+):B\d+]", messages[-1][1])
+        citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id, page in dict.fromkeys(markers)
+        )
+        return SimpleNamespace(
+            content=f"# Chapter 1\n\nRepaired summary. {citations}",
+            response_metadata={"finish_reason": "stop"},
         )
 
 
@@ -64,6 +86,21 @@ class QueryRoutingTests(unittest.TestCase):
         self.assertIn("- Core idea", answer)
         self.assertIn("PDF pp. 2", answer)
 
+    def test_structured_interface_exposes_hierarchy_decision(self):
+        with patch("study.query.BookRetriever") as retriever:
+            result = execute_query(
+                "What sections are present in Chapter 1?",
+                source_path=self.source_path,
+                book_id=self.book_id,
+            )
+
+        retriever.assert_not_called()
+        self.assertEqual(result.route, "hierarchy_list")
+        self.assertEqual(result.outcome, "answer")
+        self.assertEqual(result.resolved_scope.kind, "chapter")
+        self.assertEqual(result.resolved_scope.display_path, "Chapter 1")
+        self.assertTrue(result.outline_node_ids)
+
     def test_chapter_summary_uses_complete_scope_without_retrieval(self):
         with patch("study.query.BookRetriever") as retriever:
             answer = answer_query(
@@ -92,6 +129,21 @@ class QueryRoutingTests(unittest.TestCase):
         self.assertIn("Scope route: complete section subtree", answer)
         self.assertIn("Chapter 1 → Core idea", answer)
         self.assertIn("Chapter 1 → Core idea → Diagram", answer)
+
+    def test_invalid_summary_is_regenerated_once_with_validation_feedback(self):
+        model = RepairingCitationSummaryModel()
+
+        answer = answer_query(
+            "Summarize Chapter 1",
+            source_path=self.source_path,
+            book_id=self.book_id,
+            model=model,
+        )
+
+        self.assertEqual(model.calls, 2)
+        self.assertIn("Validation repair", answer)
+        self.assertIn("Repaired summary", answer)
+        self.assertIn("## References", answer)
 
     def test_unmatched_named_summary_falls_back_to_retrieval(self):
         document = SimpleNamespace(
