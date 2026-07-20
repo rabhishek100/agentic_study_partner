@@ -152,6 +152,44 @@ class StudySummaryTests(unittest.TestCase):
         self.assertFalse(result.validation.warnings)
         self.assertIsNotNone(model.messages)
         self.assertIn(context.text, model.messages[1][1])
+        self.assertIn(
+            "shorten items 2, 4, 5, and 6",
+            model.messages[1][1],
+        )
+        for node_id, page in context.allowed_citations:
+            self.assertIn(
+                f"[N{node_id}:P{page}]",
+                model.messages[1][1],
+            )
+        self.assertIn(
+            "never combine a node ID with a page",
+            model.messages[0][1],
+        )
+
+    def test_records_model_finish_reason(self) -> None:
+        scope, context = self._chapter_context()
+        citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id in sorted(context.expected_node_ids)
+            for candidate_node, page in sorted(context.allowed_citations)
+            if candidate_node == node_id
+        )
+
+        class ModelWithMetadata:
+            def invoke(self, messages):
+                del messages
+                return SimpleNamespace(
+                    content=f"Grounded summary. {citations}",
+                    response_metadata={"finish_reason": "stop"},
+                )
+
+        result = summarize_scope(
+            ModelWithMetadata(),
+            scope=scope,
+            context=context,
+        )
+
+        self.assertEqual(result.finish_reason, "stop")
 
     def test_validation_rejects_invented_and_missing_citations(self) -> None:
         scope, context = self._chapter_context()

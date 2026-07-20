@@ -2,12 +2,34 @@
 
 import gradio as gr
 
-from scripts.ask_book import answer_question
+from study.query import (
+    QueryExecutionError,
+    answer_query,
+)
+from study.scope import ScopeResolutionError
+from study.summarize import ContextWindowExceededError
 
 
-def respond(message: str, history: list, retrieval_mode: str) -> str:
+def respond(
+    message: str,
+    history: list,
+    retrieval_mode: str,
+    book_id: float | None,
+) -> str:
     del history
-    return answer_question(message, retrieval_mode=retrieval_mode)
+    selected_book_id = int(book_id) if book_id is not None else None
+    try:
+        return answer_query(
+            message,
+            retrieval_mode=retrieval_mode,
+            book_id=selected_book_id,
+        )
+    except (
+        ContextWindowExceededError,
+        QueryExecutionError,
+        ScopeResolutionError,
+    ) as error:
+        return f"**Unable to complete request:** {error}"
 
 
 demo = gr.ChatInterface(
@@ -19,12 +41,19 @@ demo = gr.ChatInterface(
             choices=["hybrid", "hybrid_rerank", "bm25", "vector"],
             value="hybrid",
             label="Retrieval mode",
-        )
+        ),
+        gr.Number(
+            value=None,
+            precision=0,
+            label="Book ID (optional)",
+            info="Use this to disambiguate chapter or section requests.",
+        ),
     ],
     examples=[
-        ["How does reservoir sampling work?", "hybrid"],
-        ["What is data leakage and how can it be prevented?", "hybrid"],
-        ["Compare batch prediction with online prediction.", "hybrid"],
+        ["Summarize Chapter 1", "hybrid", 1],
+        ["What sections are present in Chapter 1?", "hybrid", 1],
+        ["How does reservoir sampling work?", "hybrid", None],
+        ["What is data leakage and how can it be prevented?", "hybrid", None],
     ],
 )
 

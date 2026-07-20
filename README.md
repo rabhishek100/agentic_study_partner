@@ -227,7 +227,7 @@ coverage for recap nodes titled `Summary` or `Conclusion` is reported as a
 warning and does not block output; missing substantive nodes and invalid or
 out-of-scope citations remain hard validation failures.
 
-The prompt budget defaults to a 64,000-token context window with 4,000 output
+The prompt budget defaults to a 64,000-token context window with 8,000 output
 tokens and a 1,000-token safety reserve. Override these explicitly for the
 chosen OpenRouter model with `SUMMARY_CONTEXT_WINDOW_TOKENS`,
 `SUMMARY_MAX_OUTPUT_TOKENS`, and `SUMMARY_SAFETY_MARGIN_TOKENS`.
@@ -365,18 +365,35 @@ After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
 uv run python app.py
 ```
 
-Each response shows source labels, full book hierarchy, and PDF pages.
-The UI can switch between BM25, vector, hybrid, and reranked hybrid retrieval;
-hybrid is intentionally the initial default. Search spans all indexed books
-unless a `book_id` filter is provided programmatically. Conversation history
-is visible, but each question is retrieved independently.
+The CLI and UI share one deterministic query router:
 
-The CLI exposes the same retrieval choice:
+- Explicit chapter/section summaries resolve the canonical SQLite scope and
+  send its complete subtree to the model instead of top-k chunks.
+- Section-list requests read the canonical hierarchy without an LLM call.
+- Ordinary questions continue through BM25, vector, hybrid, or reranked hybrid
+  retrieval.
+- `Summarize X` uses complete-scope summarization when `X` uniquely matches a
+  TOC node; otherwise it falls back to ordinary retrieval.
+
+Each response shows its route plus full hierarchy and PDF-page references.
+The optional UI Book ID disambiguates hierarchy requests when multiple books
+are present. Search spans all indexed books when it is left blank.
+Conversation history is visible, but each question is handled independently.
+
+The CLI exposes the same router and retrieval choice:
 
 ```bash
 uv run python -m scripts.ask_book \
   --retrieval-mode hybrid_rerank \
   "How does reservoir sampling work?"
+```
+
+Complete chapter summarization works through the same command:
+
+```bash
+uv run python -m scripts.ask_book \
+  --book-id 1 \
+  "Summarize Chapter 1"
 ```
 
 ## Tests

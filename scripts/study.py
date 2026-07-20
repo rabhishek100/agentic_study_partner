@@ -16,6 +16,7 @@ from study.request import (
     parse_study_request,
     resolve_study_request,
 )
+from study.render import format_outline
 from study.scope import ResolvedScope, ScopeResolutionError
 from study.summarize import (
     ContextWindowExceededError,
@@ -68,7 +69,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-output-tokens",
         type=int,
-        default=int(os.getenv("SUMMARY_MAX_OUTPUT_TOKENS", "4000")),
+        default=int(os.getenv("SUMMARY_MAX_OUTPUT_TOKENS", "8000")),
     )
     parser.add_argument(
         "--safety-margin-tokens",
@@ -76,31 +77,6 @@ def build_argument_parser() -> argparse.ArgumentParser:
         default=int(os.getenv("SUMMARY_SAFETY_MARGIN_TOKENS", "1000")),
     )
     return parser
-
-
-def format_outline(scope: ResolvedScope) -> str:
-    """Render the chapter descendants without reading or generating prose."""
-
-    lines = [
-        f"# {scope.display_path}",
-        "",
-        f"Book: {scope.book_title}",
-        f"PDF pages: {scope.start_page}–{scope.end_page}",
-        "",
-        "Sections:",
-    ]
-    root_level = scope.nodes[0].level
-    for node in scope.nodes[1:]:
-        indent = "  " * max(0, node.level - root_level - 1)
-        pages = (
-            str(node.start_page)
-            if node.start_page == node.end_page
-            else f"{node.start_page}–{node.end_page}"
-        )
-        lines.append(
-            f"{indent}- {node.title} [node {node.id}, PDF pp. {pages}]"
-        )
-    return "\n".join(lines)
 
 
 def format_dry_run(
@@ -219,7 +195,15 @@ def main() -> None:
 
     if not result.validation.valid:
         print(result.text)
-        print("\nSummary validation failed:", file=sys.stderr)
+        finish_reason = (
+            f" (model finish reason: {result.finish_reason})"
+            if result.finish_reason
+            else ""
+        )
+        print(
+            f"\nSummary validation failed{finish_reason}:",
+            file=sys.stderr,
+        )
         for error in result.validation.errors:
             print(f"- {error}", file=sys.stderr)
         raise SystemExit(1)

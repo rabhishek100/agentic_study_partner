@@ -25,7 +25,7 @@ class SummaryConfig:
     """Explicit prompt budget; complete inputs are never silently truncated."""
 
     context_window_tokens: int = 64_000
-    max_output_tokens: int = 4_000
+    max_output_tokens: int = 8_000
     safety_margin_tokens: int = 1_000
     encoding_name: str = DEFAULT_ENCODING
 
@@ -92,6 +92,7 @@ class SummaryResult:
     text: str
     validation: SummaryValidation
     budget: PromptBudget
+    finish_reason: str | None
 
 
 def build_summary_messages(
@@ -100,8 +101,15 @@ def build_summary_messages(
 ) -> list[tuple[str, str]]:
     """Build the grounded prompt over the complete formatted scope."""
 
+    allowed_pages_by_node: dict[int, list[int]] = {}
+    for node_id, page in sorted(context.allowed_citations):
+        allowed_pages_by_node.setdefault(node_id, []).append(page)
     required_sections = "\n".join(
-        f"- Node {node.id}: {node.path_text}"
+        f"- Node {node.id}: {node.path_text}; allowed citations: "
+        + ", ".join(
+            f"[N{node.id}:P{page}]"
+            for page in allowed_pages_by_node[node.id]
+        )
         for node in scope.nodes
         if node.id in context.expected_node_ids
     )
@@ -109,8 +117,13 @@ def build_summary_messages(
         "You summarize technical-book evidence. Use only the supplied "
         "evidence. Do not use outside knowledge or infer the contents of "
         "omitted images. Cite every substantive claim using [N<node>:P<page>] "
-        "from the supplied block markers. Preserve uncertainty when evidence "
-        "is incomplete. Do not add a references or sources section; the "
+        "from the supplied block markers. Copy citations exactly from the "
+        "allowed citations listed for that node; never combine a node ID with "
+        "a page that is not in its allowed list. Preserve uncertainty when "
+        "evidence is incomplete. Complete coverage is more important than detail: "
+        "cite every node in Required coverage at least once, proceed in the "
+        "given order, and keep early sections concise so later sections are "
+        "not omitted. Do not add a references or sources section; the "
         "application appends exact source metadata after validation."
     )
     human = f"""
@@ -125,11 +138,15 @@ Required coverage:
 
 Return Markdown with:
 1. A title matching the scope.
-2. An overview.
-3. A section-by-section summary covering every required node.
+2. A concise overview.
+3. A concise section-by-section summary covering every required node in the
+   listed order, with at least one valid citation from each node.
 4. Key concepts and definitions.
 5. Important examples, comparisons, and tables.
 6. Main takeaways.
+
+If space becomes limited, shorten items 2, 4, 5, and 6 before omitting any
+required node from item 3.
 
 Use citations such as [N14:P21]. Do not cite the block suffix.
 
@@ -262,6 +279,14 @@ def _response_text(response) -> str:
     return content.strip()
 
 
+def _finish_reason(response) -> str | None:
+    metadata = getattr(response, "response_metadata", None)
+    if not isinstance(metadata, dict):
+        return None
+    reason = metadata.get("finish_reason") or metadata.get("stop_reason")
+    return str(reason) if reason is not None else None
+
+
 def summarize_scope(
     model: SummaryModel,
     *,
@@ -276,7 +301,8 @@ def summarize_scope(
     budget = prompt_budget(messages, config=config)
     if not budget.fits:
         raise ContextWindowExceededError(budget)
-    text = _response_text(model.invoke(messages))
+    response = model.invoke(messages)
+    text = _response_text(response)
     return SummaryResult(
         text=text,
         validation=validate_summary(
@@ -285,4 +311,5 @@ def summarize_scope(
             context=context,
         ),
         budget=budget,
+        finish_reason=_finish_reason(response),
     )
