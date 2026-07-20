@@ -85,6 +85,23 @@ class QueryRoutingTests(unittest.TestCase):
         self.assertIn("- Core idea", answer)
         self.assertIn("PDF pp. 2", answer)
 
+    def test_chapter_listing_uses_the_book_toc_without_retrieval(self):
+        with patch("study.query.BookRetriever") as retriever:
+            result = execute_query(
+                "what chapters does this book have",
+                source_path=self.source_path,
+                book_id=self.book_id,
+            )
+
+        retriever.assert_not_called()
+        self.assertEqual(result.route, "hierarchy_list")
+        self.assertEqual(result.resolved_scope.kind, "book")
+        self.assertIn("# Sample Book", result.answer)
+        self.assertIn("Chapters:", result.answer)
+        self.assertIn("- Chapter 1", result.answer)
+        self.assertIn("PDF pp. 1–5", result.answer)
+        self.assertEqual(len(result.outline_node_ids), 1)
+
     def test_structured_interface_exposes_hierarchy_decision(self):
         with patch("study.query.BookRetriever") as retriever:
             result = execute_query(

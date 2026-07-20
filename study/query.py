@@ -19,7 +19,7 @@ from .contracts import (
     TurnResult,
 )
 from .context import build_scope_context
-from .render import format_outline
+from .render import format_chapter_list, format_outline
 from .request import (
     StudyRequest,
     UnsupportedStudyRequestError,
@@ -140,17 +140,31 @@ def _answer_hierarchy_request(
 ) -> TurnResult:
     """List or summarize one complete canonical hierarchy subtree."""
 
-    if request.intent == "list_sections":
+    if request.intent in {"list_chapters", "list_sections"}:
+        is_chapter_list = request.intent == "list_chapters"
         return TurnResult(
             question="",
-            answer=format_outline(scope),
+            answer=(
+                format_chapter_list(scope)
+                if is_chapter_list
+                else format_outline(scope)
+            ),
             route="hierarchy_list",
             history_dependency="independent",
             standalone_query=(
-                f"List sections in {scope.display_path}."
+                f"List {'chapters' if is_chapter_list else 'sections'} in "
+                f"{scope.display_path}."
             ),
             resolved_scope=_scope_ref(scope),
-            outline_node_ids=[node.id for node in scope.nodes[1:]],
+            outline_node_ids=(
+                [
+                    node.id
+                    for node in scope.nodes
+                    if node.node_type == "chapter"
+                ]
+                if is_chapter_list
+                else [node.id for node in scope.nodes[1:]]
+            ),
             outcome="answer",
         )
 

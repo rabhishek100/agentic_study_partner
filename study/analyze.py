@@ -85,10 +85,15 @@ def _explicit_hierarchy_decision(
         return None
     route = (
         "hierarchy_list"
-        if request.intent == "list_sections"
+        if request.intent in {"list_chapters", "list_sections"}
         else "hierarchy_summary"
     )
-    verb = "List sections in" if route == "hierarchy_list" else "Summarize"
+    if request.intent == "list_chapters":
+        verb = "List chapters in"
+    elif request.intent == "list_sections":
+        verb = "List sections in"
+    else:
+        verb = "Summarize"
     return TurnDecision(
         route=route,
         history_dependency="independent",
@@ -137,7 +142,7 @@ Choose the next action for a technical-book study chat. Do not answer.
 
 Routes:
 - hierarchy_summary: summarize a complete chapter or section.
-- hierarchy_list: list the hierarchy under a chapter.
+- hierarchy_list: list chapters in a book or sections under a chapter.
 - retrieval_qa: retrieve book evidence for a question.
 - prior_answer_transform: reformat or shorten the prior answer without facts.
 - clarify: the referent or requested scope is genuinely ambiguous.

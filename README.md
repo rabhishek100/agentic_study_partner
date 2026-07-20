@@ -8,9 +8,9 @@ The primary database intentionally contains no summaries, chunks, embeddings,
 keyword indexes, or other derived data. It stores only source metadata, the TOC
 hierarchy, ordered content blocks, tables, and images.
 
-For the current conversational RAG implementation status, frozen design
-decisions, batch plan, evaluation baseline, and continuation instructions, see
-[`docs/conversational-rag-handoff.md`](docs/conversational-rag-handoff.md).
+For a concise map of the repository, see
+[`CODEBASE_GUIDE.md`](CODEBASE_GUIDE.md). The component diagram and data
+boundaries are documented in [`docs/architecture.md`](docs/architecture.md).
 
 ## Architecture
 
@@ -64,6 +64,12 @@ The interactive runtime adds a deliberately small orchestration layer:
   control-model decision for non-obvious turns.
 - `study/graph.py`: LangGraph `plan -> conditional execution -> state update`.
 - `study/conversation.py`: graph entry point and explicit conversation state.
+
+The web layer remains thin and reuses that same entry point:
+
+- `api/main.py`: async FastAPI boundary for health checks and study turns.
+- `frontend/`: small Next.js React chat client with retrieval settings and turn details.
+- `app.py`: optional Gradio client for the same conversation workflow.
 
 Each user message is one `study_turn` LangSmith trace. Planning, the selected
 execution branch, retrieval/model calls, and state update appear as nested
@@ -292,6 +298,11 @@ The first run downloads the pinned
 hierarchy path, and complete chunk body into a 768-dimensional vector, then
 stores it in a cosine HNSW Chroma collection under `data/chroma/`.
 
+The locked environment uses PyTorch's official CPU-only package index because
+CPU is the documented reproducible default. This avoids silently installing
+several gigabytes of unused CUDA libraries on Linux and in Docker. A future GPU
+experiment should use an explicit, separately measured dependency profile.
+
 The model supports 8,192 tokens, so the existing 800-token chunk limit is not
 silently truncated. The command is idempotent: unchanged chunk IDs are
 skipped, new chunks are embedded, and stale vectors are deleted. Index
@@ -390,10 +401,10 @@ to inspect questions, reference answers, citations, expected retrieval
 evidence, near misses, routes, resolved scopes, and state transitions.
 
 The evaluator replays predicted state through the real conversational
-coordinator. The Gradio path uses the same coordinator, rewrites follow-up
-questions, and executes the existing summary and retrieval paths. Real runs
-require OpenRouter configuration from `.env.example`; standard LangSmith
-environment variables enable tracing.
+coordinator. The Next.js/FastAPI and Gradio paths use the same coordinator,
+rewrite follow-up questions, and execute the existing summary and retrieval
+paths. Real runs require OpenRouter configuration from `.env.example`;
+standard LangSmith environment variables enable tracing.
 
 Start with the three-conversation smoke set:
 
@@ -412,7 +423,65 @@ checking the smoke report, explicitly request the full baseline with:
 uv run python -m scripts.evaluate_multiturn --all
 ```
 
-## Gradio chat
+## FastAPI and Next.js
+
+After adding `OPENROUTER_API_KEY` to `.env`, start the API:
+
+```bash
+uv run uvicorn api.main:app --reload
+```
+
+In a second terminal, start the Next.js client:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://localhost:3000`. Next.js forwards `/api` requests to FastAPI at
+`http://localhost:8000`. To use a different backend, copy
+`frontend/.env.example` to `frontend/.env.local` and change `BACKEND_URL`.
+The API exposes `GET /api/health` and
+`POST /api/chat`; conversation state is returned to and stored by the client,
+so the server does not hide session state in memory.
+
+The interface supports chapter/section summaries, grounded questions,
+follow-ups, all four retrieval modes, and inspectable details for the latest
+turn.
+
+## Docker setup
+
+The Docker setup runs the Next.js client and FastAPI service while mounting the
+existing local `data/` directory rather than baking book data into an image:
+
+```bash
+test -f .env || cp .env.example .env
+docker compose up --build
+```
+
+Open `http://localhost:3000`. The API is also available at
+`http://localhost:8000`. Ingest the book and build the indexes before starting
+the application if `data/` is empty. The first vector or reranked request can
+take longer while its pinned local model is downloaded; the Compose setup
+keeps that model cache in a named volume.
+
+## Vercel deployment
+
+Deploy `frontend/` as the Vercel project root. Vercel detects Next.js from
+`package.json`; no custom framework setting is needed. Add this environment
+variable to the Vercel project:
+
+```text
+BACKEND_URL=https://your-fastapi-host.example.com
+```
+
+Do not include `/api` at the end. The browser calls the same Next.js origin at
+`/api`, and the server-side rewrite sends that request to FastAPI. FastAPI and
+its SQLite/model data must be hosted separately because this repository does
+not turn the Python backend into a Vercel function.
+
+## Optional Gradio chat
 
 After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
 
@@ -486,3 +555,14 @@ uv run python -m scripts.ask_book \
 ```bash
 uv run python -m unittest discover -s tests -v
 ```
+
+Audit and build the Next.js client with:
+
+```bash
+cd frontend
+npm ci
+npm audit --omit=dev
+npm run build
+```
+
+GitHub Actions runs both checks on pushes to `main` and on pull requests.

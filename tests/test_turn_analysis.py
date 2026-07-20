@@ -81,6 +81,11 @@ class ConversationDecisionTests(unittest.TestCase):
             self.state(),
             FailIfCalled(),
         )
+        chapters = self.analyze(
+            "what chapters does this book have",
+            self.state(),
+            FailIfCalled(),
+        )
 
         self.assertEqual(summary.route, "hierarchy_summary")
         self.assertEqual(
@@ -88,6 +93,9 @@ class ConversationDecisionTests(unittest.TestCase):
             self.nodes["Chapter 3. Data Engineering Fundamentals"]["id"],
         )
         self.assertEqual(listing.route, "hierarchy_list")
+        self.assertEqual(chapters.route, "hierarchy_list")
+        self.assertEqual(chapters.resolved_scope.kind, "book")
+        self.assertIsNone(chapters.resolved_scope.node_id)
 
     def test_model_rewrites_followup_and_selects_only_canonical_scope(self):
         active = self.scope("Low-Rank Factorization")

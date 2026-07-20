@@ -7,14 +7,15 @@ from typing import Literal
 
 from .scope import (
     ResolvedScope,
+    resolve_book,
     resolve_chapter,
     resolve_named_scope,
     resolve_section,
 )
 
 
-StudyIntent = Literal["summarize", "list_sections"]
-RequestedScopeKind = Literal["chapter", "section", "named"]
+StudyIntent = Literal["summarize", "list_chapters", "list_sections"]
+RequestedScopeKind = Literal["book", "chapter", "section", "named"]
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,28 @@ LIST_SECTIONS = (
         re.IGNORECASE,
     ),
 )
+LIST_CHAPTERS = (
+    re.compile(
+        r"^(?:list|show)(?:\s+me)?\s+(?:all\s+)?(?:the\s+)?chapters"
+        r"(?:\s+(?:in|of)\s+(?:this|the)\s+book)?\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:what|which)\s+chapters\s+does\s+(?:this|the)\s+book\s+"
+        r"(?:have|contain)\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:what|which)\s+chapters\s+(?:are\s+)?(?:present\s+)?"
+        r"(?:in|of)\s+(?:this|the)\s+book\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^what\s+are\s+(?:all\s+)?the\s+chapters\s+"
+        r"(?:in|of)\s+(?:this|the)\s+book\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+)
 SUMMARIZE_SECTION = re.compile(
     r"^summari[sz]e\s+(?:the\s+)?section\s+(.+?)"
     r"(?:\s+in\s+chapter\s+(.+?))?\s*[?.]?$",
@@ -65,6 +88,13 @@ def parse_study_request(query: str) -> StudyRequest:
     """Parse the supported explicit query forms without a model call."""
 
     query = " ".join(query.split())
+    if any(pattern.fullmatch(query) for pattern in LIST_CHAPTERS):
+        return StudyRequest(
+            intent="list_chapters",
+            scope_kind="book",
+            scope_reference="",
+        )
+
     for pattern in LIST_SECTIONS:
         match = pattern.fullmatch(query)
         if match:
@@ -104,7 +134,8 @@ def parse_study_request(query: str) -> StudyRequest:
     raise UnsupportedStudyRequestError(
         "supported forms are: 'summarize chapter N', "
         "'summarize section TITLE in chapter N', "
-        "'summarize TITLE', and 'list sections in chapter N'"
+        "'summarize TITLE', 'list chapters', and "
+        "'list sections in chapter N'"
     )
 
 
@@ -114,8 +145,10 @@ def resolve_study_request(
     *,
     book_id: int | None = None,
 ) -> ResolvedScope:
-    """Map a parsed request to one canonical chapter or section subtree."""
+    """Map a parsed request to one canonical book, chapter, or section."""
 
+    if request.scope_kind == "book":
+        return resolve_book(connection, book_id=book_id)
     if request.scope_kind == "chapter":
         return resolve_chapter(
             connection,

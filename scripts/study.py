@@ -16,7 +16,7 @@ from study.request import (
     parse_study_request,
     resolve_study_request,
 )
-from study.render import format_outline
+from study.render import format_chapter_list, format_outline
 from study.scope import ResolvedScope, ScopeResolutionError
 from study.summarize import (
     ContextWindowExceededError,
@@ -133,8 +133,12 @@ def main() -> None:
                 request,
                 book_id=args.book_id,
             )
-            if request.intent == "list_sections":
-                print(format_outline(scope))
+            if request.intent in {"list_chapters", "list_sections"}:
+                print(
+                    format_chapter_list(scope)
+                    if request.intent == "list_chapters"
+                    else format_outline(scope)
+                )
                 return
             evidence = load_scope_content(connection, scope)
         context = build_scope_context(evidence)

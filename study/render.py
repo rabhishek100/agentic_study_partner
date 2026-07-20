@@ -26,3 +26,34 @@ def format_outline(scope: ResolvedScope) -> str:
             f"{indent}- {node.title} [node {node.id}, PDF pp. {pages}]"
         )
     return "\n".join(lines)
+
+
+def format_chapter_list(scope: ResolvedScope) -> str:
+    """Render the chapters in one resolved book."""
+
+    nodes = list(scope.nodes)
+    chapters = [node for node in nodes if node.node_type == "chapter"]
+    lines = [
+        f"# {scope.book_title}",
+        "",
+        f"PDF pages: {scope.start_page}–{scope.end_page}",
+        "",
+        "Chapters:",
+    ]
+    for chapter in chapters:
+        chapter_position = nodes.index(chapter)
+        chapter_end_page = chapter.end_page
+        for descendant in nodes[chapter_position + 1 :]:
+            if descendant.level <= chapter.level:
+                break
+            chapter_end_page = max(chapter_end_page, descendant.end_page)
+        pages = (
+            str(chapter.start_page)
+            if chapter.start_page == chapter_end_page
+            else f"{chapter.start_page}–{chapter_end_page}"
+        )
+        lines.append(
+            f"- {chapter.title} "
+            f"[node {chapter.id}, PDF pp. {pages}]"
+        )
+    return "\n".join(lines)

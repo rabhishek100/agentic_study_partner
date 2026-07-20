@@ -95,6 +95,10 @@ class StudySummaryTests(unittest.TestCase):
             parse_study_request("Summarize Core idea"),
             StudyRequest("summarize", "named", "Core idea"),
         )
+        self.assertEqual(
+            parse_study_request("what chapters does this book have"),
+            StudyRequest("list_chapters", "book", ""),
+        )
         with self.assertRaises(UnsupportedStudyRequestError):
             parse_study_request("Tell me something interesting")
 

@@ -48,6 +48,8 @@ def _hierarchy_query(decision: TurnDecision) -> str:
     if scope is None:
         raise ValueError("hierarchy decision has no scope")
     if decision.route == "hierarchy_list":
+        if scope.kind == "book":
+            return "What chapters does this book have?"
         return f"What sections are present in {scope.display_path}?"
     return f"Summarize {scope.display_path}."
 

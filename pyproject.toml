@@ -5,6 +5,7 @@ description = "Evaluation-driven hierarchical RAG over technical books"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.115,<1",
     "gradio>=6.0,<7",
     "pymupdf>=1.28.0",
     "pydantic>=2.0",
@@ -16,4 +17,21 @@ dependencies = [
     "markdown-it-py>=4,<5",
     "chromadb>=1.5.9,<2",
     "sentence-transformers>=5.6,<6",
+    "torch>=2.6",
+    "torchvision>=0.21",
+    "uvicorn[standard]>=0.34,<1",
 ]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

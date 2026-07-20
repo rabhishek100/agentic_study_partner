@@ -12,6 +12,10 @@ GOLD_PATH = ROOT / "evaluation" / "multiturn_gold.json"
 DATABASE_PATH = ROOT / "data" / "books.sqlite3"
 
 
+@unittest.skipUnless(
+    DATABASE_PATH.is_file(),
+    "requires the local canonical book database",
+)
 class MultiturnGoldTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
