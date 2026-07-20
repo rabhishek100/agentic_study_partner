@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 
 from storage.sqlite import connect_readonly
 from study.content import load_scope_content
@@ -21,6 +20,7 @@ from study.scope import ResolvedScope, ScopeResolutionError
 from study.summarize import (
     ContextWindowExceededError,
     SummaryConfig,
+    append_references,
     build_summary_messages,
     prompt_budget,
     summarize_scope,
@@ -178,11 +178,25 @@ def main() -> None:
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
             parser.error("OPENROUTER_API_KEY is missing from .env")
+        print(
+            f"Resolved {scope.display_path} to {len(scope.nodes)} nodes; "
+            f"loading the LangChain model client for {args.model}...",
+            file=sys.stderr,
+            flush=True,
+        )
+        from langchain_openai import ChatOpenAI
+
         model = ChatOpenAI(
             model=args.model,
             api_key=api_key,
             base_url="https://openrouter.ai/api/v1",
             max_tokens=config.max_output_tokens,
+        )
+        print(
+            f"Sending {budget.input_tokens} prompt tokens to OpenRouter; "
+            "waiting for the summary...",
+            file=sys.stderr,
+            flush=True,
         )
         result = summarize_scope(
             model,
@@ -196,6 +210,12 @@ def main() -> None:
         UnsupportedStudyRequestError,
     ) as error:
         parser.error(str(error))
+    except KeyboardInterrupt:
+        print(
+            "\nSummary cancelled before writing a new validated output.",
+            file=sys.stderr,
+        )
+        raise SystemExit(130) from None
 
     if not result.validation.valid:
         print(result.text)
@@ -203,11 +223,16 @@ def main() -> None:
         for error in result.validation.errors:
             print(f"- {error}", file=sys.stderr)
         raise SystemExit(1)
+    if result.validation.warnings:
+        print("Summary validation warnings:", file=sys.stderr)
+        for warning in result.validation.warnings:
+            print(f"- {warning}", file=sys.stderr)
+    rendered_summary = append_references(result.text, scope=scope)
     if args.output:
-        _write(args.output, result.text + "\n")
+        _write(args.output, rendered_summary + "\n")
         print(f"Wrote validated summary to {args.output}")
     else:
-        print(result.text)
+        print(rendered_summary)
 
 
 if __name__ == "__main__":

@@ -220,7 +220,12 @@ text, image payloads are omitted, and known header/footer/page-break blocks are
 skipped. The first version makes one model call only when the complete prompt
 fits the configured context window. It never truncates or stores summaries.
 Returned node/page citations and content-bearing node coverage are validated
-before an output file is written.
+before an output file is written. After validation, the application appends a
+deduplicated `References` section that maps every citation used in the summary
+to the book title, full chapter/section hierarchy, and exact PDF page. Missing
+coverage for recap nodes titled `Summary` or `Conclusion` is reported as a
+warning and does not block output; missing substantive nodes and invalid or
+out-of-scope citations remain hard validation failures.
 
 The prompt budget defaults to a 64,000-token context window with 4,000 output
 tokens and a 1,000-token safety reserve. Override these explicitly for the

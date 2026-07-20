@@ -1,3 +1,4 @@
+from dataclasses import replace
 from types import SimpleNamespace
 import unittest
 
@@ -11,10 +12,11 @@ from study.request import (
     parse_study_request,
     resolve_study_request,
 )
-from study.scope import resolve_chapter
+from study.scope import ScopeNode, resolve_chapter
 from study.summarize import (
     ContextWindowExceededError,
     SummaryConfig,
+    append_references,
     summarize_scope,
     validate_summary,
 )
@@ -147,6 +149,7 @@ class StudySummaryTests(unittest.TestCase):
         )
 
         self.assertTrue(result.validation.valid)
+        self.assertFalse(result.validation.warnings)
         self.assertIsNotNone(model.messages)
         self.assertIn(context.text, model.messages[1][1])
 
@@ -162,6 +165,76 @@ class StudySummaryTests(unittest.TestCase):
         self.assertTrue(validation.missing_node_ids)
         self.assertTrue(
             any("out-of-scope citations" in error for error in validation.errors)
+        )
+
+    def test_missing_recap_node_is_a_warning_not_an_error(self) -> None:
+        scope, context = self._chapter_context()
+        recap_id = max(scope.node_ids) + 1
+        recap = ScopeNode(
+            id=recap_id,
+            book_id=scope.book_id,
+            parent_id=scope.root_node_id,
+            toc_index=max(node.toc_index for node in scope.nodes) + 1,
+            level=2,
+            node_type="section",
+            title="Summary",
+            path_text=f"{scope.display_path} :: Summary",
+            start_page=5,
+            end_page=5,
+        )
+        scope = replace(scope, nodes=(*scope.nodes, recap))
+        context = replace(
+            context,
+            expected_node_ids=context.expected_node_ids.union({recap_id}),
+            allowed_citations=context.allowed_citations.union({(recap_id, 5)}),
+        )
+        citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id in sorted(context.expected_node_ids - {recap_id})
+            for candidate_node, page in sorted(context.allowed_citations)
+            if candidate_node == node_id
+        )
+
+        validation = validate_summary(
+            f"Grounded chapter summary. {citations}",
+            scope=scope,
+            context=context,
+        )
+
+        self.assertTrue(validation.valid)
+        self.assertFalse(validation.errors)
+        self.assertEqual(validation.missing_node_ids, frozenset({recap_id}))
+        self.assertTrue(
+            any("optional recap nodes" in warning for warning in validation.warnings)
+        )
+
+    def test_appends_exact_references_for_citations_used(self) -> None:
+        scope, _ = self._chapter_context()
+        root, section = scope.nodes[:2]
+        summary = (
+            f"First claim. [N{root.id}:P{root.start_page}] "
+            f"Repeated. [N{root.id}:P{root.start_page}] "
+            f"Second claim. [N{section.id}:P{section.start_page}]"
+        )
+
+        rendered = append_references(summary, scope=scope)
+
+        self.assertIn("## References", rendered)
+        self.assertEqual(
+            rendered.count(f"- [N{root.id}:P{root.start_page}]"),
+            1,
+        )
+        self.assertIn(
+            f"Sample Book → {root.path_text} — PDF p. {root.start_page}",
+            rendered,
+        )
+        self.assertIn(
+            (
+                f"Sample Book → "
+                f"{section.path_text.replace(' :: ', ' → ')} "
+                f"— PDF p. {section.start_page}"
+            ),
+            rendered,
         )
 
     def test_context_limit_fails_without_calling_model(self) -> None:

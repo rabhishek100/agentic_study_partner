@@ -11,6 +11,7 @@ from .scope import ResolvedScope
 
 
 CITATION = re.compile(r"\[N(\d+):P(\d+)]")
+OPTIONAL_RECAP_TITLES = frozenset({"summary", "conclusion"})
 
 
 class SummaryModel(Protocol):
@@ -81,6 +82,7 @@ class ContextWindowExceededError(ValueError):
 class SummaryValidation:
     valid: bool
     errors: tuple[str, ...]
+    warnings: tuple[str, ...]
     cited_node_ids: frozenset[int]
     missing_node_ids: frozenset[int]
 
@@ -108,7 +110,8 @@ def build_summary_messages(
         "evidence. Do not use outside knowledge or infer the contents of "
         "omitted images. Cite every substantive claim using [N<node>:P<page>] "
         "from the supplied block markers. Preserve uncertainty when evidence "
-        "is incomplete."
+        "is incomplete. Do not add a references or sources section; the "
+        "application appends exact source metadata after validation."
     )
     human = f"""
 Summarize this complete {scope.kind} scope:
@@ -166,6 +169,7 @@ def validate_summary(
     """Reject invented citations and report uncovered content-bearing nodes."""
 
     errors: list[str] = []
+    warnings: list[str] = []
     citations = [
         (int(node_id), int(page))
         for node_id, page in CITATION.findall(text)
@@ -191,25 +195,62 @@ def validate_summary(
 
     cited_nodes = frozenset(node_id for node_id, _ in valid_citations)
     missing_nodes = context.expected_node_ids.difference(cited_nodes)
-    if missing_nodes:
-        paths = {
-            node.id: node.path_text
-            for node in scope.nodes
-            if node.id in missing_nodes
-        }
+    nodes = {node.id: node for node in scope.nodes}
+    recap_nodes = {
+        node_id
+        for node_id in missing_nodes
+        if nodes[node_id].title.casefold().strip() in OPTIONAL_RECAP_TITLES
+    }
+    required_missing_nodes = missing_nodes.difference(recap_nodes)
+    if required_missing_nodes:
         errors.append(
             "summary does not cite content from required nodes: "
             + "; ".join(
-                f"{node_id} ({paths[node_id]})"
-                for node_id in sorted(paths)
+                f"{node_id} ({nodes[node_id].path_text})"
+                for node_id in sorted(required_missing_nodes)
+            )
+        )
+    if recap_nodes:
+        warnings.append(
+            "summary does not cite optional recap nodes: "
+            + "; ".join(
+                f"{node_id} ({nodes[node_id].path_text})"
+                for node_id in sorted(recap_nodes)
             )
         )
     return SummaryValidation(
         valid=not errors,
         errors=tuple(errors),
+        warnings=tuple(warnings),
         cited_node_ids=cited_nodes,
         missing_node_ids=frozenset(missing_nodes),
     )
+
+
+def append_references(text: str, *, scope: ResolvedScope) -> str:
+    """Append exact hierarchy/page references used by the summary."""
+
+    nodes = {node.id: node for node in scope.nodes}
+    citations: list[tuple[int, int]] = []
+    seen: set[tuple[int, int]] = set()
+    for match in CITATION.finditer(text):
+        citation = (int(match.group(1)), int(match.group(2)))
+        if citation in seen or citation[0] not in nodes:
+            continue
+        seen.add(citation)
+        citations.append(citation)
+    if not citations:
+        return text.rstrip()
+
+    references = ["## References", ""]
+    for node_id, page in citations:
+        node = nodes[node_id]
+        hierarchy = node.path_text.replace(" :: ", " → ")
+        references.append(
+            f"- [N{node_id}:P{page}] {scope.book_title} → "
+            f"{hierarchy} — PDF p. {page}"
+        )
+    return text.rstrip() + "\n\n" + "\n".join(references)
 
 
 def _response_text(response) -> str:
