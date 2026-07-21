@@ -31,6 +31,12 @@ def _cached_reranker(model_name: str, revision: str) -> LocalCrossEncoder:
     return LocalCrossEncoder(model_name, revision=revision)
 
 
+def warm_models() -> None:
+    """Load and cache the embedder and reranker ahead of the first request."""
+    _cached_embedder(DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_REVISION)
+    _cached_reranker(DEFAULT_RERANKER_MODEL, DEFAULT_RERANKER_REVISION)
+
+
 class BookRetriever(BaseRetriever):
     """Expose explicit project retrieval modes as LangChain documents."""
 

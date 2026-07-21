@@ -6,6 +6,7 @@ import os
 from typing import Protocol
 
 from .sqlite import SearchResult
+from .vector import _hf_local_files_only
 
 
 DEFAULT_RERANKER_MODEL = "Alibaba-NLP/gte-reranker-modernbert-base"
@@ -56,6 +57,7 @@ class LocalCrossEncoder:
             ),
             device=self.device,
             model_kwargs={"torch_dtype": "auto"},
+            local_files_only=_hf_local_files_only(),
         )
         self.max_sequence_length = int(self._model.max_seq_length)
 

@@ -1,5 +1,6 @@
 """FastAPI boundary over the existing conversational study workflow."""
 
+import logging
 import os
 from pathlib import Path
 from typing import Literal
@@ -9,12 +10,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
+from retrieval.langchain import warm_models
 from study.analyze import ConversationDecisionError
 from study.contracts import ContractModel, ConversationState, TurnResult
 from study.conversation import execute_conversation_turn
 from study.query import QueryExecutionError
 from study.scope import ScopeResolutionError
 from study.summarize import ContextWindowExceededError
+
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("study_partner.api")
 
 
 RetrievalMode = Literal["bm25", "vector", "hybrid", "hybrid_rerank"]
@@ -60,6 +69,13 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+async def _warm_retrieval_models() -> None:
+    logger.info("Warming embedder/reranker models before serving requests")
+    await run_in_threadpool(warm_models)
+    logger.info("Embedder/reranker models ready")
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(
@@ -84,5 +100,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
         ScopeResolutionError,
         ConversationDecisionError,
     ) as error:
+        logger.warning("Chat turn rejected: %s", error)
         raise HTTPException(status_code=422, detail=str(error)) from error
+    except Exception:
+        logger.exception("Unhandled error while executing chat turn")
+        raise
     return ChatResponse(result=result, state=updated)

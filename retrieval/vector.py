@@ -21,6 +21,14 @@ DEFAULT_EMBEDDING_REVISION = "e7f32e3c00f91d699e8c43b53106206bcc72bb22"
 DOCUMENT_FORMAT_VERSION = "hierarchy-v1"
 
 
+def _hf_local_files_only() -> bool:
+    return os.getenv("HF_LOCAL_FILES_ONLY", "false").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 class Embedder(Protocol):
     """Minimal embedding contract used by ingestion and retrieval."""
 
@@ -56,6 +64,7 @@ class LocalEmbedder:
             model_name,
             revision=None if self.model_revision == "main" else self.model_revision,
             device=self.device,
+            local_files_only=_hf_local_files_only(),
         )
         self.dimension = int(self._model.get_embedding_dimension())
         self.max_sequence_length = int(self._model.max_seq_length)

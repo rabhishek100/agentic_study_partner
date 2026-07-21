@@ -54,7 +54,17 @@ export default function App() {
           state: conversation,
         }),
       });
-      const payload = await response.json();
+      const rawBody = await response.text();
+      let payload;
+      try {
+        payload = rawBody ? JSON.parse(rawBody) : {};
+      } catch {
+        throw new Error(
+          response.ok
+            ? "The study API returned an unreadable response."
+            : `The study request failed (${response.status}): ${rawBody.slice(0, 200) || response.statusText}`,
+        );
+      }
       if (!response.ok) {
         throw new Error(payload.detail || "The study request failed.");
       }
