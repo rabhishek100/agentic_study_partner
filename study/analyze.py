@@ -1,7 +1,9 @@
 """Choose one conversational route and, when needed, one search query."""
 
 import json
+import logging
 import os
+import time
 from pathlib import Path
 from typing import Protocol
 
@@ -30,6 +32,9 @@ from .scope_candidates import find_scope_candidates
 
 class AnalysisModel(Protocol):
     def invoke(self, messages, config=None): ...
+
+
+logger = logging.getLogger("study_partner.analyze")
 
 
 class ConversationDecisionError(RuntimeError):
@@ -259,7 +264,9 @@ def analyze_turn(
     ]
     analyzer = model or _openrouter_model()
     last_error: Exception | None = None
+    turn_start = time.monotonic()
     for attempt in range(1, 4):
+        attempt_start = time.monotonic()
         try:
             raw = analyzer.invoke(
                 messages,
@@ -272,13 +279,27 @@ def analyze_turn(
                     },
                 },
             )
-            return _validated_decision(
+            decision = _validated_decision(
                 raw,
                 candidates=candidates,
                 state=state,
             )
+            logger.info(
+                "analyze_turn attempt %d/3 succeeded in %.2fs "
+                "(total %.2fs)",
+                attempt,
+                time.monotonic() - attempt_start,
+                time.monotonic() - turn_start,
+            )
+            return decision
         except Exception as error:
             last_error = error
+            logger.warning(
+                "analyze_turn attempt %d/3 failed in %.2fs: %s",
+                attempt,
+                time.monotonic() - attempt_start,
+                error,
+            )
     raise ConversationDecisionError(
         f"turn analysis failed after 3 attempts: {last_error}"
     ) from last_error
