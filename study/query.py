@@ -30,6 +30,7 @@ from .scope import (
     ResolvedScope,
     ScopeNotFoundError,
 )
+from .streaming import TokenCallback, invoke_with_streaming
 from .summarize import (
     ContextWindowExceededError,
     SummaryConfig,
@@ -137,6 +138,7 @@ def _answer_hierarchy_request(
     *,
     source_path: str | Path,
     model: ChatModel | None,
+    token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     """List or summarize one complete canonical hierarchy subtree."""
 
@@ -184,6 +186,7 @@ def _answer_hierarchy_request(
         scope=scope,
         context=context,
         config=config,
+        token_callback=token_callback,
     )
     if not result.validation.valid:
         finish_reason = (
@@ -271,6 +274,7 @@ def _answer_retrieval_question(
     book_id: int | None,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
+    token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     """Answer one ordinary question from top-k retrieval evidence."""
 
@@ -312,8 +316,10 @@ def _answer_retrieval_question(
         "Answer only from the evidence. Cite claims with [S1], [S2], etc. "
         "If evidence is insufficient, say so."
     )
-    reply = model.invoke(
-        [("system", rules), ("human", f"Question: {question}\n\n{evidence}")]
+    reply = invoke_with_streaming(
+        model,
+        [("system", rules), ("human", f"Question: {question}\n\n{evidence}")],
+        token_callback=token_callback,
     )
     sources = ["### Sources"]
     for i, document in enumerate(documents, 1):
@@ -387,6 +393,7 @@ def execute_query(
     retrieval_mode: RetrievalMode = "hybrid",
     *,
     model: ChatModel | None = None,
+    token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
@@ -403,6 +410,7 @@ def execute_query(
             scope,
             source_path=source_path,
             model=model,
+            token_callback=token_callback,
         )
         return result.model_copy(update={"question": question})
     return _answer_retrieval_question(
@@ -413,6 +421,7 @@ def execute_query(
         book_id=book_id,
         retrieval_mode=retrieval_mode,
         model=model,
+        token_callback=token_callback,
     )
 
 

@@ -8,6 +8,7 @@ import tiktoken
 
 from .context import DEFAULT_ENCODING, ScopeContext
 from .scope import ResolvedScope
+from .streaming import TokenCallback, invoke_with_streaming
 
 
 CITATION = re.compile(r"\[N(\d+):P(\d+)]")
@@ -323,6 +324,7 @@ def summarize_scope(
     context: ScopeContext,
     config: SummaryConfig | None = None,
     validation_feedback: tuple[str, ...] = (),
+    token_callback: TokenCallback | None = None,
 ) -> SummaryResult:
     """Make one complete-scope call and validate the returned citations."""
 
@@ -335,7 +337,9 @@ def summarize_scope(
     budget = prompt_budget(messages, config=config)
     if not budget.fits:
         raise ContextWindowExceededError(budget)
-    response = model.invoke(messages)
+    response = invoke_with_streaming(
+        model, messages, token_callback=token_callback
+    )
     text = normalize_citation_syntax(_response_text(response))
     return SummaryResult(
         text=text,
@@ -355,6 +359,7 @@ def summarize_scope_with_repair(
     scope: ResolvedScope,
     context: ScopeContext,
     config: SummaryConfig | None = None,
+    token_callback: TokenCallback | None = None,
 ) -> SummaryResult:
     """Retry one invalid summary with exact deterministic feedback."""
 
@@ -363,15 +368,19 @@ def summarize_scope_with_repair(
         scope=scope,
         context=context,
         config=config,
+        token_callback=token_callback,
     )
     if first.validation.valid:
         return first
+    if token_callback is not None:
+        token_callback("restart", "")
     repaired = summarize_scope(
         model,
         scope=scope,
         context=context,
         config=config,
         validation_feedback=first.validation.errors,
+        token_callback=token_callback,
     )
     return replace(
         repaired,

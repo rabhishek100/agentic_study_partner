@@ -76,6 +76,63 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["detail"], "No indexed book is available")
 
+    @patch("api.main.execute_conversation_turn")
+    async def test_chat_stream_emits_tokens_then_final(self, execute):
+        result = TurnResult(
+            question="What is training-serving skew?",
+            answer="It is a mismatch [S1].",
+            route="retrieval_qa",
+            history_dependency="independent",
+            standalone_query="What is training-serving skew?",
+            outcome="answer",
+            retrieval_mode="hybrid",
+        )
+        state = ConversationState(conversation_id="conversation-1", book_id=1)
+
+        def fake_execute(question, conversation_state, **kwargs):
+            token_callback = kwargs["token_callback"]
+            token_callback("token", "It is ")
+            token_callback("token", "a mismatch [S1].")
+            return result, state
+
+        execute.side_effect = fake_execute
+
+        async with self.client.stream(
+            "POST",
+            "/api/chat/stream",
+            json={
+                "question": "What is training-serving skew?",
+                "retrieval_mode": "hybrid",
+                "book_id": 1,
+            },
+        ) as response:
+            self.assertEqual(response.status_code, 200)
+            body = "".join([chunk async for chunk in response.aiter_text()])
+
+        events = [block for block in body.split("\n\n") if block.strip()]
+        self.assertEqual(len(events), 3)
+        self.assertIn("event: token", events[0])
+        self.assertIn("It is ", events[0])
+        self.assertIn("event: token", events[1])
+        self.assertIn("event: final", events[2])
+        self.assertIn(result.answer, events[2])
+        self.assertIn("conversation-1", events[2])
+
+    @patch("api.main.execute_conversation_turn")
+    async def test_chat_stream_emits_error_event_on_rejection(self, execute):
+        execute.side_effect = QueryExecutionError("No indexed book is available")
+
+        async with self.client.stream(
+            "POST",
+            "/api/chat/stream",
+            json={"question": "Explain drift", "retrieval_mode": "bm25"},
+        ) as response:
+            self.assertEqual(response.status_code, 200)
+            body = "".join([chunk async for chunk in response.aiter_text()])
+
+        self.assertIn("event: error", body)
+        self.assertIn("No indexed book is available", body)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,6 +15,7 @@ from .contracts import (
     TurnResult,
 )
 from .query import ChatModel, execute_query, openrouter_model
+from .streaming import TokenCallback, invoke_with_streaming
 
 
 def new_conversation_state(
@@ -58,9 +59,11 @@ def _transform(
     question: str,
     state: ConversationState,
     model: ChatModel | None,
+    token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     model = model or openrouter_model()
-    response = model.invoke(
+    response = invoke_with_streaming(
+        model,
         [
             (
                 "system",
@@ -72,7 +75,8 @@ def _transform(
                 f"Request:\n{question}\n\nPrior answer:\n"
                 f"{state.previous_answer}",
             ),
-        ]
+        ],
+        token_callback=token_callback,
     )
     return TurnResult(
         question=question,
@@ -96,6 +100,7 @@ def execute_decision(
     chroma_path: str | Path,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
+    token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     if decision.route == "clarify":
         return TurnResult(
@@ -106,7 +111,7 @@ def execute_decision(
             outcome="clarify",
         )
     if decision.route == "prior_answer_transform":
-        return _transform(question, state, model)
+        return _transform(question, state, model, token_callback=token_callback)
 
     execution_question = (
         _hierarchy_query(decision)
@@ -121,6 +126,7 @@ def execute_decision(
         book_id=state.book_id,
         retrieval_mode=retrieval_mode,
         model=model,
+        token_callback=token_callback,
     )
     updates = {
         "question": question,
@@ -183,6 +189,7 @@ def execute_conversation_turn(
     retrieval_mode: RetrievalMode = "hybrid",
     analysis_model: AnalysisModel | None = None,
     generation_model: ChatModel | None = None,
+    token_callback: TokenCallback | None = None,
 ) -> tuple[TurnResult, ConversationState]:
     load_dotenv()
     current = _select_state(state, book_id)
@@ -207,6 +214,7 @@ def execute_conversation_turn(
             retrieval_mode=retrieval_mode,
             analysis_model=analysis_model,
             generation_model=generation_model,
+            token_callback=token_callback,
         ),
     )
     return output["result"], output["conversation"]

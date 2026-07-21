@@ -13,6 +13,7 @@ from .analyze import AnalysisModel, analyze_turn
 from .contracts import ConversationState, TurnDecision, TurnResult
 from .conversation import execute_decision, record_turn
 from .query import ChatModel
+from .streaming import TokenCallback
 
 
 class StudyGraphInput(TypedDict):
@@ -38,6 +39,7 @@ class StudyGraphContext:
     retrieval_mode: RetrievalMode = "hybrid"
     analysis_model: AnalysisModel | None = None
     generation_model: ChatModel | None = None
+    token_callback: TokenCallback | None = None
 
 
 def plan_turn(
@@ -87,6 +89,7 @@ def execute_route(
             chroma_path=runtime.context.chroma_path,
             retrieval_mode=runtime.context.retrieval_mode,
             model=runtime.context.generation_model,
+            token_callback=runtime.context.token_callback,
         )
     }
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
 const API_BASE = "/api";
+const STREAM_IDLE_TIMEOUT_MS = 60_000;
 
 const STARTERS = [
   "What sections are present in Chapter 1?",
@@ -43,8 +44,32 @@ export default function App() {
       { role: "user", content: submitted },
     ]);
 
+    let assistantIndex = -1;
+    setMessages((current) => {
+      assistantIndex = current.length;
+      return [...current, { role: "assistant", content: "" }];
+    });
+
+    function setAssistantContent(content) {
+      setMessages((current) => {
+        const next = [...current];
+        next[assistantIndex] = { role: "assistant", content };
+        return next;
+      });
+    }
+
+    const controller = new AbortController();
+    let idleTimer = setTimeout(
+      () => controller.abort(),
+      STREAM_IDLE_TIMEOUT_MS,
+    );
+    function resetIdleTimer() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => controller.abort(), STREAM_IDLE_TIMEOUT_MS);
+    }
+
     try {
-      const response = await fetch(`${API_BASE}/chat`, {
+      const response = await fetch(`${API_BASE}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -53,30 +78,77 @@ export default function App() {
           book_id: Number(bookId),
           state: conversation,
         }),
+        signal: controller.signal,
       });
-      const rawBody = await response.text();
-      let payload;
-      try {
-        payload = rawBody ? JSON.parse(rawBody) : {};
-      } catch {
+      if (!response.ok || !response.body) {
+        const rawBody = await response.text();
+        let detail;
+        try {
+          detail = rawBody ? JSON.parse(rawBody).detail : null;
+        } catch {
+          detail = null;
+        }
         throw new Error(
-          response.ok
-            ? "The study API returned an unreadable response."
-            : `The study request failed (${response.status}): ${rawBody.slice(0, 200) || response.statusText}`,
+          detail ||
+            `The study request failed (${response.status}): ${rawBody.slice(0, 200) || response.statusText}`,
         );
       }
-      if (!response.ok) {
-        throw new Error(payload.detail || "The study request failed.");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamedText = "";
+      let settled = false;
+
+      readLoop: while (true) {
+        const { done, value } = await reader.read();
+        resetIdleTimer();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let boundary;
+        while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          let eventName = "message";
+          let dataLine = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event: ")) eventName = line.slice(7);
+            else if (line.startsWith("data: ")) dataLine = line.slice(6);
+          }
+          if (!dataLine) continue;
+          const data = JSON.parse(dataLine);
+
+          if (eventName === "token") {
+            streamedText += data.text;
+            setAssistantContent(streamedText);
+          } else if (eventName === "restart") {
+            streamedText = "";
+            setAssistantContent("");
+          } else if (eventName === "final") {
+            settled = true;
+            setConversation(data.state);
+            setLastResult(data.result);
+            setAssistantContent(data.result.answer);
+            break readLoop;
+          } else if (eventName === "error") {
+            throw new Error(data.detail || "The study request failed.");
+          }
+        }
       }
-      setConversation(payload.state);
-      setLastResult(payload.result);
-      setMessages((current) => [
-        ...current,
-        { role: "assistant", content: payload.result.answer },
-      ]);
+      if (!settled) {
+        throw new Error("The study API closed the stream unexpectedly.");
+      }
     } catch (requestError) {
-      setError(requestError.message || "Could not reach the study API.");
+      setMessages((current) => current.slice(0, assistantIndex));
+      setError(
+        requestError.name === "AbortError"
+          ? "The study API stopped responding and the request timed out."
+          : requestError.message || "Could not reach the study API.",
+      );
     } finally {
+      clearTimeout(idleTimer);
       setIsLoading(false);
     }
   }
