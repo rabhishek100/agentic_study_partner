@@ -359,7 +359,9 @@ def vector_search(
         collection_name=collection_name,
         create=False,
     )
-    candidate_limit = min(collection.count(), max(limit * 20, 100))
+    # Oversample past `limit` so book_id filtering and unique_nodes dedup
+    # still have enough candidates to work with after trimming below.
+    candidate_limit = min(collection.count(), max(limit * 4, 40))
     if candidate_limit == 0:
         return []
     response = collection.query(

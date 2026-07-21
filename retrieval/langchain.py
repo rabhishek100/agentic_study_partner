@@ -18,6 +18,7 @@ from .vector import (
     DEFAULT_EMBEDDING_MODEL,
     DEFAULT_EMBEDDING_REVISION,
     LocalEmbedder,
+    persistent_client,
 )
 
 
@@ -31,10 +32,16 @@ def _cached_reranker(model_name: str, revision: str) -> LocalCrossEncoder:
     return LocalCrossEncoder(model_name, revision=revision)
 
 
+@lru_cache(maxsize=2)
+def _cached_chroma_client(chroma_path: str):
+    return persistent_client(chroma_path)
+
+
 def warm_models() -> None:
     """Load and cache the embedder and reranker ahead of the first request."""
     _cached_embedder(DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_REVISION)
     _cached_reranker(DEFAULT_RERANKER_MODEL, DEFAULT_RERANKER_REVISION)
+    _cached_chroma_client(str(DEFAULT_CHROMA_PATH))
 
 
 class BookRetriever(BaseRetriever):
@@ -61,6 +68,9 @@ class BookRetriever(BaseRetriever):
             if self.mode == "hybrid_rerank"
             else None
         )
+        client = (
+            None if self.mode == "bm25" else _cached_chroma_client(self.chroma_path)
+        )
         with connect(Path(self.database_path)) as connection:
             results = retrieve(
                 connection,
@@ -70,6 +80,7 @@ class BookRetriever(BaseRetriever):
                 limit=self.k,
                 unique_nodes=True,
                 chroma_path=self.chroma_path,
+                client=client,
                 embedder=embedder,
                 reranker=reranker,
             )
