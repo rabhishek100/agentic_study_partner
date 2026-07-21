@@ -1,0 +1,516 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conversation gold set</title><style>
+body{font:15px/1.5 system-ui;max-width:1100px;margin:auto;padding:28px;background:#f4f6f8}
+.turn{background:white;border:1px solid #d9e0e6;border-radius:9px;padding:18px;margin:14px 0}
+.controls{display:flex;gap:10px;position:sticky;top:0;background:#f4f6f8;padding:10px 0}
+input{flex:1}input,select{padding:9px}dl{display:grid;grid-template-columns:130px 1fr}
+dd{margin:0}table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1px solid #ddd;padding:6px}
+</style></head><body><h1>Conversation gold set</h1>
+<p><strong>Model-adjudicated, not human-verified.</strong>
+ Canonical validation: valid. 44 turns.</p>
+<div class="controls"><input id="search" placeholder="Search">
+<select id="route"><option value="">All routes</option><option value="abstain">abstain</option><option value="clarify">clarify</option><option value="hierarchy_list">hierarchy_list</option><option value="hierarchy_summary">hierarchy_summary</option><option value="prior_answer_transform">prior_answer_transform</option><option value="retrieval_qa">retrieval_qa</option></select></div>
+<section id="mt-001"><h2>Chapter summary to scoped comparison, then global topic</h2><article id="mt-001-t1" class="turn"
+ data-route="hierarchy_summary" data-search="mt-001-t1 summarize chapter 3. chapter 3 builds the data-engineering foundation for production ml: diverse data sources [n35:p70], serialization and access-oriented formats [n36:p73] [n38:p75] [n39:p77], relational and nosql data models [n40:p78] [n41:p79] [n42:p83], and the fluid boundary between structured and unstructured data [n43:p86]. it contrasts transactional and analytical storage workloads [n45:p88], explains etl [n46:p90], and then moves from single-process storage to dataflow through databases, request-driven services, and real-time transports [n48:p92] [n49:p93] [n50:p96]. batch processing suits historical/static features while stream processing supports low-latency dynamic features [n51:p98]. the chapter introduction and recap connect these choices into one production data layer [n34:p69] [n52:p100].">
+<h3>mt-001-t1: Summarize Chapter 3.</h3>
+<dl><dt>Route</dt><dd>hierarchy_summary</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>Summarize Chapter 3: Data Engineering Fundamentals.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 34}</dd></dl>
+<h4>Reference answer</h4><p>Chapter 3 builds the data-engineering foundation for production ML: diverse data sources [N35:P70], serialization and access-oriented formats [N36:P73] [N38:P75] [N39:P77], relational and NoSQL data models [N40:P78] [N41:P79] [N42:P83], and the fluid boundary between structured and unstructured data [N43:P86]. It contrasts transactional and analytical storage workloads [N45:P88], explains ETL [N46:P90], and then moves from single-process storage to dataflow through databases, request-driven services, and real-time transports [N48:P92] [N49:P93] [N50:P96]. Batch processing suits historical/static features while stream processing supports low-latency dynamic features [N51:P98]. The chapter introduction and recap connect these choices into one production data layer [N34:P69] [N52:P100].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N34</td><td>Chapter 3. Data Engineering Fundamentals</td><td>69</td><td>required</td></tr><tr><td>N35</td><td>Chapter 3. Data Engineering Fundamentals :: Data Sources</td><td>70, 71, 72</td><td>required</td></tr><tr><td>N36</td><td>Chapter 3. Data Engineering Fundamentals :: Data Formats</td><td>73</td><td>required</td></tr><tr><td>N38</td><td>Chapter 3. Data Engineering Fundamentals :: Data Formats :: Row-Major Versus Column-Major Format</td><td>74, 75, 76</td><td>required</td></tr><tr><td>N39</td><td>Chapter 3. Data Engineering Fundamentals :: Data Formats :: Text Versus Binary Format</td><td>77</td><td>required</td></tr><tr><td>N40</td><td>Chapter 3. Data Engineering Fundamentals :: Data Models</td><td>78</td><td>required</td></tr><tr><td>N41</td><td>Chapter 3. Data Engineering Fundamentals :: Data Models :: Relational Model</td><td>79, 80, 81, 82</td><td>required</td></tr><tr><td>N42</td><td>Chapter 3. Data Engineering Fundamentals :: Data Models :: NoSQL</td><td>83, 84, 85</td><td>required</td></tr><tr><td>N43</td><td>Chapter 3. Data Engineering Fundamentals :: Data Models :: Structured Versus Unstructured Data</td><td>86</td><td>required</td></tr><tr><td>N45</td><td>Chapter 3. Data Engineering Fundamentals :: Data Storage Engines and Processing :: Transactional and Analytical Processing</td><td>87, 88, 89</td><td>required</td></tr><tr><td>N46</td><td>Chapter 3. Data Engineering Fundamentals :: Data Storage Engines and Processing :: ETL: Extract, Transform, and Load</td><td>90, 91</td><td>required</td></tr><tr><td>N48</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Databases</td><td>92</td><td>required</td></tr><tr><td>N49</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Services</td><td>93</td><td>required</td></tr><tr><td>N50</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Real-Time Transport</td><td>94, 95, 96, 97</td><td>required</td></tr><tr><td>N51</td><td>Chapter 3. Data Engineering Fundamentals :: Batch Processing Versus Stream Processing</td><td>98</td><td>required</td></tr><tr><td>N52</td><td>Chapter 3. Data Engineering Fundamentals :: Summary</td><td>99, 100</td><td>optional_recap</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-001-t2" class="turn"
+ data-route="retrieval_qa" data-search="mt-001-t2 compare the three dataflow modes. database-mediated flow is simple: one process writes and another reads, but both need database access and database i/o can be too slow for strict latency requirements [n48:p92]. service-mediated flow is request-driven: a remote service receives a rest/rpc-style request and returns data, supporting independently developed microservices but creating synchronous dependencies [n49:p93] [n50:p94]. a real-time transport introduces a broker or event bus so producers broadcast events and consumers subscribe without direct pairwise requests; this reduces service coupling and better suits data-heavy systems [n50:p95] [n50:p96].">
+<h3>mt-001-t2: Compare the three dataflow modes.</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Compare data passing through databases, services, and real-time transports in Chapter 3.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 34}</dd></dl>
+<h4>Reference answer</h4><p>Database-mediated flow is simple: one process writes and another reads, but both need database access and database I/O can be too slow for strict latency requirements [N48:P92]. Service-mediated flow is request-driven: a remote service receives a REST/RPC-style request and returns data, supporting independently developed microservices but creating synchronous dependencies [N49:P93] [N50:P94]. A real-time transport introduces a broker or event bus so producers broadcast events and consumers subscribe without direct pairwise requests; this reduces service coupling and better suits data-heavy systems [N50:P95] [N50:P96].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N48</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Databases</td><td>92</td><td>required</td></tr><tr><td>N49</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Services</td><td>93</td><td>required</td></tr><tr><td>N50</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Real-Time Transport</td><td>94, 95, 96, 97</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-001-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-001-t3 which one is better for a data-heavy system with many services, and why? the chapter favors event-driven flow through a real-time transport for data-heavy systems. direct request-driven communication grows into a complex web as service count increases, while a broker lets each service communicate with the broker rather than every other service [n50:p95]. it explicitly says request-driven architecture works well for logic-heavy systems, whereas event-driven architecture works better for data-heavy ones [n50:p96].">
+<h3>mt-001-t3: Which one is better for a data-heavy system with many services, and why?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Which Chapter 3 dataflow mode is better for a data-heavy system with many services, and why?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 34}</dd></dl>
+<h4>Reference answer</h4><p>The chapter favors event-driven flow through a real-time transport for data-heavy systems. Direct request-driven communication grows into a complex web as service count increases, while a broker lets each service communicate with the broker rather than every other service [N50:P95]. It explicitly says request-driven architecture works well for logic-heavy systems, whereas event-driven architecture works better for data-heavy ones [N50:P96].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N50</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Real-Time Transport</td><td>95, 96</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-001-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-001-t4 how does reservoir sampling work? keep the first k stream items in a reservoir. for the nth incoming item, draw i uniformly from 1 through n; if i is at most k, replace reservoir item i, otherwise discard the new item [n59:p106]. this gives each observed item probability k/n of being in the reservoir, so the process can stop at any time with a uniform sample [n60:p107].">
+<h3>mt-001-t4: How does reservoir sampling work?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>How does reservoir sampling work?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Keep the first k stream items in a reservoir. For the nth incoming item, draw i uniformly from 1 through n; if i is at most k, replace reservoir item i, otherwise discard the new item [N59:P106]. This gives each observed item probability k/n of being in the reservoir, so the process can stop at any time with a uniform sample [N60:P107].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N59</td><td>Chapter 4. Training Data :: Sampling :: Reservoir Sampling</td><td>106</td><td>required</td></tr><tr><td>N60</td><td>Chapter 4. Training Data :: Sampling :: Importance Sampling</td><td>107</td><td>supporting</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-002"><h2>Chapter outline to section summary and referential comparison</h2><article id="mt-002-t1" class="turn"
+ data-route="hierarchy_list" data-search="mt-002-t1 what sections are present in chapter 4? chapter 4 contains sampling [node 54, pdf p. 102], labeling [node 61, pdf p. 108], class imbalance [node 65, pdf p. 122], data augmentation [node 68, pdf p. 133], and summary [node 72, pdf p. 138], with sampling, labeling, imbalance, and augmentation further divided into subsections.">
+<h3>mt-002-t1: What sections are present in Chapter 4?</h3>
+<dl><dt>Route</dt><dd>hierarchy_list</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>List the sections in Chapter 4: Training Data.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 53}</dd></dl>
+<h4>Reference answer</h4><p>Chapter 4 contains Sampling [node 54, PDF p. 102], Labeling [node 61, PDF p. 108], Class Imbalance [node 65, PDF p. 122], Data Augmentation [node 68, PDF p. 133], and Summary [node 72, PDF p. 138], with sampling, labeling, imbalance, and augmentation further divided into subsections.</p>
+<h4>Expected evidence</h4><p>None</p>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-002-t2" class="turn"
+ data-route="hierarchy_summary" data-search="mt-002-t2 summarize its sampling section. the section distinguishes nonprobability sampling, whose selection criteria do not give every sample a defined chance [n55:p103], from probability-based methods. it covers simple random and stratified sampling [n57:p104], weighted sampling for unequal selection importance [n58:p105], reservoir sampling for an unknown-length stream [n59:p106], and importance sampling, which samples from an accessible proposal distribution and reweights toward a target distribution [n60:p107]. the section frames sampling as a practical way to obtain useful data when using the full population is infeasible [n54:p102].">
+<h3>mt-002-t2: Summarize its Sampling section.</h3>
+<dl><dt>Route</dt><dd>hierarchy_summary</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Summarize the Sampling section in Chapter 4.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 54}</dd></dl>
+<h4>Reference answer</h4><p>The section distinguishes nonprobability sampling, whose selection criteria do not give every sample a defined chance [N55:P103], from probability-based methods. It covers simple random and stratified sampling [N57:P104], weighted sampling for unequal selection importance [N58:P105], reservoir sampling for an unknown-length stream [N59:P106], and importance sampling, which samples from an accessible proposal distribution and reweights toward a target distribution [N60:P107]. The section frames sampling as a practical way to obtain useful data when using the full population is infeasible [N54:P102].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N54</td><td>Chapter 4. Training Data :: Sampling</td><td>102</td><td>required</td></tr><tr><td>N55</td><td>Chapter 4. Training Data :: Sampling :: Nonprobability Sampling</td><td>103</td><td>required</td></tr><tr><td>N57</td><td>Chapter 4. Training Data :: Sampling :: Stratified Sampling</td><td>104</td><td>required</td></tr><tr><td>N58</td><td>Chapter 4. Training Data :: Sampling :: Weighted Sampling</td><td>105</td><td>required</td></tr><tr><td>N59</td><td>Chapter 4. Training Data :: Sampling :: Reservoir Sampling</td><td>106</td><td>required</td></tr><tr><td>N60</td><td>Chapter 4. Training Data :: Sampling :: Importance Sampling</td><td>107</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-002-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-002-t3 how does the streaming one maintain a fair sample? reservoir sampling fills k slots with the first k items. for item n it draws i uniformly from 1..n and replaces reservoir slot i only when i ≤ k [n59:p106]. consequently, both the incoming item and retained items have probability k/n of being present, preserving a uniform sample at every stopping point [n60:p107].">
+<h3>mt-002-t3: How does the streaming one maintain a fair sample?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>How does reservoir sampling maintain a uniform sample from an unknown-length stream?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 54}</dd></dl>
+<h4>Reference answer</h4><p>Reservoir sampling fills k slots with the first k items. For item n it draws i uniformly from 1..n and replaces reservoir slot i only when i ≤ k [N59:P106]. Consequently, both the incoming item and retained items have probability k/n of being present, preserving a uniform sample at every stopping point [N60:P107].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N59</td><td>Chapter 4. Training Data :: Sampling :: Reservoir Sampling</td><td>106</td><td>required</td></tr><tr><td>N60</td><td>Chapter 4. Training Data :: Sampling :: Importance Sampling</td><td>107</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-002-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-002-t4 how is it different from importance sampling? reservoir sampling selects a fixed-size uniform sample from a stream whose total length is unknown [n59:p106]. importance sampling addresses a different problem: when target distribution p is expensive or infeasible to sample, draw from proposal q and weight samples by p(x)/q(x), provided q is positive wherever p is nonzero [n60:p107].">
+<h3>mt-002-t4: How is it different from importance sampling?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Compare reservoir sampling with importance sampling.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 54}</dd></dl>
+<h4>Reference answer</h4><p>Reservoir sampling selects a fixed-size uniform sample from a stream whose total length is unknown [N59:P106]. Importance sampling addresses a different problem: when target distribution P is expensive or infeasible to sample, draw from proposal Q and weight samples by P(x)/Q(x), provided Q is positive wherever P is nonzero [N60:P107].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N59</td><td>Chapter 4. Training Data :: Sampling :: Reservoir Sampling</td><td>106</td><td>required</td></tr><tr><td>N60</td><td>Chapter 4. Training Data :: Sampling :: Importance Sampling</td><td>107</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-003"><h2>Ordinary QA follow-ups followed by an independent topic</h2><article id="mt-003-t1" class="turn"
+ data-route="retrieval_qa" data-search="mt-003-t1 what is data leakage? data leakage occurs when information related to the label enters the prediction features even though the same information will not be available at inference time [n82:p156]. it can produce excellent evaluation results while failing after deployment because the model learned an unavailable shortcut rather than the intended signal [n82:p155].">
+<h3>mt-003-t1: What is data leakage?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>What is data leakage in machine learning?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Data leakage occurs when information related to the label enters the prediction features even though the same information will not be available at inference time [N82:P156]. It can produce excellent evaluation results while failing after deployment because the model learned an unavailable shortcut rather than the intended signal [N82:P155].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N82</td><td>Chapter 5. Feature Engineering :: Data Leakage</td><td>155, 156</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-003-t2" class="turn"
+ data-route="retrieval_qa" data-search="mt-003-t2 how do i prevent the common kinds? for time-correlated data, split by time so future conditions do not enter training [n83:p157]. split before scaling or imputing, then compute statistics only from the training split and apply them to validation and test data [n83:p158]. detect duplicates before and after splitting, oversample only after the split, and keep strongly correlated groups such as scans from one patient in the same split [n83:p159].">
+<h3>mt-003-t2: How do I prevent the common kinds?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>How can common forms of data leakage be prevented?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>For time-correlated data, split by time so future conditions do not enter training [N83:P157]. Split before scaling or imputing, then compute statistics only from the training split and apply them to validation and test data [N83:P158]. Detect duplicates before and after splitting, oversample only after the split, and keep strongly correlated groups such as scans from one patient in the same split [N83:P159].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N83</td><td>Chapter 5. Feature Engineering :: Data Leakage :: Common Causes for Data Leakage</td><td>157, 158, 159</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-003-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-003-t3 how would i detect a subtle one caused by data collection? track data provenance and understand how each source is collected and processed, involving subject-matter experts who know operational differences such as scanning procedures [n84:p160]. monitor leakage throughout the lifecycle and investigate features or feature combinations with implausibly high predictive power relative to the label [n84:p160].">
+<h3>mt-003-t3: How would I detect a subtle one caused by data collection?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>How can subtle data leakage caused by the data-generation or collection process be detected?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Track data provenance and understand how each source is collected and processed, involving subject-matter experts who know operational differences such as scanning procedures [N84:P160]. Monitor leakage throughout the lifecycle and investigate features or feature combinations with implausibly high predictive power relative to the label [N84:P160].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N84</td><td>Chapter 5. Feature Engineering :: Data Leakage :: Detecting Data Leakage</td><td>160</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-003-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-003-t4 now explain quantization. quantization compresses a model by representing parameters with fewer bits. moving from 32-bit floats to 16-bit values halves parameter memory, while integer representations can reduce it further [n113:p229]. the chapter presents post-training and quantization-aware approaches and notes that lower precision trades memory and execution advantages against possible accuracy loss [n113:p230] [n113:p231].">
+<h3>mt-003-t4: Now explain quantization.</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>Explain model quantization.</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Quantization compresses a model by representing parameters with fewer bits. Moving from 32-bit floats to 16-bit values halves parameter memory, while integer representations can reduce it further [N113:P229]. The chapter presents post-training and quantization-aware approaches and notes that lower precision trades memory and execution advantages against possible accuracy loss [N113:P230] [N113:P231].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N113</td><td>Chapter 7. Model Deployment and Prediction Service :: Model Compression :: Quantization</td><td>229, 230, 231</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-004"><h2>Deployment section summary with technical follow-ups</h2><article id="mt-004-t1" class="turn"
+ data-route="hierarchy_summary" data-search="mt-004-t1 summarize batch prediction versus online prediction in chapter 7. online prediction generates a response when a request arrives and is optimized for low latency; batch prediction generates predictions periodically, stores them, and is optimized for throughput [n106:p217] [n106:p220]. online prediction can use only batch features or combine batch and streaming features, so online and streaming are not synonyms [n106:p219]. batch remains useful when results are not immediately needed or when precomputation avoids slow inference, but it is less responsive and requires anticipated requests [n107:p221] [n107:p222]. separate batch and streaming feature pipelines can diverge [n108:p224], motivating unified processing or feature-store infrastructure [n108:p225].">
+<h3>mt-004-t1: Summarize Batch Prediction Versus Online Prediction in Chapter 7.</h3>
+<dl><dt>Route</dt><dd>hierarchy_summary</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>Summarize the Batch Prediction Versus Online Prediction section in Chapter 7.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 106}</dd></dl>
+<h4>Reference answer</h4><p>Online prediction generates a response when a request arrives and is optimized for low latency; batch prediction generates predictions periodically, stores them, and is optimized for throughput [N106:P217] [N106:P220]. Online prediction can use only batch features or combine batch and streaming features, so online and streaming are not synonyms [N106:P219]. Batch remains useful when results are not immediately needed or when precomputation avoids slow inference, but it is less responsive and requires anticipated requests [N107:P221] [N107:P222]. Separate batch and streaming feature pipelines can diverge [N108:P224], motivating unified processing or feature-store infrastructure [N108:P225].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N106</td><td>Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction</td><td>217, 218, 219, 220</td><td>required</td></tr><tr><td>N107</td><td>Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction :: From Batch Prediction to Online Prediction</td><td>221, 222</td><td>required</td></tr><tr><td>N108</td><td>Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction :: Unifying Batch Pipeline and Streaming Pipeline</td><td>223, 224, 225</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-004-t2" class="turn"
+ data-route="retrieval_qa" data-search="mt-004-t2 does the online mode you just described necessarily use streaming features? no. online prediction may use only precomputed batch features, such as item embeddings fetched when a request arrives, or it may combine batch and streaming features [n106:p219]. streaming features specifically come from streaming data; online features include any features used for online prediction [n106:p219].">
+<h3>mt-004-t2: Does the online mode you just described necessarily use streaming features?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Does online prediction necessarily use streaming features?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 106}</dd></dl>
+<h4>Reference answer</h4><p>No. Online prediction may use only precomputed batch features, such as item embeddings fetched when a request arrives, or it may combine batch and streaming features [N106:P219]. Streaming features specifically come from streaming data; online features include any features used for online prediction [N106:P219].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N106</td><td>Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction</td><td>218, 219, 220</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-004-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-004-t3 why can the other mode still reduce the latency users experience? batch prediction precomputes outputs and stores them, so serving requires retrieval rather than running the model at request time. retrieving a stored prediction can be faster than generating one with a complex model [n107:p221] [n107:p222].">
+<h3>mt-004-t3: Why can the other mode still reduce the latency users experience?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Why can batch prediction reduce user-perceived inference latency?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 106}</dd></dl>
+<h4>Reference answer</h4><p>Batch prediction precomputes outputs and stores them, so serving requires retrieval rather than running the model at request time. Retrieving a stored prediction can be faster than generating one with a complex model [N107:P221] [N107:P222].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N107</td><td>Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction :: From Batch Prediction to Online Prediction</td><td>221, 222</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-004-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-004-t4 what about shadow deployment? shadow deployment runs the candidate beside the existing model, sends each request to both, serves only the existing model&#x27;s prediction, and logs the candidate&#x27;s predictions for analysis. the candidate replaces the existing model only after its shadow results are satisfactory [n140:p302].">
+<h3>mt-004-t4: What about shadow deployment?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>What is shadow deployment?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Shadow deployment runs the candidate beside the existing model, sends each request to both, serves only the existing model&#x27;s prediction, and logs the candidate&#x27;s predictions for analysis. The candidate replaces the existing model only after its shadow results are satisfactory [N140:P302].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N140</td><td>Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment</td><td>302</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-005"><h2>Distribution-shift diagnosis through safe validation</h2><article id="mt-005-t1" class="turn"
+ data-route="retrieval_qa" data-search="mt-005-t1 a campaign brings in wealthier users, but conversion at a fixed income is unchanged. what changed? this is covariate shift: the input distribution p(x) changes while the conditional relationship p(y|x) remains the same. the chapter uses the marketing example where the new population has higher income but people at the same income retain the same purchase probability [n123:p258] [n123:p259].">
+<h3>mt-005-t1: A campaign brings in wealthier users, but conversion at a fixed income is unchanged. What changed?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>What distribution shift occurs when user income distribution changes but conversion conditional on income remains unchanged?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>This is covariate shift: the input distribution P(X) changes while the conditional relationship P(Y|X) remains the same. The chapter uses the marketing example where the new population has higher income but people at the same income retain the same purchase probability [N123:P258] [N123:P259].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N123</td><td>Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Types of Data Distribution Shifts</td><td>258, 259</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-005-t2" class="turn"
+ data-route="retrieval_qa" data-search="mt-005-t2 how can i detect a meaningful problem if labels arrive late? when labels lag, direct accuracy monitoring also lags, so compare recent inputs or features with a reference distribution using summary statistics and statistical tests [n125:p262] [n125:p264]. prediction distributions can act as a low-dimensional proxy for input change, and schema/feature validation can expose invalid ranges or categories [n128:p272] [n128:p273]. treat these as signals rather than proof of performance loss because many feature shifts are benign and excessive alerts cause fatigue [n128:p274] [n128:p275].">
+<h3>mt-005-t2: How can I detect a meaningful problem if labels arrive late?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>How can meaningful production distribution change be detected when ground-truth labels are delayed?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>When labels lag, direct accuracy monitoring also lags, so compare recent inputs or features with a reference distribution using summary statistics and statistical tests [N125:P262] [N125:P264]. Prediction distributions can act as a low-dimensional proxy for input change, and schema/feature validation can expose invalid ranges or categories [N128:P272] [N128:P273]. Treat these as signals rather than proof of performance loss because many feature shifts are benign and excessive alerts cause fatigue [N128:P274] [N128:P275].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N125</td><td>Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Detecting Data Distribution Shifts</td><td>262, 263, 264</td><td>required</td></tr><tr><td>N128</td><td>Chapter 8. Data Distribution Shifts and Monitoring :: Monitoring and Observability :: ML-Specific Metrics</td><td>272, 273, 274, 275</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-005-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-005-t3 should every one of those detected shifts trigger retraining? no. some teams retrain periodically, but the optimal schedule should be determined experimentally rather than from every noisy shift alert [n126:p268]. retraining choices include starting from scratch or continuing from a checkpoint and selecting an appropriate data window [n126:p269]. update triggers may use schedules, performance degradation, or drift, but noisy monitoring can cause unnecessary updates, so the trigger should reflect model and business impact [n138:p299] [n138:p300].">
+<h3>mt-005-t3: Should every one of those detected shifts trigger retraining?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Should every detected data distribution shift trigger model retraining?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>No. Some teams retrain periodically, but the optimal schedule should be determined experimentally rather than from every noisy shift alert [N126:P268]. Retraining choices include starting from scratch or continuing from a checkpoint and selecting an appropriate data window [N126:P269]. Update triggers may use schedules, performance degradation, or drift, but noisy monitoring can cause unnecessary updates, so the trigger should reflect model and business impact [N138:P299] [N138:P300].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N126</td><td>Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Addressing Data Distribution Shifts</td><td>268, 269</td><td>required</td></tr><tr><td>N138</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models</td><td>299, 300</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-005-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-005-t4 and how can i validate the candidate without exposing its predictions to users? use shadow deployment: run the candidate in parallel, route real requests to both models, serve only the existing model, and log candidate outputs for comparison. promote it only after the logged behavior is satisfactory [n140:p302].">
+<h3>mt-005-t4: And how can I validate the candidate without exposing its predictions to users?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>How can an updated model be validated in production without serving its predictions to users?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Use shadow deployment: run the candidate in parallel, route real requests to both models, serve only the existing model, and log candidate outputs for comparison. Promote it only after the logged behavior is satisfactory [N140:P302].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N140</td><td>Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment</td><td>302</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-006"><h2>Revision flow inside continual learning</h2><article id="mt-006-t1" class="turn"
+ data-route="hierarchy_summary" data-search="mt-006-t1 help me revise the continual learning section in chapter 9. the section frames production updates through evaluated micro-batches and a champion/challenger process [n133:p284]. continual learning is infrastructure that lets teams update models when needed, not a requirement to retrain every few minutes [n134:p285] [n134:p287]. stateful training continues from the previous model state, often using less fresh data and compute than stateless retraining, though architecture changes may still require starting over [n134:p285] [n134:p287]. it matters when models must adapt quickly to changing users or environments [n135:p288]. the main obstacles are access to fresh labeled data, safe evaluation of frequent updates, and algorithm limitations [n136:p290] [n136:p292] [n136:p293]. a mature system progresses through increasing automation and deployment capability [n137:p294] [n137:p298], while update frequency remains an empirical decision based on value, decay, and operational cost [n138:p299].">
+<h3>mt-006-t1: Help me revise the Continual Learning section in Chapter 9.</h3>
+<dl><dt>Route</dt><dd>hierarchy_summary</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>Create a revision summary of the Continual Learning section in Chapter 9.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 133}</dd></dl>
+<h4>Reference answer</h4><p>The section frames production updates through evaluated micro-batches and a champion/challenger process [N133:P284]. Continual learning is infrastructure that lets teams update models when needed, not a requirement to retrain every few minutes [N134:P285] [N134:P287]. Stateful training continues from the previous model state, often using less fresh data and compute than stateless retraining, though architecture changes may still require starting over [N134:P285] [N134:P287]. It matters when models must adapt quickly to changing users or environments [N135:P288]. The main obstacles are access to fresh labeled data, safe evaluation of frequent updates, and algorithm limitations [N136:P290] [N136:P292] [N136:P293]. A mature system progresses through increasing automation and deployment capability [N137:P294] [N137:P298], while update frequency remains an empirical decision based on value, decay, and operational cost [N138:P299].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N133</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning</td><td>284</td><td>required</td></tr><tr><td>N134</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Stateless Retraining Versus Stateful Training</td><td>285, 286, 287</td><td>required</td></tr><tr><td>N135</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Why Continual Learning?</td><td>288, 289</td><td>required</td></tr><tr><td>N136</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Continual Learning Challenges</td><td>290, 291, 292, 293</td><td>required</td></tr><tr><td>N137</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Four Stages of Continual Learning</td><td>294, 295, 296, 297, 298</td><td>required</td></tr><tr><td>N138</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models</td><td>299, 300</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-006-t2" class="turn"
+ data-route="retrieval_qa" data-search="mt-006-t2 what does the stateful option add over starting from scratch? stateful training continues from the last checkpoint instead of rebuilding from scratch. it can converge with less new data and compute, and may avoid permanently storing samples that are used once for an update [n134:p285] [n134:p286]. teams may still periodically train from scratch for calibration, and model-architecture or feature changes generally still require stateless training [n134:p287].">
+<h3>mt-006-t2: What does the stateful option add over starting from scratch?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>What advantages and limitations does stateful training have compared with stateless retraining?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 133}</dd></dl>
+<h4>Reference answer</h4><p>Stateful training continues from the last checkpoint instead of rebuilding from scratch. It can converge with less new data and compute, and may avoid permanently storing samples that are used once for an update [N134:P285] [N134:P286]. Teams may still periodically train from scratch for calibration, and model-architecture or feature changes generally still require stateless training [N134:P287].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N134</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Stateless Retraining Versus Stateful Training</td><td>285, 286, 287</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-006-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-006-t3 what are the three hardest operational parts? the three challenges are fresh data access, evaluation, and algorithms [n136:p290]. fresh updates require timely data and labels, often with streaming label computation [n136:p291]. every update must be evaluated safely despite delay and attack risk [n136:p292]. some matrix- and tree-based algorithms are also difficult to update at very high frequency [n136:p293].">
+<h3>mt-006-t3: What are the three hardest operational parts?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>What are the three major continual-learning challenges?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 133}</dd></dl>
+<h4>Reference answer</h4><p>The three challenges are fresh data access, evaluation, and algorithms [N136:P290]. Fresh updates require timely data and labels, often with streaming label computation [N136:P291]. Every update must be evaluated safely despite delay and attack risk [N136:P292]. Some matrix- and tree-based algorithms are also difficult to update at very high frequency [N136:P293].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N136</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Continual Learning Challenges</td><td>290, 291, 292, 293</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-006-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-006-t4 so how often should the model update? there is no universal interval. treat frequency as a tunable decision based on how quickly the model decays, how much fresh data arrives, whether an update produces measurable value, and the cost and risk of evaluation and deployment [n138:p299]. scheduled and drift-triggered updates need safeguards because noisy signals can cause unnecessary retraining [n138:p299]. the value of fresher data can be estimated by training on different historical windows and evaluating on current data [n138:p300].">
+<h3>mt-006-t4: So how often should the model update?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>How should a team decide how often to update a continually learned model?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 133}</dd></dl>
+<h4>Reference answer</h4><p>There is no universal interval. Treat frequency as a tunable decision based on how quickly the model decays, how much fresh data arrives, whether an update produces measurable value, and the cost and risk of evaluation and deployment [N138:P299]. Scheduled and drift-triggered updates need safeguards because noisy signals can cause unnecessary retraining [N138:P299]. The value of fresher data can be estimated by training on different historical windows and evaluating on current data [N138:P300].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N138</td><td>Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models</td><td>299, 300</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-007"><h2>Infrastructure hierarchy with an unsupported purchase decision</h2><article id="mt-007-t1" class="turn"
+ data-route="hierarchy_list" data-search="mt-007-t1 what sections are in chapter 10? chapter 10 contains storage and compute [node 147, pdf p. 317], development environment [node 149, pdf p. 322], resource management [node 153, pdf p. 331], ml platform [node 156, pdf p. 339], build versus buy [node 160, pdf p. 347], and summary [node 161, pdf p. 349].">
+<h3>mt-007-t1: What sections are in Chapter 10?</h3>
+<dl><dt>Route</dt><dd>hierarchy_list</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>List the sections in Chapter 10: Infrastructure and Tooling for MLOps.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 146}</dd></dl>
+<h4>Reference answer</h4><p>Chapter 10 contains Storage and Compute [node 147, PDF p. 317], Development Environment [node 149, PDF p. 322], Resource Management [node 153, PDF p. 331], ML Platform [node 156, PDF p. 339], Build Versus Buy [node 160, PDF p. 347], and Summary [node 161, PDF p. 349].</p>
+<h4>Expected evidence</h4><p>None</p>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-007-t2" class="turn"
+ data-route="hierarchy_summary" data-search="mt-007-t2 summarize the feature store subsection in that chapter. a feature store is presented as addressing three problems: feature management, feature computation, and feature consistency [n159:p345] [n159:p346]. it can help teams discover and share features and compute and store reusable feature values [n159:p346].">
+<h3>mt-007-t2: Summarize the Feature Store subsection in that chapter.</h3>
+<dl><dt>Route</dt><dd>hierarchy_summary</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Summarize the Feature Store subsection in Chapter 10.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 159}</dd></dl>
+<h4>Reference answer</h4><p>A feature store is presented as addressing three problems: feature management, feature computation, and feature consistency [N159:P345] [N159:P346]. It can help teams discover and share features and compute and store reusable feature values [N159:P346].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N159</td><td>Chapter 10. Infrastructure and Tooling for MLOps :: ML Platform :: Feature Store</td><td>345, 346</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-007-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-007-t3 how is it different from a model store? a model store manages model artifacts and the information needed to reproduce, compare, and debug model versions [n158:p342] [n158:p343]. a feature store manages reusable feature definitions, computation, and access [n159:p345] [n159:p346], while shared feature logic supports consistency between training and serving [n160:p347]. one centers the model lifecycle; the other centers the data features consumed by models.">
+<h3>mt-007-t3: How is it different from a model store?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Compare a feature store with a model store in an ML platform.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 159}</dd></dl>
+<h4>Reference answer</h4><p>A model store manages model artifacts and the information needed to reproduce, compare, and debug model versions [N158:P342] [N158:P343]. A feature store manages reusable feature definitions, computation, and access [N159:P345] [N159:P346], while shared feature logic supports consistency between training and serving [N160:P347]. One centers the model lifecycle; the other centers the data features consumed by models.</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N158</td><td>Chapter 10. Infrastructure and Tooling for MLOps :: ML Platform :: Model Store</td><td>342, 343</td><td>required</td></tr><tr><td>N159</td><td>Chapter 10. Infrastructure and Tooling for MLOps :: ML Platform :: Feature Store</td><td>345, 346</td><td>required</td></tr><tr><td>N160</td><td>Chapter 10. Infrastructure and Tooling for MLOps :: Build Versus Buy</td><td>347</td><td>supporting</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-007-t4" class="turn"
+ data-route="abstain" data-search="mt-007-t4 given what this section says, which feature-store vendor should i buy? the book does not provide enough current, project-specific evidence to recommend a feature-store vendor. it explains feature-store responsibilities and general build-versus-buy considerations, but a purchase decision requires current products, workload requirements, integration constraints, and pricing that are outside this evidence.">
+<h3>mt-007-t4: Given what this section says, which feature-store vendor should I buy?</h3>
+<dl><dt>Route</dt><dd>abstain</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Which feature-store vendor should be purchased for this project?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 159}</dd></dl>
+<h4>Reference answer</h4><p>The book does not provide enough current, project-specific evidence to recommend a feature-store vendor. It explains feature-store responsibilities and general build-versus-buy considerations, but a purchase decision requires current products, workload requirements, integration constraints, and pricing that are outside this evidence.</p>
+<h4>Expected evidence</h4><p>None</p>
+<details><summary>Near misses</summary>
+<table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N159</td><td>Chapter 10. Infrastructure and Tooling for MLOps :: ML Platform :: Feature Store</td><td>345, 346</td><td>near miss</td></tr><tr><td>N160</td><td>Chapter 10. Infrastructure and Tooling for MLOps :: Build Versus Buy</td><td>347, 348</td><td>near miss</td></tr></tbody></table></details>
+</article></section><section id="mt-008"><h2>Responsible-AI answer followed by answer transformation</h2><article id="mt-008-t1" class="turn"
+ data-route="retrieval_qa" data-search="mt-008-t1 what should a responsible-ai audit cover before deployment? audit how bias can enter through training data, labeling, features, objectives, and evaluation, including subgroup and disparate-impact analysis [n172:p367] [n172:p368]. examine the limits of a purely data-driven approach and involve affected domains and lived experience [n172:p369]. make trade-offs such as privacy versus accuracy and compression versus fairness explicit, address risks early, and document intended use, evaluation, limitations, ethical considerations, and recommendations in a model card [n172:p370] [n172:p371] [n172:p372].">
+<h3>mt-008-t1: What should a responsible-AI audit cover before deployment?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>What should a responsible-AI audit cover before model deployment?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Audit how bias can enter through training data, labeling, features, objectives, and evaluation, including subgroup and disparate-impact analysis [N172:P367] [N172:P368]. Examine the limits of a purely data-driven approach and involve affected domains and lived experience [N172:P369]. Make trade-offs such as privacy versus accuracy and compression versus fairness explicit, address risks early, and document intended use, evaluation, limitations, ethical considerations, and recommendations in a model card [N172:P370] [N172:P371] [N172:P372].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N172</td><td>Chapter 11. The Human Side of Machine Learning :: Responsible AI :: A Framework for Responsible AI</td><td>367, 368, 369, 370, 371, 372</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-008-t2" class="turn"
+ data-route="retrieval_qa" data-search="mt-008-t2 what exactly should go into that document? a model card should cover model details and provenance, intended and out-of-scope uses, relevant factors and evaluation factors, metrics and thresholds, evaluation and training data, quantitative results including intersectional results, ethical considerations, caveats, and recommendations [n172:p370] [n172:p371] [n172:p372].">
+<h3>mt-008-t2: What exactly should go into that document?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>What information should a model card contain?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>A model card should cover model details and provenance, intended and out-of-scope uses, relevant factors and evaluation factors, metrics and thresholds, evaluation and training data, quantitative results including intersectional results, ethical considerations, caveats, and recommendations [N172:P370] [N172:P371] [N172:P372].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N172</td><td>Chapter 11. The Human Side of Machine Learning :: Responsible AI :: A Framework for Responsible AI</td><td>370, 371, 372</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-008-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-008-t3 what if the model&#x27;s predictions are only mostly correct? mostly-correct outputs are useful when users can recognize and cheaply correct errors, such as an operator editing a drafted support reply [n165:p352]. they are less useful when users lack the expertise to identify or repair failures. one mitigation is to present multiple diverse candidates in a form nonexperts can evaluate, increasing the chance that at least one is usable [n165:p353].">
+<h3>mt-008-t3: What if the model&#x27;s predictions are only mostly correct?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>How should a product handle model predictions that are mostly correct but sometimes wrong?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Mostly-correct outputs are useful when users can recognize and cheaply correct errors, such as an operator editing a drafted support reply [N165:P352]. They are less useful when users lack the expertise to identify or repair failures. One mitigation is to present multiple diverse candidates in a form nonexperts can evaluate, increasing the chance that at least one is usable [N165:P353].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N165</td><td>Chapter 11. The Human Side of Machine Learning :: User Experience :: Combatting “Mostly Correct” Predictions</td><td>352, 353</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-008-t4" class="turn"
+ data-route="prior_answer_transform" data-search="mt-008-t4 make that answer one sentence. mostly-correct predictions help when users can detect and fix errors; otherwise, present several interpretable alternatives so a nonexpert can choose a usable result [n165:p352] [n165:p353].">
+<h3>mt-008-t4: Make that answer one sentence.</h3>
+<dl><dt>Route</dt><dd>prior_answer_transform</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>—</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Mostly-correct predictions help when users can detect and fix errors; otherwise, present several interpretable alternatives so a nonexpert can choose a usable result [N165:P352] [N165:P353].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N165</td><td>Chapter 11. The Human Side of Machine Learning :: User Experience :: Combatting “Mostly Correct” Predictions</td><td>352, 353</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-009"><h2>Ambiguous ordinal reference followed by clarification</h2><article id="mt-009-t1" class="turn"
+ data-route="clarify" data-search="mt-009-t1 explain the second approach. which list or topic do you mean by “the second approach”? please name the chapter, section, or approaches you are referring to.">
+<h3>mt-009-t1: Explain the second approach.</h3>
+<dl><dt>Route</dt><dd>clarify</dd>
+<dt>History</dt><dd>ambiguous</dd>
+<dt>Standalone query</dt><dd>—</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Which list or topic do you mean by “the second approach”? Please name the chapter, section, or approaches you are referring to.</p>
+<h4>Expected evidence</h4><p>None</p>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-009-t2" class="turn"
+ data-route="retrieval_qa" data-search="mt-009-t2 i mean the second dataflow mode in chapter 3. the second mode is data passing through services. process a sends a request specifying the data it needs to remotely accessible process b, which returns the result; this is request-driven communication and commonly uses rest or rpc [n49:p93] [n50:p94]. the ordering comes from the chapter&#x27;s three-mode list [n48:p92].">
+<h3>mt-009-t2: I mean the second dataflow mode in Chapter 3.</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>Explain data passing through services, the second dataflow mode in Chapter 3.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 34}</dd></dl>
+<h4>Reference answer</h4><p>The second mode is data passing through services. Process A sends a request specifying the data it needs to remotely accessible process B, which returns the result; this is request-driven communication and commonly uses REST or RPC [N49:P93] [N50:P94]. The ordering comes from the chapter&#x27;s three-mode list [N48:P92].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N48</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Databases</td><td>92</td><td>supporting</td></tr><tr><td>N49</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Services</td><td>93</td><td>required</td></tr><tr><td>N50</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Real-Time Transport</td><td>94</td><td>supporting</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-009-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-009-t3 compare it with the first one. with a database, a writes shared state and b reads it; this is simple but requires shared database access and incurs database i/o [n48:p92]. with services, a directly requests data over a network from b, which exposes a remote interface and supports independently maintained services [n49:p93]. request-driven availability remains synchronous: if a target service is down, callers can block or time out [n50:p95].">
+<h3>mt-009-t3: Compare it with the first one.</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Compare data passing through services with data passing through databases in Chapter 3.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 34}</dd></dl>
+<h4>Reference answer</h4><p>With a database, A writes shared state and B reads it; this is simple but requires shared database access and incurs database I/O [N48:P92]. With services, A directly requests data over a network from B, which exposes a remote interface and supports independently maintained services [N49:P93]. Request-driven availability remains synchronous: if a target service is down, callers can block or time out [N50:P95].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N48</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Databases</td><td>92</td><td>required</td></tr><tr><td>N49</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Services</td><td>93</td><td>required</td></tr><tr><td>N50</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Real-Time Transport</td><td>95</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-009-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-009-t4 why is the first one weak for latency-sensitive consumer applications? both processes must be able to access the same database, and database reads and writes can be slow; those constraints make database-mediated flow unsuitable for applications with strict latency requirements [n48:p92].">
+<h3>mt-009-t4: Why is the first one weak for latency-sensitive consumer applications?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Why is database-mediated dataflow weak for latency-sensitive consumer applications?</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 34}</dd></dl>
+<h4>Reference answer</h4><p>Both processes must be able to access the same database, and database reads and writes can be slow; those constraints make database-mediated flow unsuitable for applications with strict latency requirements [N48:P92].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N48</td><td>Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow :: Data Passing Through Databases</td><td>92</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section><section id="mt-010"><h2>Unanswerable follow-ups and recovery to supported evidence</h2><article id="mt-010-t1" class="turn"
+ data-route="abstain" data-search="mt-010-t1 how should i choose lora rank and target modules for a transformer? the book does not contain enough evidence to answer how to select lora rank or transformer target modules. its low-rank discussion concerns model compression rather than low-rank adaptation fine-tuning.">
+<h3>mt-010-t1: How should I choose LoRA rank and target modules for a transformer?</h3>
+<dl><dt>Route</dt><dd>abstain</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>How should LoRA rank and target modules be selected for transformer fine-tuning?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>The book does not contain enough evidence to answer how to select LoRA rank or transformer target modules. Its low-rank discussion concerns model compression rather than Low-Rank Adaptation fine-tuning.</p>
+<h4>Expected evidence</h4><p>None</p>
+<details><summary>Near misses</summary>
+<table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N110</td><td>Chapter 7. Model Deployment and Prediction Service :: Model Compression :: Low-Rank Factorization</td><td>226, 227</td><td>near miss</td></tr></tbody></table></details>
+</article><article id="mt-010-t2" class="turn"
+ data-route="abstain" data-search="mt-010-t2 could the low-rank factorization section answer it? no. that section explains decomposing model tensors for compression; it does not discuss lora adapters, transformer target modules, or how to choose a lora rank.">
+<h3>mt-010-t2: Could the low-rank factorization section answer it?</h3>
+<dl><dt>Route</dt><dd>abstain</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>Does the book&#x27;s low-rank factorization section explain LoRA rank and target-module selection?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>No. That section explains decomposing model tensors for compression; it does not discuss LoRA adapters, transformer target modules, or how to choose a LoRA rank.</p>
+<h4>Expected evidence</h4><p>None</p>
+<details><summary>Near misses</summary>
+<table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N110</td><td>Chapter 7. Model Deployment and Prediction Service :: Model Compression :: Low-Rank Factorization</td><td>226, 227</td><td>near miss</td></tr></tbody></table></details>
+</article><article id="mt-010-t3" class="turn"
+ data-route="retrieval_qa" data-search="mt-010-t3 then what does that section actually cover? the section presents low-rank factorization as replacing high-dimensional tensors with lower-dimensional tensors to reduce parameters and increase speed [n110:p226]. its examples include compact convolutional filters, squeezenet, and mobilenet&#x27;s depthwise-plus-pointwise decomposition [n110:p227].">
+<h3>mt-010-t3: Then what does that section actually cover?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>What does the Low-Rank Factorization subsection in Chapter 7 cover?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>The section presents low-rank factorization as replacing high-dimensional tensors with lower-dimensional tensors to reduce parameters and increase speed [N110:P226]. Its examples include compact convolutional filters, SqueezeNet, and MobileNet&#x27;s depthwise-plus-pointwise decomposition [N110:P227].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N110</td><td>Chapter 7. Model Deployment and Prediction Service :: Model Compression :: Low-Rank Factorization</td><td>226, 227</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-010-t4" class="turn"
+ data-route="abstain" data-search="mt-010-t4 what is the exact current hourly sagemaker price for the recommended deployment instance? the static book cannot support an exact current sagemaker price, and it does not prescribe a single deployment instance for this request. current pricing and a workload-specific instance choice require external, time-sensitive evidence.">
+<h3>mt-010-t4: What is the exact current hourly SageMaker price for the recommended deployment instance?</h3>
+<dl><dt>Route</dt><dd>abstain</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>What is the exact current hourly SageMaker price for the book&#x27;s recommended deployment instance?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>The static book cannot support an exact current SageMaker price, and it does not prescribe a single deployment instance for this request. Current pricing and a workload-specific instance choice require external, time-sensitive evidence.</p>
+<h4>Expected evidence</h4><p>None</p>
+<details><summary>Near misses</summary>
+<table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N107</td><td>Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction :: From Batch Prediction to Online Prediction</td><td>221</td><td>near miss</td></tr><tr><td>N157</td><td>Chapter 10. Infrastructure and Tooling for MLOps :: ML Platform :: Model Deployment</td><td>340</td><td>near miss</td></tr></tbody></table></details>
+</article></section><section id="mt-011"><h2>Explicit chapter switches, revision, and cross-chapter synthesis</h2><article id="mt-011-t1" class="turn"
+ data-route="hierarchy_summary" data-search="mt-011-t1 summarize chapter 1. chapter 1 frames a production ml system as much more than an algorithm: it also includes business requirements, interfaces, data, development and monitoring logic, and infrastructure [n14:p21] [n14:p22]. it gives criteria for deciding when ml is appropriate—learnable complex patterns, usable data, a predictive task, and sufficiently stable train-to-production assumptions [n15:p24] [n15:p25] [n15:p26]—while warning that simpler, unethical, or uneconomic uses should be rejected [n15:p28]. it surveys consumer and enterprise applications [n16:p29], then explains why production differs from research through conflicting stakeholder requirements, latency/throughput priorities, and messy shifting production data [n18:p33] [n18:p36] [n18:p39]. unlike traditional software, ml behavior is learned from data, so failures can occur without code changes and testing must cover both code and data [n19:p42]. the recap presents this as the foundation for designing deployable ml systems [n20:p43].">
+<h3>mt-011-t1: Summarize Chapter 1.</h3>
+<dl><dt>Route</dt><dd>hierarchy_summary</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>Summarize Chapter 1: Overview of Machine Learning Systems.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 14}</dd></dl>
+<h4>Reference answer</h4><p>Chapter 1 frames a production ML system as much more than an algorithm: it also includes business requirements, interfaces, data, development and monitoring logic, and infrastructure [N14:P21] [N14:P22]. It gives criteria for deciding when ML is appropriate—learnable complex patterns, usable data, a predictive task, and sufficiently stable train-to-production assumptions [N15:P24] [N15:P25] [N15:P26]—while warning that simpler, unethical, or uneconomic uses should be rejected [N15:P28]. It surveys consumer and enterprise applications [N16:P29], then explains why production differs from research through conflicting stakeholder requirements, latency/throughput priorities, and messy shifting production data [N18:P33] [N18:P36] [N18:P39]. Unlike traditional software, ML behavior is learned from data, so failures can occur without code changes and testing must cover both code and data [N19:P42]. The recap presents this as the foundation for designing deployable ML systems [N20:P43].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N14</td><td>Chapter 1. Overview of Machine Learning Systems</td><td>21, 22</td><td>required</td></tr><tr><td>N15</td><td>Chapter 1. Overview of Machine Learning Systems :: When to Use Machine Learning</td><td>23, 24, 25, 26, 27, 28</td><td>required</td></tr><tr><td>N16</td><td>Chapter 1. Overview of Machine Learning Systems :: When to Use Machine Learning :: Machine Learning Use Cases</td><td>29, 30, 31</td><td>required</td></tr><tr><td>N18</td><td>Chapter 1. Overview of Machine Learning Systems :: Understanding Machine Learning Systems :: Machine Learning in Research Versus in Production</td><td>32, 33, 34, 35, 36, 37, 38, 39, 40, 41</td><td>required</td></tr><tr><td>N19</td><td>Chapter 1. Overview of Machine Learning Systems :: Understanding Machine Learning Systems :: Machine Learning Systems Versus Traditional Software</td><td>42</td><td>required</td></tr><tr><td>N20</td><td>Chapter 1. Overview of Machine Learning Systems :: Summary</td><td>43</td><td>optional_recap</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-011-t2" class="turn"
+ data-route="hierarchy_summary" data-search="mt-011-t2 now summarize chapter 6. chapter 6 treats model development as an iterative choice among algorithms under task, data, compute, and production constraints [n89:p169] [n91:p170]. it covers ensembles as a possible accuracy boost with added deployment complexity [n92:p176], and stresses experiment tracking and versioning so runs can be compared and reproduced [n93:p182]. for scale, it introduces data, model, and pipeline parallelism [n94:p188] [n94:p190] [n94:p191], while automl can automate parts of model and hyperparameter search [n95:p192]. offline evaluation should progress from non-ml and simple-model baselines toward complex models only when justified [n96:p198], because metrics require meaningful baselines [n97:p200]. production-oriented checks go beyond aggregate accuracy to perturbation, invariance, directional expectations, calibration, confidence, and slice-based evaluation [n98:p201] [n98:p202] [n98:p203] [n98:p205]. the recap emphasizes selection against objectives and constraints [n99:p208], plus reproducible experimentation, scalable training, meaningful baselines, and predeployment sanity checks [n99:p209].">
+<h3>mt-011-t2: Now summarize Chapter 6.</h3>
+<dl><dt>Route</dt><dd>hierarchy_summary</dd>
+<dt>History</dt><dd>independent</dd>
+<dt>Standalone query</dt><dd>Summarize Chapter 6: Model Development and Offline Evaluation.</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 89}</dd></dl>
+<h4>Reference answer</h4><p>Chapter 6 treats model development as an iterative choice among algorithms under task, data, compute, and production constraints [N89:P169] [N91:P170]. It covers ensembles as a possible accuracy boost with added deployment complexity [N92:P176], and stresses experiment tracking and versioning so runs can be compared and reproduced [N93:P182]. For scale, it introduces data, model, and pipeline parallelism [N94:P188] [N94:P190] [N94:P191], while AutoML can automate parts of model and hyperparameter search [N95:P192]. Offline evaluation should progress from non-ML and simple-model baselines toward complex models only when justified [N96:P198], because metrics require meaningful baselines [N97:P200]. Production-oriented checks go beyond aggregate accuracy to perturbation, invariance, directional expectations, calibration, confidence, and slice-based evaluation [N98:P201] [N98:P202] [N98:P203] [N98:P205]. The recap emphasizes selection against objectives and constraints [N99:P208], plus reproducible experimentation, scalable training, meaningful baselines, and predeployment sanity checks [N99:P209].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N89</td><td>Chapter 6. Model Development and Offline Evaluation</td><td>169</td><td>required</td></tr><tr><td>N91</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Evaluating ML Models</td><td>170, 171, 172, 173, 174, 175</td><td>required</td></tr><tr><td>N92</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Ensembles</td><td>176, 177, 178, 179, 180, 181</td><td>required</td></tr><tr><td>N93</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Experiment Tracking and Versioning</td><td>182, 183, 184, 185, 186, 187</td><td>required</td></tr><tr><td>N94</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Distributed Training</td><td>188, 189, 190, 191</td><td>required</td></tr><tr><td>N95</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: AutoML</td><td>192, 193, 194, 195, 196, 197</td><td>required</td></tr><tr><td>N96</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation</td><td>198</td><td>required</td></tr><tr><td>N97</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Baselines</td><td>199, 200</td><td>required</td></tr><tr><td>N98</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods</td><td>201, 202, 203, 204, 205, 206, 207</td><td>required</td></tr><tr><td>N99</td><td>Chapter 6. Model Development and Offline Evaluation :: Summary</td><td>208, 209</td><td>optional_recap</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-011-t3" class="turn"
+ data-route="prior_answer_transform" data-search="mt-011-t3 turn that chapter 6 summary into a concise revision sheet. revision sheet — chapter 6:
+• select models against the task, constraints, and production needs; development is iterative [n89:p169] [n91:p170].
+• ensembles can improve performance but increase operational complexity [n92:p176].
+• track and version experiments for comparison and reproducibility [n93:p182].
+• scale training with data, model, or pipeline parallelism [n94:p188] [n94:p190] [n94:p191]; automl automates parts of search [n95:p192].
+• start evaluation with non-ml and simple-model baselines before earning complexity [n96:p198] [n97:p200].
+• test robustness, fairness-related invariance, calibration, confidence, and important slices—not only aggregate metrics [n98:p201] [n98:p202] [n98:p203] [n98:p205].
+• goal: choose a reproducible, deployable model against objectives and constraints [n99:p208].">
+<h3>mt-011-t3: Turn that Chapter 6 summary into a concise revision sheet.</h3>
+<dl><dt>Route</dt><dd>prior_answer_transform</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>—</dd>
+<dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;chapter&#x27;, &#x27;node_id&#x27;: 89}</dd></dl>
+<h4>Reference answer</h4><p>Revision sheet — Chapter 6:
+• Select models against the task, constraints, and production needs; development is iterative [N89:P169] [N91:P170].
+• Ensembles can improve performance but increase operational complexity [N92:P176].
+• Track and version experiments for comparison and reproducibility [N93:P182].
+• Scale training with data, model, or pipeline parallelism [N94:P188] [N94:P190] [N94:P191]; AutoML automates parts of search [N95:P192].
+• Start evaluation with non-ML and simple-model baselines before earning complexity [N96:P198] [N97:P200].
+• Test robustness, fairness-related invariance, calibration, confidence, and important slices—not only aggregate metrics [N98:P201] [N98:P202] [N98:P203] [N98:P205].
+• Goal: choose a reproducible, deployable model against objectives and constraints [N99:P208].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N89</td><td>Chapter 6. Model Development and Offline Evaluation</td><td>169</td><td>required</td></tr><tr><td>N91</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Evaluating ML Models</td><td>170</td><td>required</td></tr><tr><td>N92</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Ensembles</td><td>176</td><td>required</td></tr><tr><td>N93</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Experiment Tracking and Versioning</td><td>182</td><td>required</td></tr><tr><td>N94</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: Distributed Training</td><td>188, 190, 191</td><td>required</td></tr><tr><td>N95</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Development and Training :: AutoML</td><td>192</td><td>required</td></tr><tr><td>N96</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation</td><td>198</td><td>required</td></tr><tr><td>N97</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Baselines</td><td>200</td><td>required</td></tr><tr><td>N98</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods</td><td>201, 202, 203, 205</td><td>required</td></tr><tr><td>N99</td><td>Chapter 6. Model Development and Offline Evaluation :: Summary</td><td>208</td><td>supporting</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article><article id="mt-011-t4" class="turn"
+ data-route="retrieval_qa" data-search="mt-011-t4 how do those evaluation practices connect to business objectives from chapter 2? chapter 2 says an ml metric matters only when it can be tied to a business result such as revenue, cost, engagement, or customer outcomes, and often that link must be tested experimentally [n22:p46] [n22:p47]. chapter 6 supplies the technical gate: compare against meaningful baselines [n97:p200], then check robustness, calibration, confidence, and performance on critical slices before trusting a candidate [n98:p201] [n98:p205]. together, they imply that model selection should use technically sound evidence while the final decision is based on whether the candidate improves the intended business metric without hiding unacceptable subgroup or critical-slice failures [n98:p206] [n98:p207].">
+<h3>mt-011-t4: How do those evaluation practices connect to business objectives from Chapter 2?</h3>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
+<dt>History</dt><dd>dependent</dd>
+<dt>Standalone query</dt><dd>How do Chapter 6 offline evaluation practices connect to the business objectives in Chapter 2?</dd>
+<dt>Scope</dt><dd>global</dd></dl>
+<h4>Reference answer</h4><p>Chapter 2 says an ML metric matters only when it can be tied to a business result such as revenue, cost, engagement, or customer outcomes, and often that link must be tested experimentally [N22:P46] [N22:P47]. Chapter 6 supplies the technical gate: compare against meaningful baselines [N97:P200], then check robustness, calibration, confidence, and performance on critical slices before trusting a candidate [N98:P201] [N98:P205]. Together, they imply that model selection should use technically sound evidence while the final decision is based on whether the candidate improves the intended business metric without hiding unacceptable subgroup or critical-slice failures [N98:P206] [N98:P207].</p>
+<h4>Expected evidence</h4><table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N22</td><td>Chapter 2. Introduction to Machine Learning Systems Design :: Business and ML Objectives</td><td>46, 47</td><td>required</td></tr><tr><td>N97</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Baselines</td><td>199, 200</td><td>supporting</td></tr><tr><td>N98</td><td>Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods</td><td>201, 205, 206, 207</td><td>required</td></tr></tbody></table>
+<details><summary>Near misses</summary>
+<p>None</p></details>
+</article></section>
+<script>const s=document.querySelector('#search'),r=document.querySelector('#route');
+function f(){const q=s.value.toLowerCase();document.querySelectorAll('.turn').forEach(x=>
+x.hidden=(r.value&&x.dataset.route!==r.value)||(q&&!x.dataset.search.includes(q)));}
+s.oninput=f;r.onchange=f;</script></body></html>

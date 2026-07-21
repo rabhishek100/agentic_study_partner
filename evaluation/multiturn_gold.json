@@ -1,0 +1,1003 @@
+{
+  "schema_version": "1.0.0",
+  "set_id": "designing-ml-systems-multiturn-v1",
+  "status": "frozen",
+  "dataset_tier": "synthetic_model_adjudicated",
+  "created_on": "2026-07-20",
+  "frozen_on": "2026-07-20",
+  "purpose": "Frozen model-adjudicated synthetic evaluation conversations for testing history dependence, hierarchy routing, scope carryover, retrieval, abstention, reference-answer transformations, and citation grounding before multi-turn implementation.",
+  "provenance": {
+    "dataset_origin": "synthetic",
+    "generation_method": "Model-generated from canonical SQLite evidence and independently model-reviewed.",
+    "canonical_database": "data/books.sqlite3",
+    "source_file_sha256": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+    "parser_version": "toc-hi-res-v1",
+    "human_verified": false,
+    "review_type": "separate-context model review",
+    "limitations": [
+      "The reviewers are AI subagents, not human judges.",
+      "Reviewer model identities were not selectable or independently verifiable.",
+      "Reviewers may share correlated model-family biases.",
+      "Reference prose is a semantic target and must not be graded by exact string match."
+    ]
+  },
+  "book": {
+    "database_book_id": 1,
+    "title": "Designing Machine Learning Systems",
+    "author": "Huyen, Chip;",
+    "display_author": "Chip Huyen",
+    "source_filename": "designing.machine.learning.systems.pdf",
+    "source_file_sha256": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+    "parser_version": "toc-hi-res-v1"
+  },
+  "judgment_unit": "toc_node_and_pdf_page",
+  "page_reference": "source_pdf_page_number",
+  "citation_format": "[N<node_id>:P<pdf_page>]",
+  "hierarchy_reference_format": "[node <node_id>, PDF p. <page>]",
+  "judgment_policy": {
+    "reference_answers": "Concise grounded targets, not exact-string generation requirements.",
+    "required_evidence": "Every required node must be available to the answering step; additional relevant evidence is allowed.",
+    "history_dependence": "Dependent means the current utterance cannot be interpreted faithfully without prior turns.",
+    "scope_behavior": {
+      "hard_filter": "Use the complete explicitly resolved hierarchy subtree.",
+      "prefer_scope": "Search the inherited scope first and broaden only if evidence is insufficient.",
+      "global": "Search the selected book without inheriting the prior hierarchy filter.",
+      "reuse_prior_answer": "Transform the previously validated answer without treating it as new book evidence.",
+      "clarify": "Do not retrieve or answer until the missing conversational referent is supplied."
+    },
+    "route_labels": "Expected routes are workflow terminal routes; abstain and clarify include the sufficiency outcome rather than naming a retrieval backend.",
+    "standalone_query": "The expected standalone query is a semantic reference. Score preservation of required concepts and absence of added assumptions, not exact wording.",
+    "retrieval_query_policy": "Version 1 expects the same faithful standalone meaning for BM25 and vector retrieval, no query expansion, and no hypothetical-answer or HyDE search."
+  },
+  "review": {
+    "status": "model_adjudicated",
+    "method": "Synthetic candidates grounded in canonical SQLite, followed by deterministic validation and independent reviewer decisions.",
+    "model_selection_note": "The subagent runtime does not expose a selectable model identity; reviewer roles are recorded without an unverifiable model claim.",
+    "reviewers": [
+      {
+        "reviewer_id": "content_reviewer",
+        "context_id": "separate-context-content",
+        "review_context": "separate",
+        "role": "evidence_and_citation",
+        "decision": "approve",
+        "reviewed_on": "2026-07-20",
+        "findings": [
+          "Audited all 44 turns against canonical SQLite after correction passes.",
+          "Approved factual support, node/page ownership, near misses, and inline citations."
+        ],
+        "conversation_ids": ["mt-001", "mt-002", "mt-003", "mt-004", "mt-005", "mt-006", "mt-007", "mt-008", "mt-009", "mt-010", "mt-011"],
+        "summary": "Approved all 44 turns after page-level evidence and wording corrections."
+      },
+      {
+        "reviewer_id": "conversation_reviewer",
+        "context_id": "separate-context-conversation",
+        "review_context": "separate",
+        "role": "conversation_routing_and_state",
+        "decision": "approve",
+        "reviewed_on": "2026-07-20",
+        "findings": [
+          "Audited all 44 turns for dependency, scope, route, standalone meaning, and state transitions.",
+          "Approved after correcting the mt-004-t3 dependency edge."
+        ],
+        "conversation_ids": ["mt-001", "mt-002", "mt-003", "mt-004", "mt-005", "mt-006", "mt-007", "mt-008", "mt-009", "mt-010", "mt-011"],
+        "summary": "Approved routing and multi-turn semantics for all 44 turns."
+      },
+      {
+        "reviewer_id": "schema_auditor",
+        "context_id": "separate-context-methodology",
+        "review_context": "separate",
+        "role": "schema_methodology_and_validation",
+        "decision": "approve",
+        "reviewed_on": "2026-07-20",
+        "findings": [
+          "Verified honest synthetic provenance and coverage across all 11 chapters.",
+          "Approved hierarchy, summary coverage, scope and clarification state, review integrity, and transformation-preservation validation."
+        ],
+        "conversation_ids": ["mt-001", "mt-002", "mt-003", "mt-004", "mt-005", "mt-006", "mt-007", "mt-008", "mt-009", "mt-010", "mt-011"],
+        "summary": "Approved the finalized methodology, schema, provenance, and validator."
+      }
+    ],
+    "adjudication": {
+      "decision": "accepted",
+      "adjudicator_id": "root",
+      "rationale": "Accepted after all independent reviewer corrections were applied, each reviewer approved the corrected 44-turn candidate, and deterministic canonical validation passed.",
+      "adjudicated_on": "2026-07-20"
+    }
+  },
+  "conversations": [
+    {
+      "id": "mt-001",
+      "title": "Chapter summary to scoped comparison, then global topic",
+      "category": "summary_followup_and_independent_switch",
+      "tags": ["chapter_summary", "scope_inheritance", "coreference", "global_search"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-001-t1",
+          "user": "Summarize Chapter 3.",
+          "expected_route": "hierarchy_summary",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Summarize Chapter 3: Data Engineering Fundamentals.",
+          "expected_scope": {"kind": "chapter", "node_id": 34},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 34, "pages": [69], "role": "required"},
+            {"node_id": 35, "pages": [70, 71, 72], "role": "required"},
+            {"node_id": 36, "pages": [73], "role": "required"},
+            {"node_id": 38, "pages": [74, 75, 76], "role": "required"},
+            {"node_id": 39, "pages": [77], "role": "required"},
+            {"node_id": 40, "pages": [78], "role": "required"},
+            {"node_id": 41, "pages": [79, 80, 81, 82], "role": "required"},
+            {"node_id": 42, "pages": [83, 84, 85], "role": "required"},
+            {"node_id": 43, "pages": [86], "role": "required"},
+            {"node_id": 45, "pages": [87, 88, 89], "role": "required"},
+            {"node_id": 46, "pages": [90, 91], "role": "required"},
+            {"node_id": 48, "pages": [92], "role": "required"},
+            {"node_id": 49, "pages": [93], "role": "required"},
+            {"node_id": 50, "pages": [94, 95, 96, 97], "role": "required"},
+            {"node_id": 51, "pages": [98], "role": "required"},
+            {"node_id": 52, "pages": [99, 100], "role": "optional_recap"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Chapter 3 builds the data-engineering foundation for production ML: diverse data sources [N35:P70], serialization and access-oriented formats [N36:P73] [N38:P75] [N39:P77], relational and NoSQL data models [N40:P78] [N41:P79] [N42:P83], and the fluid boundary between structured and unstructured data [N43:P86]. It contrasts transactional and analytical storage workloads [N45:P88], explains ETL [N46:P90], and then moves from single-process storage to dataflow through databases, request-driven services, and real-time transports [N48:P92] [N49:P93] [N50:P96]. Batch processing suits historical/static features while stream processing supports low-latency dynamic features [N51:P98]. The chapter introduction and recap connect these choices into one production data layer [N34:P69] [N52:P100]."
+        },
+        {
+          "turn_id": "mt-001-t2",
+          "depends_on_turn_ids": ["mt-001-t1"],
+          "user": "Compare the three dataflow modes.",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Compare data passing through databases, services, and real-time transports in Chapter 3.",
+          "expected_scope": {"kind": "chapter", "node_id": 34},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 48, "pages": [92], "role": "required"},
+            {"node_id": 49, "pages": [93], "role": "required"},
+            {"node_id": 50, "pages": [94, 95, 96, 97], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Database-mediated flow is simple: one process writes and another reads, but both need database access and database I/O can be too slow for strict latency requirements [N48:P92]. Service-mediated flow is request-driven: a remote service receives a REST/RPC-style request and returns data, supporting independently developed microservices but creating synchronous dependencies [N49:P93] [N50:P94]. A real-time transport introduces a broker or event bus so producers broadcast events and consumers subscribe without direct pairwise requests; this reduces service coupling and better suits data-heavy systems [N50:P95] [N50:P96]."
+        },
+        {
+          "turn_id": "mt-001-t3",
+          "depends_on_turn_ids": ["mt-001-t2"],
+          "user": "Which one is better for a data-heavy system with many services, and why?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Which Chapter 3 dataflow mode is better for a data-heavy system with many services, and why?",
+          "expected_scope": {"kind": "chapter", "node_id": 34},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 50, "pages": [95, 96], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "The chapter favors event-driven flow through a real-time transport for data-heavy systems. Direct request-driven communication grows into a complex web as service count increases, while a broker lets each service communicate with the broker rather than every other service [N50:P95]. It explicitly says request-driven architecture works well for logic-heavy systems, whereas event-driven architecture works better for data-heavy ones [N50:P96]."
+        },
+        {
+          "turn_id": "mt-001-t4",
+          "user": "How does reservoir sampling work?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How does reservoir sampling work?",
+          "expected_scope": null,
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 59, "pages": [106], "role": "required"},
+            {"node_id": 60, "pages": [107], "role": "supporting"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Keep the first k stream items in a reservoir. For the nth incoming item, draw i uniformly from 1 through n; if i is at most k, replace reservoir item i, otherwise discard the new item [N59:P106]. This gives each observed item probability k/n of being in the reservoir, so the process can stop at any time with a uniform sample [N60:P107]."
+        }
+      ]
+    },
+    {
+      "id": "mt-002",
+      "title": "Chapter outline to section summary and referential comparison",
+      "category": "hierarchy_navigation",
+      "tags": ["list_sections", "section_summary", "pronoun_resolution", "comparison"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-002-t1",
+          "user": "What sections are present in Chapter 4?",
+          "expected_route": "hierarchy_list",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "List the sections in Chapter 4: Training Data.",
+          "expected_scope": {"kind": "chapter", "node_id": 53},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_outline_node_ids": [54, 61, 65, 68, 72],
+          "expected_evidence": [],
+          "near_miss_evidence": [],
+          "reference_answer": "Chapter 4 contains Sampling [node 54, PDF p. 102], Labeling [node 61, PDF p. 108], Class Imbalance [node 65, PDF p. 122], Data Augmentation [node 68, PDF p. 133], and Summary [node 72, PDF p. 138], with sampling, labeling, imbalance, and augmentation further divided into subsections."
+        },
+        {
+          "turn_id": "mt-002-t2",
+          "depends_on_turn_ids": ["mt-002-t1"],
+          "user": "Summarize its Sampling section.",
+          "expected_route": "hierarchy_summary",
+          "history_dependency": "dependent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Summarize the Sampling section in Chapter 4.",
+          "expected_scope": {"kind": "section", "node_id": 54},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 54, "pages": [102], "role": "required"},
+            {"node_id": 55, "pages": [103], "role": "required"},
+            {"node_id": 57, "pages": [104], "role": "required"},
+            {"node_id": 58, "pages": [105], "role": "required"},
+            {"node_id": 59, "pages": [106], "role": "required"},
+            {"node_id": 60, "pages": [107], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "The section distinguishes nonprobability sampling, whose selection criteria do not give every sample a defined chance [N55:P103], from probability-based methods. It covers simple random and stratified sampling [N57:P104], weighted sampling for unequal selection importance [N58:P105], reservoir sampling for an unknown-length stream [N59:P106], and importance sampling, which samples from an accessible proposal distribution and reweights toward a target distribution [N60:P107]. The section frames sampling as a practical way to obtain useful data when using the full population is infeasible [N54:P102]."
+        },
+        {
+          "turn_id": "mt-002-t3",
+          "depends_on_turn_ids": ["mt-002-t2"],
+          "user": "How does the streaming one maintain a fair sample?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "How does reservoir sampling maintain a uniform sample from an unknown-length stream?",
+          "expected_scope": {"kind": "section", "node_id": 54},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 59, "pages": [106], "role": "required"},
+            {"node_id": 60, "pages": [107], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Reservoir sampling fills k slots with the first k items. For item n it draws i uniformly from 1..n and replaces reservoir slot i only when i ≤ k [N59:P106]. Consequently, both the incoming item and retained items have probability k/n of being present, preserving a uniform sample at every stopping point [N60:P107]."
+        },
+        {
+          "turn_id": "mt-002-t4",
+          "depends_on_turn_ids": ["mt-002-t3"],
+          "user": "How is it different from importance sampling?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Compare reservoir sampling with importance sampling.",
+          "expected_scope": {"kind": "section", "node_id": 54},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 59, "pages": [106], "role": "required"},
+            {"node_id": 60, "pages": [107], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Reservoir sampling selects a fixed-size uniform sample from a stream whose total length is unknown [N59:P106]. Importance sampling addresses a different problem: when target distribution P is expensive or infeasible to sample, draw from proposal Q and weight samples by P(x)/Q(x), provided Q is positive wherever P is nonzero [N60:P107]."
+        }
+      ]
+    },
+    {
+      "id": "mt-003",
+      "title": "Ordinary QA follow-ups followed by an independent topic",
+      "category": "qa_coreference_and_global_switch",
+      "tags": ["retrieval_qa", "coreference", "global_search", "citation"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-003-t1",
+          "user": "What is data leakage?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "What is data leakage in machine learning?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 82, "pages": [155, 156], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Data leakage occurs when information related to the label enters the prediction features even though the same information will not be available at inference time [N82:P156]. It can produce excellent evaluation results while failing after deployment because the model learned an unavailable shortcut rather than the intended signal [N82:P155]."
+        },
+        {
+          "turn_id": "mt-003-t2",
+          "depends_on_turn_ids": ["mt-003-t1"],
+          "user": "How do I prevent the common kinds?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How can common forms of data leakage be prevented?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 83, "pages": [157, 158, 159], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "For time-correlated data, split by time so future conditions do not enter training [N83:P157]. Split before scaling or imputing, then compute statistics only from the training split and apply them to validation and test data [N83:P158]. Detect duplicates before and after splitting, oversample only after the split, and keep strongly correlated groups such as scans from one patient in the same split [N83:P159]."
+        },
+        {
+          "turn_id": "mt-003-t3",
+          "depends_on_turn_ids": ["mt-003-t2"],
+          "user": "How would I detect a subtle one caused by data collection?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How can subtle data leakage caused by the data-generation or collection process be detected?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 84, "pages": [160], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Track data provenance and understand how each source is collected and processed, involving subject-matter experts who know operational differences such as scanning procedures [N84:P160]. Monitor leakage throughout the lifecycle and investigate features or feature combinations with implausibly high predictive power relative to the label [N84:P160]."
+        },
+        {
+          "turn_id": "mt-003-t4",
+          "user": "Now explain quantization.",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "Explain model quantization.",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 113, "pages": [229, 230, 231], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Quantization compresses a model by representing parameters with fewer bits. Moving from 32-bit floats to 16-bit values halves parameter memory, while integer representations can reduce it further [N113:P229]. The chapter presents post-training and quantization-aware approaches and notes that lower precision trades memory and execution advantages against possible accuracy loss [N113:P230] [N113:P231]."
+        }
+      ]
+    },
+    {
+      "id": "mt-004",
+      "title": "Deployment section summary with technical follow-ups",
+      "category": "section_summary_followup",
+      "tags": ["section_summary", "terminology", "scope_inheritance", "independent_switch"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-004-t1",
+          "user": "Summarize Batch Prediction Versus Online Prediction in Chapter 7.",
+          "expected_route": "hierarchy_summary",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Summarize the Batch Prediction Versus Online Prediction section in Chapter 7.",
+          "expected_scope": {"kind": "section", "node_id": 106},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 106, "pages": [217, 218, 219, 220], "role": "required"},
+            {"node_id": 107, "pages": [221, 222], "role": "required"},
+            {"node_id": 108, "pages": [223, 224, 225], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Online prediction generates a response when a request arrives and is optimized for low latency; batch prediction generates predictions periodically, stores them, and is optimized for throughput [N106:P217] [N106:P220]. Online prediction can use only batch features or combine batch and streaming features, so online and streaming are not synonyms [N106:P219]. Batch remains useful when results are not immediately needed or when precomputation avoids slow inference, but it is less responsive and requires anticipated requests [N107:P221] [N107:P222]. Separate batch and streaming feature pipelines can diverge [N108:P224], motivating unified processing or feature-store infrastructure [N108:P225]."
+        },
+        {
+          "turn_id": "mt-004-t2",
+          "depends_on_turn_ids": ["mt-004-t1"],
+          "user": "Does the online mode you just described necessarily use streaming features?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Does online prediction necessarily use streaming features?",
+          "expected_scope": {"kind": "section", "node_id": 106},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 106, "pages": [218, 219, 220], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "No. Online prediction may use only precomputed batch features, such as item embeddings fetched when a request arrives, or it may combine batch and streaming features [N106:P219]. Streaming features specifically come from streaming data; online features include any features used for online prediction [N106:P219]."
+        },
+        {
+          "turn_id": "mt-004-t3",
+          "depends_on_turn_ids": ["mt-004-t2"],
+          "user": "Why can the other mode still reduce the latency users experience?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Why can batch prediction reduce user-perceived inference latency?",
+          "expected_scope": {"kind": "section", "node_id": 106},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 107, "pages": [221, 222], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Batch prediction precomputes outputs and stores them, so serving requires retrieval rather than running the model at request time. Retrieving a stored prediction can be faster than generating one with a complex model [N107:P221] [N107:P222]."
+        },
+        {
+          "turn_id": "mt-004-t4",
+          "user": "What about shadow deployment?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "What is shadow deployment?",
+          "expected_scope": null,
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 140, "pages": [302], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Shadow deployment runs the candidate beside the existing model, sends each request to both, serves only the existing model's prediction, and logs the candidate's predictions for analysis. The candidate replaces the existing model only after its shadow results are satisfactory [N140:P302]."
+        }
+      ]
+    },
+    {
+      "id": "mt-005",
+      "title": "Distribution-shift diagnosis through safe validation",
+      "category": "multi_section_process",
+      "tags": ["paraphrase", "delayed_labels", "scope_chain", "multi_chapter"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-005-t1",
+          "user": "A campaign brings in wealthier users, but conversion at a fixed income is unchanged. What changed?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "What distribution shift occurs when user income distribution changes but conversion conditional on income remains unchanged?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 123, "pages": [258, 259], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "This is covariate shift: the input distribution P(X) changes while the conditional relationship P(Y|X) remains the same. The chapter uses the marketing example where the new population has higher income but people at the same income retain the same purchase probability [N123:P258] [N123:P259]."
+        },
+        {
+          "turn_id": "mt-005-t2",
+          "depends_on_turn_ids": ["mt-005-t1"],
+          "user": "How can I detect a meaningful problem if labels arrive late?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How can meaningful production distribution change be detected when ground-truth labels are delayed?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 125, "pages": [262, 263, 264], "role": "required"},
+            {"node_id": 128, "pages": [272, 273, 274, 275], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "When labels lag, direct accuracy monitoring also lags, so compare recent inputs or features with a reference distribution using summary statistics and statistical tests [N125:P262] [N125:P264]. Prediction distributions can act as a low-dimensional proxy for input change, and schema/feature validation can expose invalid ranges or categories [N128:P272] [N128:P273]. Treat these as signals rather than proof of performance loss because many feature shifts are benign and excessive alerts cause fatigue [N128:P274] [N128:P275]."
+        },
+        {
+          "turn_id": "mt-005-t3",
+          "depends_on_turn_ids": ["mt-005-t2"],
+          "user": "Should every one of those detected shifts trigger retraining?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "Should every detected data distribution shift trigger model retraining?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 126, "pages": [268, 269], "role": "required"},
+            {"node_id": 138, "pages": [299, 300], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "No. Some teams retrain periodically, but the optimal schedule should be determined experimentally rather than from every noisy shift alert [N126:P268]. Retraining choices include starting from scratch or continuing from a checkpoint and selecting an appropriate data window [N126:P269]. Update triggers may use schedules, performance degradation, or drift, but noisy monitoring can cause unnecessary updates, so the trigger should reflect model and business impact [N138:P299] [N138:P300]."
+        },
+        {
+          "turn_id": "mt-005-t4",
+          "depends_on_turn_ids": ["mt-005-t3"],
+          "user": "And how can I validate the candidate without exposing its predictions to users?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How can an updated model be validated in production without serving its predictions to users?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 140, "pages": [302], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Use shadow deployment: run the candidate in parallel, route real requests to both models, serve only the existing model, and log candidate outputs for comparison. Promote it only after the logged behavior is satisfactory [N140:P302]."
+        }
+      ]
+    },
+    {
+      "id": "mt-006",
+      "title": "Revision flow inside continual learning",
+      "category": "revision_and_scoped_followups",
+      "tags": ["revision", "section_summary", "scope_inheritance", "operational_tradeoffs"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-006-t1",
+          "user": "Help me revise the Continual Learning section in Chapter 9.",
+          "expected_route": "hierarchy_summary",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Create a revision summary of the Continual Learning section in Chapter 9.",
+          "expected_scope": {"kind": "section", "node_id": 133},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 133, "pages": [284], "role": "required"},
+            {"node_id": 134, "pages": [285, 286, 287], "role": "required"},
+            {"node_id": 135, "pages": [288, 289], "role": "required"},
+            {"node_id": 136, "pages": [290, 291, 292, 293], "role": "required"},
+            {"node_id": 137, "pages": [294, 295, 296, 297, 298], "role": "required"},
+            {"node_id": 138, "pages": [299, 300], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "The section frames production updates through evaluated micro-batches and a champion/challenger process [N133:P284]. Continual learning is infrastructure that lets teams update models when needed, not a requirement to retrain every few minutes [N134:P285] [N134:P287]. Stateful training continues from the previous model state, often using less fresh data and compute than stateless retraining, though architecture changes may still require starting over [N134:P285] [N134:P287]. It matters when models must adapt quickly to changing users or environments [N135:P288]. The main obstacles are access to fresh labeled data, safe evaluation of frequent updates, and algorithm limitations [N136:P290] [N136:P292] [N136:P293]. A mature system progresses through increasing automation and deployment capability [N137:P294] [N137:P298], while update frequency remains an empirical decision based on value, decay, and operational cost [N138:P299]."
+        },
+        {
+          "turn_id": "mt-006-t2",
+          "depends_on_turn_ids": ["mt-006-t1"],
+          "user": "What does the stateful option add over starting from scratch?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "What advantages and limitations does stateful training have compared with stateless retraining?",
+          "expected_scope": {"kind": "section", "node_id": 133},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 134, "pages": [285, 286, 287], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Stateful training continues from the last checkpoint instead of rebuilding from scratch. It can converge with less new data and compute, and may avoid permanently storing samples that are used once for an update [N134:P285] [N134:P286]. Teams may still periodically train from scratch for calibration, and model-architecture or feature changes generally still require stateless training [N134:P287]."
+        },
+        {
+          "turn_id": "mt-006-t3",
+          "depends_on_turn_ids": ["mt-006-t1"],
+          "user": "What are the three hardest operational parts?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "What are the three major continual-learning challenges?",
+          "expected_scope": {"kind": "section", "node_id": 133},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 136, "pages": [290, 291, 292, 293], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "The three challenges are fresh data access, evaluation, and algorithms [N136:P290]. Fresh updates require timely data and labels, often with streaming label computation [N136:P291]. Every update must be evaluated safely despite delay and attack risk [N136:P292]. Some matrix- and tree-based algorithms are also difficult to update at very high frequency [N136:P293]."
+        },
+        {
+          "turn_id": "mt-006-t4",
+          "depends_on_turn_ids": ["mt-006-t1"],
+          "user": "So how often should the model update?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "How should a team decide how often to update a continually learned model?",
+          "expected_scope": {"kind": "section", "node_id": 133},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 138, "pages": [299, 300], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "There is no universal interval. Treat frequency as a tunable decision based on how quickly the model decays, how much fresh data arrives, whether an update produces measurable value, and the cost and risk of evaluation and deployment [N138:P299]. Scheduled and drift-triggered updates need safeguards because noisy signals can cause unnecessary retraining [N138:P299]. The value of fresher data can be estimated by training on different historical windows and evaluating on current data [N138:P300]."
+        }
+      ]
+    },
+    {
+      "id": "mt-007",
+      "title": "Infrastructure hierarchy with an unsupported purchase decision",
+      "category": "hierarchy_then_unanswerable",
+      "tags": ["list_sections", "section_summary", "comparison", "abstention"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-007-t1",
+          "user": "What sections are in Chapter 10?",
+          "expected_route": "hierarchy_list",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "List the sections in Chapter 10: Infrastructure and Tooling for MLOps.",
+          "expected_scope": {"kind": "chapter", "node_id": 146},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_outline_node_ids": [147, 149, 153, 156, 160, 161],
+          "expected_evidence": [],
+          "near_miss_evidence": [],
+          "reference_answer": "Chapter 10 contains Storage and Compute [node 147, PDF p. 317], Development Environment [node 149, PDF p. 322], Resource Management [node 153, PDF p. 331], ML Platform [node 156, PDF p. 339], Build Versus Buy [node 160, PDF p. 347], and Summary [node 161, PDF p. 349]."
+        },
+        {
+          "turn_id": "mt-007-t2",
+          "depends_on_turn_ids": ["mt-007-t1"],
+          "user": "Summarize the Feature Store subsection in that chapter.",
+          "expected_route": "hierarchy_summary",
+          "history_dependency": "dependent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Summarize the Feature Store subsection in Chapter 10.",
+          "expected_scope": {"kind": "section", "node_id": 159},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 159, "pages": [345, 346], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "A feature store is presented as addressing three problems: feature management, feature computation, and feature consistency [N159:P345] [N159:P346]. It can help teams discover and share features and compute and store reusable feature values [N159:P346]."
+        },
+        {
+          "turn_id": "mt-007-t3",
+          "depends_on_turn_ids": ["mt-007-t2"],
+          "user": "How is it different from a model store?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Compare a feature store with a model store in an ML platform.",
+          "expected_scope": {"kind": "section", "node_id": 159},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 158, "pages": [342, 343], "role": "required"},
+            {"node_id": 159, "pages": [345, 346], "role": "required"},
+            {"node_id": 160, "pages": [347], "role": "supporting"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "A model store manages model artifacts and the information needed to reproduce, compare, and debug model versions [N158:P342] [N158:P343]. A feature store manages reusable feature definitions, computation, and access [N159:P345] [N159:P346], while shared feature logic supports consistency between training and serving [N160:P347]. One centers the model lifecycle; the other centers the data features consumed by models."
+        },
+        {
+          "turn_id": "mt-007-t4",
+          "depends_on_turn_ids": ["mt-007-t2"],
+          "user": "Given what this section says, which feature-store vendor should I buy?",
+          "expected_route": "abstain",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Which feature-store vendor should be purchased for this project?",
+          "expected_scope": {"kind": "section", "node_id": 159},
+          "state_update": "retain",
+          "answerable": false,
+          "expected_evidence": [],
+          "near_miss_evidence": [
+            {"node_id": 159, "pages": [345, 346], "reason_not_sufficient": "Explains feature-store capabilities but does not rank current vendors."},
+            {"node_id": 160, "pages": [347, 348], "reason_not_sufficient": "Discusses build-versus-buy considerations without selecting a vendor for the user's current requirements."}
+          ],
+          "reference_answer": "The book does not provide enough current, project-specific evidence to recommend a feature-store vendor. It explains feature-store responsibilities and general build-versus-buy considerations, but a purchase decision requires current products, workload requirements, integration constraints, and pricing that are outside this evidence."
+        }
+      ]
+    },
+    {
+      "id": "mt-008",
+      "title": "Responsible-AI answer followed by answer transformation",
+      "category": "qa_and_transform",
+      "tags": ["responsible_ai", "independent_switch", "transform", "citation_preservation"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-008-t1",
+          "user": "What should a responsible-AI audit cover before deployment?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "What should a responsible-AI audit cover before model deployment?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 172, "pages": [367, 368, 369, 370, 371, 372], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Audit how bias can enter through training data, labeling, features, objectives, and evaluation, including subgroup and disparate-impact analysis [N172:P367] [N172:P368]. Examine the limits of a purely data-driven approach and involve affected domains and lived experience [N172:P369]. Make trade-offs such as privacy versus accuracy and compression versus fairness explicit, address risks early, and document intended use, evaluation, limitations, ethical considerations, and recommendations in a model card [N172:P370] [N172:P371] [N172:P372]."
+        },
+        {
+          "turn_id": "mt-008-t2",
+          "depends_on_turn_ids": ["mt-008-t1"],
+          "user": "What exactly should go into that document?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "What information should a model card contain?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 172, "pages": [370, 371, 372], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "A model card should cover model details and provenance, intended and out-of-scope uses, relevant factors and evaluation factors, metrics and thresholds, evaluation and training data, quantitative results including intersectional results, ethical considerations, caveats, and recommendations [N172:P370] [N172:P371] [N172:P372]."
+        },
+        {
+          "turn_id": "mt-008-t3",
+          "user": "What if the model's predictions are only mostly correct?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How should a product handle model predictions that are mostly correct but sometimes wrong?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 165, "pages": [352, 353], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Mostly-correct outputs are useful when users can recognize and cheaply correct errors, such as an operator editing a drafted support reply [N165:P352]. They are less useful when users lack the expertise to identify or repair failures. One mitigation is to present multiple diverse candidates in a form nonexperts can evaluate, increasing the chance that at least one is usable [N165:P353]."
+        },
+        {
+          "turn_id": "mt-008-t4",
+          "depends_on_turn_ids": ["mt-008-t3"],
+          "user": "Make that answer one sentence.",
+          "expected_route": "prior_answer_transform",
+          "history_dependency": "dependent",
+          "scope_behavior": "reuse_prior_answer",
+          "expected_standalone_query": null,
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 165, "pages": [352, 353], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Mostly-correct predictions help when users can detect and fix errors; otherwise, present several interpretable alternatives so a nonexpert can choose a usable result [N165:P352] [N165:P353]."
+        }
+      ]
+    },
+    {
+      "id": "mt-009",
+      "title": "Ambiguous ordinal reference followed by clarification",
+      "category": "clarification_and_coreference",
+      "tags": ["ambiguity", "clarification", "ordinal_reference", "scope_resolution"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-009-t1",
+          "user": "Explain the second approach.",
+          "expected_route": "clarify",
+          "history_dependency": "ambiguous",
+          "scope_behavior": "clarify",
+          "expected_standalone_query": null,
+          "expected_scope": null,
+          "state_update": "none",
+          "pending_clarification_update": "set",
+          "answerable": false,
+          "expected_evidence": [],
+          "near_miss_evidence": [],
+          "reference_answer": "Which list or topic do you mean by “the second approach”? Please name the chapter, section, or approaches you are referring to."
+        },
+        {
+          "turn_id": "mt-009-t2",
+          "user": "I mean the second dataflow mode in Chapter 3.",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Explain data passing through services, the second dataflow mode in Chapter 3.",
+          "expected_scope": {"kind": "chapter", "node_id": 34},
+          "state_update": "set_active_scope",
+          "pending_clarification_update": "clear",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 48, "pages": [92], "role": "supporting"},
+            {"node_id": 49, "pages": [93], "role": "required"},
+            {"node_id": 50, "pages": [94], "role": "supporting"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "The second mode is data passing through services. Process A sends a request specifying the data it needs to remotely accessible process B, which returns the result; this is request-driven communication and commonly uses REST or RPC [N49:P93] [N50:P94]. The ordering comes from the chapter's three-mode list [N48:P92]."
+        },
+        {
+          "turn_id": "mt-009-t3",
+          "depends_on_turn_ids": ["mt-009-t2"],
+          "user": "Compare it with the first one.",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Compare data passing through services with data passing through databases in Chapter 3.",
+          "expected_scope": {"kind": "chapter", "node_id": 34},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 48, "pages": [92], "role": "required"},
+            {"node_id": 49, "pages": [93], "role": "required"},
+            {"node_id": 50, "pages": [95], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "With a database, A writes shared state and B reads it; this is simple but requires shared database access and incurs database I/O [N48:P92]. With services, A directly requests data over a network from B, which exposes a remote interface and supports independently maintained services [N49:P93]. Request-driven availability remains synchronous: if a target service is down, callers can block or time out [N50:P95]."
+        },
+        {
+          "turn_id": "mt-009-t4",
+          "depends_on_turn_ids": ["mt-009-t3"],
+          "user": "Why is the first one weak for latency-sensitive consumer applications?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "prefer_scope",
+          "expected_standalone_query": "Why is database-mediated dataflow weak for latency-sensitive consumer applications?",
+          "expected_scope": {"kind": "chapter", "node_id": 34},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 48, "pages": [92], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Both processes must be able to access the same database, and database reads and writes can be slow; those constraints make database-mediated flow unsuitable for applications with strict latency requirements [N48:P92]."
+        }
+      ]
+    },
+    {
+      "id": "mt-010",
+      "title": "Unanswerable follow-ups and recovery to supported evidence",
+      "category": "abstention_and_recovery",
+      "tags": ["unanswerable", "near_miss", "recovery", "time_sensitive"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-010-t1",
+          "user": "How should I choose LoRA rank and target modules for a transformer?",
+          "expected_route": "abstain",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How should LoRA rank and target modules be selected for transformer fine-tuning?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": false,
+          "expected_evidence": [],
+          "near_miss_evidence": [
+            {"node_id": 110, "pages": [226, 227], "reason_not_sufficient": "Discusses low-rank factorization for model compression, not LoRA fine-tuning or target-module selection."}
+          ],
+          "reference_answer": "The book does not contain enough evidence to answer how to select LoRA rank or transformer target modules. Its low-rank discussion concerns model compression rather than Low-Rank Adaptation fine-tuning."
+        },
+        {
+          "turn_id": "mt-010-t2",
+          "depends_on_turn_ids": ["mt-010-t1"],
+          "user": "Could the low-rank factorization section answer it?",
+          "expected_route": "abstain",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "Does the book's low-rank factorization section explain LoRA rank and target-module selection?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": false,
+          "expected_evidence": [],
+          "near_miss_evidence": [
+            {"node_id": 110, "pages": [226, 227], "reason_not_sufficient": "The shared phrase low-rank does not make compression guidance evidence for LoRA configuration."}
+          ],
+          "reference_answer": "No. That section explains decomposing model tensors for compression; it does not discuss LoRA adapters, transformer target modules, or how to choose a LoRA rank."
+        },
+        {
+          "turn_id": "mt-010-t3",
+          "depends_on_turn_ids": ["mt-010-t2"],
+          "user": "Then what does that section actually cover?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "What does the Low-Rank Factorization subsection in Chapter 7 cover?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 110, "pages": [226, 227], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "The section presents low-rank factorization as replacing high-dimensional tensors with lower-dimensional tensors to reduce parameters and increase speed [N110:P226]. Its examples include compact convolutional filters, SqueezeNet, and MobileNet's depthwise-plus-pointwise decomposition [N110:P227]."
+        },
+        {
+          "turn_id": "mt-010-t4",
+          "user": "What is the exact current hourly SageMaker price for the recommended deployment instance?",
+          "expected_route": "abstain",
+          "history_dependency": "independent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "What is the exact current hourly SageMaker price for the book's recommended deployment instance?",
+          "expected_scope": null,
+          "state_update": "none",
+          "answerable": false,
+          "expected_evidence": [],
+          "near_miss_evidence": [
+            {"node_id": 107, "pages": [221], "reason_not_sufficient": "Mentions SageMaker endpoints but gives no current pricing or instance recommendation."},
+            {"node_id": 157, "pages": [340], "reason_not_sufficient": "Lists SageMaker as a deployment service without current prices."}
+          ],
+          "reference_answer": "The static book cannot support an exact current SageMaker price, and it does not prescribe a single deployment instance for this request. Current pricing and a workload-specific instance choice require external, time-sensitive evidence."
+        }
+      ]
+    },
+    {
+      "id": "mt-011",
+      "title": "Explicit chapter switches, revision, and cross-chapter synthesis",
+      "category": "scope_switch_and_cross_chapter_synthesis",
+      "tags": ["chapter_summary", "explicit_scope_switch", "transform", "cross_chapter"],
+      "review_status": "accepted",
+      "turns": [
+        {
+          "turn_id": "mt-011-t1",
+          "user": "Summarize Chapter 1.",
+          "expected_route": "hierarchy_summary",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Summarize Chapter 1: Overview of Machine Learning Systems.",
+          "expected_scope": {"kind": "chapter", "node_id": 14},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 14, "pages": [21, 22], "role": "required"},
+            {"node_id": 15, "pages": [23, 24, 25, 26, 27, 28], "role": "required"},
+            {"node_id": 16, "pages": [29, 30, 31], "role": "required"},
+            {"node_id": 18, "pages": [32, 33, 34, 35, 36, 37, 38, 39, 40, 41], "role": "required"},
+            {"node_id": 19, "pages": [42], "role": "required"},
+            {"node_id": 20, "pages": [43], "role": "optional_recap"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Chapter 1 frames a production ML system as much more than an algorithm: it also includes business requirements, interfaces, data, development and monitoring logic, and infrastructure [N14:P21] [N14:P22]. It gives criteria for deciding when ML is appropriate—learnable complex patterns, usable data, a predictive task, and sufficiently stable train-to-production assumptions [N15:P24] [N15:P25] [N15:P26]—while warning that simpler, unethical, or uneconomic uses should be rejected [N15:P28]. It surveys consumer and enterprise applications [N16:P29], then explains why production differs from research through conflicting stakeholder requirements, latency/throughput priorities, and messy shifting production data [N18:P33] [N18:P36] [N18:P39]. Unlike traditional software, ML behavior is learned from data, so failures can occur without code changes and testing must cover both code and data [N19:P42]. The recap presents this as the foundation for designing deployable ML systems [N20:P43]."
+        },
+        {
+          "turn_id": "mt-011-t2",
+          "user": "Now summarize Chapter 6.",
+          "expected_route": "hierarchy_summary",
+          "history_dependency": "independent",
+          "scope_behavior": "hard_filter",
+          "expected_standalone_query": "Summarize Chapter 6: Model Development and Offline Evaluation.",
+          "expected_scope": {"kind": "chapter", "node_id": 89},
+          "state_update": "set_active_scope",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 89, "pages": [169], "role": "required"},
+            {"node_id": 91, "pages": [170, 171, 172, 173, 174, 175], "role": "required"},
+            {"node_id": 92, "pages": [176, 177, 178, 179, 180, 181], "role": "required"},
+            {"node_id": 93, "pages": [182, 183, 184, 185, 186, 187], "role": "required"},
+            {"node_id": 94, "pages": [188, 189, 190, 191], "role": "required"},
+            {"node_id": 95, "pages": [192, 193, 194, 195, 196, 197], "role": "required"},
+            {"node_id": 96, "pages": [198], "role": "required"},
+            {"node_id": 97, "pages": [199, 200], "role": "required"},
+            {"node_id": 98, "pages": [201, 202, 203, 204, 205, 206, 207], "role": "required"},
+            {"node_id": 99, "pages": [208, 209], "role": "optional_recap"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Chapter 6 treats model development as an iterative choice among algorithms under task, data, compute, and production constraints [N89:P169] [N91:P170]. It covers ensembles as a possible accuracy boost with added deployment complexity [N92:P176], and stresses experiment tracking and versioning so runs can be compared and reproduced [N93:P182]. For scale, it introduces data, model, and pipeline parallelism [N94:P188] [N94:P190] [N94:P191], while AutoML can automate parts of model and hyperparameter search [N95:P192]. Offline evaluation should progress from non-ML and simple-model baselines toward complex models only when justified [N96:P198], because metrics require meaningful baselines [N97:P200]. Production-oriented checks go beyond aggregate accuracy to perturbation, invariance, directional expectations, calibration, confidence, and slice-based evaluation [N98:P201] [N98:P202] [N98:P203] [N98:P205]. The recap emphasizes selection against objectives and constraints [N99:P208], plus reproducible experimentation, scalable training, meaningful baselines, and predeployment sanity checks [N99:P209]."
+        },
+        {
+          "turn_id": "mt-011-t3",
+          "depends_on_turn_ids": ["mt-011-t2"],
+          "user": "Turn that Chapter 6 summary into a concise revision sheet.",
+          "expected_route": "prior_answer_transform",
+          "history_dependency": "dependent",
+          "scope_behavior": "reuse_prior_answer",
+          "expected_standalone_query": null,
+          "expected_scope": {"kind": "chapter", "node_id": 89},
+          "state_update": "retain",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 89, "pages": [169], "role": "required"},
+            {"node_id": 91, "pages": [170], "role": "required"},
+            {"node_id": 92, "pages": [176], "role": "required"},
+            {"node_id": 93, "pages": [182], "role": "required"},
+            {"node_id": 94, "pages": [188, 190, 191], "role": "required"},
+            {"node_id": 95, "pages": [192], "role": "required"},
+            {"node_id": 96, "pages": [198], "role": "required"},
+            {"node_id": 97, "pages": [200], "role": "required"},
+            {"node_id": 98, "pages": [201, 202, 203, 205], "role": "required"},
+            {"node_id": 99, "pages": [208], "role": "supporting"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Revision sheet — Chapter 6:\n• Select models against the task, constraints, and production needs; development is iterative [N89:P169] [N91:P170].\n• Ensembles can improve performance but increase operational complexity [N92:P176].\n• Track and version experiments for comparison and reproducibility [N93:P182].\n• Scale training with data, model, or pipeline parallelism [N94:P188] [N94:P190] [N94:P191]; AutoML automates parts of search [N95:P192].\n• Start evaluation with non-ML and simple-model baselines before earning complexity [N96:P198] [N97:P200].\n• Test robustness, fairness-related invariance, calibration, confidence, and important slices—not only aggregate metrics [N98:P201] [N98:P202] [N98:P203] [N98:P205].\n• Goal: choose a reproducible, deployable model against objectives and constraints [N99:P208]."
+        },
+        {
+          "turn_id": "mt-011-t4",
+          "depends_on_turn_ids": ["mt-011-t3"],
+          "user": "How do those evaluation practices connect to business objectives from Chapter 2?",
+          "expected_route": "retrieval_qa",
+          "history_dependency": "dependent",
+          "scope_behavior": "global",
+          "expected_standalone_query": "How do Chapter 6 offline evaluation practices connect to the business objectives in Chapter 2?",
+          "expected_scope": null,
+          "state_update": "clear",
+          "answerable": true,
+          "expected_evidence": [
+            {"node_id": 22, "pages": [46, 47], "role": "required"},
+            {"node_id": 97, "pages": [199, 200], "role": "supporting"},
+            {"node_id": 98, "pages": [201, 205, 206, 207], "role": "required"}
+          ],
+          "near_miss_evidence": [],
+          "reference_answer": "Chapter 2 says an ML metric matters only when it can be tied to a business result such as revenue, cost, engagement, or customer outcomes, and often that link must be tested experimentally [N22:P46] [N22:P47]. Chapter 6 supplies the technical gate: compare against meaningful baselines [N97:P200], then check robustness, calibration, confidence, and performance on critical slices before trusting a candidate [N98:P201] [N98:P205]. Together, they imply that model selection should use technically sound evidence while the final decision is based on whether the candidate improves the intended business metric without hiding unacceptable subgroup or critical-slice failures [N98:P206] [N98:P207]."
+        }
+      ]
+    }
+  ]
+}

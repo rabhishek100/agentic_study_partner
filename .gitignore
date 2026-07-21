@@ -8,9 +8,27 @@ wheels/
 
 # Virtual environments
 .venv
+.env
 
 # Editor
 .vscode/
+.DS_Store
+
+# Frontend and browser-check artifacts
+node_modules/
+frontend/.next/
+frontend/.env.local
+.vercel/
+output/
 
 # Source materials (large/copyrighted files)
 sources/
+
+# Generated parser and database artifacts
+cache/
+data/*.sqlite3
+data/*.sqlite3-shm
+data/*.sqlite3-wal
+data/chroma/
+outputs/
+evaluation/runs/

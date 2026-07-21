@@ -1,0 +1,441 @@
+{
+  "schema_version": "0.1.0",
+  "set_id": "designing-ml-systems-retrieval-seed-v0.1",
+  "created_on": "2026-07-18",
+  "purpose": "Seed judgments for evaluating chunking and BM25 retrieval before building answer generation.",
+  "book": {
+    "database_book_id": 1,
+    "title": "Designing Machine Learning Systems",
+    "author": "Chip Huyen",
+    "source_filename": "designing.machine.learning.systems.pdf",
+    "source_file_sha256": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+    "parser_version": "toc-hi-res-v1"
+  },
+  "judgment_unit": "toc_node",
+  "page_reference": "source_pdf_page_number",
+  "relevance_definition": "A node is relevant when its content would be used as evidence in a grounded answer to the question.",
+  "questions": [
+    {
+      "id": "ret-001",
+      "query": "How does reservoir sampling maintain a sample of k items when the total number of streaming items is unknown?",
+      "category": "exact_term",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 59,
+          "path": "Chapter 4. Training Data :: Sampling :: Reservoir Sampling",
+          "pages": [
+            106
+          ],
+          "role": "required",
+          "evidence_summary": "Defines reservoir sampling for streaming data and gives the replacement procedure for maintaining k samples."
+        }
+      ],
+      "retrieval_challenge": "The query uses the section's exact terminology and should be straightforward for lexical retrieval."
+    },
+    {
+      "id": "ret-002",
+      "query": "What are the main differences between batch prediction and online prediction in timing, suitable use cases, and optimization goals?",
+      "category": "exact_term",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text",
+        "table"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 106,
+          "path": "Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction",
+          "pages": [
+            217,
+            218,
+            219,
+            220
+          ],
+          "role": "required",
+          "evidence_summary": "Defines synchronous online and asynchronous batch prediction; Table 7-1 contrasts their frequency, use cases, throughput, and latency priorities."
+        }
+      ],
+      "retrieval_challenge": "The strongest compact evidence is a table, so placeholder-only indexing should fail this question."
+    },
+    {
+      "id": "ret-003",
+      "query": "Compare weak supervision, semi-supervision, transfer learning, and active learning by how they obtain labels and whether they require ground-truth examples.",
+      "category": "exact_term",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text",
+        "table"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 64,
+          "path": "Chapter 4. Training Data :: Labeling :: Handling the Lack of Labels",
+          "pages": [
+            114,
+            115,
+            116,
+            118,
+            119,
+            120
+          ],
+          "role": "required",
+          "evidence_summary": "Introduces all four approaches and tabulates how each generates labels and its ground-truth requirements."
+        }
+      ],
+      "retrieval_challenge": "A complete answer needs a comparison represented most compactly in a flattened table."
+    },
+    {
+      "id": "ret-004",
+      "query": "What is data leakage, and how can leakage caused by time-correlated splits, preprocessing statistics, or related examples be prevented?",
+      "category": "exact_term",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 82,
+          "path": "Chapter 5. Feature Engineering :: Data Leakage",
+          "pages": [
+            155,
+            156
+          ],
+          "role": "required",
+          "evidence_summary": "Defines leakage as label information entering features despite being unavailable at inference and explains why it causes misleading evaluation."
+        },
+        {
+          "node_id": 83,
+          "path": "Chapter 5. Feature Engineering :: Data Leakage :: Common Causes for Data Leakage",
+          "pages": [
+            157,
+            158,
+            159
+          ],
+          "role": "required",
+          "evidence_summary": "Covers time-based splitting, fitting preprocessing only on training statistics, and keeping correlated groups within one split."
+        }
+      ],
+      "retrieval_challenge": "The definition and the requested prevention measures occur in adjacent but distinct hierarchy nodes."
+    },
+    {
+      "id": "ret-005",
+      "query": "How does shadow deployment evaluate a candidate model without exposing users to its predictions?",
+      "category": "exact_term",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 140,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment",
+          "pages": [
+            302
+          ],
+          "role": "required",
+          "evidence_summary": "Routes each request to both existing and candidate models, serves only the existing model, and logs candidate predictions for analysis."
+        }
+      ],
+      "retrieval_challenge": "A direct named-concept lookup that acts as a lexical sanity check."
+    },
+    {
+      "id": "ret-006",
+      "query": "Two cancer classifiers both report 90% overall accuracy, but one detects only 10 of 100 cancer cases while the other detects 90. Which evaluation measures reveal the meaningful difference, and why?",
+      "category": "paraphrase",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text",
+        "table"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 67,
+          "path": "Chapter 4. Training Data :: Class Imbalance :: Handling Class Imbalance",
+          "pages": [
+            126,
+            127
+          ],
+          "role": "required",
+          "evidence_summary": "Uses the two cancer confusion matrices to show that class-specific recall and F1 distinguish models whose overall accuracy is identical."
+        }
+      ],
+      "retrieval_challenge": "The query describes the example instead of naming class imbalance, precision, recall, or F1 up front."
+    },
+    {
+      "id": "ret-007",
+      "query": "How can model B look better than model A after two groups are combined even though model A performs better within each group?",
+      "category": "paraphrase",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text",
+        "table"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 98,
+          "path": "Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods",
+          "pages": [
+            206,
+            207
+          ],
+          "role": "required",
+          "evidence_summary": "Explains Simpson's paradox and demonstrates why aggregate performance can reverse the trend present in each subgroup."
+        }
+      ],
+      "retrieval_challenge": "The query describes Simpson's paradox without using its name."
+    },
+    {
+      "id": "ret-008",
+      "query": "A marketing campaign brings in a wealthier user population, but users with the same income still convert at the same rate as before. What kind of production data change is this?",
+      "category": "paraphrase",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 123,
+          "path": "Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Types of Data Distribution Shifts",
+          "pages": [
+            258,
+            259
+          ],
+          "role": "required",
+          "evidence_summary": "Defines covariate shift as a change in the input distribution while the conditional output relationship remains unchanged and gives this marketing example."
+        }
+      ],
+      "retrieval_challenge": "The query asks through a scenario and omits the target term covariate shift."
+    },
+    {
+      "id": "ret-009",
+      "query": "A model has strong overall performance but may disadvantage underrepresented groups. What should the team audit and document before deciding it is responsible to deploy?",
+      "category": "paraphrase",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 172,
+          "path": "Chapter 11. The Human Side of Machine Learning :: Responsible AI :: A Framework for Responsible AI",
+          "pages": [
+            367,
+            368,
+            369,
+            370,
+            371,
+            372
+          ],
+          "role": "required",
+          "evidence_summary": "Provides a responsible-AI audit covering bias sources, subgroup evaluation, real-world tradeoffs, early intervention, and model-card documentation."
+        }
+      ],
+      "retrieval_challenge": "The query describes a fairness and deployment decision without naming the section title or model cards."
+    },
+    {
+      "id": "ret-010",
+      "query": "Why is a small improvement in an offline ML metric not enough to justify deploying a model, and what broader comparisons should determine whether the project is useful?",
+      "category": "multi_section",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 22,
+          "path": "Chapter 2. Introduction to Machine Learning Systems Design :: Business and ML Objectives",
+          "pages": [
+            46,
+            47
+          ],
+          "role": "required",
+          "evidence_summary": "Argues that ML metrics matter only when tied to business outcomes and that controlled experiments may be needed to establish that connection."
+        },
+        {
+          "node_id": 98,
+          "path": "Chapter 6. Model Development and Offline Evaluation :: Model Offline Evaluation :: Evaluation Methods",
+          "pages": [
+            201
+          ],
+          "role": "required",
+          "evidence_summary": "Requires comparison with existing solutions and notes that a slightly weaker model may still be valuable if it is cheaper or easier to use."
+        }
+      ],
+      "retrieval_challenge": "The answer requires connecting project objectives in Chapter 2 with evaluation guidance in Chapter 6."
+    },
+    {
+      "id": "ret-011",
+      "query": "What does stateful training offer over retraining from scratch, and what operational challenges must be solved before continual learning is safe?",
+      "category": "multi_section",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 134,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Stateless Retraining Versus Stateful Training",
+          "pages": [
+            285,
+            286,
+            287
+          ],
+          "role": "required",
+          "evidence_summary": "Contrasts training from scratch with continuing from a prior state and discusses data, compute, privacy, and model-iteration tradeoffs."
+        },
+        {
+          "node_id": 136,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Continual Learning Challenges",
+          "pages": [
+            290,
+            291,
+            292,
+            293
+          ],
+          "role": "required",
+          "evidence_summary": "Identifies fresh-data access, reliable evaluation, and algorithm support as the major continual-learning challenges."
+        }
+      ],
+      "retrieval_challenge": "A complete answer needs both the benefits/tradeoffs section and the later operational-challenges section."
+    },
+    {
+      "id": "ret-012",
+      "query": "A production model has delayed ground-truth labels and the team suspects distribution shift. How can they detect a meaningful change, decide whether it should trigger an update, and validate the candidate without showing its predictions to users?",
+      "category": "multi_section",
+      "answerable": true,
+      "required_coverage": "all",
+      "content_types": [
+        "text"
+      ],
+      "expected_evidence": [
+        {
+          "node_id": 125,
+          "path": "Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Detecting Data Distribution Shifts",
+          "pages": [
+            262,
+            263,
+            264
+          ],
+          "role": "required",
+          "evidence_summary": "Explains why delayed labels limit direct performance monitoring and describes monitoring input distributions, summary statistics, and statistical tests."
+        },
+        {
+          "node_id": 138,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models",
+          "pages": [
+            299
+          ],
+          "role": "required",
+          "evidence_summary": "Lists drift-based update triggers while warning that noisy monitoring can cause unnecessary retraining."
+        },
+        {
+          "node_id": 140,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Test in Production :: Shadow Deployment",
+          "pages": [
+            302
+          ],
+          "role": "required",
+          "evidence_summary": "Provides the safe candidate-validation step: run both models but serve only the existing model's prediction."
+        }
+      ],
+      "retrieval_challenge": "This is a three-stage process whose evidence spans detection, update policy, and production validation across two chapters."
+    },
+    {
+      "id": "ret-013",
+      "query": "How should an engineer choose the rank and target modules when applying LoRA to fine-tune a transformer?",
+      "category": "unanswerable",
+      "unanswerable_type": "out_of_scope_specific",
+      "answerable": false,
+      "required_coverage": "none",
+      "content_types": [],
+      "expected_evidence": [],
+      "near_miss_evidence": [
+        {
+          "node_id": 110,
+          "path": "Chapter 7. Model Deployment and Prediction Service :: Model Compression :: Low-Rank Factorization",
+          "pages": [
+            226,
+            227
+          ],
+          "reason_not_sufficient": "The section discusses low-rank factorization for model compression, not LoRA fine-tuning, target-module selection, or LoRA rank selection."
+        }
+      ],
+      "answerability_reason": "The inspected book contains no discussion of Low-Rank Adaptation as a transformer fine-tuning method."
+    },
+    {
+      "id": "ret-014",
+      "query": "Which Kubernetes Horizontal Pod Autoscaler algorithm and GPU utilization thresholds should be configured for this book's model-serving architecture?",
+      "category": "unanswerable",
+      "unanswerable_type": "overspecified_configuration",
+      "answerable": false,
+      "required_coverage": "none",
+      "content_types": [],
+      "expected_evidence": [],
+      "near_miss_evidence": [
+        {
+          "node_id": 152,
+          "path": "Chapter 10. Infrastructure and Tooling for MLOps :: Development Environment :: From Dev to Prod: Containers",
+          "pages": [
+            328,
+            329,
+            330
+          ],
+          "reason_not_sufficient": "The section gives a high-level description of containers and Kubernetes but does not specify HPA algorithms or GPU thresholds."
+        },
+        {
+          "node_id": 155,
+          "path": "Chapter 10. Infrastructure and Tooling for MLOps :: Resource Management :: Data Science Workflow Management",
+          "pages": [
+            334
+          ],
+          "reason_not_sufficient": "The section names Kubernetes as an orchestrator but provides no autoscaler configuration."
+        }
+      ],
+      "answerability_reason": "The book mentions Kubernetes conceptually but does not define a concrete serving architecture or prescribe Horizontal Pod Autoscaler settings."
+    },
+    {
+      "id": "ret-015",
+      "query": "What is the exact July 2026 hourly price of the recommended Amazon SageMaker instance for deploying this system?",
+      "category": "unanswerable",
+      "unanswerable_type": "time_sensitive_external_fact",
+      "answerable": false,
+      "required_coverage": "none",
+      "content_types": [],
+      "expected_evidence": [],
+      "near_miss_evidence": [
+        {
+          "node_id": 107,
+          "path": "Chapter 7. Model Deployment and Prediction Service :: Batch Prediction Versus Online Prediction :: From Batch Prediction to Online Prediction",
+          "pages": [
+            221
+          ],
+          "reason_not_sufficient": "The section mentions SageMaker as a way to expose a model endpoint but gives no current pricing or recommended instance."
+        },
+        {
+          "node_id": 157,
+          "path": "Chapter 10. Infrastructure and Tooling for MLOps :: ML Platform :: Model Deployment",
+          "pages": [
+            340
+          ],
+          "reason_not_sufficient": "The section lists SageMaker as a deployment service but does not provide July 2026 prices."
+        }
+      ],
+      "answerability_reason": "The question asks for a current external price and a deployment recommendation that are not present in the static book."
+    }
+  ]
+}
