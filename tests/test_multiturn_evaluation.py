@@ -6,7 +6,6 @@ from evals.multiturn import evaluate_conversations
 from evals.report import render_report
 from study.contracts import (
     CitationRef,
-    ConversationState,
     EvidenceRef,
     ScopeRef,
     TurnResult,
@@ -47,6 +46,53 @@ def turn(turn_id, route, dependency, scope_id, evidence):
 
 
 class MultiturnEvaluationTests(unittest.TestCase):
+    def test_null_expected_query_is_valid_for_clarification(self):
+        result = TurnResult(
+            question="Explain the second approach.",
+            answer="Which approach do you mean?",
+            route="clarify",
+            history_dependency="ambiguous",
+            outcome="clarify",
+        )
+        gold = turn("t1", "clarify", "ambiguous", None, [])
+        gold["expected_standalone_query"] = None
+        gold["answerable"] = False
+        conversations = [{"id": "c1", "title": "Clarify", "turns": [gold]}]
+
+        evaluation = evaluate_conversations(
+            conversations,
+            FakeRunner([(result, None)]),
+            book_id=1,
+        )
+
+        self.assertEqual(evaluation["summary"]["errors"], 0)
+        self.assertEqual(evaluation["summary"]["standalone_exact_accuracy"], 1.0)
+
+    def test_unanswerable_retrieval_scores_abstention_without_evidence_recall(self):
+        result = TurnResult(
+            question="Unsupported question",
+            answer="Insufficient evidence.",
+            route="retrieval_qa",
+            history_dependency="independent",
+            standalone_query="Unsupported question",
+            outcome="abstain",
+        )
+        gold = turn("t1", "retrieval_qa", "independent", None, [])
+        gold["user"] = "Unsupported question"
+        gold["expected_standalone_query"] = "Unsupported question"
+        gold["answerable"] = False
+
+        evaluation = evaluate_conversations(
+            [{"id": "c1", "title": "Abstain", "turns": [gold]}],
+            FakeRunner([(result, None)]),
+            book_id=1,
+        )
+
+        row = evaluation["turns"][0]
+        self.assertTrue(row["checks"]["route"])
+        self.assertTrue(row["checks"]["outcome"])
+        self.assertNotIn("evidence_recall", row["checks"])
+
     def test_replays_predicted_state_and_scores_observable_behavior(self):
         scope = ScopeRef(
             kind="chapter",
@@ -94,9 +140,7 @@ class MultiturnEvaluationTests(unittest.TestCase):
         evaluation = evaluate_conversations(conversations, runner, book_id=1)
 
         self.assertEqual(evaluation["summary"]["route_accuracy"], 1.0)
-        self.assertEqual(
-            evaluation["summary"]["required_evidence_recall"], 1.0
-        )
+        self.assertEqual(evaluation["summary"]["required_evidence_recall"], 1.0)
         self.assertEqual(runner.received_states[1].active_scope, scope)
 
     def test_failures_are_recorded_without_stopping_the_run(self):
@@ -112,9 +156,7 @@ class MultiturnEvaluationTests(unittest.TestCase):
             }
         ]
 
-        evaluation = evaluate_conversations(
-            conversations, BrokenRunner(), book_id=1
-        )
+        evaluation = evaluate_conversations(conversations, BrokenRunner(), book_id=1)
 
         self.assertEqual(evaluation["summary"]["errors"], 1)
         self.assertEqual(evaluation["summary"]["route_accuracy"], 0.0)
@@ -137,9 +179,7 @@ class MultiturnEvaluationTests(unittest.TestCase):
                     "conversation_id": "c1",
                     "conversation_title": "<unsafe>",
                     "turn_id": "t1",
-                    "gold": turn(
-                        "t1", "retrieval_qa", "independent", None, [1]
-                    ),
+                    "gold": turn("t1", "retrieval_qa", "independent", None, [1]),
                     "prediction": {
                         "answer": "**Grounded**",
                         "route": "retrieval_qa",
@@ -160,6 +200,7 @@ class MultiturnEvaluationTests(unittest.TestCase):
                 }
             ],
         }
+        evaluation["turns"][0]["gold"]["expected_standalone_query"] = None
         with tempfile.TemporaryDirectory() as directory:
             output = render_report(evaluation, Path(directory) / "report.html")
             html = output.read_text(encoding="utf-8")
@@ -167,6 +208,7 @@ class MultiturnEvaluationTests(unittest.TestCase):
         self.assertIn('id="search"', html)
         self.assertIn("&lt;unsafe&gt;", html)
         self.assertNotIn("<unsafe>", html)
+        self.assertIn("<dt>Query</dt><dd>—</dd>", html)
 
 
 if __name__ == "__main__":

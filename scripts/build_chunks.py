@@ -1,27 +1,18 @@
-"""Build citation-aware chunks and their SQLite FTS5 index."""
+"""Build citation-aware chunks and Postgres full-text index rows."""
 
 import argparse
-from pathlib import Path
-
 from retrieval.models import ChunkingConfig
-from retrieval.sqlite import connect, connect_source, initialize, rebuild
+from retrieval.postgres import rebuild
+from storage.database import connection as database_connection
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Rebuild derived chunks and BM25 index from canonical SQLite."
+        description="Rebuild derived chunks and full-text rows in Postgres."
     )
     parser.add_argument(
-        "--source-database",
-        type=Path,
-        default=Path("data/books.sqlite3"),
-        help="Canonical SQLite database (default: data/books.sqlite3)",
-    )
-    parser.add_argument(
-        "--retrieval-database",
-        type=Path,
-        default=Path("data/retrieval.sqlite3"),
-        help="Derived SQLite database (default: data/retrieval.sqlite3)",
+        "--database-url",
+        help="Postgres URL; defaults to DATABASE_URL",
     )
     parser.add_argument(
         "--book-id",
@@ -38,27 +29,19 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_argument_parser().parse_args()
-    if args.source_database.resolve() == args.retrieval_database.resolve():
-        raise ValueError("source and retrieval databases must be different files")
     config = ChunkingConfig(
         target_tokens=args.target_tokens,
         max_tokens=args.max_tokens,
         overlap_tokens=args.overlap_tokens,
         encoding_name=args.encoding,
     )
-    source = connect_source(args.source_database)
-    destination = connect(args.retrieval_database)
-    try:
-        initialize(destination)
-        summary = rebuild(source, destination, args.book_id, config=config)
-    finally:
-        source.close()
-        destination.close()
+    with database_connection(args.database_url) as connection:
+        summary = rebuild(connection, args.book_id, config=config)
 
     print(
         f"Built {summary.chunk_count} chunks from "
         f"{summary.source_node_count} nodes for book {summary.book_id} "
-        f"({summary.title!r}) in {args.retrieval_database}"
+        f"({summary.title!r}) in Postgres"
     )
 
 

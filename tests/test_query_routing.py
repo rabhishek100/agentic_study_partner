@@ -1,11 +1,12 @@
 import re
 from types import SimpleNamespace
 from unittest.mock import patch
-import tempfile
 import unittest
 
-from storage.sqlite import connect, ingest_book, initialize
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
 from study.query import answer_query, execute_query
+from tests.postgres import PostgresOwnerMixin
 from tests.test_storage import FILE_HASH, sample_book
 
 
@@ -15,8 +16,7 @@ class CitationSummaryModel:
     def invoke(self, messages):
         markers = re.findall(r"\[N(\d+):P(\d+):B\d+]", messages[-1][1])
         citations = " ".join(
-            f"[N{node_id}:P{page}]"
-            for node_id, page in dict.fromkeys(markers)
+            f"[N{node_id}:P{page}]" for node_id, page in dict.fromkeys(markers)
         )
         return SimpleNamespace(
             content=f"# Chapter 1\n\nComplete grounded summary. {citations}"
@@ -36,8 +36,7 @@ class RepairingCitationSummaryModel:
             )
         markers = re.findall(r"\[N(\d+):P(\d+):B\d+]", messages[-1][1])
         citations = " ".join(
-            f"[N{node_id}:P{page}]"
-            for node_id, page in dict.fromkeys(markers)
+            f"[N{node_id}:P{page}]" for node_id, page in dict.fromkeys(markers)
         )
         return SimpleNamespace(
             content=f"# Chapter 1\n\nRepaired summary. {citations}",
@@ -51,14 +50,21 @@ class StaticAnswerModel:
         return SimpleNamespace(content="A grounded retrieval answer. [S1]")
 
 
-class QueryRoutingTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temporary_directory = tempfile.TemporaryDirectory()
-        self.source_path = (
-            f"{self.temporary_directory.name}/books.sqlite3"
+class InsufficientAnswerModel:
+    def invoke(self, messages):
+        del messages
+        return SimpleNamespace(
+            content=(
+                "The evidence is insufficient because the retrieved section "
+                "discusses model compression, not LoRA configuration."
+            )
         )
-        with connect(self.source_path) as connection:
-            initialize(connection)
+
+
+class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
+    def setUp(self) -> None:
+        self.setUpPostgresOwner()
+        with database_connection(self.database_url) as connection:
             self.book_id = ingest_book(
                 connection,
                 sample_book(),
@@ -70,13 +76,13 @@ class QueryRoutingTests(unittest.TestCase):
             )
 
     def tearDown(self) -> None:
-        self.temporary_directory.cleanup()
+        self.tearDownPostgresOwner()
 
     def test_section_listing_uses_canonical_hierarchy_without_retrieval(self):
         with patch("study.query.BookRetriever") as retriever:
             answer = answer_query(
                 "What sections are present in Chapter 1?",
-                source_path=self.source_path,
+                database_url=self.database_url,
                 book_id=self.book_id,
             )
 
@@ -89,7 +95,7 @@ class QueryRoutingTests(unittest.TestCase):
         with patch("study.query.BookRetriever") as retriever:
             result = execute_query(
                 "what chapters does this book have",
-                source_path=self.source_path,
+                database_url=self.database_url,
                 book_id=self.book_id,
             )
 
@@ -106,7 +112,7 @@ class QueryRoutingTests(unittest.TestCase):
         with patch("study.query.BookRetriever") as retriever:
             result = execute_query(
                 "What sections are present in Chapter 1?",
-                source_path=self.source_path,
+                database_url=self.database_url,
                 book_id=self.book_id,
             )
 
@@ -121,7 +127,7 @@ class QueryRoutingTests(unittest.TestCase):
         with patch("study.query.BookRetriever") as retriever:
             answer = answer_query(
                 "Summarize Chapter 1",
-                source_path=self.source_path,
+                database_url=self.database_url,
                 book_id=self.book_id,
                 model=CitationSummaryModel(),
             )
@@ -136,7 +142,7 @@ class QueryRoutingTests(unittest.TestCase):
         with patch("study.query.BookRetriever") as retriever:
             answer = answer_query(
                 "Summarize section Core idea in Chapter 1",
-                source_path=self.source_path,
+                database_url=self.database_url,
                 book_id=self.book_id,
                 model=CitationSummaryModel(),
             )
@@ -151,7 +157,7 @@ class QueryRoutingTests(unittest.TestCase):
 
         answer = answer_query(
             "Summarize Chapter 1",
-            source_path=self.source_path,
+            database_url=self.database_url,
             book_id=self.book_id,
             model=model,
         )
@@ -160,6 +166,23 @@ class QueryRoutingTests(unittest.TestCase):
         self.assertIn("Validation repair", answer)
         self.assertIn("Repaired summary", answer)
         self.assertIn("## References", answer)
+
+    def test_summary_stream_exposes_only_the_validated_repaired_answer(self):
+        model = RepairingCitationSummaryModel()
+        events = []
+
+        result = execute_query(
+            "Summarize Chapter 1",
+            database_url=self.database_url,
+            book_id=self.book_id,
+            model=model,
+            token_callback=lambda kind, text: events.append((kind, text)),
+        )
+
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(events, [("token", result.answer)])
+        self.assertNotIn("Bad citation", events[0][1])
+        self.assertNotIn("restart", [kind for kind, _ in events])
 
     def test_unmatched_named_summary_falls_back_to_retrieval(self):
         document = SimpleNamespace(
@@ -175,7 +198,7 @@ class QueryRoutingTests(unittest.TestCase):
             retriever.return_value.invoke.return_value = [document]
             answer = answer_query(
                 "Summarize reservoir sampling",
-                source_path=self.source_path,
+                database_url=self.database_url,
                 book_id=self.book_id,
                 model=StaticAnswerModel(),
             )
@@ -184,6 +207,56 @@ class QueryRoutingTests(unittest.TestCase):
         self.assertIn("A grounded retrieval answer. [S1]", answer)
         self.assertIn("_Retrieval: hybrid_", answer)
         self.assertIn("Sample Book → Chapter 1 → Core idea", answer)
+
+    def test_model_can_mark_retrieved_evidence_insufficient(self):
+        document = SimpleNamespace(
+            page_content="Low-rank factorization can compress model tensors.",
+            metadata={
+                "book_id": self.book_id,
+                "node_id": 1,
+                "path": "Chapter 1 :: Core idea",
+                "start_page": 2,
+                "end_page": 2,
+            },
+        )
+        with patch("study.query.BookRetriever") as retriever:
+            retriever.return_value.invoke.return_value = [document]
+            result = execute_query(
+                "How should I choose LoRA target modules?",
+                database_url=self.database_url,
+                book_id=self.book_id,
+                model=InsufficientAnswerModel(),
+            )
+
+        self.assertEqual(result.route, "retrieval_qa")
+        self.assertEqual(result.outcome, "abstain")
+        self.assertIn("evidence is insufficient", result.answer)
+        self.assertNotIn("INSUFFICIENT_EVIDENCE", result.answer)
+
+    def test_forced_retrieval_does_not_reparse_query_as_hierarchy(self):
+        document = SimpleNamespace(
+            page_content="The chapter has a core idea section.",
+            metadata={
+                "book_id": self.book_id,
+                "node_id": 1,
+                "path": "Chapter 1 :: Core idea",
+                "start_page": 2,
+                "end_page": 2,
+            },
+        )
+        with patch("study.query.BookRetriever") as retriever:
+            retriever.return_value.invoke.return_value = [document]
+            result = execute_query(
+                "What sections are present in Chapter 1?",
+                database_url=self.database_url,
+                book_id=self.book_id,
+                model=StaticAnswerModel(),
+                force_retrieval=True,
+            )
+
+        retriever.assert_called_once()
+        self.assertEqual(result.route, "retrieval_qa")
+
 
 if __name__ == "__main__":
     unittest.main()

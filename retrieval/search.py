@@ -1,17 +1,15 @@
 """Unified lexical, semantic, fused, and reranked retrieval."""
 
 from dataclasses import replace
-from pathlib import Path
-import sqlite3
 from typing import Literal
+from uuid import UUID
+
+from psycopg import Connection
 
 from .reranker import Reranker, build_reranker, rerank
-from .sqlite import SearchResult, search as bm25_search
+from .postgres import SearchResult, search as bm25_search
 from .vector import (
-    DEFAULT_CHROMA_PATH,
-    DEFAULT_COLLECTION,
     Embedder,
-    build_chroma_client,
     build_embedder,
     vector_search,
 )
@@ -72,13 +70,12 @@ def reciprocal_rank_fusion(
 
 
 def hybrid_candidates(
-    connection: sqlite3.Connection,
+    connection: Connection,
     query: str,
     *,
     book_id: int | None,
+    owner_id: str | UUID | None,
     candidate_limit: int,
-    collection_name: str,
-    client,
     embedder: Embedder,
 ) -> list[SearchResult]:
     """Build an RRF-ordered shortlist from lexical and semantic candidates."""
@@ -86,6 +83,7 @@ def hybrid_candidates(
     lexical = bm25_search(
         connection,
         query,
+        owner_id=owner_id,
         book_id=book_id,
         limit=candidate_limit,
         unique_nodes=False,
@@ -93,9 +91,8 @@ def hybrid_candidates(
     semantic = vector_search(
         connection,
         query,
-        client=client,
         embedder=embedder,
-        collection_name=collection_name,
+        owner_id=owner_id,
         book_id=book_id,
         limit=candidate_limit,
         unique_nodes=False,
@@ -126,25 +123,24 @@ def _take_ranked(
 
 
 def retrieve(
-    connection: sqlite3.Connection,
+    connection: Connection,
     query: str,
     *,
     mode: RetrievalMode = "hybrid",
+    owner_id: str | UUID | None = None,
     book_id: int | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
-    chroma_path: str | Path = DEFAULT_CHROMA_PATH,
-    collection_name: str = DEFAULT_COLLECTION,
-    client=None,
     embedder: Embedder | None = None,
     reranker: Reranker | None = None,
 ) -> list[SearchResult]:
-    """Run one explicit retrieval strategy over the same SQLite chunks."""
+    """Run one explicit retrieval strategy over the same Postgres chunks."""
 
     if mode == "bm25":
         return bm25_search(
             connection,
             query,
+            owner_id=owner_id,
             book_id=book_id,
             limit=limit,
             unique_nodes=unique_nodes,
@@ -152,32 +148,27 @@ def retrieve(
     if mode not in ("vector", "hybrid", "hybrid_rerank"):
         raise ValueError(f"unsupported retrieval mode: {mode}")
 
-    client = client or build_chroma_client(chroma_path)
     embedder = embedder or build_embedder()
     if mode == "vector":
         return vector_search(
             connection,
             query,
-            client=client,
             embedder=embedder,
-            collection_name=collection_name,
+            owner_id=owner_id,
             book_id=book_id,
             limit=limit,
             unique_nodes=unique_nodes,
         )
 
     candidate_limit = (
-        RERANK_CANDIDATE_LIMIT
-        if mode == "hybrid_rerank"
-        else max(20, limit * 4)
+        RERANK_CANDIDATE_LIMIT if mode == "hybrid_rerank" else max(20, limit * 4)
     )
     fused = hybrid_candidates(
         connection,
         query,
         book_id=book_id,
+        owner_id=owner_id,
         candidate_limit=candidate_limit,
-        collection_name=collection_name,
-        client=client,
         embedder=embedder,
     )
     if mode == "hybrid":

@@ -1,7 +1,6 @@
 """Minimal LangGraph coordinator for one observable study turn."""
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -33,9 +32,7 @@ class StudyGraphOutput(TypedDict):
 
 @dataclass(frozen=True)
 class StudyGraphContext:
-    database_path: str | Path = "data/retrieval.sqlite3"
-    source_path: str | Path = "data/books.sqlite3"
-    chroma_path: str | Path = "data/chroma"
+    database_url: str | None = None
     retrieval_mode: RetrievalMode = "hybrid"
     analysis_model: AnalysisModel | None = None
     generation_model: ChatModel | None = None
@@ -50,7 +47,7 @@ def plan_turn(
         "decision": analyze_turn(
             state["question"],
             state["conversation"],
-            runtime.context.source_path,
+            runtime.context.database_url,
             model=runtime.context.analysis_model,
         )
     }
@@ -84,9 +81,7 @@ def execute_route(
             state["question"],
             state["decision"],
             state["conversation"],
-            database_path=runtime.context.database_path,
-            source_path=runtime.context.source_path,
-            chroma_path=runtime.context.chroma_path,
+            database_url=runtime.context.database_url,
             retrieval_mode=runtime.context.retrieval_mode,
             model=runtime.context.generation_model,
             token_callback=runtime.context.token_callback,

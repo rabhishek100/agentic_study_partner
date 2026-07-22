@@ -1,6 +1,7 @@
 """One-call grounded summarization for a complete resolved scope."""
 
 from dataclasses import dataclass, replace
+import logging
 import re
 from typing import Protocol
 
@@ -16,6 +17,7 @@ GROUPED_CITATION = re.compile(
     r"\[((?:N\d+:P\d+)(?:\s*;\s*N\d+:P\d+)+)]"
 )
 OPTIONAL_RECAP_TITLES = frozenset({"summary", "conclusion"})
+logger = logging.getLogger("study_partner.summarize")
 
 
 class SummaryModel(Protocol):
@@ -359,31 +361,84 @@ def summarize_scope_with_repair(
     scope: ResolvedScope,
     context: ScopeContext,
     config: SummaryConfig | None = None,
-    token_callback: TokenCallback | None = None,
 ) -> SummaryResult:
-    """Retry one invalid summary with exact deterministic feedback."""
+    """Use complete provider responses and repair only genuine invalid drafts.
+
+    Summary streaming is intentionally disabled here. Some OpenRouter provider
+    streams have ended without a terminal finish reason, yielding a plausible
+    but truncated early-chapter draft. A normal invoke returns the complete
+    response before deterministic coverage and citation validation runs.
+    """
 
     first = summarize_scope(
         model,
         scope=scope,
         context=context,
         config=config,
-        token_callback=token_callback,
+        token_callback=None,
     )
     if first.validation.valid:
         return first
-    if token_callback is not None:
-        token_callback("restart", "")
+    logger.warning(
+        "summary draft failed validation attempt=1 scope=%r chars=%d "
+        "finish_reason=%r errors=%s",
+        scope.display_path,
+        len(first.text),
+        first.finish_reason,
+        "; ".join(first.validation.errors),
+    )
     repaired = summarize_scope(
         model,
         scope=scope,
         context=context,
         config=config,
         validation_feedback=first.validation.errors,
-        token_callback=token_callback,
+        token_callback=None,
     )
+    if repaired.validation.valid:
+        logger.info(
+            "summary repair succeeded attempt=2 scope=%r chars=%d",
+            scope.display_path,
+            len(repaired.text),
+        )
+        return replace(
+            repaired,
+            attempt_count=2,
+            initial_errors=first.validation.errors,
+        )
+    logger.warning(
+        "summary draft failed validation attempt=2 scope=%r chars=%d "
+        "finish_reason=%r errors=%s",
+        scope.display_path,
+        len(repaired.text),
+        repaired.finish_reason,
+        "; ".join(repaired.validation.errors),
+    )
+    final = summarize_scope(
+        model,
+        scope=scope,
+        context=context,
+        config=config,
+        validation_feedback=repaired.validation.errors,
+        token_callback=None,
+    )
+    if not final.validation.valid:
+        logger.warning(
+            "summary draft failed validation attempt=3 scope=%r chars=%d "
+            "finish_reason=%r errors=%s",
+            scope.display_path,
+            len(final.text),
+            final.finish_reason,
+            "; ".join(final.validation.errors),
+        )
+    else:
+        logger.info(
+            "summary repair succeeded attempt=3 scope=%r chars=%d",
+            scope.display_path,
+            len(final.text),
+        )
     return replace(
-        repaired,
-        attempt_count=2,
+        final,
+        attempt_count=3,
         initial_errors=first.validation.errors,
     )

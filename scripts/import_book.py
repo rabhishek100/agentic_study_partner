@@ -1,4 +1,4 @@
-"""Rebuild the SQLite book database from cached parser output."""
+"""Import cached parser output into canonical Postgres storage."""
 
 import argparse
 from hashlib import sha256
@@ -7,7 +7,8 @@ from pathlib import Path
 import fitz
 
 from parsing.parser import PARSER_VERSION, load_parsed_book
-from storage.sqlite import connect, ingest_book, initialize
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
 
 
 def hash_file(path: Path) -> str:
@@ -31,7 +32,7 @@ def read_pdf(path: Path) -> tuple[int, list[tuple[int, str, int]], dict[str, str
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Rebuild SQLite from cached ParsedBook JSON."
+        description="Import cached ParsedBook JSON into Postgres."
     )
     parser.add_argument(
         "--cache",
@@ -40,10 +41,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="ParsedBook JSON cache (default: cache/parsed_book.json)",
     )
     parser.add_argument(
-        "--database",
-        type=Path,
-        default=Path("data/books.sqlite3"),
-        help="SQLite database (default: data/books.sqlite3)",
+        "--database-url",
+        help="Postgres URL; defaults to DATABASE_URL",
     )
     parser.add_argument(
         "--source",
@@ -79,9 +78,7 @@ def main() -> None:
     title = source_metadata.get("title") or source_pdf.stem
     author = source_metadata.get("author")
 
-    connection = connect(args.database)
-    try:
-        initialize(connection)
+    with database_connection(args.database_url) as connection:
         book_id = ingest_book(
             connection,
             book,
@@ -93,12 +90,8 @@ def main() -> None:
             metadata={"pdf": source_metadata},
             replace=args.replace,
         )
-    finally:
-        connection.close()
-
     print(
-        f"Imported book {book_id}: {title!r} "
-        f"({len(book.sections)} nodes) into {args.database}"
+        f"Imported book {book_id}: {title!r} ({len(book.sections)} nodes) into Postgres"
     )
 
 

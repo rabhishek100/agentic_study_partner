@@ -19,8 +19,16 @@ jobs:
           enable-cache: true
       - name: Install Python dependencies
         run: uv sync --frozen
-      - name: Run unit tests
+      - name: Start migrated local Supabase
+        run: npx --yes supabase@2.109.1 start
+      - name: Run Python tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DEFAULT_OWNER_ID: 00000000-0000-4000-8000-000000000001
         run: uv run python -m unittest discover -s tests -v
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.109.1 stop --no-backup
 
   frontend-build:
     runs-on: ubuntu-latest

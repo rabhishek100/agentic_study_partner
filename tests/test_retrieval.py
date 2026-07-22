@@ -1,18 +1,14 @@
-import json
-from pathlib import Path
 import re
-import tempfile
 import unittest
-
-import chromadb
 
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
 from retrieval.models import ChunkingConfig
 from retrieval.search import retrieve
-from retrieval.sqlite import connect, initialize, rebuild, search
+from retrieval.postgres import rebuild, search
 from retrieval.vector import rebuild_vector_index, vector_search
-from storage.sqlite import connect as connect_canonical
-from storage.sqlite import ingest_book, initialize as initialize_canonical
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
+from tests.postgres import PostgresOwnerMixin
 
 
 FILE_HASH = "b" * 64
@@ -22,18 +18,19 @@ class FakeEmbedder:
     model_name = "test-embedding-v1"
     model_revision = "test-revision"
     device = "cpu"
-    dimension = 4
+    dimension = 3072
     max_sequence_length = 4096
 
     @staticmethod
     def _embed(text: str) -> list[float]:
         words = set(re.findall(r"\w+", text.casefold()))
-        return [
+        values = [
             float(bool(words.intersection({"online", "architecture"}))),
             float(bool(words.intersection({"batch", "throughput"}))),
             float(bool(words.intersection({"monitoring", "failures"}))),
             float(bool(words.intersection({"table", "compares"}))),
         ]
+        return values + [0.0] * (FakeEmbedder.dimension - len(values))
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [self._embed(text) for text in texts]
@@ -134,12 +131,13 @@ def sample_book() -> ParsedBook:
     )
 
 
-class RetrievalTests(unittest.TestCase):
+class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
     def setUp(self) -> None:
-        self.source = connect_canonical(":memory:")
-        initialize_canonical(self.source)
+        self.setUpPostgresOwner()
+        self.database_context = database_connection(self.database_url)
+        self.database = self.database_context.__enter__()
         self.book_id = ingest_book(
-            self.source,
+            self.database,
             sample_book(),
             title="Retrieval",
             author="Test",
@@ -147,8 +145,6 @@ class RetrievalTests(unittest.TestCase):
             page_count=3,
             parser_version="test-v1",
         )
-        self.destination = connect(":memory:")
-        initialize(self.destination)
         self.config = ChunkingConfig(
             target_tokens=12,
             max_tokens=30,
@@ -156,44 +152,55 @@ class RetrievalTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        self.source.close()
-        self.destination.close()
+        self.database_context.__exit__(None, None, None)
+        self.tearDownPostgresOwner()
 
     def test_rebuild_is_deterministic_and_searches_table_text(self) -> None:
         first = rebuild(
-            self.source,
-            self.destination,
+            self.database,
             self.book_id,
             config=self.config,
         )
         first_ids = [
             row["id"]
-            for row in self.destination.execute(
-                "SELECT id FROM chunks ORDER BY toc_index, chunk_index"
+            for row in self.database.execute(
+                """
+                SELECT id FROM chunks WHERE owner_id = %s
+                ORDER BY toc_index, chunk_index
+                """,
+                (self.owner_id,),
             )
         ]
         second = rebuild(
-            self.source,
-            self.destination,
+            self.database,
             self.book_id,
             config=self.config,
         )
         second_ids = [
             row["id"]
-            for row in self.destination.execute(
-                "SELECT id FROM chunks ORDER BY toc_index, chunk_index"
+            for row in self.database.execute(
+                """
+                SELECT id FROM chunks WHERE owner_id = %s
+                ORDER BY toc_index, chunk_index
+                """,
+                (self.owner_id,),
             )
         ]
 
         self.assertEqual(first.chunk_count, second.chunk_count)
         self.assertEqual(first_ids, second_ids)
         self.assertEqual(
-            self.destination.execute("SELECT COUNT(*) FROM chunk_builds").fetchone()[0],
+            self.database.execute(
+                """
+                SELECT COUNT(*) AS count FROM chunk_builds WHERE owner_id = %s
+                """,
+                (self.owner_id,),
+            ).fetchone()["count"],
             1,
         )
 
         results = search(
-            self.destination,
+            self.database,
             "Which prediction mode is optimized for low latency?",
             book_id=self.book_id,
             limit=3,
@@ -206,26 +213,27 @@ class RetrievalTests(unittest.TestCase):
 
     def test_chunks_keep_page_block_table_and_image_provenance(self) -> None:
         rebuild(
-            self.source,
-            self.destination,
+            self.database,
             self.book_id,
             config=self.config,
         )
-        rows = self.destination.execute(
+        rows = self.database.execute(
             """
             SELECT
                 chunks.source_node_id,
                 chunks.start_page,
                 chunks.end_page,
                 chunks.token_count,
-                chunks.content_types_json,
+                chunks.content_types,
                 chunk_sources.source_block_id,
                 chunk_sources.block_type
             FROM chunks
             JOIN chunk_sources ON chunk_sources.chunk_id = chunks.id
+            WHERE chunks.owner_id = %s
             ORDER BY chunks.toc_index, chunks.chunk_index,
                      chunk_sources.source_order
-            """
+            """,
+            (self.owner_id,),
         ).fetchall()
 
         self.assertTrue(rows)
@@ -235,43 +243,38 @@ class RetrievalTests(unittest.TestCase):
         self.assertIn("table", {row["block_type"] for row in rows})
         self.assertIn("image", {row["block_type"] for row in rows})
         for row in rows:
-            canonical_node_id = self.source.execute(
-                "SELECT node_id FROM content_blocks WHERE id = ?",
-                (row["source_block_id"],),
-            ).fetchone()[0]
+            canonical_node_id = self.database.execute(
+                """
+                SELECT node_id FROM content_blocks
+                WHERE id = %s AND owner_id = %s
+                """,
+                (row["source_block_id"], self.owner_id),
+            ).fetchone()["node_id"]
             self.assertEqual(canonical_node_id, row["source_node_id"])
             self.assertLessEqual(row["start_page"], row["end_page"])
 
         content_types = {
-            content_type
-            for row in rows
-            for content_type in json.loads(row["content_types_json"])
+            content_type for row in rows for content_type in row["content_types"]
         }
         self.assertEqual(content_types, {"text", "table", "image"})
 
-    def test_retrieval_database_is_separate_from_canonical_storage(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            destination_path = Path(directory) / "retrieval.sqlite3"
-            destination = connect(destination_path)
-            try:
-                initialize(destination)
-                rebuild(
-                    self.source,
-                    destination,
-                    self.book_id,
-                    config=self.config,
-                )
-            finally:
-                destination.close()
+    def test_derived_rows_can_be_deleted_without_canonical_loss(self) -> None:
+        rebuild(self.database, self.book_id, config=self.config)
+        self.database.execute(
+            "delete from chunk_builds where owner_id = %s",
+            (self.owner_id,),
+        )
 
-            canonical_tables = {
-                row[0]
-                for row in self.source.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                )
-            }
-            self.assertNotIn("chunks", canonical_tables)
-            self.assertTrue(destination_path.is_file())
+        chunk_count = self.database.execute(
+            "select count(*) as count from chunks where owner_id = %s",
+            (self.owner_id,),
+        ).fetchone()["count"]
+        node_count = self.database.execute(
+            "select count(*) as count from nodes where owner_id = %s",
+            (self.owner_id,),
+        ).fetchone()["count"]
+        self.assertEqual(chunk_count, 0)
+        self.assertEqual(node_count, 2)
 
     def test_oversized_block_prefers_sentence_boundaries(self) -> None:
         config = ChunkingConfig(
@@ -280,18 +283,18 @@ class RetrievalTests(unittest.TestCase):
             overlap_tokens=0,
         )
         rebuild(
-            self.source,
-            self.destination,
+            self.database,
             self.book_id,
             config=config,
         )
-        chunks = self.destination.execute(
+        chunks = self.database.execute(
             """
             SELECT text, token_count
             FROM chunks
-            WHERE section_title = 'Chapter 1. Serving'
+            WHERE section_title = 'Chapter 1. Serving' AND owner_id = %s
             ORDER BY chunk_index
-            """
+            """,
+            (self.owner_id,),
         ).fetchall()
 
         self.assertGreaterEqual(len(chunks), 2)
@@ -304,29 +307,21 @@ class RetrievalTests(unittest.TestCase):
         ):
             self.assertTrue(any(sentence in text for text in chunk_texts))
 
-    def test_vector_index_is_idempotent_and_hydrates_sqlite_chunks(self) -> None:
+    def test_vector_index_is_idempotent_and_hydrates_postgres_chunks(self) -> None:
         rebuild(
-            self.source,
-            self.destination,
+            self.database,
             self.book_id,
             config=self.config,
         )
-        client = chromadb.EphemeralClient()
         embedder = FakeEmbedder()
 
         first = rebuild_vector_index(
-            self.destination,
-            self.source,
-            client=client,
+            self.database,
             embedder=embedder,
-            collection_name="idempotent-test",
         )
         second = rebuild_vector_index(
-            self.destination,
-            self.source,
-            client=client,
+            self.database,
             embedder=embedder,
-            collection_name="idempotent-test",
         )
 
         self.assertGreater(first.embedded_count, 0)
@@ -334,11 +329,9 @@ class RetrievalTests(unittest.TestCase):
         self.assertEqual(second.unchanged_count, first.total_count)
 
         results = vector_search(
-            self.destination,
+            self.database,
             "online prediction architecture",
-            client=client,
             embedder=embedder,
-            collection_name="idempotent-test",
             limit=3,
             unique_nodes=True,
         )
@@ -349,78 +342,59 @@ class RetrievalTests(unittest.TestCase):
 
     def test_hybrid_retrieval_returns_fused_results(self) -> None:
         rebuild(
-            self.source,
-            self.destination,
+            self.database,
             self.book_id,
             config=self.config,
         )
-        client = chromadb.EphemeralClient()
         embedder = FakeEmbedder()
         rebuild_vector_index(
-            self.destination,
-            self.source,
-            client=client,
+            self.database,
             embedder=embedder,
-            collection_name="hybrid-test",
         )
 
         results = retrieve(
-            self.destination,
+            self.database,
             "online prediction architecture",
             mode="hybrid",
             book_id=self.book_id,
             limit=3,
             unique_nodes=True,
-            client=client,
             embedder=embedder,
-            collection_name="hybrid-test",
         )
 
         self.assertTrue(results)
         self.assertEqual(results[0].section_title, "Prediction modes")
-        self.assertTrue(
-            all(result.retrieval_method == "hybrid" for result in results)
-        )
+        self.assertTrue(all(result.retrieval_method == "hybrid" for result in results))
 
     def test_hybrid_rerank_scores_the_rrf_shortlist(self) -> None:
         rebuild(
-            self.source,
-            self.destination,
+            self.database,
             self.book_id,
             config=self.config,
         )
-        client = chromadb.EphemeralClient()
         embedder = FakeEmbedder()
         reranker = FakeReranker()
         rebuild_vector_index(
-            self.destination,
-            self.source,
-            client=client,
+            self.database,
             embedder=embedder,
-            collection_name="reranker-test",
         )
 
         results = retrieve(
-            self.destination,
+            self.database,
             "online prediction architecture",
             mode="hybrid_rerank",
             book_id=self.book_id,
             limit=3,
             unique_nodes=True,
-            client=client,
             embedder=embedder,
             reranker=reranker,
-            collection_name="reranker-test",
         )
 
         self.assertTrue(results)
         self.assertLessEqual(reranker.candidate_count, 20)
         self.assertEqual(results[0].section_title, "Prediction modes")
         self.assertTrue(
-            all(
-                result.retrieval_method == "hybrid_rerank"
-                for result in results
-            )
+            all(result.retrieval_method == "hybrid_rerank" for result in results)
         )
 
 

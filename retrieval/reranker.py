@@ -7,7 +7,7 @@ from typing import Protocol
 
 import httpx
 
-from .sqlite import SearchResult
+from .postgres import SearchResult
 
 
 DEFAULT_RERANKER_MODEL = "cohere/rerank-4-pro"

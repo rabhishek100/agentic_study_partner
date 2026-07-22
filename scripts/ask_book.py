@@ -22,13 +22,13 @@ def main() -> None:
         default="hybrid",
     )
     parser.add_argument("--book-id", type=int)
-    parser.add_argument("--chroma-path", default="data/chroma")
+    parser.add_argument("--database-url", help="Postgres URL; defaults to DATABASE_URL")
     args = parser.parse_args()
     try:
         print(
             answer_query(
                 args.question,
-                chroma_path=args.chroma_path,
+                database_url=args.database_url,
                 book_id=args.book_id,
                 retrieval_mode=args.retrieval_mode,
             )

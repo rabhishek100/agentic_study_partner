@@ -1,34 +1,36 @@
 import json
 from pathlib import Path
-import sqlite3
 import unittest
 
 from scripts.build_multiturn_report import build_html
 from scripts.validate_multiturn_gold import validate
+from storage.database import connection as database_connection
 
 
 ROOT = Path(__file__).resolve().parents[1]
 GOLD_PATH = ROOT / "evaluation" / "multiturn_gold.json"
-DATABASE_PATH = ROOT / "data" / "books.sqlite3"
 
 
-@unittest.skipUnless(
-    DATABASE_PATH.is_file(),
-    "requires the local canonical book database",
-)
 class MultiturnGoldTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.gold = json.loads(GOLD_PATH.read_text(encoding="utf-8"))
-        cls.connection = sqlite3.connect(
-            DATABASE_PATH.resolve().as_uri() + "?mode=ro",
-            uri=True,
-        )
-        cls.connection.row_factory = sqlite3.Row
+        cls.database_context = database_connection(readonly=True)
+        cls.connection = cls.database_context.__enter__()
+        book_id = cls.gold["book"]["database_book_id"]
+        if (
+            cls.connection.execute(
+                "select 1 from books where id = %s",
+                (book_id,),
+            ).fetchone()
+            is None
+        ):
+            cls.database_context.__exit__(None, None, None)
+            raise unittest.SkipTest("requires the locally backfilled canonical book")
 
     @classmethod
     def tearDownClass(cls) -> None:
-        cls.connection.close()
+        cls.database_context.__exit__(None, None, None)
 
     def test_frozen_dataset_passes_canonical_validation(self):
         result = validate(self.gold, self.connection, allow_pending=False)

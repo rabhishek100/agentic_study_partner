@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 import re
-import sqlite3
+from psycopg import Connection
 from typing import Literal
 
 from .scope import (
@@ -140,7 +140,7 @@ def parse_study_request(query: str) -> StudyRequest:
 
 
 def resolve_study_request(
-    connection: sqlite3.Connection,
+    connection: Connection,
     request: StudyRequest,
     *,
     book_id: int | None = None,

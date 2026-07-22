@@ -1,7 +1,10 @@
 """Load complete canonical content for an already resolved scope."""
 
 from dataclasses import dataclass
-import sqlite3
+
+from psycopg import Connection
+
+from storage.database import resolve_owner_id
 
 from .scope import ResolvedScope, ScopeNode
 
@@ -53,17 +56,13 @@ class EvidenceBundle:
     @property
     def table_count(self) -> int:
         return sum(
-            block.block_type == "table"
-            for node in self.nodes
-            for block in node.blocks
+            block.block_type == "table" for node in self.nodes for block in node.blocks
         )
 
     @property
     def image_count(self) -> int:
         return sum(
-            block.block_type == "image"
-            for node in self.nodes
-            for block in node.blocks
+            block.block_type == "image" for node in self.nodes for block in node.blocks
         )
 
     @property
@@ -76,20 +75,17 @@ class EvidenceBundle:
 
 
 def load_scope_content(
-    connection: sqlite3.Connection,
+    connection: Connection,
     scope: ResolvedScope,
 ) -> EvidenceBundle:
     """Load every block in scope order, flattening tables for readable text."""
 
-    by_node: dict[int, list[ContentBlock]] = {
-        node.id: [] for node in scope.nodes
-    }
+    by_node: dict[int, list[ContentBlock]] = {node.id: [] for node in scope.nodes}
     if not by_node:
         return EvidenceBundle(scope=scope, nodes=())
 
-    placeholders = ", ".join("?" for _ in by_node)
     rows = connection.execute(
-        f"""
+        """
         SELECT
             content_blocks.id,
             content_blocks.node_id,
@@ -104,12 +100,16 @@ def load_scope_content(
             image_blocks.block_id AS image_payload_id
         FROM content_blocks
         JOIN nodes ON nodes.id = content_blocks.node_id
+          AND nodes.owner_id = content_blocks.owner_id
         LEFT JOIN table_blocks ON table_blocks.block_id = content_blocks.id
+          AND table_blocks.owner_id = content_blocks.owner_id
         LEFT JOIN image_blocks ON image_blocks.block_id = content_blocks.id
-        WHERE content_blocks.node_id IN ({placeholders})
+          AND image_blocks.owner_id = content_blocks.owner_id
+        WHERE content_blocks.node_id = ANY(%s)
+          AND content_blocks.owner_id = %s
         ORDER BY nodes.toc_index, content_blocks.block_index
         """,
-        tuple(by_node),
+        (list(by_node), resolve_owner_id()),
     ).fetchall()
     for row in rows:
         by_node[row["node_id"]].append(

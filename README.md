@@ -1,16 +1,15 @@
 # Agentic Study Partner
 
-The project parses a PDF into a table-of-contents-aligned `ParsedBook`,
-persists that parser output in lossless primary SQLite storage, and builds
-disposable BM25 and Chroma vector indexes from citation-aware chunks.
+An evaluation-driven study companion for technical books. It parses PDFs into
+a lossless hierarchical model, stores canonical and rebuildable retrieval data
+in Supabase Postgres, and uses an inspectable LangGraph workflow to produce
+grounded answers and complete-scope summaries with citations.
 
-The primary database intentionally contains no summaries, chunks, embeddings,
-keyword indexes, or other derived data. It stores only source metadata, the TOC
-hierarchy, ordered content blocks, tables, and images.
-
-For a concise map of the repository, see
-[`CODEBASE_GUIDE.md`](CODEBASE_GUIDE.md). The component diagram and data
-boundaries are documented in [`docs/architecture.md`](docs/architecture.md).
+The backend currently runs in **bootstrap single-user mode**. It scopes every
+query by `DEFAULT_OWNER_ID`, but the Next.js Auth flow and cross-user isolation
+tests are intentionally deferred. See
+[`docs/supabase-migration-plan.md`](docs/supabase-migration-plan.md) for the
+cutover plan and the exact deferred work.
 
 ## Architecture
 
@@ -18,376 +17,175 @@ boundaries are documented in [`docs/architecture.md`](docs/architecture.md).
 PDF
  └─ parsing.parser.parse_book()
      └─ ParsedBook
-         └─ storage.sqlite.ingest_book()
-             └─ data/books.sqlite3 (canonical)
-                 ├─ books
-                 └─ nodes
-                     └─ content_blocks
-                         ├─ table_blocks
-                         └─ image_blocks
-                             │
-                             └─ retrieval.chunking.build_book_chunks()
-                                 └─ data/retrieval.sqlite3 (derived)
-                                     ├─ chunk_builds
-                                     ├─ chunks
-                                     ├─ chunk_sources
-                                     └─ chunks_fts
-                                         │
-                                         └─ data/chroma/ (derived)
-                                             └─ book_text_chunks
+         └─ Supabase Postgres (canonical)
+             ├─ books / nodes / content_blocks
+             ├─ table_blocks / image_blocks
+             └─ rebuildable retrieval data
+                 ├─ chunk_builds / chunks / chunk_sources
+                 ├─ generated weighted tsvector (lexical search)
+                 └─ chunk_embeddings vector(3072) (exact semantic search)
+
+Next.js → FastAPI → LangGraph → complete-scope load or retrieval → cited answer
 ```
 
-The canonical implementation has four core files:
+The source/derived boundary is unchanged:
 
-- `parsing/models.py`: parser output models.
-- `parsing/parser.py`: PDF parsing and JSON caching.
-- `storage/schema.sql`: the canonical five-table schema.
-- `storage/sqlite.py`: database setup, validation, ingestion, and restoration.
+- `books`, `nodes`, `content_blocks`, `table_blocks`, and `image_blocks` are
+  canonical and lossless.
+- `chunk_builds`, `chunks`, `chunk_sources`, full-text vectors, and embeddings
+  are derived and always rebuildable.
+- Complete chapter/section summaries load the full canonical subtree rather
+  than relying on top-k retrieval.
+- Ordinary questions search chunks and must abstain when evidence is
+  insufficient.
 
-The derived retrieval layer is split into rebuildable indexing and explicit
-ranking components:
+Important modules:
 
-- `retrieval/models.py`: chunk configuration and provenance contracts.
-- `retrieval/chunking.py`: deterministic ordered-block chunk construction.
-- `retrieval/schema.sql`: disposable chunk and FTS5 schema.
-- `retrieval/sqlite.py`: atomic rebuild and BM25 search.
-- `retrieval/vector.py`: idempotent local Chroma ingestion and vector search.
-- `retrieval/search.py`: explicit BM25, vector, RRF hybrid, and reranked
-  strategies.
-- `retrieval/reranker.py`: pinned local cross-encoder scoring over a bounded
-  hybrid shortlist.
-- `retrieval/langchain.py`: thin LangChain adapter over those strategies.
+- `storage/postgres.py`: canonical validation, ingestion, and restoration.
+- `storage/database.py`: pooled Postgres connections and bootstrap owner.
+- `retrieval/postgres.py`: deterministic chunk builds and full-text search.
+- `retrieval/vector.py`: provenance-checked pgvector synchronization and exact
+  cosine search.
+- `retrieval/search.py`: BM25, vector, RRF hybrid, and reranked strategies.
+- `study/graph.py`: inspectable LangGraph study-turn workflow.
+- `api/main.py`: FastAPI health and chat boundary.
+- `supabase/migrations/`: schema, constraints, RLS, and Storage policies.
 
-The interactive runtime adds a deliberately small orchestration layer:
+More detail is in [`docs/architecture.md`](docs/architecture.md), and a concise
+repository map is in [`CODEBASE_GUIDE.md`](CODEBASE_GUIDE.md).
 
-- `study/analyze.py`: deterministic hierarchy routing plus one structured
-  control-model decision for non-obvious turns.
-- `study/graph.py`: LangGraph `plan -> conditional execution -> state update`.
-- `study/conversation.py`: graph entry point and explicit conversation state.
+## Setup
 
-The web layer remains thin and reuses that same entry point:
+Install Python dependencies and create local configuration:
 
-- `api/main.py`: async FastAPI boundary for health checks and study turns.
-- `frontend/`: small Next.js React chat client with retrieval settings and turn details.
-- `app.py`: optional Gradio client for the same conversation workflow.
+```bash
+uv sync --frozen
+test -f .env || cp .env.example .env
+```
 
-Each user message is one `study_turn` LangSmith trace. Planning, the selected
-execution branch, retrieval/model calls, and state update appear as nested
-runs. Turns share the conversation ID as LangSmith `thread_id`.
+Start local Supabase and apply the checked-in migration and seed:
 
-The scripts are intentionally thin:
+```bash
+npx supabase start
+npx supabase db reset
+```
 
-- `scripts/parse_book.py`: parse the configured PDF.
-- `scripts/import_book.py`: rebuild SQLite from cached parser output.
-- `scripts/inspect_scope.py`: resolve and inspect canonical book hierarchy.
-- `scripts/study.py`: map explicit study queries and summarize complete scopes.
-- `scripts/build_chunks.py`: rebuild chunks and the FTS5 index.
-- `scripts/build_vector_index.py`: synchronize local Chroma from the chunks.
-- `scripts/evaluate_retrieval.py`: compare all retrieval modes.
+The defaults in `.env.example` match the Supabase CLI database:
 
-## Parse the source PDF
+```text
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+DEFAULT_OWNER_ID=00000000-0000-4000-8000-000000000001
+```
+
+For hosted Supabase, use the pooled application connection as `DATABASE_URL`
+and the direct connection as `MIGRATION_DATABASE_URL`. Do not expose either
+connection string or the service-role key to the browser.
+
+## Backfill the existing SQLite data
+
+The old SQLite files are retained temporarily as rollback and audit inputs;
+they are no longer used by the application runtime.
+
+```bash
+uv run python -m scripts.migrate_sqlite_to_postgres
+```
+
+The command restores each legacy `ParsedBook`, writes it to Postgres, restores
+it again, and verifies model equality, canonical row counts, and image payload
+character counts. Replacement is always explicit:
+
+```bash
+uv run python -m scripts.migrate_sqlite_to_postgres --replace
+```
+
+To copy the source PDF into the private `book-sources` bucket as part of a
+hosted migration, configure `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`, then add `--upload-source`. Objects are stored
+under `<owner-id>/<file-hash>/<filename>`.
+
+For a new parsed book instead of a legacy backfill:
 
 ```bash
 uv run python -m scripts.parse_book
-```
-
-The command uses the cached parser output when available. Delete the cache or
-call `parse_book(..., force=True)` from Python when you intentionally want to
-rebuild `parsed_book.json`.
-
-## Import the existing parsed book
-
-The importer uses `cache/parsed_book.json`, hashes its source PDF with SHA-256,
-reads title/author/page count from PDF metadata, initializes the database, and
-imports everything in one transaction:
-
-```bash
 uv run python -m scripts.import_book
 ```
 
-The default database is `data/books.sqlite3`. Paths can be overridden when
-needed:
+## Build retrieval data
+
+Create citation-aware chunks and the generated Postgres full-text index:
 
 ```bash
-uv run python -m scripts.import_book \
-  --cache cache/parsed_book.json \
-  --source sources/books/book.pdf \
-  --database data/books.sqlite3
+uv run python -m scripts.build_chunks --book-id 1
 ```
 
-Importing the same PDF twice raises an error. Replacement must be explicit:
+The default policy targets 600 tokens, caps chunks at 800, uses up to 80
+tokens of block-aligned overlap, and never crosses a TOC node. Rebuilding the
+same book/configuration is atomic and deterministic.
+
+Build 3,072-dimensional OpenRouter embeddings in Postgres:
 
 ```bash
-uv run python -m scripts.import_book --replace
+uv run python -m scripts.build_vector_index --book-id 1
 ```
 
-`--replace` deletes the matching book and relies on cascading foreign keys to
-remove its nodes and payloads before the fresh import. The delete and re-import
-are part of the same transaction, so a failure restores the original book.
+This requires `OPENROUTER_API_KEY`. The current corpus is intentionally queried
+with exact pgvector cosine search. Approximate indexes are deferred until
+evaluation or corpus growth shows a latency need; pgvector HNSW `vector`
+indexes do not support the current 3,072 dimensions.
 
-## Programmatic use
+## Inspect and query
 
-```python
-from parsing.parser import PARSER_VERSION, load_parsed_book
-from storage.sqlite import connect, ingest_book, initialize
-
-book = load_parsed_book("cache/parsed_book.json")
-connection = connect("data/books.sqlite3")
-initialize(connection)
-
-book_id = ingest_book(
-    connection,
-    book,
-    title="Designing Machine Learning Systems",
-    author="Chip Huyen",
-    file_hash="<sha256-of-source-pdf>",
-    page_count=389,
-    parser_version=PARSER_VERSION,
-)
-```
-
-To prove that canonical storage can reproduce the parser output:
-
-```python
-from storage.sqlite import restore_book
-
-restored = restore_book(connection, book_id)
-assert restored == book
-```
-
-## Inspect canonical study scopes
-
-Chapter and section operations start from canonical SQLite rather than
-retrieval results. The scope resolver accepts chapter numbers or titles,
-returns the complete ordered subtree, and reports ambiguous or missing scopes
-instead of guessing.
-
-Inspect Chapter 1 and list its complete section hierarchy:
+Inspect a complete canonical chapter hierarchy:
 
 ```bash
 uv run python -m scripts.inspect_scope chapter 1 --book-id 1
 ```
 
-Resolve a section within that chapter:
+Dry-run a full chapter summary before paying for a model call:
 
 ```bash
-uv run python -m scripts.inspect_scope section \
-  "Machine Learning Use Cases" \
-  --chapter 1 \
-  --book-id 1
+uv run python -m scripts.study "Summarize Chapter 1" --book-id 1 --dry-run
 ```
 
-Add `--show-content` to print a bounded preview of every canonical content
-block. Tables use their flattened text; images show MIME/provenance metadata
-without loading their base64 payloads. Complete-book inspection is also
-available:
+Ask a grounded question through the same coordinator used by the web app:
 
 ```bash
-uv run python -m scripts.inspect_scope book --book-id 1
+uv run python -m scripts.ask_book \
+  --retrieval-mode hybrid \
+  "How does reservoir sampling work?"
 ```
 
-## Natural-language chapter and section operations
+## Evaluation
 
-Explicit study requests are parsed without an LLM and mapped to the canonical
-hierarchy. Listing sections is fully deterministic:
-
-```bash
-uv run python -m scripts.study \
-  "What sections are present in Chapter 1?" \
-  --book-id 1
-```
-
-Before paying for a summary, inspect the resolved scope and complete prompt
-budget:
-
-```bash
-uv run python -m scripts.study \
-  "Summarize Chapter 1" \
-  --book-id 1 \
-  --dry-run
-```
-
-To inspect every non-overlapping canonical block that will be sent:
-
-```bash
-uv run python -m scripts.study \
-  "Summarize Chapter 1" \
-  --book-id 1 \
-  --dry-run \
-  --dump-context outputs/chapter_1_context.txt
-```
-
-Run the complete-scope OpenRouter summary and optionally save validated
-Markdown:
-
-```bash
-uv run python -m scripts.study \
-  "Summarize Chapter 1" \
-  --book-id 1 \
-  --output outputs/chapter_1_summary.md
-```
-
-Section requests can be constrained by chapter:
-
-```bash
-uv run python -m scripts.study \
-  "Summarize section Understanding Machine Learning Systems in Chapter 1" \
-  --book-id 1
-```
-
-Summarization reads all meaningful canonical blocks in the resolved subtree;
-it does not use top-k retrieval. Tables are flattened, image captions remain
-text, image payloads are omitted, and known header/footer/page-break blocks are
-skipped. The first version makes one model call only when the complete prompt
-fits the configured context window. It never truncates or stores summaries.
-Returned node/page citations and content-bearing node coverage are validated
-before an output file is written. After validation, the application appends a
-deduplicated `References` section that maps every citation used in the summary
-to the book title, full chapter/section hierarchy, and exact PDF page. Missing
-coverage for recap nodes titled `Summary` or `Conclusion` is reported as a
-warning and does not block output; missing substantive nodes and invalid or
-out-of-scope citations remain hard validation failures.
-
-The prompt budget defaults to a 64,000-token context window with 8,000 output
-tokens and a 1,000-token safety reserve. Override these explicitly for the
-chosen OpenRouter model with `SUMMARY_CONTEXT_WINDOW_TOKENS`,
-`SUMMARY_MAX_OUTPUT_TOKENS`, and `SUMMARY_SAFETY_MARGIN_TOKENS`.
-
-## Build the BM25 index
-
-The chunk builder reads canonical storage in read-only mode and writes
-rebuildable output to `data/retrieval.sqlite3`:
-
-```bash
-uv run python -m scripts.build_chunks
-```
-
-The default policy targets 600 tokens, caps chunks at 800 tokens, uses up to
-80 tokens of block-aligned overlap, and never crosses a TOC node. Table
-placeholders are replaced with flattened table text. Image payloads are not
-indexed; nearby captions and text remain searchable while image block
-provenance is retained.
-
-Navigation-only nodes such as the cover, table of contents, and index are
-excluded from retrieval but remain unchanged in canonical storage. Rebuilding
-the same source and configuration atomically replaces the prior derived build
-and produces the same chunk IDs.
-
-The parameters and database paths can be changed explicitly:
-
-```bash
-uv run python -m scripts.build_chunks \
-  --source-database data/books.sqlite3 \
-  --retrieval-database data/retrieval.sqlite3 \
-  --book-id 1 \
-  --target-tokens 600 \
-  --max-tokens 800 \
-  --overlap-tokens 80
-```
-
-## Build the local vector index
-
-The vector index runs locally with no Docker or server:
-
-```bash
-uv run python -m scripts.build_vector_index
-```
-
-The first run downloads the pinned
-`Alibaba-NLP/gte-modernbert-base` model. It embeds the book title, full
-hierarchy path, and complete chunk body into a 768-dimensional vector, then
-stores it in a cosine HNSW Chroma collection under `data/chroma/`.
-
-The locked environment uses PyTorch's official CPU-only package index because
-CPU is the documented reproducible default. This avoids silently installing
-several gigabytes of unused CUDA libraries on Linux and in Docker. A future GPU
-experiment should use an explicit, separately measured dependency profile.
-
-The model supports 8,192 tokens, so the existing 800-token chunk limit is not
-silently truncated. The command is idempotent: unchanged chunk IDs are
-skipped, new chunks are embedded, and stale vectors are deleted. Index
-provenance is written to `data/chroma/index_manifest.json`.
-
-Embedding defaults to CPU for a reproducible no-GPU setup. On a compatible
-CUDA installation, opt in with `EMBEDDING_DEVICE=cuda`.
-
-To intentionally recreate an incompatible derived collection:
-
-```bash
-uv run python -m scripts.build_vector_index --reset
-```
-
-## Evaluate retrieval
-
-The retrieval gold set and judgment policy live under `evaluation/`. Run:
-
-```bash
-uv run python -m scripts.evaluate_retrieval
-```
-
-This evaluates BM25, vector, hybrid, and reranked hybrid retrieval against the
-same frozen node-level judgments. Hybrid uses unweighted reciprocal rank fusion
-over the top 20 chunks from each retriever. The reranked mode applies the pinned
-local `Alibaba-NLP/gte-reranker-modernbert-base` cross-encoder to that
-20-candidate shortlist before retaining five distinct TOC nodes. To run only
-the frozen BM25 baseline:
+Run only the frozen lexical baseline:
 
 ```bash
 uv run python -m scripts.evaluate_retrieval --modes bm25
 ```
 
-For the current 15-question seed set, the original BM25 baseline on the 12
-answerable questions is:
+After embeddings exist, compare all retrieval strategies:
 
-| Metric | Result |
-|---|---:|
-| Recall@3 | 0.819 |
-| Recall@5 | 0.889 |
-| MRR@5 | 0.917 |
+```bash
+uv run python -m scripts.evaluate_retrieval
+uv run python -m scripts.build_retrieval_report
+```
 
-The remaining misses are concentrated in questions whose required evidence
-spans multiple sections. Unanswerable questions are shown as retrieval probes
-but are not scored until a downstream sufficiency/abstention step exists.
-
-The current four-way comparison is:
+The gold set and judgment policy live under `evaluation/`. Reports include
+overall/category metrics, each expected node, retrieved citations, excerpts,
+and explicit missing-evidence diagnostics. The audited Postgres comparison is:
 
 | Method | Recall@3 | Recall@5 | MRR@5 |
 |---|---:|---:|---:|
 | BM25 | 0.819 | 0.889 | 0.917 |
-| Vector | 0.681 | 0.847 | 0.750 |
-| Hybrid | 0.778 | 0.931 | 0.896 |
-| Hybrid + reranker | 0.847 | 0.931 | 0.917 |
+| Vector | 0.903 | 0.931 | 0.792 |
+| Hybrid | 0.847 | 0.931 | 0.847 |
+| Hybrid + reranker | 0.889 | 1.000 | 0.958 |
 
-The reranker shortlist has 1.000 candidate Recall@20. Reranking improves
-early ordering over hybrid but does not improve Recall@5 on this seed set, so
-plain hybrid remains the interactive default while the reranked mode stays
-available for comparison. The first reranked query downloads the model; later
-queries use the local Hugging Face cache. CPU is the reproducible default;
-set `RERANKER_DEVICE=cuda` on a compatible CUDA setup.
+The reranker candidate Recall@20 is 1.000. Hybrid remains the interactive
+default until traced latency and cost justify paying for reranking on every
+request.
 
-### Detailed comparison report
-
-Open
-[`evaluation/retrieval_comparison.html`](evaluation/retrieval_comparison.html)
-for the self-contained comparison containing:
-
-- Overall and category-level metrics for all four methods.
-- Every gold-set question and its expected source nodes and PDF pages.
-- The top five results from each method with citations and excerpts.
-- Explicit missing-node and unanswerable-probe diagnostics.
-
-The report's rebuildable source artifact is generated from the frozen gold
-set, derived SQLite chunks, and local Chroma collection:
-
-```bash
-uv run python -m scripts.build_retrieval_report
-```
-
-### Multi-turn implementation gold set
-
-The model-adjudicated synthetic seed set for conversation routing contains 11
-conversations and 44 turns. It is grounded in the canonical SQLite book but is
-explicitly not human-verified. Validate it and rebuild its offline inspection
+Validate the synthetic multi-turn fixture and build its offline inspection
 page with:
 
 ```bash
@@ -395,43 +193,15 @@ uv run python -m scripts.validate_multiturn_gold
 uv run python -m scripts.build_multiturn_report
 ```
 
-Open
-[`evaluation/multiturn_gold.html`](evaluation/multiturn_gold.html)
-to inspect questions, reference answers, citations, expected retrieval
-evidence, near misses, routes, resolved scopes, and state transitions.
+## API and UI
 
-The evaluator replays predicted state through the real conversational
-coordinator. The Next.js/FastAPI and Gradio paths use the same coordinator,
-rewrite follow-up questions, and execute the existing summary and retrieval
-paths. Real runs require OpenRouter configuration from `.env.example`;
-standard LangSmith environment variables enable tracing.
-
-Start with the three-conversation smoke set:
-
-```bash
-uv run python -m scripts.evaluate_multiturn \
-  --conversation mt-001 \
-  --conversation mt-009 \
-  --conversation mt-010
-```
-
-The command saves a machine-readable result and a self-contained HTML report
-under `evaluation/runs/<run-id>/`. Routine runs are ignored by Git. After
-checking the smoke report, explicitly request the full baseline with:
-
-```bash
-uv run python -m scripts.evaluate_multiturn --all
-```
-
-## FastAPI and Next.js
-
-After adding `OPENROUTER_API_KEY` to `.env`, start the API:
+After configuring model credentials, start FastAPI:
 
 ```bash
 uv run uvicorn api.main:app --reload
 ```
 
-In a second terminal, start the Next.js client:
+In another terminal:
 
 ```bash
 cd frontend
@@ -439,124 +209,24 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. Next.js forwards `/api` requests to FastAPI at
-`http://localhost:8000`. To use a different backend, copy
-`frontend/.env.example` to `frontend/.env.local` and change `BACKEND_URL`.
-The API exposes `GET /api/health` and
-`POST /api/chat`; conversation state is returned to and stored by the client,
-so the server does not hide session state in memory.
+Open `http://localhost:3000`. The browser calls Next.js `/api`, which forwards
+to FastAPI at `http://localhost:8000`. The interface remains intentionally
+single-user until the deferred Supabase Auth stage is implemented.
 
-The interface supports chapter/section summaries, grounded questions,
-follow-ups, all four retrieval modes, and inspectable details for the latest
-turn.
+The API exposes `GET /api/health` and `POST /api/chat`. Every study turn and
+LLM call can be traced in LangSmith when the standard LangSmith environment
+variables are configured.
 
-## Docker setup
+## Verification
 
-The Docker setup runs the Next.js client and FastAPI service while mounting the
-existing local `data/` directory rather than baking book data into an image:
+Run Python checks:
 
 ```bash
-test -f .env || cp .env.example .env
-docker compose up --build
-```
-
-Open `http://localhost:3000`. The API is also available at
-`http://localhost:8000`. Ingest the book and build the indexes before starting
-the application if `data/` is empty. The first vector or reranked request can
-take longer while its pinned local model is downloaded; the Compose setup
-keeps that model cache in a named volume.
-
-## Vercel deployment
-
-Deploy `frontend/` as the Vercel project root. Vercel detects Next.js from
-`package.json`; no custom framework setting is needed. Add this environment
-variable to the Vercel project:
-
-```text
-BACKEND_URL=https://your-fastapi-host.example.com
-```
-
-Do not include `/api` at the end. The browser calls the same Next.js origin at
-`/api`, and the server-side rewrite sends that request to FastAPI. FastAPI and
-its SQLite/model data must be hosted separately because this repository does
-not turn the Python backend into a Vercel function.
-
-## Optional Gradio chat
-
-After adding `OPENROUTER_API_KEY` to `.env`, launch the local chat interface:
-
-```bash
-uv run python app.py
-```
-
-The default model split is deliberately task-specific:
-
-- DeepSeek V4 Flash, with reasoning disabled, writes grounded answers and
-  complete-scope summaries.
-- Gemini 3.1 Flash Lite at high reasoning handles the small structured
-  conversation-routing decision.
-- Gemini 3 Flash Preview at high reasoning is used only when the optional
-  semantic answer judge is enabled.
-
-All three choices are environment overrides in `.env.example`. Retrieval,
-scope resolution, citation validation, and state updates remain deterministic
-Python regardless of model choice. The benchmark, pricing, live acceptance
-results, and rejected alternatives are recorded in
-[`docs/model-selection.md`](docs/model-selection.md).
-
-The UI keeps independent in-memory state for each browser session. Explicit
-chapter or section summaries/listings establish the active scope. Ordinary
-questions use BM25, vector, hybrid, or hybrid-rerank retrieval with one
-standalone follow-up rewrite, while Python applies the state changes.
-
-Try:
-
-1. `What sections are present in Chapter 1?`
-2. `Which one discusses differences between research and production?`
-
-Open **Turn diagnostics** to inspect the selected route, standalone retrieval
-query, active scope, and retrieval mode. **Clear conversation** clears both
-the visible transcript and its internal state.
-
-The CLI and UI share one deterministic query router:
-
-- Explicit chapter/section summaries resolve the canonical SQLite scope and
-  send its complete subtree to the model instead of top-k chunks.
-- Section-list requests read the canonical hierarchy without an LLM call.
-- Ordinary questions continue through BM25, vector, hybrid, or reranked hybrid
-  retrieval.
-- `Summarize X` uses complete-scope summarization when `X` uniquely matches a
-  TOC node; otherwise it falls back to ordinary retrieval.
-
-Each response shows its route plus full hierarchy and PDF-page references.
-The optional UI Book ID disambiguates hierarchy requests when multiple books
-are present. Search spans all indexed books when it is left blank.
-Conversation state is retained per browser session; non-obvious follow-ups
-are rewritten once by the control model before retrieval.
-
-The CLI exposes the same router and retrieval choice:
-
-```bash
-uv run python -m scripts.ask_book \
-  --retrieval-mode hybrid_rerank \
-  "How does reservoir sampling work?"
-```
-
-Complete chapter summarization works through the same command:
-
-```bash
-uv run python -m scripts.ask_book \
-  --book-id 1 \
-  "Summarize Chapter 1"
-```
-
-## Tests
-
-```bash
+uv run python -m compileall -q api evals parsing retrieval scripts storage study tests
 uv run python -m unittest discover -s tests -v
 ```
 
-Audit and build the Next.js client with:
+Audit and build the Next.js client:
 
 ```bash
 cd frontend
@@ -565,4 +235,18 @@ npm audit --omit=dev
 npm run build
 ```
 
-GitHub Actions runs both checks on pushes to `main` and on pull requests.
+GitHub Actions runs the Python and frontend checks on pushes to `main` and pull
+requests. Postgres integration tests require the local Supabase stack.
+
+## Docker
+
+Start Supabase on the host first, then run the API and frontend containers:
+
+```bash
+npx --yes supabase@2.109.1 start
+docker compose up --build
+```
+
+The API container reaches the host database through `DOCKER_DATABASE_URL`.
+The `data/` mount remains during the rollback window because it contains the
+legacy SQLite/Chroma inputs; the application runtime does not read them.

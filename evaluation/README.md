@@ -1,7 +1,9 @@
 # Retrieval evaluation
 
 This directory contains evaluation data derived from the canonical book
-content in `data/books.sqlite3`. Each dataset records its own review
+content now stored in Postgres. The frozen judgments were originally created
+against the pre-cutover SQLite snapshot; audited migration preserves the same
+node IDs, pages, hierarchy, and content. Each dataset records its own review
 provenance; do not assume every artifact is human-verified.
 
 ## Multi-turn conversation set
@@ -18,7 +20,7 @@ methodology. The runtime did not expose a selectable or independently
 verifiable reviewer model identity, so the JSON makes no model-name claim.
 
 Validate every node, page, route contract, dependency, hierarchy outline, and
-complete-summary subtree against canonical SQLite:
+complete-summary subtree against canonical Postgres:
 
 ```bash
 uv run python -m scripts.validate_multiturn_gold
@@ -92,8 +94,8 @@ reason and increment the dataset version.
 
 ## Judgment policy
 
-The current judgment unit is a TOC-aligned `nodes` row because derived chunks
-do not exist yet. A node is relevant when its content would be used as evidence
+The judgment unit is a TOC-aligned `nodes` row rather than a version-specific
+chunk. A node is relevant when its content would be used as evidence
 in a grounded answer to the question. This follows the practical relevance
 definition used by NIST's Text REtrieval Conference (TREC).
 
@@ -116,8 +118,10 @@ Page numbers are the physical PDF page numbers stored in
 ## How the set was produced
 
 The book hierarchy, ordered text blocks, and flattened table blocks were
-inspected directly in SQLite. Evidence summaries in the JSON are paraphrases
-used to explain the relevance decision; they are not reference answers.
+originally inspected directly in SQLite. The migration audit confirms that
+Postgres restores the same parsed book and canonical counts. Evidence
+summaries in the JSON are paraphrases used to explain the relevance decision;
+they are not reference answers.
 
 External research informed the evaluation method, not the book-specific
 answers:
@@ -141,14 +145,14 @@ retrieval scores alone cannot determine abstention.
 
 All methods rank the same rebuildable chunks:
 
-- **BM25:** SQLite FTS5 over weighted section title, hierarchy, and body fields.
-- **Vector:** hierarchy-aware text embedded locally with the pinned
-  `Alibaba-NLP/gte-modernbert-base` model and searched in a cosine HNSW Chroma
-  collection.
+- **BM25:** Postgres-normalized weighted title, hierarchy, and body lexemes,
+  with a GIN-backed match predicate and deterministic BM25 scoring.
+- **Vector:** hierarchy-aware text embedded with
+  `openai/text-embedding-3-large` through OpenRouter and searched exactly in
+  Postgres `vector(3072)` rows.
 - **Hybrid:** unweighted reciprocal rank fusion with rank constant 60 over the
   top 20 chunks from BM25 and vector retrieval.
-- **Hybrid + reranker:** the pinned local
-  `Alibaba-NLP/gte-reranker-modernbert-base` cross-encoder scores the 20 RRF
+- **Hybrid + reranker:** the configured hosted reranker scores the 20 RRF
   candidates using each chunk's hierarchy and complete body, then returns the
   five highest-ranked distinct TOC nodes.
 
@@ -164,6 +168,19 @@ uv run python -m scripts.build_vector_index
 uv run python -m scripts.evaluate_retrieval
 uv run python -m scripts.build_retrieval_report
 ```
+
+The first audited Postgres run produced:
+
+| Method | Recall@3 | Recall@5 | MRR@5 |
+|---|---:|---:|---:|
+| BM25 | 0.819 | 0.889 | 0.917 |
+| Vector | 0.903 | 0.931 | 0.792 |
+| Hybrid | 0.847 | 0.931 | 0.847 |
+| Hybrid + reranker | 0.889 | 1.000 | 0.958 |
+
+The reranker candidate Recall@20 is 1.000. The current
+`retrieval_comparison_artifact.json` contains per-question evidence for this
+run.
 
 After BM25 and one materially different retrieval method have produced ranked
 results, review the union of their top results and add any genuinely relevant

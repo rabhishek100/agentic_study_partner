@@ -1,6 +1,6 @@
 """Execute one conversational turn over summaries and book retrieval."""
 
-from pathlib import Path
+import re
 from uuid import uuid4
 
 from dotenv import load_dotenv
@@ -34,9 +34,7 @@ def _select_state(
     book_id: int | None,
 ) -> ConversationState:
     if state is None or (
-        book_id is not None
-        and state.book_id is not None
-        and state.book_id != book_id
+        book_id is not None and state.book_id is not None and state.book_id != book_id
     ):
         return new_conversation_state(book_id=book_id)
     state = state.model_copy(deep=True)
@@ -52,7 +50,11 @@ def _hierarchy_query(decision: TurnDecision) -> str:
         if scope.kind == "book":
             return "What chapters does this book have?"
         return f"What sections are present in {scope.display_path}?"
-    return f"Summarize {scope.display_path}."
+    if scope.kind == "chapter":
+        return f"Summarize {scope.display_path}."
+    parts = scope.display_path.split(" :: ")
+    chapter = re.sub(r"^Chapter\s+", "", parts[0], flags=re.IGNORECASE)
+    return f"Summarize section {parts[-1]} in chapter {chapter}."
 
 
 def _transform(
@@ -72,8 +74,7 @@ def _transform(
             ),
             (
                 "human",
-                f"Request:\n{question}\n\nPrior answer:\n"
-                f"{state.previous_answer}",
+                f"Request:\n{question}\n\nPrior answer:\n{state.previous_answer}",
             ),
         ],
         token_callback=token_callback,
@@ -95,9 +96,7 @@ def execute_decision(
     decision: TurnDecision,
     state: ConversationState,
     *,
-    database_path: str | Path,
-    source_path: str | Path,
-    chroma_path: str | Path,
+    database_url: str | None,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
     token_callback: TokenCallback | None = None,
@@ -120,13 +119,12 @@ def execute_decision(
     )
     result = execute_query(
         execution_question,
-        database_path=str(database_path),
-        source_path=str(source_path),
-        chroma_path=str(chroma_path),
+        database_url=database_url,
         book_id=state.book_id,
         retrieval_mode=retrieval_mode,
         model=model,
         token_callback=token_callback,
+        force_retrieval=decision.route == "retrieval_qa",
     )
     updates = {
         "question": question,
@@ -134,7 +132,17 @@ def execute_decision(
         "standalone_query": execution_question,
     }
     if result.route == "retrieval_qa":
-        updates["resolved_scope"] = None
+        chapter_refs = set(
+            re.findall(r"\bchapter\s+(\d+)\b", execution_question, re.IGNORECASE)
+        )
+        if len(chapter_refs) > 1:
+            updates["resolved_scope"] = None
+        elif state.active_scope and decision.history_dependency == "dependent":
+            updates["resolved_scope"] = state.active_scope
+        elif state.pending_clarification and decision.resolved_scope:
+            updates["resolved_scope"] = decision.resolved_scope
+        else:
+            updates["resolved_scope"] = None
     return result.model_copy(update=updates)
 
 
@@ -144,15 +152,10 @@ def record_turn(
     result: TurnResult,
 ) -> ConversationState:
     state = state.model_copy(deep=True)
-    if (
-        result.route in {"hierarchy_summary", "hierarchy_list"}
-        and result.resolved_scope
-    ):
+    if result.resolved_scope:
         state.active_scope = result.resolved_scope
         state.book_id = result.resolved_scope.book_id
-    state.pending_clarification = (
-        question if result.route == "clarify" else None
-    )
+    state.pending_clarification = question if result.route == "clarify" else None
 
     turn = sum(message.role == "user" for message in state.messages) + 1
     turn_id = f"{state.conversation_id}-t{turn}"
@@ -171,7 +174,7 @@ def record_turn(
         ]
     )
     state.previous_route = result.route
-    if result.outcome == "answer":
+    if result.outcome in {"answer", "abstain"}:
         state.previous_answer = result.answer
         state.previous_evidence = list(result.evidence)
         state.previous_citations = list(result.citations)
@@ -182,9 +185,7 @@ def execute_conversation_turn(
     question: str,
     state: ConversationState | None = None,
     *,
-    database_path: str | Path = "data/retrieval.sqlite3",
-    source_path: str | Path = "data/books.sqlite3",
-    chroma_path: str | Path = "data/chroma",
+    database_url: str | None = None,
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     analysis_model: AnalysisModel | None = None,
@@ -208,9 +209,7 @@ def execute_conversation_turn(
             },
         },
         context=StudyGraphContext(
-            database_path=database_path,
-            source_path=source_path,
-            chroma_path=chroma_path,
+            database_url=database_url,
             retrieval_mode=retrieval_mode,
             analysis_model=analysis_model,
             generation_model=generation_model,

@@ -7,7 +7,7 @@ import sys
 
 from dotenv import load_dotenv
 
-from storage.sqlite import connect_readonly
+from storage.database import connection as database_connection
 from study.content import load_scope_content
 from study.context import ScopeContext, build_scope_context
 from study.request import (
@@ -31,15 +31,14 @@ from study.summarize import (
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Map an explicit study query to canonical SQLite hierarchy and "
+            "Map an explicit study query to canonical Postgres hierarchy and "
             "optionally summarize the complete scope."
         )
     )
     parser.add_argument("query", help="Explicit chapter or section request")
     parser.add_argument(
-        "--database",
-        type=Path,
-        default=Path("data/books.sqlite3"),
+        "--database-url",
+        help="Postgres URL; defaults to DATABASE_URL",
     )
     parser.add_argument("--book-id", type=int)
     parser.add_argument(
@@ -127,7 +126,7 @@ def main() -> None:
     args = parser.parse_args()
     try:
         request = parse_study_request(args.query)
-        with connect_readonly(args.database) as connection:
+        with database_connection(args.database_url, readonly=True) as connection:
             scope = resolve_study_request(
                 connection,
                 request,

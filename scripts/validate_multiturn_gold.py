@@ -1,10 +1,11 @@
-"""Validate conversation gold data against canonical SQLite."""
+"""Validate conversation gold data against canonical Postgres."""
 
 import argparse
 import json
 from pathlib import Path
 import re
-import sqlite3
+
+from storage.database import connection as database_connection, resolve_owner_id
 
 
 CITATION = re.compile(r"\[N(\d+):P(\d+)]")
@@ -14,26 +15,27 @@ ROUTES = {
     "retrieval_qa",
     "prior_answer_transform",
     "clarify",
-    "abstain",
 }
 DEPENDENCIES = {"independent", "dependent", "ambiguous"}
 ROLES = {"required", "supporting", "optional_recap"}
 
 
 def _canonical(connection, book_id):
+    owner = resolve_owner_id()
     book = connection.execute(
-        "SELECT * FROM books WHERE id = ?", (book_id,)
+        "select * from books where id = %s and owner_id = %s", (book_id, owner)
     ).fetchone()
     nodes = {
         row["id"]: dict(row)
         for row in connection.execute(
-            "SELECT * FROM nodes WHERE book_id = ?", (book_id,)
+            "select * from nodes where book_id = %s and owner_id = %s",
+            (book_id, owner),
         )
     }
     return book, nodes
 
 
-def validate(gold: dict, connection: sqlite3.Connection, *, allow_pending=False):
+def validate(gold: dict, connection, *, allow_pending=False):
     """Return all structural and canonical-data errors in one pass."""
 
     errors = []
@@ -73,9 +75,9 @@ def validate(gold: dict, connection: sqlite3.Connection, *, allow_pending=False)
                 and not (turn.get("expected_standalone_query") or "").strip()
             ):
                 errors.append(f"{prefix}: standalone query is empty")
-            missing_dependencies = set(
-                turn.get("depends_on_turn_ids", [])
-            ) - prior_turns
+            missing_dependencies = (
+                set(turn.get("depends_on_turn_ids", [])) - prior_turns
+            )
             if missing_dependencies:
                 errors.append(
                     f"{prefix}: dependency is not an earlier turn: "
@@ -104,8 +106,7 @@ def validate(gold: dict, connection: sqlite3.Connection, *, allow_pending=False)
                         for page in pages
                     ):
                         errors.append(
-                            f"{prefix}: evidence page falls outside node "
-                            f"{node['id']}"
+                            f"{prefix}: evidence page falls outside node {node['id']}"
                         )
                     evidence_lookup.setdefault(node["id"], set()).update(pages)
 
@@ -119,8 +120,10 @@ def validate(gold: dict, connection: sqlite3.Connection, *, allow_pending=False)
             if not turn.get("answerable", True):
                 unanswerable += 1
                 if turn.get("expected_evidence"):
+                    errors.append(f"{prefix}: unanswerable turn has expected evidence")
+                if turn.get("expected_route") not in {"retrieval_qa", "clarify"}:
                     errors.append(
-                        f"{prefix}: unanswerable turn has expected evidence"
+                        f"{prefix}: unanswerable turn must retrieve or clarify"
                     )
 
     review = gold.get("review", {})
@@ -129,9 +132,7 @@ def validate(gold: dict, connection: sqlite3.Connection, *, allow_pending=False)
     if not allow_pending:
         for reviewer in review.get("reviewers", []):
             if reviewer.get("decision") != "approve":
-                errors.append(
-                    f"reviewer {reviewer.get('reviewer_id')} did not approve"
-                )
+                errors.append(f"reviewer {reviewer.get('reviewer_id')} did not approve")
 
     return {
         "valid": not errors,
@@ -149,22 +150,12 @@ def main():
         type=Path,
         default=Path("evaluation/multiturn_gold.json"),
     )
-    parser.add_argument(
-        "--database", type=Path, default=Path("data/books.sqlite3")
-    )
+    parser.add_argument("--database-url", help="Postgres URL; defaults to DATABASE_URL")
     parser.add_argument("--allow-pending-review", action="store_true")
     args = parser.parse_args()
     gold = json.loads(args.gold_set.read_text(encoding="utf-8"))
-    connection = sqlite3.connect(
-        args.database.resolve().as_uri() + "?mode=ro", uri=True
-    )
-    connection.row_factory = sqlite3.Row
-    try:
-        result = validate(
-            gold, connection, allow_pending=args.allow_pending_review
-        )
-    finally:
-        connection.close()
+    with database_connection(args.database_url, readonly=True) as connection:
+        result = validate(gold, connection, allow_pending=args.allow_pending_review)
     print(json.dumps(result, indent=2))
     raise SystemExit(0 if result["valid"] else 1)
 

@@ -4,9 +4,9 @@ import argparse
 from html import escape
 import json
 from pathlib import Path
-import sqlite3
 
 from scripts.validate_multiturn_gold import validate
+from storage.database import connection as database_connection, resolve_owner_id
 
 
 def _evidence(items, nodes):
@@ -31,7 +31,9 @@ def _evidence(items, nodes):
 def build_html(gold, validation, connection):
     nodes = {
         row["id"]: dict(row)
-        for row in connection.execute("SELECT * FROM nodes")
+        for row in connection.execute(
+            "select * from nodes where owner_id = %s", (resolve_owner_id(),)
+        )
     }
     cards = []
     routes = set()
@@ -49,22 +51,22 @@ def build_html(gold, validation, connection):
                 ).casefold()
             )
             turns.append(
-                f"""<article id="{escape(turn['turn_id'])}" class="turn"
- data-route="{escape(turn['expected_route'])}" data-search="{search}">
-<h3>{escape(turn['turn_id'])}: {escape(turn['user'])}</h3>
-<dl><dt>Route</dt><dd>{escape(turn['expected_route'])}</dd>
-<dt>History</dt><dd>{escape(turn['history_dependency'])}</dd>
-<dt>Standalone query</dt><dd>{escape(turn.get('expected_standalone_query') or '—')}</dd>
-<dt>Scope</dt><dd>{escape(str(turn.get('expected_scope') or 'global'))}</dd></dl>
-<h4>Reference answer</h4><p>{escape(turn['reference_answer'])}</p>
-<h4>Expected evidence</h4>{_evidence(turn.get('expected_evidence', []), nodes)}
+                f"""<article id="{escape(turn["turn_id"])}" class="turn"
+ data-route="{escape(turn["expected_route"])}" data-search="{search}">
+<h3>{escape(turn["turn_id"])}: {escape(turn["user"])}</h3>
+<dl><dt>Route</dt><dd>{escape(turn["expected_route"])}</dd>
+<dt>History</dt><dd>{escape(turn["history_dependency"])}</dd>
+<dt>Standalone query</dt><dd>{escape(turn.get("expected_standalone_query") or "—")}</dd>
+<dt>Scope</dt><dd>{escape(str(turn.get("expected_scope") or "global"))}</dd></dl>
+<h4>Reference answer</h4><p>{escape(turn["reference_answer"])}</p>
+<h4>Expected evidence</h4>{_evidence(turn.get("expected_evidence", []), nodes)}
 <details><summary>Near misses</summary>
-{_evidence(turn.get('near_miss_evidence', []), nodes)}</details>
+{_evidence(turn.get("near_miss_evidence", []), nodes)}</details>
 </article>"""
             )
         cards.append(
             f'<section id="{escape(conversation["id"])}">'
-            f'<h2>{escape(conversation["title"])}</h2>{"".join(turns)}</section>'
+            f"<h2>{escape(conversation['title'])}</h2>{''.join(turns)}</section>"
         )
     options = "".join(
         f'<option value="{escape(route)}">{escape(route)}</option>'
@@ -81,7 +83,7 @@ input{{flex:1}}input,select{{padding:9px}}dl{{display:grid;grid-template-columns
 dd{{margin:0}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;border-bottom:1px solid #ddd;padding:6px}}
 </style></head><body><h1>Conversation gold set</h1>
 <p><strong>Model-adjudicated, not human-verified.</strong>
- Canonical validation: {status}. {validation['turn_count']} turns.</p>
+ Canonical validation: {status}. {validation["turn_count"]} turns.</p>
 <div class="controls"><input id="search" placeholder="Search">
 <select id="route"><option value="">All routes</option>{options}</select></div>
 {"".join(cards)}
@@ -96,25 +98,17 @@ def main():
     parser.add_argument(
         "--gold-set", type=Path, default=Path("evaluation/multiturn_gold.json")
     )
-    parser.add_argument(
-        "--database", type=Path, default=Path("data/books.sqlite3")
-    )
+    parser.add_argument("--database-url", help="Postgres URL; defaults to DATABASE_URL")
     parser.add_argument(
         "--output", type=Path, default=Path("evaluation/multiturn_gold.html")
     )
     args = parser.parse_args()
     gold = json.loads(args.gold_set.read_text(encoding="utf-8"))
-    connection = sqlite3.connect(
-        args.database.resolve().as_uri() + "?mode=ro", uri=True
-    )
-    connection.row_factory = sqlite3.Row
-    try:
+    with database_connection(args.database_url, readonly=True) as connection:
         validation = validate(gold, connection, allow_pending=False)
         if not validation["valid"]:
             raise SystemExit("\n".join(validation["errors"]))
         html = build_html(gold, validation, connection)
-    finally:
-        connection.close()
     args.output.write_text(html, encoding="utf-8")
     print(args.output)
 

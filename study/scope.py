@@ -2,8 +2,11 @@
 
 from dataclasses import dataclass
 import re
-import sqlite3
-from typing import Literal
+from typing import Any, Literal
+
+from psycopg import Connection
+
+from storage.database import resolve_owner_id
 
 
 ScopeKind = Literal["book", "chapter", "section"]
@@ -88,16 +91,14 @@ class AmbiguousScopeError(ScopeResolutionError):
             f"(PDF pp. {candidate.start_page}–{candidate.end_page})"
             for candidate in candidates
         )
-        super().__init__(
-            f"{kind} reference {reference!r} is ambiguous: {choices}"
-        )
+        super().__init__(f"{kind} reference {reference!r} is ambiguous: {choices}")
 
 
 def _normalize(value: object) -> str:
     return " ".join(NON_WORD.sub(" ", str(value).casefold()).split())
 
 
-def _node(row: sqlite3.Row) -> ScopeNode:
+def _node(row: Any) -> ScopeNode:
     return ScopeNode(
         id=row["id"],
         book_id=row["book_id"],
@@ -112,7 +113,7 @@ def _node(row: sqlite3.Row) -> ScopeNode:
     )
 
 
-def _candidate(row: sqlite3.Row) -> ScopeMatch:
+def _candidate(row: Any) -> ScopeMatch:
     return ScopeMatch(
         book_id=row["book_id"],
         book_title=row["book_title"],
@@ -124,25 +125,27 @@ def _candidate(row: sqlite3.Row) -> ScopeMatch:
 
 
 def _book_rows(
-    connection: sqlite3.Connection,
+    connection: Connection,
     *,
     book_id: int | None,
-) -> list[sqlite3.Row]:
+) -> list[Any]:
+    owner = resolve_owner_id()
     if book_id is None:
         rows = connection.execute(
-            "SELECT * FROM books ORDER BY id"
+            "select * from books where owner_id = %s order by id",
+            (owner,),
         ).fetchall()
     else:
         rows = connection.execute(
-            "SELECT * FROM books WHERE id = ?",
-            (book_id,),
+            "select * from books where id = %s and owner_id = %s",
+            (book_id, owner),
         ).fetchall()
     if not rows:
         raise ScopeNotFoundError("book", book_id)
     return rows
 
 
-def _book_candidate(row: sqlite3.Row) -> ScopeMatch:
+def _book_candidate(row: Any) -> ScopeMatch:
     return ScopeMatch(
         book_id=row["id"],
         book_title=row["title"],
@@ -154,18 +157,22 @@ def _book_candidate(row: sqlite3.Row) -> ScopeMatch:
 
 
 def _all_book_nodes(
-    connection: sqlite3.Connection,
+    connection: Connection,
     book_id: int,
 ) -> tuple[ScopeNode, ...]:
     rows = connection.execute(
-        "SELECT * FROM nodes WHERE book_id = ? ORDER BY toc_index",
-        (book_id,),
+        """
+        select * from nodes
+        where book_id = %s and owner_id = %s
+        order by toc_index
+        """,
+        (book_id, resolve_owner_id()),
     ).fetchall()
     return tuple(_node(row) for row in rows)
 
 
 def _subtree_nodes(
-    connection: sqlite3.Connection,
+    connection: Connection,
     node_id: int,
 ) -> tuple[ScopeNode, ...]:
     rows = connection.execute(
@@ -173,26 +180,28 @@ def _subtree_nodes(
         WITH RECURSIVE subtree AS (
             SELECT *
             FROM nodes
-            WHERE id = ?
+            WHERE id = %s AND owner_id = %s
 
             UNION ALL
 
             SELECT child.*
             FROM nodes AS child
-            JOIN subtree AS parent ON child.parent_id = parent.id
+            JOIN subtree AS parent
+              ON child.parent_id = parent.id
+             AND child.owner_id = parent.owner_id
         )
         SELECT *
         FROM subtree
         ORDER BY toc_index
         """,
-        (node_id,),
+        (node_id, resolve_owner_id()),
     ).fetchall()
     return tuple(_node(row) for row in rows)
 
 
 def _resolved_node(
-    connection: sqlite3.Connection,
-    row: sqlite3.Row,
+    connection: Connection,
+    row: Any,
     *,
     kind: Literal["chapter", "section"],
 ) -> ResolvedScope:
@@ -210,7 +219,7 @@ def _resolved_node(
 
 
 def resolve_book(
-    connection: sqlite3.Connection,
+    connection: Connection,
     reference: str | None = None,
     *,
     book_id: int | None = None,
@@ -223,9 +232,7 @@ def resolve_book(
         if not target:
             raise ScopeNotFoundError("book", reference)
         exact = [row for row in rows if _normalize(row["title"]) == target]
-        rows = exact or [
-            row for row in rows if target in _normalize(row["title"])
-        ]
+        rows = exact or [row for row in rows if target in _normalize(row["title"])]
         if not rows:
             raise ScopeNotFoundError("book", reference)
     if len(rows) > 1:
@@ -244,7 +251,8 @@ def resolve_book(
         root_node_id=None,
         display_path=book["title"],
         start_page=1,
-        end_page=book["page_count"] or max(
+        end_page=book["page_count"]
+        or max(
             (node.end_page for node in nodes),
             default=1,
         ),
@@ -253,7 +261,7 @@ def resolve_book(
 
 
 def list_chapters(
-    connection: sqlite3.Connection,
+    connection: Connection,
     *,
     book_id: int,
 ) -> tuple[ScopeNode, ...]:
@@ -264,10 +272,10 @@ def list_chapters(
         """
         SELECT *
         FROM nodes
-        WHERE book_id = ? AND node_type = 'chapter'
+        WHERE book_id = %s AND owner_id = %s AND node_type = 'chapter'
         ORDER BY toc_index
         """,
-        (book_id,),
+        (book_id, resolve_owner_id()),
     ).fetchall()
     return tuple(_node(row) for row in rows)
 
@@ -298,7 +306,7 @@ def _title_chapter_number(title: str) -> str | None:
 
 
 def resolve_chapter(
-    connection: sqlite3.Connection,
+    connection: Connection,
     reference: str | int,
     *,
     book_id: int | None = None,
@@ -306,14 +314,15 @@ def resolve_chapter(
     """Resolve a chapter number or title, returning its complete subtree."""
 
     _book_rows(connection, book_id=book_id)
-    parameters: tuple[object, ...] = () if book_id is None else (book_id,)
-    predicate = "" if book_id is None else "AND nodes.book_id = ?"
+    owner = resolve_owner_id()
+    parameters: tuple[object, ...] = (owner,) if book_id is None else (owner, book_id)
+    predicate = "" if book_id is None else "AND nodes.book_id = %s"
     rows = connection.execute(
         f"""
         SELECT nodes.*, books.title AS book_title
         FROM nodes
-        JOIN books ON books.id = nodes.book_id
-        WHERE nodes.node_type = 'chapter' {predicate}
+        JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
+        WHERE nodes.owner_id = %s AND nodes.node_type = 'chapter' {predicate}
         ORDER BY nodes.book_id, nodes.toc_index
         """,
         parameters,
@@ -321,18 +330,12 @@ def resolve_chapter(
 
     number = _reference_chapter_number(reference)
     if number is not None:
-        matches = [
-            row
-            for row in rows
-            if _title_chapter_number(row["title"]) == number
-        ]
+        matches = [row for row in rows if _title_chapter_number(row["title"]) == number]
     else:
         target = _normalize(reference)
         if not target:
             raise ScopeNotFoundError("chapter", reference)
-        exact = [
-            row for row in rows if target in _chapter_aliases(row["title"])
-        ]
+        exact = [row for row in rows if target in _chapter_aliases(row["title"])]
         matches = exact or [
             row
             for row in rows
@@ -350,7 +353,7 @@ def resolve_chapter(
 
 
 def resolve_section(
-    connection: sqlite3.Connection,
+    connection: Connection,
     reference: str,
     *,
     book_id: int | None = None,
@@ -377,11 +380,12 @@ def resolve_section(
         """
         SELECT nodes.*, books.title AS book_title
         FROM nodes
-        JOIN books ON books.id = nodes.book_id
-        WHERE nodes.book_id = ? AND nodes.node_type != 'chapter'
+        JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
+        WHERE nodes.book_id = %s AND nodes.owner_id = %s
+          AND nodes.node_type != 'chapter'
         ORDER BY nodes.toc_index
         """,
-        (selected_book_id,),
+        (selected_book_id, resolve_owner_id()),
     ).fetchall()
     if allowed_ids is not None:
         rows = [row for row in rows if row["id"] in allowed_ids]
@@ -397,8 +401,7 @@ def resolve_section(
     matches = exact or [
         row
         for row in rows
-        if target in _normalize(row["title"])
-        or target in _normalize(row["path_text"])
+        if target in _normalize(row["title"]) or target in _normalize(row["path_text"])
     ]
     if not matches:
         raise ScopeNotFoundError("section", reference)
@@ -412,7 +415,7 @@ def resolve_section(
 
 
 def resolve_named_scope(
-    connection: sqlite3.Connection,
+    connection: Connection,
     reference: str,
     *,
     book_id: int | None = None,
@@ -430,14 +433,14 @@ def resolve_named_scope(
         """
         SELECT nodes.*, books.title AS book_title
         FROM nodes
-        JOIN books ON books.id = nodes.book_id
-        WHERE nodes.book_id = ?
+        JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
+        WHERE nodes.book_id = %s AND nodes.owner_id = %s
           AND nodes.node_type IN (
               'chapter', 'section', 'subsection', 'nested_section'
           )
         ORDER BY nodes.toc_index
         """,
-        (selected_book_id,),
+        (selected_book_id, resolve_owner_id()),
     ).fetchall()
 
     exact = [
@@ -446,15 +449,10 @@ def resolve_named_scope(
         if (
             target in _chapter_aliases(row["title"])
             if row["node_type"] == "chapter"
-            else target
-            in {_normalize(row["title"]), _normalize(row["path_text"])}
+            else target in {_normalize(row["title"]), _normalize(row["path_text"])}
         )
     ]
-    matches = exact or [
-        row
-        for row in rows
-        if target in _normalize(row["title"])
-    ]
+    matches = exact or [row for row in rows if target in _normalize(row["title"])]
     if not matches:
         raise ScopeNotFoundError("scope", reference)
     if len(matches) > 1:

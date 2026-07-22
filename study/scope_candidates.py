@@ -1,10 +1,8 @@
 """Small deterministic candidate set for the conversation control model."""
 
-from pathlib import Path
 import re
-import sqlite3
 
-from storage.sqlite import connect_readonly
+from storage.database import connection as database_connection, resolve_owner_id
 
 from .contracts import ConversationState, ScopeCandidate
 
@@ -13,11 +11,49 @@ NON_WORD = re.compile(r"[^\w]+", re.UNICODE)
 CHAPTER = re.compile(r"\bchapter\s+(\d+)\b", re.IGNORECASE)
 CHAPTER_TITLE = re.compile(r"^\s*chapter\s+(\d+)\b", re.IGNORECASE)
 STOPWORDS = {
-    "a", "about", "an", "and", "approach", "are", "book", "by", "can",
-    "chapter", "compare", "cover", "do", "does", "explain", "for", "from",
-    "how", "in", "is", "it", "list", "of", "on", "one", "or", "please",
-    "section", "summarize", "summarise", "that", "the", "them", "then",
-    "this", "to", "was", "what", "when", "where", "which", "why", "with",
+    "a",
+    "about",
+    "an",
+    "and",
+    "approach",
+    "are",
+    "book",
+    "by",
+    "can",
+    "chapter",
+    "compare",
+    "cover",
+    "do",
+    "does",
+    "explain",
+    "for",
+    "from",
+    "how",
+    "in",
+    "is",
+    "it",
+    "list",
+    "of",
+    "on",
+    "one",
+    "or",
+    "please",
+    "section",
+    "summarize",
+    "summarise",
+    "that",
+    "the",
+    "them",
+    "then",
+    "this",
+    "to",
+    "was",
+    "what",
+    "when",
+    "where",
+    "which",
+    "why",
+    "with",
 }
 
 
@@ -26,9 +62,7 @@ def _normalize(value):
 
 
 def _tokens(value):
-    return {
-        token for token in _normalize(value).split() if token not in STOPWORDS
-    }
+    return {token for token in _normalize(value).split() if token not in STOPWORDS}
 
 
 def _aliases(title):
@@ -36,21 +70,24 @@ def _aliases(title):
     match = CHAPTER_TITLE.match(title)
     if match:
         aliases.add(f"chapter {match.group(1)}")
-        remainder = title[match.end():].lstrip(" .:—–-")
+        remainder = title[match.end() :].lstrip(" .:—–-")
         if remainder:
             aliases.add(_normalize(remainder))
     return aliases
 
 
 def _rows(connection, book_id):
-    predicate = "AND book_id = ?" if book_id is not None else ""
-    parameters = (book_id,) if book_id is not None else ()
+    predicate = "AND book_id = %s" if book_id is not None else ""
+    parameters = (
+        (resolve_owner_id(), book_id) if book_id is not None else (resolve_owner_id(),)
+    )
     return connection.execute(
         f"""
         SELECT id, book_id, parent_id, toc_index, node_type, title,
                path_text, start_page, end_page
         FROM nodes
-        WHERE node_type IN ('chapter','section','subsection','nested_section')
+        WHERE owner_id = %s
+          AND node_type IN ('chapter','section','subsection','nested_section')
         {predicate}
         ORDER BY book_id, toc_index
         """,
@@ -60,9 +97,7 @@ def _rows(connection, book_id):
 
 def _bounds(rows):
     by_id = {row["id"]: row for row in rows}
-    bounds = {
-        row["id"]: [row["start_page"], row["end_page"]] for row in rows
-    }
+    bounds = {row["id"]: [row["start_page"], row["end_page"]] for row in rows}
     for row in rows:
         parent = row["parent_id"]
         visited = set()
@@ -85,9 +120,7 @@ def _parent_chapter(row, by_id):
 
 
 def _add(ranked, row, score, reason):
-    current = ranked.setdefault(
-        row["id"], {"row": row, "score": score, "reasons": []}
-    )
+    current = ranked.setdefault(row["id"], {"row": row, "score": score, "reasons": []})
     current["score"] = max(current["score"], score)
     if reason not in current["reasons"]:
         current["reasons"].append(reason)
@@ -96,7 +129,7 @@ def _add(ranked, row, score, reason):
 def find_scope_candidates(
     question: str,
     state: ConversationState,
-    source_path: str | Path = "data/books.sqlite3",
+    database_url: str | None = None,
     *,
     limit: int = 8,
 ) -> list[ScopeCandidate]:
@@ -112,7 +145,7 @@ def find_scope_candidates(
     )
     recent_chapters = set(CHAPTER.findall(recent))
 
-    with connect_readonly(source_path) as connection:
+    with database_connection(database_url, readonly=True) as connection:
         rows = _rows(connection, state.book_id)
     by_id, bounds = _bounds(rows)
     ranked = {}
@@ -195,11 +228,7 @@ def find_scope_candidates(
         ScopeCandidate(
             book_id=item["row"]["book_id"],
             node_id=item["row"]["id"],
-            kind=(
-                "chapter"
-                if item["row"]["node_type"] == "chapter"
-                else "section"
-            ),
+            kind=("chapter" if item["row"]["node_type"] == "chapter" else "section"),
             title=item["row"]["title"],
             display_path=item["row"]["path_text"],
             start_page=bounds[item["row"]["id"]][0],

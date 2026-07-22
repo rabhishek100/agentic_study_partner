@@ -45,7 +45,7 @@ day per day).
    citations. No citation, no claim.
 2. **Deterministic first.** Prefer plain Python. Reach for an LLM or agent
    call only where a decision, retry, or decomposition genuinely needs one.
-3. **Source vs. derived data.** Parsed book content in SQLite is canonical
+3. **Source vs. derived data.** Parsed book content in Postgres is canonical
    and lossless. Chunks, indexes, embeddings, and summaries are derived —
    always rebuildable from source, never hand-edited.
 4. **Evaluate before adding complexity.** Vector retrieval, reranking, and
@@ -62,7 +62,7 @@ day per day).
 
 ### Must have
 
-- Book PDF ingestion into hierarchical SQLite (books, sections, text,
+- Book PDF ingestion into hierarchical Postgres (books, sections, text,
   tables, images).
 - Chapter/section selection and complete chapter summarization with
   citations.
@@ -93,7 +93,7 @@ improving the core RAG demonstration.
 
 ```text
 PDF / PPT
-    -> Canonical parsing and SQLite storage
+    -> Canonical parsing and Postgres storage
     -> Rebuildable chunks, BM25 index, vectors, and summaries
     -> Hierarchy-aware retrieval
     -> LangGraph planning, validation, and retry   (traced end to end in LangSmith)

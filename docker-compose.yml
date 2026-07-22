@@ -5,6 +5,10 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/app/data
     ports:
@@ -35,6 +39,3 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
-
-volumes:
-  huggingface-cache:

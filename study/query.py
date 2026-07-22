@@ -1,7 +1,6 @@
 """Shared routing for hierarchy operations and ordinary retrieval questions."""
 
 import os
-from pathlib import Path
 import re
 from typing import Protocol
 
@@ -9,8 +8,7 @@ from dotenv import load_dotenv
 
 from retrieval.langchain import BookRetriever
 from retrieval.search import RetrievalMode
-from retrieval.sqlite import connect_source
-from storage.sqlite import connect_readonly
+from storage.database import connection as database_connection, resolve_owner_id
 from .content import load_scope_content
 from .contracts import (
     CitationRef,
@@ -52,19 +50,21 @@ class QueryExecutionError(RuntimeError):
 
 
 SOURCE_CITATION = re.compile(r"\[S(\d+)]")
+INSUFFICIENT_EVIDENCE_MARKER = "INSUFFICIENT_EVIDENCE:"
+INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
+    r"\b(?:the\s+)?evidence\s+is\s+insufficient\b|"
+    r"\bnot\s+enough\s+evidence\b|"
+    r"\bcannot\s+be\s+answered\s+from\s+(?:the|this)\s+evidence\b|"
+    r"\bcannot\s+recommend\s+(?:a|an|the|any)\b",
+    re.IGNORECASE,
+)
 
 
 def _summary_config() -> SummaryConfig:
     return SummaryConfig(
-        context_window_tokens=int(
-            os.getenv("SUMMARY_CONTEXT_WINDOW_TOKENS", "64000")
-        ),
-        max_output_tokens=int(
-            os.getenv("SUMMARY_MAX_OUTPUT_TOKENS", "8000")
-        ),
-        safety_margin_tokens=int(
-            os.getenv("SUMMARY_SAFETY_MARGIN_TOKENS", "1000")
-        ),
+        context_window_tokens=int(os.getenv("SUMMARY_CONTEXT_WINDOW_TOKENS", "64000")),
+        max_output_tokens=int(os.getenv("SUMMARY_MAX_OUTPUT_TOKENS", "8000")),
+        safety_margin_tokens=int(os.getenv("SUMMARY_SAFETY_MARGIN_TOKENS", "1000")),
     )
 
 
@@ -112,7 +112,7 @@ def _scope_ref(scope: ResolvedScope) -> ScopeRef:
 def _resolve_hierarchy_request(
     question: str,
     *,
-    source_path: str | Path,
+    database_url: str | None,
     book_id: int | None,
 ) -> tuple[StudyRequest, ResolvedScope] | None:
     """Return a resolved study request, or None for ordinary retrieval."""
@@ -123,7 +123,7 @@ def _resolve_hierarchy_request(
         return None
 
     try:
-        with connect_readonly(source_path) as source:
+        with database_connection(database_url, readonly=True) as source:
             scope = resolve_study_request(source, request, book_id=book_id)
     except ScopeNotFoundError:
         if request.scope_kind == "named":
@@ -136,7 +136,7 @@ def _answer_hierarchy_request(
     request: StudyRequest,
     scope: ResolvedScope,
     *,
-    source_path: str | Path,
+    database_url: str | None,
     model: ChatModel | None,
     token_callback: TokenCallback | None = None,
 ) -> TurnResult:
@@ -147,9 +147,7 @@ def _answer_hierarchy_request(
         return TurnResult(
             question="",
             answer=(
-                format_chapter_list(scope)
-                if is_chapter_list
-                else format_outline(scope)
+                format_chapter_list(scope) if is_chapter_list else format_outline(scope)
             ),
             route="hierarchy_list",
             history_dependency="independent",
@@ -159,18 +157,14 @@ def _answer_hierarchy_request(
             ),
             resolved_scope=_scope_ref(scope),
             outline_node_ids=(
-                [
-                    node.id
-                    for node in scope.nodes
-                    if node.node_type == "chapter"
-                ]
+                [node.id for node in scope.nodes if node.node_type == "chapter"]
                 if is_chapter_list
                 else [node.id for node in scope.nodes[1:]]
             ),
             outcome="answer",
         )
 
-    with connect_readonly(source_path) as source:
+    with database_connection(database_url, readonly=True) as source:
         evidence_bundle = load_scope_content(source, scope)
     context = build_scope_context(evidence_bundle)
     config = _summary_config()
@@ -186,7 +180,6 @@ def _answer_hierarchy_request(
         scope=scope,
         context=context,
         config=config,
-        token_callback=token_callback,
     )
     if not result.validation.valid:
         finish_reason = (
@@ -206,8 +199,7 @@ def _answer_hierarchy_request(
         f"{scope.display_path} (PDF pp. {scope.start_page}–{scope.end_page})_"
     )
     warning_text = "\n".join(
-        f"> **Validation warning:** {warning}"
-        for warning in result.validation.warnings
+        f"> **Validation warning:** {warning}" for warning in result.validation.warnings
     )
     answer = (
         f"{route}\n\n{summary}"
@@ -216,11 +208,16 @@ def _answer_hierarchy_request(
     )
     if result.attempt_count > 1:
         warning = (
-            "The first draft failed deterministic citation validation and "
-            "was regenerated once with exact validation feedback."
+            "An earlier draft failed deterministic citation validation and "
+            "was regenerated with exact validation feedback."
         )
         warning_text = f"> **Validation repair:** {warning}"
         answer = f"{route}\n\n{warning_text}\n\n{summary}"
+    if token_callback is not None:
+        # Summary drafts are buffered until citation validation succeeds. This
+        # exposes one stable answer instead of streaming an invalid draft and
+        # visibly restarting during a repair attempt.
+        token_callback("token", answer)
     nodes = {node.id: node for node in scope.nodes}
     evidence = [
         EvidenceRef(
@@ -268,9 +265,7 @@ def _answer_hierarchy_request(
 def _answer_retrieval_question(
     question: str,
     *,
-    database_path: str,
-    source_path: str,
-    chroma_path: str,
+    database_url: str | None,
     book_id: int | None,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
@@ -278,18 +273,22 @@ def _answer_retrieval_question(
 ) -> TurnResult:
     """Answer one ordinary question from top-k retrieval evidence."""
 
-    with connect_source(source_path) as source:
+    owner = resolve_owner_id()
+    with database_connection(database_url, readonly=True) as source:
         if book_id is None:
-            rows = source.execute("SELECT id, title FROM books").fetchall()
+            rows = source.execute(
+                "select id, title from books where owner_id = %s",
+                (owner,),
+            ).fetchall()
         else:
             rows = source.execute(
-                "SELECT id, title FROM books WHERE id = ?",
-                (book_id,),
+                "select id, title from books where id = %s and owner_id = %s",
+                (book_id, owner),
             ).fetchall()
         books = {row["id"]: row["title"] for row in rows}
     documents = BookRetriever(
-        database_path=database_path,
-        chroma_path=chroma_path,
+        database_url=database_url or "",
+        owner_id=str(owner),
         mode=retrieval_mode,
         book_id=book_id,
         k=5,
@@ -314,7 +313,17 @@ def _answer_retrieval_question(
     model = model or openrouter_model()
     rules = (
         "Answer only from the evidence. Cite claims with [S1], [S2], etc. "
-        "If evidence is insufficient, say so."
+        "Evidence is sufficient when it directly supports the requested claim "
+        "or causal explanation; do not demand extra quantification, exact user "
+        "wording, or consumer-specific examples that the question did not require. "
+        "A direct logical implication is enough for a yes/no answer; do not abstain "
+        "merely because the source does not phrase the conclusion as a normative "
+        "sentence. For a 'should every X trigger Y' question, evidence that only "
+        "major or meaningful X matters, or that false alerts cause unnecessary Y, "
+        "supports answering no. "
+        "If the evidence cannot support the requested answer, begin the response "
+        f"exactly with {INSUFFICIENT_EVIDENCE_MARKER} and briefly explain what "
+        "evidence is missing. Do not answer from general knowledge."
     )
     reply = invoke_with_streaming(
         model,
@@ -330,11 +339,29 @@ def _answer_retrieval_question(
             pages += f"–{metadata['end_page']}"
         book = books.get(metadata["book_id"], f"Book {metadata['book_id']}")
         sources.append(f"- **[S{i}]** {book} → {hierarchy} — PDF p. {pages}")
-    answer = (
-        f"{reply.content}\n\n"
-        f"_Retrieval: {retrieval_mode}_\n\n"
-        + "\n".join(sources)
+    reply_text = str(reply.content).strip()
+    insufficient = (
+        INSUFFICIENT_EVIDENCE_MARKER in reply_text
+        or bool(INSUFFICIENT_EVIDENCE_LANGUAGE.search(reply_text))
     )
+    if re.search(
+        r"\binsufficient_evidence\s+is\s+not\s+applicable\b|"
+        r"\bthe\s+evidence\s+is\s+sufficient\b",
+        reply_text,
+        re.IGNORECASE,
+    ):
+        insufficient = False
+    if reply_text.startswith(INSUFFICIENT_EVIDENCE_MARKER):
+        explanation = reply_text.removeprefix(INSUFFICIENT_EVIDENCE_MARKER).strip()
+        reply_text = "Insufficient evidence"
+        if explanation:
+            reply_text += f": {explanation}"
+    elif insufficient:
+        reply_text = reply_text.replace(
+            INSUFFICIENT_EVIDENCE_MARKER,
+            "Insufficient evidence:",
+        )
+    answer = f"{reply_text}\n\n_Retrieval: {retrieval_mode}_\n\n" + "\n".join(sources)
     evidence_refs = [
         EvidenceRef(
             node_id=document.metadata.get("node_id", 0),
@@ -356,7 +383,7 @@ def _answer_retrieval_question(
     ]
     citations: list[CitationRef] = []
     seen_markers: set[str] = set()
-    for match in SOURCE_CITATION.finditer(str(reply.content)):
+    for match in SOURCE_CITATION.finditer(reply_text):
         marker = match.group(0)
         rank = int(match.group(1))
         if marker in seen_markers or rank < 1 or rank > len(documents):
@@ -379,45 +406,44 @@ def _answer_retrieval_question(
         standalone_query=question,
         evidence=evidence_refs,
         citations=citations,
-        outcome="answer",
+        outcome="abstain" if insufficient else "answer",
         retrieval_mode=retrieval_mode,
     )
 
 
 def execute_query(
     question: str,
-    database_path: str = "data/retrieval.sqlite3",
-    source_path: str = "data/books.sqlite3",
-    chroma_path: str = "data/chroma",
+    database_url: str | None = None,
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     *,
     model: ChatModel | None = None,
     token_callback: TokenCallback | None = None,
+    force_retrieval: bool = False,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
     load_dotenv()
-    hierarchy = _resolve_hierarchy_request(
-        question,
-        source_path=source_path,
-        book_id=book_id,
-    )
+    hierarchy = None
+    if not force_retrieval:
+        hierarchy = _resolve_hierarchy_request(
+            question,
+            database_url=database_url,
+            book_id=book_id,
+        )
     if hierarchy is not None:
         request, scope = hierarchy
         result = _answer_hierarchy_request(
             request,
             scope,
-            source_path=source_path,
+            database_url=database_url,
             model=model,
             token_callback=token_callback,
         )
         return result.model_copy(update={"question": question})
     return _answer_retrieval_question(
         question,
-        database_path=database_path,
-        source_path=source_path,
-        chroma_path=chroma_path,
+        database_url=database_url,
         book_id=book_id,
         retrieval_mode=retrieval_mode,
         model=model,
@@ -427,9 +453,7 @@ def execute_query(
 
 def answer_query(
     question: str,
-    database_path: str = "data/retrieval.sqlite3",
-    source_path: str = "data/books.sqlite3",
-    chroma_path: str = "data/chroma",
+    database_url: str | None = None,
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     *,
@@ -439,9 +463,7 @@ def answer_query(
 
     return execute_query(
         question,
-        database_path=database_path,
-        source_path=source_path,
-        chroma_path=chroma_path,
+        database_url=database_url,
         book_id=book_id,
         retrieval_mode=retrieval_mode,
         model=model,

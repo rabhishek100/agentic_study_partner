@@ -1,12 +1,14 @@
 """FastAPI boundary over the existing conversational study workflow."""
 
+# Environment must be loaded before project modules evaluate model defaults.
+# ruff: noqa: E402
+
 import asyncio
 import json
 import logging
 import os
 import queue
 import threading
-from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
@@ -19,6 +21,7 @@ from starlette.concurrency import run_in_threadpool
 load_dotenv()
 
 from retrieval.langchain import warm_models
+from storage.database import check_database, close_pools
 from study.analyze import ConversationDecisionError
 from study.contracts import ContractModel, ConversationState, TurnResult
 from study.conversation import execute_conversation_turn
@@ -73,7 +76,7 @@ app.add_middleware(
     allow_origins=_allowed_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -84,11 +87,17 @@ async def _warm_retrieval_models() -> None:
     logger.info("Embedder/reranker models ready")
 
 
+@app.on_event("shutdown")
+async def _close_database_pools() -> None:
+    close_pools()
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
+    ready = await run_in_threadpool(check_database)
     return HealthResponse(
-        canonical_database_ready=Path("data/books.sqlite3").is_file(),
-        retrieval_database_ready=Path("data/retrieval.sqlite3").is_file(),
+        canonical_database_ready=ready,
+        retrieval_database_ready=ready,
     )
 
 
@@ -134,9 +143,10 @@ def _sse(event: str, data: dict) -> str:
 async def chat_stream(request: ChatRequest) -> StreamingResponse:
     """Stream the answer as it is generated instead of waiting for it whole.
 
-    Emits `token` events as generation text arrives, `restart` when a
-    hierarchy summary fails validation and regenerates from scratch, and a
-    single terminal `final` (matching ChatResponse) or `error` event.
+    Ordinary answers emit `token` events as generation text arrives. Hierarchy
+    summaries buffer validation/repair attempts and emit only the validated
+    answer. Every request ends with one `final` (matching ChatResponse) or
+    `error` event.
     """
 
     loop = asyncio.get_running_loop()
@@ -165,9 +175,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             events.put(("error", json.dumps({"detail": str(error)})))
         except Exception:
             logger.exception("Unhandled error while executing chat turn")
-            events.put(
-                ("error", json.dumps({"detail": "internal error"}))
-            )
+            events.put(("error", json.dumps({"detail": "internal error"})))
         finally:
             events.put(_STREAM_DONE)
 
@@ -191,10 +199,10 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             kind, payload = item
             if kind == "token":
                 yield _sse("token", {"text": payload})
-            elif kind == "restart":
-                yield _sse("restart", {})
-            else:  # "final" or "error": already-serialized JSON
+            elif kind in {"final", "error"}:  # already-serialized JSON
                 yield f"event: {kind}\ndata: {payload}\n\n"
+            else:
+                logger.warning("Ignoring unknown stream event kind: %s", kind)
 
     return StreamingResponse(
         event_stream(),
