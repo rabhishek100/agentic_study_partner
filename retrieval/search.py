@@ -5,14 +5,14 @@ from pathlib import Path
 import sqlite3
 from typing import Literal
 
-from .reranker import LocalCrossEncoder, Reranker, rerank
+from .reranker import Reranker, build_reranker, rerank
 from .sqlite import SearchResult, search as bm25_search
 from .vector import (
     DEFAULT_CHROMA_PATH,
     DEFAULT_COLLECTION,
     Embedder,
-    LocalEmbedder,
-    persistent_client,
+    build_chroma_client,
+    build_embedder,
     vector_search,
 )
 
@@ -152,8 +152,8 @@ def retrieve(
     if mode not in ("vector", "hybrid", "hybrid_rerank"):
         raise ValueError(f"unsupported retrieval mode: {mode}")
 
-    client = client or persistent_client(chroma_path)
-    embedder = embedder or LocalEmbedder()
+    client = client or build_chroma_client(chroma_path)
+    embedder = embedder or build_embedder()
     if mode == "vector":
         return vector_search(
             connection,
@@ -189,7 +189,7 @@ def retrieve(
     return rerank(
         query,
         fused,
-        reranker=reranker or LocalCrossEncoder(),
+        reranker=reranker or build_reranker(),
         limit=limit,
         unique_nodes=unique_nodes,
     )

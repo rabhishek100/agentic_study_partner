@@ -1,47 +1,55 @@
 """Thin LangChain adapter over the project's explicit retrieval layer."""
 
 from functools import lru_cache
+import os
 from pathlib import Path
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
-from .reranker import (
-    DEFAULT_RERANKER_MODEL,
-    DEFAULT_RERANKER_REVISION,
-    LocalCrossEncoder,
-)
+from .reranker import DEFAULT_RERANKER_MODEL, Reranker, build_reranker
 from .search import RetrievalMode, retrieve
 from .sqlite import connect
 from .vector import (
     DEFAULT_CHROMA_PATH,
     DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_EMBEDDING_REVISION,
-    LocalEmbedder,
-    persistent_client,
+    Embedder,
+    build_chroma_client,
+    build_embedder,
 )
 
 
-@lru_cache(maxsize=2)
-def _cached_embedder(model_name: str, revision: str) -> LocalEmbedder:
-    return LocalEmbedder(model_name, revision=revision)
+@lru_cache(maxsize=4)
+def _cached_embedder(provider: str) -> Embedder:
+    """Cache by OpenRouter model id.
+
+    Must match whichever embedder built the active Chroma collection —
+    vector_search validates this against the collection's stored metadata
+    and raises rather than silently comparing embeddings from mismatched
+    spaces.
+    """
+    return build_embedder(provider)
 
 
-@lru_cache(maxsize=2)
-def _cached_reranker(model_name: str, revision: str) -> LocalCrossEncoder:
-    return LocalCrossEncoder(model_name, revision=revision)
+@lru_cache(maxsize=4)
+def _cached_reranker(provider: str) -> Reranker:
+    """Cache by OpenRouter model id."""
+    return build_reranker(provider)
 
 
 @lru_cache(maxsize=2)
 def _cached_chroma_client(chroma_path: str):
-    return persistent_client(chroma_path)
+    return build_chroma_client(chroma_path)
 
 
 def warm_models() -> None:
-    """Load and cache the embedder and reranker ahead of the first request."""
-    _cached_embedder(DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_REVISION)
-    _cached_reranker(DEFAULT_RERANKER_MODEL, DEFAULT_RERANKER_REVISION)
+    """Construct the embedder, reranker, and Chroma client ahead of the
+    first request, so a bad OPENROUTER_API_KEY or Chroma Cloud credential
+    fails at startup instead of on a user's first turn.
+    """
     _cached_chroma_client(str(DEFAULT_CHROMA_PATH))
+    _cached_embedder(os.getenv("EMBEDDING_PROVIDER", DEFAULT_EMBEDDING_MODEL))
+    _cached_reranker(os.getenv("RERANKER_PROVIDER", DEFAULT_RERANKER_MODEL))
 
 
 class BookRetriever(BaseRetriever):
@@ -52,19 +60,17 @@ class BookRetriever(BaseRetriever):
     mode: RetrievalMode = "hybrid"
     book_id: int | None = None
     k: int = 5
-    embedding_model: str = DEFAULT_EMBEDDING_MODEL
-    embedding_revision: str = DEFAULT_EMBEDDING_REVISION
-    reranker_model: str = DEFAULT_RERANKER_MODEL
-    reranker_revision: str = DEFAULT_RERANKER_REVISION
+    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", DEFAULT_EMBEDDING_MODEL)
+    reranker_provider: str = os.getenv("RERANKER_PROVIDER", DEFAULT_RERANKER_MODEL)
 
     def _get_relevant_documents(self, query: str, *, run_manager) -> list[Document]:
         embedder = (
             None
             if self.mode == "bm25"
-            else _cached_embedder(self.embedding_model, self.embedding_revision)
+            else _cached_embedder(self.embedding_provider)
         )
         reranker = (
-            _cached_reranker(self.reranker_model, self.reranker_revision)
+            _cached_reranker(self.reranker_provider)
             if self.mode == "hybrid_rerank"
             else None
         )

@@ -5,14 +5,19 @@ import json
 from pathlib import Path
 import sqlite3
 
-from retrieval.reranker import LocalCrossEncoder, rerank
+from retrieval.reranker import DEFAULT_RERANKER_MODEL, build_reranker, rerank
 from retrieval.search import (
     RERANK_CANDIDATE_LIMIT,
     RetrievalMode,
     hybrid_candidates,
     retrieve,
 )
-from retrieval.vector import DEFAULT_COLLECTION, LocalEmbedder, persistent_client
+from retrieval.vector import (
+    DEFAULT_COLLECTION,
+    DEFAULT_EMBEDDING_MODEL,
+    build_chroma_client,
+    build_embedder,
+)
 
 
 RETRIEVAL_MODES: tuple[RetrievalMode, ...] = (
@@ -83,6 +88,39 @@ def build_argument_parser() -> argparse.ArgumentParser:
         choices=RETRIEVAL_MODES,
         default=list(RETRIEVAL_MODES),
     )
+    parser.add_argument(
+        "--reranker",
+        default=DEFAULT_RERANKER_MODEL,
+        help=(
+            "OpenRouter reranker model id used for hybrid_rerank "
+            f"(default: {DEFAULT_RERANKER_MODEL})."
+        ),
+    )
+    parser.add_argument(
+        "--embedder",
+        default=DEFAULT_EMBEDDING_MODEL,
+        help=(
+            "OpenRouter embedder model id used for vector/hybrid modes "
+            f"(default: {DEFAULT_EMBEDDING_MODEL}). Must match whichever "
+            "embedder built --collection."
+        ),
+    )
+    parser.add_argument(
+        "--collection",
+        default=DEFAULT_COLLECTION,
+        help=(
+            "Chroma collection to query (default: %(default)s). Point this "
+            "at a collection built with --embedder to compare candidates."
+        ),
+    )
+    parser.add_argument(
+        "--chroma-provider",
+        default="local",
+        help=(
+            "'local' (default) opens the on-disk PersistentClient at "
+            "--chroma-path, or 'cloud' connects to Chroma Cloud."
+        ),
+    )
     return parser
 
 
@@ -128,6 +166,7 @@ def _evaluate_mode(
     mode: RetrievalMode,
     book_id: int,
     chroma_path: Path,
+    collection_name: str,
     client,
     embedder,
     reranker,
@@ -146,7 +185,7 @@ def _evaluate_mode(
                 question["query"],
                 book_id=book_id,
                 candidate_limit=RERANK_CANDIDATE_LIMIT,
-                collection_name=DEFAULT_COLLECTION,
+                collection_name=collection_name,
                 client=client,
                 embedder=embedder,
             )
@@ -177,6 +216,7 @@ def _evaluate_mode(
                 limit=5,
                 unique_nodes=True,
                 chroma_path=chroma_path,
+                collection_name=collection_name,
                 client=client,
                 embedder=embedder,
                 reranker=reranker,
@@ -230,6 +270,7 @@ def _evaluate_mode(
             limit=5,
             unique_nodes=True,
             chroma_path=chroma_path,
+            collection_name=collection_name,
             client=client,
             embedder=embedder,
             reranker=reranker,
@@ -273,6 +314,10 @@ def evaluate(
     *,
     chroma_path: Path = Path("data/chroma"),
     modes: tuple[RetrievalMode, ...] = RETRIEVAL_MODES,
+    collection_name: str = DEFAULT_COLLECTION,
+    reranker_spec: str = DEFAULT_RERANKER_MODEL,
+    embedder_spec: str = DEFAULT_EMBEDDING_MODEL,
+    chroma_provider: str = "local",
 ) -> dict:
     gold = json.loads(gold_set.read_text(encoding="utf-8"))
     connection = sqlite3.connect(
@@ -296,9 +341,13 @@ def evaluate(
 
         uses_vectors = any(mode != "bm25" for mode in modes)
         uses_reranker = "hybrid_rerank" in modes
-        client = persistent_client(chroma_path) if uses_vectors else None
-        embedder = LocalEmbedder() if uses_vectors else None
-        reranker = LocalCrossEncoder() if uses_reranker else None
+        client = (
+            build_chroma_client(chroma_path, provider=chroma_provider)
+            if uses_vectors
+            else None
+        )
+        embedder = build_embedder(embedder_spec) if uses_vectors else None
+        reranker = build_reranker(reranker_spec) if uses_reranker else None
         retrievers = {
             mode: _evaluate_mode(
                 connection,
@@ -306,6 +355,7 @@ def evaluate(
                 mode=mode,
                 book_id=build["source_book_id"],
                 chroma_path=chroma_path,
+                collection_name=collection_name,
                 client=client,
                 embedder=embedder,
                 reranker=reranker,
@@ -338,6 +388,10 @@ def main() -> None:
         args.gold_set,
         chroma_path=args.chroma_path,
         modes=tuple(args.modes),
+        collection_name=args.collection,
+        reranker_spec=args.reranker,
+        embedder_spec=args.embedder,
+        chroma_provider=args.chroma_provider,
     )
     print(json.dumps(result, indent=2))
 

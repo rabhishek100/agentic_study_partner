@@ -7,10 +7,7 @@ import os
 from pathlib import Path
 import sqlite3
 
-from retrieval.reranker import (
-    DEFAULT_RERANKER_MODEL,
-    DEFAULT_RERANKER_REVISION,
-)
+from retrieval.reranker import DEFAULT_RERANKER_MODEL
 from scripts.evaluate_retrieval import RETRIEVAL_MODES, evaluate
 
 
@@ -229,12 +226,7 @@ def build_artifact(
     model_manifest = {
         "vector_index": vector_manifest,
         "reranker": {
-            "model": DEFAULT_RERANKER_MODEL,
-            "revision": DEFAULT_RERANKER_REVISION,
-            "device": os.getenv(
-                "RERANKER_DEVICE",
-                os.getenv("EMBEDDING_DEVICE", "cpu"),
-            ),
+            "model": os.getenv("RERANKER_PROVIDER", DEFAULT_RERANKER_MODEL),
             "candidate_limit": 20,
         },
     }

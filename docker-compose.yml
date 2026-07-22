@@ -5,12 +5,8 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
-    environment:
-      EMBEDDING_DEVICE: cpu
-      RERANKER_DEVICE: cpu
     volumes:
       - ./data:/app/data
-      - huggingface-cache:/root/.cache/huggingface
     ports:
       - "8000:8000"
     healthcheck:

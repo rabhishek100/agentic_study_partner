@@ -10,23 +10,17 @@ import sqlite3
 from typing import Protocol
 
 import chromadb
+import httpx
 
 from .sqlite import SearchResult, chunks_by_id, search_result_from_row
 
 
 DEFAULT_CHROMA_PATH = Path("data/chroma")
 DEFAULT_COLLECTION = "book_text_chunks"
-DEFAULT_EMBEDDING_MODEL = "Alibaba-NLP/gte-modernbert-base"
-DEFAULT_EMBEDDING_REVISION = "e7f32e3c00f91d699e8c43b53106206bcc72bb22"
+DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-large"
+
+OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings"
 DOCUMENT_FORMAT_VERSION = "hierarchy-v1"
-
-
-def _hf_local_files_only() -> bool:
-    return os.getenv("HF_LOCAL_FILES_ONLY", "false").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
 
 
 class Embedder(Protocol):
@@ -43,71 +37,70 @@ class Embedder(Protocol):
     def embed_query(self, text: str) -> list[float]: ...
 
 
-class LocalEmbedder:
-    """Local long-context Sentence Transformers embedding model."""
+class OpenRouterEmbedder:
+    """Hosted embedding model via OpenRouter's OpenAI-compatible endpoint.
+
+    Trades local GPU/CPU inference for a network call. Dimension is probed
+    once at construction since it varies by model and isn't otherwise known.
+    """
 
     def __init__(
         self,
-        model_name: str = DEFAULT_EMBEDDING_MODEL,
-        revision: str | None = None,
+        model_name: str,
+        *,
+        max_sequence_length: int = 8192,
+        timeout: float = 60.0,
     ) -> None:
-        from sentence_transformers import SentenceTransformer
-
-        self.model_name = model_name
-        self.model_revision = revision or (
-            DEFAULT_EMBEDDING_REVISION
-            if model_name == DEFAULT_EMBEDDING_MODEL
-            else "main"
-        )
-        self.device = os.getenv("EMBEDDING_DEVICE", "cpu")
-        self._model = SentenceTransformer(
-            model_name,
-            revision=None if self.model_revision == "main" else self.model_revision,
-            device=self.device,
-            local_files_only=_hf_local_files_only(),
-        )
-        self.dimension = int(self._model.get_embedding_dimension())
-        self.max_sequence_length = int(self._model.max_seq_length)
-        self._query_cache: dict[str, list[float]] = {}
-
-    def _validate_lengths(self, texts: Sequence[str]) -> None:
-        encoded = self._model.tokenizer(
-            list(texts),
-            add_special_tokens=True,
-            padding=False,
-            truncation=False,
-        )
-        longest = max(len(ids) for ids in encoded["input_ids"])
-        if longest > self.max_sequence_length:
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
             raise ValueError(
-                f"embedding input has {longest} tokens but "
-                f"{self.model_name} supports {self.max_sequence_length}; "
-                "rechunk or choose a long-context embedding model"
+                "OPENROUTER_API_KEY is required for the OpenRouter embedder"
             )
+        self.model_name = model_name
+        self.model_revision = "hosted"
+        self.device = "api"
+        self.max_sequence_length = max_sequence_length
+        self._client = httpx.Client(
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=timeout,
+        )
+        self._query_cache: dict[str, list[float]] = {}
+        self.dimension = len(self._embed([" "])[0])
+
+    def _embed(self, texts: Sequence[str]) -> list[list[float]]:
+        response = self._client.post(
+            OPENROUTER_EMBEDDINGS_URL,
+            json={
+                "model": self.model_name,
+                "input": list(texts),
+                "encoding_format": "float",
+            },
+        )
+        response.raise_for_status()
+        ordered = sorted(response.json()["data"], key=lambda item: item["index"])
+        return [item["embedding"] for item in ordered]
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         if not texts:
             return []
-        self._validate_lengths(texts)
-        embeddings = self._model.encode(
-            list(texts),
-            batch_size=16,
-            normalize_embeddings=True,
-            show_progress_bar=len(texts) > 32,
-        )
-        return embeddings.tolist()
+        return self._embed(texts)
 
     def embed_query(self, text: str) -> list[float]:
         if text in self._query_cache:
             return self._query_cache[text]
-        self._validate_lengths([text])
-        embedding = self._model.encode(
-            text,
-            normalize_embeddings=True,
-        )
-        value = embedding.tolist()
+        value = self._embed([text])[0]
         self._query_cache[text] = value
         return value
+
+
+def build_embedder(spec: str | None = None) -> Embedder:
+    """Construct an OpenRouter embedder from a model id spec.
+
+    Falls back to EMBEDDING_PROVIDER, then DEFAULT_EMBEDDING_MODEL, when spec
+    is not given.
+    """
+    spec = spec or os.getenv("EMBEDDING_PROVIDER", DEFAULT_EMBEDDING_MODEL)
+    return OpenRouterEmbedder(spec)
 
 
 @dataclass(frozen=True)
@@ -135,6 +128,48 @@ def persistent_client(path: str | Path = DEFAULT_CHROMA_PATH):
 
     Path(path).mkdir(parents=True, exist_ok=True)
     return chromadb.PersistentClient(path=path)
+
+
+def cloud_client():
+    """Open a Chroma Cloud client from CHROMA_API_KEY/TENANT/DATABASE.
+
+    Credentials are passed explicitly rather than left for chromadb's
+    CloudClient() to auto-resolve from the environment: chromadb==1.5.9 has
+    a bug where that auto-resolution path never assigns the looked-up key
+    back to the variable used to build the auth header, silently sending
+    the literal string "None" instead and failing with a 401.
+    """
+    api_key = os.getenv("CHROMA_API_KEY")
+    tenant = os.getenv("CHROMA_TENANT")
+    database = os.getenv("CHROMA_DATABASE")
+    missing = [
+        name
+        for name, value in (
+            ("CHROMA_API_KEY", api_key),
+            ("CHROMA_TENANT", tenant),
+            ("CHROMA_DATABASE", database),
+        )
+        if not value
+    ]
+    if missing:
+        raise ValueError(
+            f"missing required environment variables for Chroma Cloud: {missing}"
+        )
+    return chromadb.CloudClient(tenant=tenant, database=database, api_key=api_key)
+
+
+def build_chroma_client(path: str | Path = DEFAULT_CHROMA_PATH, *, provider: str | None = None):
+    """Construct a Chroma client from a provider spec.
+
+    "local" (the default, also used when CHROMA_PROVIDER is unset) opens the
+    on-disk PersistentClient. "cloud" connects to Chroma Cloud.
+    """
+    provider = provider or os.getenv("CHROMA_PROVIDER", "local")
+    if provider == "local":
+        return persistent_client(path)
+    if provider == "cloud":
+        return cloud_client()
+    raise ValueError(f"unsupported CHROMA_PROVIDER: {provider!r}")
 
 
 def _collection_names(client) -> set[str]:

@@ -1,4 +1,4 @@
-"""Synchronize local Chroma vectors from rebuildable SQLite chunks."""
+"""Synchronize Chroma vectors from rebuildable SQLite chunks."""
 
 import argparse
 from pathlib import Path
@@ -8,9 +8,8 @@ from retrieval.vector import (
     DEFAULT_CHROMA_PATH,
     DEFAULT_COLLECTION,
     DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_EMBEDDING_REVISION,
-    LocalEmbedder,
-    persistent_client,
+    build_chroma_client,
+    build_embedder,
     rebuild_vector_index,
     write_manifest,
 )
@@ -18,7 +17,7 @@ from retrieval.vector import (
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Build the local Chroma vector index from derived chunks."
+        description="Build the Chroma vector index from derived chunks."
     )
     parser.add_argument(
         "--source-database",
@@ -32,12 +31,21 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--chroma-path", type=Path, default=DEFAULT_CHROMA_PATH)
     parser.add_argument("--collection", default=DEFAULT_COLLECTION)
-    parser.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
     parser.add_argument(
-        "--revision",
+        "--embedder",
+        default=DEFAULT_EMBEDDING_MODEL,
         help=(
-            "Optional model revision. The default model uses the pinned "
-            f"revision {DEFAULT_EMBEDDING_REVISION}."
+            "OpenRouter embedding model id to embed with "
+            f"(default: {DEFAULT_EMBEDDING_MODEL})."
+        ),
+    )
+    parser.add_argument(
+        "--chroma-provider",
+        default="local",
+        help=(
+            "'local' (default) opens the on-disk PersistentClient at "
+            "--chroma-path, or 'cloud' connects to Chroma Cloud using "
+            "CHROMA_API_KEY/CHROMA_TENANT/CHROMA_DATABASE."
         ),
     )
     parser.add_argument("--book-id", type=int)
@@ -52,14 +60,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_argument_parser().parse_args()
-    embedder = LocalEmbedder(args.model, revision=args.revision)
+    embedder = build_embedder(args.embedder)
     retrieval = connect(args.retrieval_database)
     source = connect_source(args.source_database)
     try:
         summary = rebuild_vector_index(
             retrieval,
             source,
-            client=persistent_client(args.chroma_path),
+            client=build_chroma_client(args.chroma_path, provider=args.chroma_provider),
             embedder=embedder,
             collection_name=args.collection,
             book_id=args.book_id,
@@ -70,6 +78,7 @@ def main() -> None:
         retrieval.close()
         source.close()
 
+    args.chroma_path.mkdir(parents=True, exist_ok=True)
     manifest = write_manifest(
         args.chroma_path,
         summary,

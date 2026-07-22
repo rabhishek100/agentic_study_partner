@@ -9,11 +9,14 @@ import threading
 from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
+
+load_dotenv()
 
 from retrieval.langchain import warm_models
 from study.analyze import ConversationDecisionError

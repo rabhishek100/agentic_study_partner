@@ -16,22 +16,25 @@ dependencies = [
     "langgraph>=1.0,<2",
     "markdown-it-py>=4,<5",
     "chromadb>=1.5.9,<2",
-    "sentence-transformers>=5.6,<6",
-    "torch>=2.6",
-    "torchvision>=0.21",
+    "httpx>=0.28,<1",
     "uvicorn[standard]>=0.34,<1",
+    # Transitive deps of unstructured[pdf]'s PDF layout detection model, not
+    # imported directly. Listed explicitly so tool.uv.sources below can pin
+    # them to the CPU-only wheel index instead of torch's default CUDA build.
+    "torch>=2.10",
+    "torchvision",
 ]
 
 [dependency-groups]
-dev = [
-    "httpx>=0.28,<1",
-]
+dev = []
 
+# See the torch/torchvision comment above: a Linux install shouldn't pull
+# torch's default CUDA runtime packages for a model that never needs a GPU.
 [tool.uv.sources]
-torch = { index = "pytorch-cu126" }
-torchvision = { index = "pytorch-cu126" }
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
 
 [[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
 explicit = true
