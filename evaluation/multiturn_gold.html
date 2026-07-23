@@ -10,7 +10,7 @@ dd{margin:0}table{border-collapse:collapse;width:100%}th,td{text-align:left;bord
 <p><strong>Model-adjudicated, not human-verified.</strong>
  Canonical validation: valid. 44 turns.</p>
 <div class="controls"><input id="search" placeholder="Search">
-<select id="route"><option value="">All routes</option><option value="abstain">abstain</option><option value="clarify">clarify</option><option value="hierarchy_list">hierarchy_list</option><option value="hierarchy_summary">hierarchy_summary</option><option value="prior_answer_transform">prior_answer_transform</option><option value="retrieval_qa">retrieval_qa</option></select></div>
+<select id="route"><option value="">All routes</option><option value="clarify">clarify</option><option value="hierarchy_list">hierarchy_list</option><option value="hierarchy_summary">hierarchy_summary</option><option value="prior_answer_transform">prior_answer_transform</option><option value="retrieval_qa">retrieval_qa</option></select></div>
 <section id="mt-001"><h2>Chapter summary to scoped comparison, then global topic</h2><article id="mt-001-t1" class="turn"
  data-route="hierarchy_summary" data-search="mt-001-t1 summarize chapter 3. chapter 3 builds the data-engineering foundation for production ml: diverse data sources [n35:p70], serialization and access-oriented formats [n36:p73] [n38:p75] [n39:p77], relational and nosql data models [n40:p78] [n41:p79] [n42:p83], and the fluid boundary between structured and unstructured data [n43:p86]. it contrasts transactional and analytical storage workloads [n45:p88], explains etl [n46:p90], and then moves from single-process storage to dataflow through databases, request-driven services, and real-time transports [n48:p92] [n49:p93] [n50:p96]. batch processing suits historical/static features while stream processing supports low-latency dynamic features [n51:p98]. the chapter introduction and recap connect these choices into one production data layer [n34:p69] [n52:p100].">
 <h3>mt-001-t1: Summarize Chapter 3.</h3>
@@ -309,9 +309,9 @@ dd{margin:0}table{border-collapse:collapse;width:100%}th,td{text-align:left;bord
 <details><summary>Near misses</summary>
 <p>None</p></details>
 </article><article id="mt-007-t4" class="turn"
- data-route="abstain" data-search="mt-007-t4 given what this section says, which feature-store vendor should i buy? the book does not provide enough current, project-specific evidence to recommend a feature-store vendor. it explains feature-store responsibilities and general build-versus-buy considerations, but a purchase decision requires current products, workload requirements, integration constraints, and pricing that are outside this evidence.">
+ data-route="retrieval_qa" data-search="mt-007-t4 given what this section says, which feature-store vendor should i buy? the book does not provide enough current, project-specific evidence to recommend a feature-store vendor. it explains feature-store responsibilities and general build-versus-buy considerations, but a purchase decision requires current products, workload requirements, integration constraints, and pricing that are outside this evidence.">
 <h3>mt-007-t4: Given what this section says, which feature-store vendor should I buy?</h3>
-<dl><dt>Route</dt><dd>abstain</dd>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
 <dt>History</dt><dd>dependent</dd>
 <dt>Standalone query</dt><dd>Which feature-store vendor should be purchased for this project?</dd>
 <dt>Scope</dt><dd>{&#x27;kind&#x27;: &#x27;section&#x27;, &#x27;node_id&#x27;: 159}</dd></dl>
@@ -408,9 +408,9 @@ dd{margin:0}table{border-collapse:collapse;width:100%}th,td{text-align:left;bord
 <details><summary>Near misses</summary>
 <p>None</p></details>
 </article></section><section id="mt-010"><h2>Unanswerable follow-ups and recovery to supported evidence</h2><article id="mt-010-t1" class="turn"
- data-route="abstain" data-search="mt-010-t1 how should i choose lora rank and target modules for a transformer? the book does not contain enough evidence to answer how to select lora rank or transformer target modules. its low-rank discussion concerns model compression rather than low-rank adaptation fine-tuning.">
+ data-route="retrieval_qa" data-search="mt-010-t1 how should i choose lora rank and target modules for a transformer? the book does not contain enough evidence to answer how to select lora rank or transformer target modules. its low-rank discussion concerns model compression rather than low-rank adaptation fine-tuning.">
 <h3>mt-010-t1: How should I choose LoRA rank and target modules for a transformer?</h3>
-<dl><dt>Route</dt><dd>abstain</dd>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
 <dt>History</dt><dd>independent</dd>
 <dt>Standalone query</dt><dd>How should LoRA rank and target modules be selected for transformer fine-tuning?</dd>
 <dt>Scope</dt><dd>global</dd></dl>
@@ -419,9 +419,9 @@ dd{margin:0}table{border-collapse:collapse;width:100%}th,td{text-align:left;bord
 <details><summary>Near misses</summary>
 <table><thead><tr><th>Node</th><th>Hierarchy</th><th>PDF pages</th><th>Role</th></tr></thead><tbody><tr><td>N110</td><td>Chapter 7. Model Deployment and Prediction Service :: Model Compression :: Low-Rank Factorization</td><td>226, 227</td><td>near miss</td></tr></tbody></table></details>
 </article><article id="mt-010-t2" class="turn"
- data-route="abstain" data-search="mt-010-t2 could the low-rank factorization section answer it? no. that section explains decomposing model tensors for compression; it does not discuss lora adapters, transformer target modules, or how to choose a lora rank.">
+ data-route="retrieval_qa" data-search="mt-010-t2 could the low-rank factorization section answer it? no. that section explains decomposing model tensors for compression; it does not discuss lora adapters, transformer target modules, or how to choose a lora rank.">
 <h3>mt-010-t2: Could the low-rank factorization section answer it?</h3>
-<dl><dt>Route</dt><dd>abstain</dd>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
 <dt>History</dt><dd>dependent</dd>
 <dt>Standalone query</dt><dd>Does the book&#x27;s low-rank factorization section explain LoRA rank and target-module selection?</dd>
 <dt>Scope</dt><dd>global</dd></dl>
@@ -441,9 +441,9 @@ dd{margin:0}table{border-collapse:collapse;width:100%}th,td{text-align:left;bord
 <details><summary>Near misses</summary>
 <p>None</p></details>
 </article><article id="mt-010-t4" class="turn"
- data-route="abstain" data-search="mt-010-t4 what is the exact current hourly sagemaker price for the recommended deployment instance? the static book cannot support an exact current sagemaker price, and it does not prescribe a single deployment instance for this request. current pricing and a workload-specific instance choice require external, time-sensitive evidence.">
+ data-route="retrieval_qa" data-search="mt-010-t4 what is the exact current hourly sagemaker price for the recommended deployment instance? the static book cannot support an exact current sagemaker price, and it does not prescribe a single deployment instance for this request. current pricing and a workload-specific instance choice require external, time-sensitive evidence.">
 <h3>mt-010-t4: What is the exact current hourly SageMaker price for the recommended deployment instance?</h3>
-<dl><dt>Route</dt><dd>abstain</dd>
+<dl><dt>Route</dt><dd>retrieval_qa</dd>
 <dt>History</dt><dd>independent</dd>
 <dt>Standalone query</dt><dd>What is the exact current hourly SageMaker price for the book&#x27;s recommended deployment instance?</dd>
 <dt>Scope</dt><dd>global</dd></dl>

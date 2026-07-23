@@ -12,7 +12,7 @@ import threading
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import Field
@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 load_dotenv()
 
 from retrieval.langchain import warm_models
-from storage.database import check_database, close_pools
+from storage.database import close_pools, database_readiness
 from study.analyze import ConversationDecisionError
 from study.contracts import ContractModel, ConversationState, TurnResult
 from study.conversation import execute_conversation_turn
@@ -53,7 +53,7 @@ class ChatResponse(ContractModel):
 
 
 class HealthResponse(ContractModel):
-    status: Literal["ok"] = "ok"
+    status: Literal["ok", "unavailable"]
     canonical_database_ready: bool
     retrieval_database_ready: bool
 
@@ -82,9 +82,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _warm_retrieval_models() -> None:
-    logger.info("Warming embedder/reranker models before serving requests")
+    logger.info("Initializing the hosted embedding client")
     await run_in_threadpool(warm_models)
-    logger.info("Embedder/reranker models ready")
+    logger.info("Hosted embedding client ready; reranker remains on demand")
 
 
 @app.on_event("shutdown")
@@ -93,11 +93,14 @@ async def _close_database_pools() -> None:
 
 
 @app.get("/api/health", response_model=HealthResponse)
-async def health() -> HealthResponse:
-    ready = await run_in_threadpool(check_database)
+async def health(response: Response) -> HealthResponse:
+    canonical_ready, retrieval_ready = await run_in_threadpool(database_readiness)
+    if not (canonical_ready and retrieval_ready):
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HealthResponse(
-        canonical_database_ready=ready,
-        retrieval_database_ready=ready,
+        status=("ok" if canonical_ready and retrieval_ready else "unavailable"),
+        canonical_database_ready=canonical_ready,
+        retrieval_database_ready=retrieval_ready,
     )
 
 

@@ -63,6 +63,10 @@ uv sync --frozen
 test -f .env || cp .env.example .env
 ```
 
+PDF parsing dependencies remain part of the deployed FastAPI image so the
+existing parser is available to the planned upload/ingestion API. Embedding
+and reranking inference remain hosted and do not add local model dependencies.
+
 Start local Supabase and apply the checked-in migration and seed:
 
 ```bash
@@ -81,34 +85,16 @@ For hosted Supabase, use the pooled application connection as `DATABASE_URL`
 and the direct connection as `MIGRATION_DATABASE_URL`. Do not expose either
 connection string or the service-role key to the browser.
 
-## Backfill the existing SQLite data
-
-The old SQLite files are retained temporarily as rollback and audit inputs;
-they are no longer used by the application runtime.
-
-```bash
-uv run python -m scripts.migrate_sqlite_to_postgres
-```
-
-The command restores each legacy `ParsedBook`, writes it to Postgres, restores
-it again, and verifies model equality, canonical row counts, and image payload
-character counts. Replacement is always explicit:
-
-```bash
-uv run python -m scripts.migrate_sqlite_to_postgres --replace
-```
-
-To copy the source PDF into the private `book-sources` bucket as part of a
-hosted migration, configure `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY`, then add `--upload-source`. Objects are stored
-under `<owner-id>/<file-hash>/<filename>`.
-
-For a new parsed book instead of a legacy backfill:
+## Import a book
 
 ```bash
 uv run python -m scripts.parse_book
 uv run python -m scripts.import_book
 ```
+
+The parser cache is rebuildable from the source PDF. Canonical content lives
+in Postgres after import; the retired SQLite migration path and local vector
+store are no longer part of the repository or runtime.
 
 ## Build retrieval data
 
@@ -128,10 +114,11 @@ Build 3,072-dimensional OpenRouter embeddings in Postgres:
 uv run python -m scripts.build_vector_index --book-id 1
 ```
 
-This requires `OPENROUTER_API_KEY`. The current corpus is intentionally queried
-with exact pgvector cosine search. Approximate indexes are deferred until
-evaluation or corpus growth shows a latency need; pgvector HNSW `vector`
-indexes do not support the current 3,072 dimensions.
+This requires `OPENROUTER_API_KEY`; the model defaults to
+`OPENROUTER_EMBEDDING_MODEL`. The current corpus is intentionally queried with
+exact pgvector cosine search. Approximate indexes are deferred until evaluation
+or corpus growth shows a latency need; pgvector HNSW `vector` indexes do not
+support the current 3,072 dimensions.
 
 ## Inspect and query
 
@@ -213,9 +200,10 @@ Open `http://localhost:3000`. The browser calls Next.js `/api`, which forwards
 to FastAPI at `http://localhost:8000`. The interface remains intentionally
 single-user until the deferred Supabase Auth stage is implemented.
 
-The API exposes `GET /api/health` and `POST /api/chat`. Every study turn and
-LLM call can be traced in LangSmith when the standard LangSmith environment
-variables are configured.
+The API exposes `GET /api/health` and `POST /api/chat`. Health returns 503 when
+the canonical schema, pgvector schema, or configured embedding provenance is
+not ready. Every study turn and LLM call can be traced in LangSmith when the
+standard LangSmith environment variables are configured.
 
 ## Verification
 
@@ -247,6 +235,8 @@ npx --yes supabase@2.109.1 start
 docker compose up --build
 ```
 
-The API container reaches the host database through `DOCKER_DATABASE_URL`.
-The `data/` mount remains during the rollback window because it contains the
-legacy SQLite/Chroma inputs; the application runtime does not read them.
+For local Supabase, the API container reaches the host database through
+`DOCKER_DATABASE_URL`. When that override is absent, Compose uses
+`DATABASE_URL`, so the same image can connect directly to hosted Supabase;
+unset `DOCKER_DATABASE_URL` in that case. The API container has no local
+database volume; canonical and derived retrieval data live in Postgres.

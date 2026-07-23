@@ -3,7 +3,9 @@
 This directory contains evaluation data derived from the canonical book
 content now stored in Postgres. The frozen judgments were originally created
 against the pre-cutover SQLite snapshot; audited migration preserves the same
-node IDs, pages, hierarchy, and content. Each dataset records its own review
+node IDs, pages, hierarchy, and content. The local snapshot was retired after
+that audit; references to it in frozen provenance describe how the judgments
+were produced, not a runtime dependency. Each dataset records its own review
 provenance; do not assume every artifact is human-verified.
 
 ## Multi-turn conversation set
@@ -37,6 +39,13 @@ history dependency, outcome, or free-text search and inspect the expected
 scope, standalone meaning, state transition, evidence, near misses,
 citations, and reviewer decisions. The HTML is derived and rebuildable; edit
 the JSON only through a versioned correction, never by changing the report.
+
+Render the current retrieval comparison artifact without rerunning paid
+provider evaluation:
+
+```bash
+uv run python -m scripts.render_retrieval_report
+```
 
 ## Multi-turn runs
 

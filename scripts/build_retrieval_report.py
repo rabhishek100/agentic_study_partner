@@ -241,7 +241,7 @@ def build_artifact(
     model_manifest = {
         "vector_index": vector_manifest,
         "reranker": {
-            "model": os.getenv("RERANKER_PROVIDER") or DEFAULT_RERANKER_MODEL,
+            "model": os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL,
             "candidate_limit": 20,
         },
     }

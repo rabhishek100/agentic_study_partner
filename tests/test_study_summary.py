@@ -23,7 +23,7 @@ from study.summarize import (
     summarize_scope_with_repair,
     validate_summary,
 )
-from tests.test_storage import FILE_HASH, sample_book
+from tests.fixtures import FILE_HASH, sample_book
 from tests.postgres import PostgresOwnerMixin
 
 

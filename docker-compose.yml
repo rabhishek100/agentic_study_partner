@@ -6,11 +6,9 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - ./data:/app/data
     ports:
       - "8000:8000"
     healthcheck:

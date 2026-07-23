@@ -62,23 +62,34 @@ class OpenRouterReranker:
                 "model": self.model_name,
                 "query": query,
                 "documents": list(documents),
+                "top_n": len(documents),
             },
         )
         response.raise_for_status()
         results = response.json()["results"]
         scores = [0.0] * len(documents)
+        seen: set[int] = set()
         for item in results:
-            scores[item["index"]] = float(item["relevance_score"])
+            index = item["index"]
+            if not isinstance(index, int) or not 0 <= index < len(documents):
+                raise ValueError(f"reranker returned invalid document index: {index!r}")
+            if index in seen:
+                raise ValueError(f"reranker returned duplicate document index: {index}")
+            seen.add(index)
+            scores[index] = float(item["relevance_score"])
+        if len(seen) != len(documents):
+            raise ValueError(
+                "reranker did not return a score for every candidate document"
+            )
         return scores
 
 
 def build_reranker(spec: str | None = None) -> Reranker:
     """Construct an OpenRouter reranker from a model id spec.
 
-    Falls back to RERANKER_PROVIDER, then DEFAULT_RERANKER_MODEL, when spec
-    is not given.
+    Falls back to OPENROUTER_RERANKER_MODEL, then DEFAULT_RERANKER_MODEL.
     """
-    spec = spec or os.getenv("RERANKER_PROVIDER", DEFAULT_RERANKER_MODEL)
+    spec = spec or os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL
     return OpenRouterReranker(spec)
 
 

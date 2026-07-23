@@ -50,6 +50,7 @@ class QueryExecutionError(RuntimeError):
 
 
 SOURCE_CITATION = re.compile(r"\[S(\d+)]")
+DEFAULT_GENERATION_MODEL = "deepseek/deepseek-v4-flash"
 INSUFFICIENT_EVIDENCE_MARKER = "INSUFFICIENT_EVIDENCE:"
 INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\b(?:the\s+)?evidence\s+is\s+insufficient\b|"
@@ -81,10 +82,7 @@ def openrouter_model(*, max_tokens: int | None = None) -> ChatModel:
         "none",
     )
     return ChatOpenAI(
-        model=os.getenv(
-            "OPENROUTER_GENERATION_MODEL",
-            os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash"),
-        ),
+        model=os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
         max_retries=2,
@@ -340,9 +338,8 @@ def _answer_retrieval_question(
         book = books.get(metadata["book_id"], f"Book {metadata['book_id']}")
         sources.append(f"- **[S{i}]** {book} → {hierarchy} — PDF p. {pages}")
     reply_text = str(reply.content).strip()
-    insufficient = (
-        INSUFFICIENT_EVIDENCE_MARKER in reply_text
-        or bool(INSUFFICIENT_EVIDENCE_LANGUAGE.search(reply_text))
+    insufficient = INSUFFICIENT_EVIDENCE_MARKER in reply_text or bool(
+        INSUFFICIENT_EVIDENCE_LANGUAGE.search(reply_text)
     )
     if re.search(
         r"\binsufficient_evidence\s+is\s+not\s+applicable\b|"

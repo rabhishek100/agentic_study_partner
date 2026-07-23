@@ -69,7 +69,20 @@ class OpenRouterEmbedder:
             },
         )
         response.raise_for_status()
-        ordered = sorted(response.json()["data"], key=lambda item: item["index"])
+        data = response.json()["data"]
+        if len(data) != len(texts):
+            raise ValueError(
+                "embedding provider returned a different number of vectors "
+                f"({len(data)}) than inputs ({len(texts)})"
+            )
+        indexes = [item.get("index") for item in data]
+        if any(not isinstance(index, int) for index in indexes) or sorted(
+            indexes
+        ) != list(range(len(texts))):
+            raise ValueError(
+                f"embedding provider returned invalid input indexes: {indexes!r}"
+            )
+        ordered = sorted(data, key=lambda item: item["index"])
         embeddings = [item["embedding"] for item in ordered]
         mismatched = [
             len(value) for value in embeddings if len(value) != self.dimension
@@ -92,7 +105,7 @@ class OpenRouterEmbedder:
 
 def build_embedder(spec: str | None = None) -> Embedder:
     return OpenRouterEmbedder(
-        spec or os.getenv("EMBEDDING_PROVIDER", DEFAULT_EMBEDDING_MODEL)
+        spec or os.getenv("OPENROUTER_EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL
     )
 
 

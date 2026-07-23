@@ -15,7 +15,6 @@ flowchart LR
     Embed --> Vector[(pgvector<br/>exact cosine search)]
 
     Next[Next.js React client] --> API[FastAPI]
-    Gradio[Optional Gradio UI] --> Turn[Conversation entry point]
     API --> Turn
     Turn --> Graph[LangGraph study turn]
     Graph --> Plan[Understand request]
@@ -47,7 +46,7 @@ flowchart LR
   they do not depend on a small search result set.
 - Ordinary questions search chunks, attach exact source pages, and return
   insufficient evidence when the book does not support an answer.
-- Next.js and Gradio call the same conversation workflow and contain no
+- Next.js proxies requests to the FastAPI conversation workflow and contains no
   separate answering logic.
 
 ## Ownership boundary
@@ -70,5 +69,5 @@ frontend Auth, and cross-user isolation tests are a separate deferred stage.
   dimension, and content-hash provenance.
 - Exact cosine search is deliberate at the current corpus size. Approximate
   indexing requires a measured latency need and a dimension-compatible design.
-- Hybrid retrieval uses reciprocal-rank fusion; the optional local reranker
-  only operates on a bounded hybrid shortlist.
+- Hybrid retrieval uses reciprocal-rank fusion; the optional OpenRouter-hosted
+  reranker only operates on a bounded hybrid shortlist.

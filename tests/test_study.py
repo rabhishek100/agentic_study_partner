@@ -12,7 +12,7 @@ from study.scope import (
     resolve_chapter,
     resolve_section,
 )
-from tests.test_storage import FILE_HASH, sample_book
+from tests.fixtures import FILE_HASH, sample_book
 from tests.postgres import PostgresOwnerMixin
 
 

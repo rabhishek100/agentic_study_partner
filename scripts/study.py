@@ -26,6 +26,7 @@ from study.summarize import (
     prompt_budget,
     summarize_scope_with_repair,
 )
+from study.query import DEFAULT_GENERATION_MODEL
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -58,10 +59,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=os.getenv(
-            "OPENROUTER_GENERATION_MODEL",
-            os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash"),
-        ),
+        default=os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL,
     )
     parser.add_argument(
         "--context-window",

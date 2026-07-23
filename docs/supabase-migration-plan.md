@@ -34,8 +34,10 @@ in `mt-009`. A judged repeat also exposed one scope-resolution error. The full
 are fixed; the hosted database and retrieval migration themselves remain
 validated.
 
-The legacy files remain in the ignored `data/` directory for the rollback
-window. `DATABASE_URL` now targets hosted Supabase; source-PDF upload remains
+The rollback window closed on 2026-07-23 after the source PDF hash and
+canonical Postgres counts were rechecked against the legacy database. The
+ignored SQLite and Chroma stores and their implementation modules were then
+removed. `DATABASE_URL` now targets hosted Supabase; source-PDF upload remains
 deferred. Frontend Auth and cross-user verification remain deferred exactly as
 described below.
 
@@ -64,9 +66,9 @@ described below.
 
 ## Stages
 
-Each stage is independently reviewable. SQLite and Chroma remain available as
-rollback inputs until the Postgres retrieval evaluations pass; the shared
-`./data` mount is removed only during final cleanup.
+Each stage was independently reviewable. SQLite and Chroma remained available
+through the migration audit and retrieval evaluation, then were removed during
+the completed final cleanup.
 
 ### Stage 0 - Freeze the baseline
 
@@ -133,11 +135,16 @@ rollback inputs until the Postgres retrieval evaluations pass; the shared
 ### Stage 5 - Cutover and cleanup
 
 - Switch health checks from local-file existence to database queries.
-- Update Docker/env/docs for `DATABASE_URL`; keep the data volume through the
-  rollback window, then remove SQLite, Chroma, and their dependencies.
+- Update Docker/env/docs for `DATABASE_URL`; remove SQLite, Chroma, and their
+  dependencies after the rollback window.
 - Run the canonical audit, retrieval evaluation, multi-turn smoke set, and
   full local test suite before removing rollback data.
-- Document the exact rollback procedure and retain the pre-cutover backup.
+- Preserve the migration measurements and historical recovery procedure in
+  this decision record.
+
+Completed on 2026-07-23. The final audit matched the source PDF SHA-256 and
+canonical counts of 177 nodes, 4,200 content blocks, 32 tables, and 119 images
+before local rollback data was removed.
 
 ### Deferred follow-up - frontend Auth and multi-user verification
 
@@ -151,17 +158,16 @@ rollback inputs until the Postgres retrieval evaluations pass; the shared
   enumeration tests. Return 404 for inaccessible resources.
 - Only after these tests pass may the deployment be called multi-user-safe.
 
-## Rollback procedure
+## Recovery after cleanup
 
-1. Stop writes and preserve a Postgres backup plus the independent Storage
-   object backup.
-2. Deploy the pre-cutover application revision.
-3. Restore its ignored `data/books.sqlite3`, `data/retrieval.sqlite3`, and
-   `data/chroma/` snapshot and mount `data/` as before.
-4. Run the pre-cutover canonical round-trip and frozen retrieval checks before
-   reopening traffic.
-5. Keep the Postgres project intact until the rollback is verified; do not
-   delete migrated data as part of the switchback.
+The local pre-cutover stores are no longer a supported rollback target.
+
+1. Stop writes and restore the latest Postgres backup.
+2. Validate the canonical counts, source PDF hash, and `restore_book()` output.
+3. Rebuild chunks and embeddings from canonical Postgres content.
+4. If no usable database backup exists, reparse the hash-verified source PDF,
+   import it through the supported Postgres path, and rebuild all derived data.
+5. Run the retrieval and multi-turn regression suites before reopening traffic.
 
 ## Cutover acceptance gates
 
@@ -174,4 +180,5 @@ rollback inputs until the Postgres retrieval evaluations pass; the shared
    failure analysis and justification.
 7. The API health check succeeds against Postgres and no runtime code opens a
    local SQLite or Chroma store.
-8. The pre-cutover data remains recoverable through the rollback window.
+8. The hash-verified source PDF and documented rebuild path remain available
+   after the pre-cutover local stores are retired.

@@ -5,6 +5,7 @@ import os
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
+from pydantic import Field
 
 from storage.database import connection, resolve_owner_id
 from .reranker import DEFAULT_RERANKER_MODEL, Reranker, build_reranker
@@ -32,10 +33,13 @@ def _cached_reranker(provider: str) -> Reranker:
     return build_reranker(provider)
 
 
-def warm_models() -> None:
-    """Construct hosted model clients before the first request."""
-    _cached_embedder(os.getenv("EMBEDDING_PROVIDER", DEFAULT_EMBEDDING_MODEL))
-    _cached_reranker(os.getenv("RERANKER_PROVIDER", DEFAULT_RERANKER_MODEL))
+def warm_models(*, include_reranker: bool = False) -> None:
+    """Construct clients needed by the default retrieval path."""
+    _cached_embedder(os.getenv("OPENROUTER_EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL)
+    if include_reranker:
+        _cached_reranker(
+            os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL
+        )
 
 
 class BookRetriever(BaseRetriever):
@@ -46,15 +50,23 @@ class BookRetriever(BaseRetriever):
     mode: RetrievalMode = "hybrid"
     book_id: int | None = None
     k: int = 5
-    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", DEFAULT_EMBEDDING_MODEL)
-    reranker_provider: str = os.getenv("RERANKER_PROVIDER", DEFAULT_RERANKER_MODEL)
+    embedding_model: str = Field(
+        default_factory=lambda: (
+            os.getenv("OPENROUTER_EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL
+        )
+    )
+    reranker_model: str = Field(
+        default_factory=lambda: (
+            os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL
+        )
+    )
 
     def _get_relevant_documents(self, query: str, *, run_manager) -> list[Document]:
         embedder = (
-            None if self.mode == "bm25" else _cached_embedder(self.embedding_provider)
+            None if self.mode == "bm25" else _cached_embedder(self.embedding_model)
         )
         reranker = (
-            _cached_reranker(self.reranker_provider)
+            _cached_reranker(self.reranker_model)
             if self.mode == "hybrid_rerank"
             else None
         )

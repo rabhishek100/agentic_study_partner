@@ -18,23 +18,22 @@ The active pipeline is:
 | `study/` | Resolve hierarchy scopes, load complete evidence, validate citations, and orchestrate turns with LangGraph. |
 | `api/main.py` | Serve health, synchronous chat, and SSE streaming over the shared study workflow. |
 | `frontend/` | Provide the minimal Next.js chat interface. Supabase Auth is intentionally deferred. |
-| `app.py` | Provide an optional Python-only Gradio client over the same workflow. |
 
 ## Database authority
 
 | Path | Responsibility |
 |---|---|
-| `supabase/migrations/` | Authoritative schema, constraints, indexes, RLS, and Storage policies. |
+| `supabase/migrations/` | Authoritative active schema, constraints, indexes, and RLS. |
 | `supabase/seed.sql` | Stable local bootstrap owner without login credentials. |
 | `supabase/config.toml` | Reproducible local Supabase configuration. |
+| `supabase/deferred/` | Reviewed but inactive Storage SQL for the future upload API. |
 
 Canonical tables are `books`, `nodes`, `content_blocks`, `table_blocks`, and
 `image_blocks`. Derived tables are `chunk_builds`, `chunks`, `chunk_sources`,
 and `chunk_embeddings`; their contents are always rebuildable.
 
-`storage/sqlite.py`, `storage/schema.sql`, `retrieval/sqlite.py`, and
-`retrieval/schema.sql` are temporary legacy helpers for backfill, rollback, and
-legacy round-trip tests. No application runtime module imports them.
+The pre-cutover SQLite and Chroma implementations have been retired. Runtime
+and tests use the same Postgres canonical-storage and retrieval boundaries.
 
 ## Operational commands
 
@@ -42,14 +41,13 @@ legacy round-trip tests. No application runtime module imports them.
 |---|---|
 | `scripts/parse_book.py` | Parse the configured PDF and cache `ParsedBook` JSON. |
 | `scripts/import_book.py` | Import cached parser output into canonical Postgres. |
-| `scripts/migrate_sqlite_to_postgres.py` | Backfill legacy canonical data and audit losslessness/counts. |
 | `scripts/build_chunks.py` | Rebuild Postgres chunks and lexical search data. |
 | `scripts/build_vector_index.py` | Synchronize OpenRouter embeddings into pgvector. |
 | `scripts/inspect_scope.py` | Inspect hierarchy and canonical content without an LLM call. |
 | `scripts/study.py`, `scripts/ask_book.py` | Run explicit-scope and general grounded queries. |
 | `scripts/evaluate_retrieval.py` | Compare all frozen retrieval modes. |
 | `scripts/evaluate_multiturn.py` | Replay the stateful conversation gold set. |
-| `scripts/build_*_report.py` | Produce inspectable evaluation artifacts. |
+| `scripts/build_*_report.py`, `scripts/render_retrieval_report.py` | Produce inspectable evaluation artifacts and self-contained review pages. |
 
 ## Evaluation and tests
 
@@ -67,8 +65,8 @@ cross-user/RLS security testing belongs to the deferred Auth stage.
 | Path | Status |
 |---|---|
 | `sources/books/` | Original local PDF inputs; ignored and not distributable by default. |
-| `cache/` | Rebuildable parser caches. |
-| `data/books.sqlite3`, `data/retrieval.sqlite3`, `data/chroma/` | Pre-cutover rollback inputs; retained temporarily, not read by runtime. |
+| `cache/` | Rebuildable parser caches; safe to clear after a successful import. |
+| `data/` | Reserved for local data; retired SQLite and Chroma stores are not retained. |
 | `outputs/`, `evaluation/runs/` | Generated summaries and routine evaluation outputs. |
 | `.env`, `.venv/`, `__pycache__/` | Local secrets/environment/cache; never source artifacts. |
 

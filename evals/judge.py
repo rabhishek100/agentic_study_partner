@@ -7,6 +7,9 @@ from pydantic import Field
 from study.contracts import ContractModel
 
 
+DEFAULT_JUDGE_MODEL = "google/gemini-3-flash-preview"
+
+
 class AnswerQualityJudgment(ContractModel):
     correctness: int = Field(ge=0, le=4)
     coverage: int = Field(ge=0, le=4)
@@ -23,10 +26,7 @@ class OpenRouterAnswerJudge:
         from langchain_openai import ChatOpenAI
 
         model = ChatOpenAI(
-            model=os.getenv(
-                "OPENROUTER_JUDGE_MODEL",
-                "google/gemini-3-flash-preview",
-            ),
+            model=os.getenv("OPENROUTER_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
             api_key=key,
             base_url="https://openrouter.ai/api/v1",
             max_retries=1,

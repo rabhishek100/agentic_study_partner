@@ -6,8 +6,8 @@ import unittest
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
 from study.query import answer_query, execute_query
+from tests.fixtures import FILE_HASH, sample_book
 from tests.postgres import PostgresOwnerMixin
-from tests.test_storage import FILE_HASH, sample_book
 
 
 class CitationSummaryModel:

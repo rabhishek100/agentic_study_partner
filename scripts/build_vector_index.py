@@ -17,7 +17,13 @@ def build_argument_parser() -> argparse.ArgumentParser:
         description="Build exact-search pgvector rows from derived chunks."
     )
     parser.add_argument("--database-url", help="Defaults to DATABASE_URL")
-    parser.add_argument("--embedder", default=DEFAULT_EMBEDDING_MODEL)
+    parser.add_argument(
+        "--embedding-model",
+        help=(
+            "OpenRouter embedding model id; defaults to "
+            "OPENROUTER_EMBEDDING_MODEL, then " + DEFAULT_EMBEDDING_MODEL
+        ),
+    )
     parser.add_argument("--book-id", type=int)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--reset", action="store_true")
@@ -27,7 +33,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
 def main() -> None:
     load_dotenv()
     args = build_argument_parser().parse_args()
-    embedder = build_embedder(args.embedder)
+    embedder = build_embedder(args.embedding_model)
     with database_connection(args.database_url) as connection:
         summary = rebuild_vector_index(
             connection,

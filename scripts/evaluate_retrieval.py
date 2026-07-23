@@ -79,19 +79,19 @@ def build_argument_parser() -> argparse.ArgumentParser:
         default=list(RETRIEVAL_MODES),
     )
     parser.add_argument(
-        "--reranker",
-        default=DEFAULT_RERANKER_MODEL,
+        "--reranker-model",
         help=(
             "OpenRouter reranker model id used for hybrid_rerank "
-            f"(default: {DEFAULT_RERANKER_MODEL})."
+            "(defaults to OPENROUTER_RERANKER_MODEL, then "
+            f"{DEFAULT_RERANKER_MODEL})."
         ),
     )
     parser.add_argument(
-        "--embedder",
-        default=DEFAULT_EMBEDDING_MODEL,
+        "--embedding-model",
         help=(
             "OpenRouter embedder model id used for vector/hybrid modes "
-            f"(default: {DEFAULT_EMBEDDING_MODEL}). Must match stored vectors."
+            "(defaults to OPENROUTER_EMBEDDING_MODEL, then "
+            f"{DEFAULT_EMBEDDING_MODEL}). Must match stored vectors."
         ),
     )
     return parser
@@ -274,8 +274,8 @@ def evaluate(
     gold_set: Path,
     *,
     modes: tuple[RetrievalMode, ...] = RETRIEVAL_MODES,
-    reranker_spec: str = DEFAULT_RERANKER_MODEL,
-    embedder_spec: str = DEFAULT_EMBEDDING_MODEL,
+    reranker_spec: str | None = None,
+    embedder_spec: str | None = None,
 ) -> dict:
     gold = json.loads(gold_set.read_text(encoding="utf-8"))
     owner = resolve_owner_id()
@@ -333,8 +333,8 @@ def main() -> None:
         args.database_url,
         args.gold_set,
         modes=tuple(args.modes),
-        reranker_spec=args.reranker,
-        embedder_spec=args.embedder,
+        reranker_spec=args.reranker_model,
+        embedder_spec=args.embedding_model,
     )
     print(json.dumps(result, indent=2))
 
