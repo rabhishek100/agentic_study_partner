@@ -1,10 +1,17 @@
 {
   "schema_version": "1.0.0",
-  "set_id": "designing-ml-systems-multiturn-v1",
+  "set_id": "designing-ml-systems-multiturn-v2",
   "status": "frozen",
   "dataset_tier": "synthetic_model_adjudicated",
   "created_on": "2026-07-20",
-  "frozen_on": "2026-07-20",
+  "frozen_on": "2026-07-23",
+  "revision_history": [
+    {
+      "date": "2026-07-23",
+      "from_set_id": "designing-ml-systems-multiturn-v1",
+      "reason": "Corrected four unanswerable retrieval turns whose route was mislabeled as an outcome; evidence and reference answers are unchanged."
+    }
+  ],
   "purpose": "Frozen model-adjudicated synthetic evaluation conversations for testing history dependence, hierarchy routing, scope carryover, retrieval, abstention, reference-answer transformations, and citation grounding before multi-turn implementation.",
   "provenance": {
     "dataset_origin": "synthetic",
@@ -45,7 +52,7 @@
       "reuse_prior_answer": "Transform the previously validated answer without treating it as new book evidence.",
       "clarify": "Do not retrieve or answer until the missing conversational referent is supplied."
     },
-    "route_labels": "Expected routes are workflow terminal routes; abstain and clarify include the sufficiency outcome rather than naming a retrieval backend.",
+    "route_labels": "Expected routes identify the workflow path. An unanswerable book question still uses retrieval_qa; abstain is its expected outcome. Clarify remains a route and an outcome because retrieval has not started.",
     "standalone_query": "The expected standalone query is a semantic reference. Score preservation of required concepts and absence of added assumptions, not exact wording.",
     "retrieval_query_policy": "Version 1 expects the same faithful standalone meaning for BM25 and vector retrieval, no query expansion, and no hypothetical-answer or HyDE search."
   },
@@ -653,7 +660,7 @@
           "turn_id": "mt-007-t4",
           "depends_on_turn_ids": ["mt-007-t2"],
           "user": "Given what this section says, which feature-store vendor should I buy?",
-          "expected_route": "abstain",
+          "expected_route": "retrieval_qa",
           "history_dependency": "dependent",
           "scope_behavior": "prefer_scope",
           "expected_standalone_query": "Which feature-store vendor should be purchased for this project?",
@@ -833,7 +840,7 @@
         {
           "turn_id": "mt-010-t1",
           "user": "How should I choose LoRA rank and target modules for a transformer?",
-          "expected_route": "abstain",
+          "expected_route": "retrieval_qa",
           "history_dependency": "independent",
           "scope_behavior": "global",
           "expected_standalone_query": "How should LoRA rank and target modules be selected for transformer fine-tuning?",
@@ -850,7 +857,7 @@
           "turn_id": "mt-010-t2",
           "depends_on_turn_ids": ["mt-010-t1"],
           "user": "Could the low-rank factorization section answer it?",
-          "expected_route": "abstain",
+          "expected_route": "retrieval_qa",
           "history_dependency": "dependent",
           "scope_behavior": "global",
           "expected_standalone_query": "Does the book's low-rank factorization section explain LoRA rank and target-module selection?",
@@ -883,7 +890,7 @@
         {
           "turn_id": "mt-010-t4",
           "user": "What is the exact current hourly SageMaker price for the recommended deployment instance?",
-          "expected_route": "abstain",
+          "expected_route": "retrieval_qa",
           "history_dependency": "independent",
           "scope_behavior": "global",
           "expected_standalone_query": "What is the exact current hourly SageMaker price for the book's recommended deployment instance?",

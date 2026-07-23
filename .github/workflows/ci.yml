@@ -19,8 +19,16 @@ jobs:
           enable-cache: true
       - name: Install Python dependencies
         run: uv sync --frozen
-      - name: Run unit tests
+      - name: Start migrated local Supabase
+        run: npx --yes supabase@2.109.1 start
+      - name: Run Python tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DEFAULT_OWNER_ID: 00000000-0000-4000-8000-000000000001
         run: uv run python -m unittest discover -s tests -v
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.109.1 stop --no-backup
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -40,3 +48,20 @@ jobs:
         run: npm audit --omit=dev
       - name: Build Next.js frontend
         run: npm run build
+
+  api-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build production API image
+        run: docker build --tag agentic-study-partner-api:ci .
+      - name: Verify production dependency boundary
+        run: >-
+          docker run --rm agentic-study-partner-api:ci python -c
+          'from importlib.util import find_spec; from shutil import which;
+          import api.main, parsing.parser, retrieval.vector, storage.postgres;
+          assert which("pdftoppm") is not None;
+          assert which("tesseract") is not None;
+          assert find_spec("gradio") is None;
+          assert find_spec("retrieval.sqlite") is None;
+          assert find_spec("storage.sqlite") is None'

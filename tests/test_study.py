@@ -1,7 +1,8 @@
 import unittest
 
 from scripts.inspect_scope import format_inspection
-from storage.sqlite import connect, ingest_book, initialize
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
 from study.content import load_scope_content
 from study.scope import (
     AmbiguousScopeError,
@@ -11,20 +12,23 @@ from study.scope import (
     resolve_chapter,
     resolve_section,
 )
-from tests.test_storage import FILE_HASH, sample_book
+from tests.fixtures import FILE_HASH, sample_book
+from tests.postgres import PostgresOwnerMixin
 
 
-class StudyScopeTests(unittest.TestCase):
+class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
     def setUp(self) -> None:
-        self.connection = connect(":memory:")
-        initialize(self.connection)
+        self.setUpPostgresOwner()
+        self.database_context = database_connection(self.database_url)
+        self.connection = self.database_context.__enter__()
         self.book_id = self._ingest(
             title="Sample Book",
             file_hash=FILE_HASH,
         )
 
     def tearDown(self) -> None:
-        self.connection.close()
+        self.database_context.__exit__(None, None, None)
+        self.tearDownPostgresOwner()
 
     def _ingest(self, *, title: str, file_hash: str) -> int:
         return ingest_book(
@@ -83,9 +87,7 @@ class StudyScopeTests(unittest.TestCase):
         )
         evidence = load_scope_content(self.connection, scope)
         blocks = [
-            block
-            for node_content in evidence.nodes
-            for block in node_content.blocks
+            block for node_content in evidence.nodes for block in node_content.blocks
         ]
 
         self.assertEqual(evidence.block_count, 5)

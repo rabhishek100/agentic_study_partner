@@ -1,12 +1,17 @@
 import json
-from pathlib import Path
-import tempfile
 import unittest
 
-from storage.sqlite import connect, ingest_book, initialize
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
 from study.analyze import ConversationDecisionError, analyze_turn
-from study.contracts import ConversationMessage, ConversationState, ScopeRef
+from study.contracts import (
+    ConversationMessage,
+    ConversationState,
+    EvidenceRef,
+    ScopeRef,
+)
 from tests.test_scope_candidates import FILE_HASH, hierarchy_book
+from tests.postgres import PostgresOwnerMixin
 
 
 class FakeModel:
@@ -27,12 +32,10 @@ class FailIfCalled:
         raise AssertionError("deterministic routing called the model")
 
 
-class ConversationDecisionTests(unittest.TestCase):
+class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
     def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.database = Path(self.directory.name) / "books.sqlite3"
-        with connect(self.database) as connection:
-            initialize(connection)
+        self.setUpPostgresOwner()
+        with database_connection(self.database_url) as connection:
             self.book_id = ingest_book(
                 connection,
                 hierarchy_book(),
@@ -44,11 +47,14 @@ class ConversationDecisionTests(unittest.TestCase):
             )
             self.nodes = {
                 row["title"]: dict(row)
-                for row in connection.execute("SELECT * FROM nodes")
+                for row in connection.execute(
+                    "SELECT * FROM nodes WHERE owner_id = %s",
+                    (self.owner_id,),
+                )
             }
 
     def tearDown(self):
-        self.directory.cleanup()
+        self.tearDownPostgresOwner()
 
     def state(self, **updates):
         values = {
@@ -70,12 +76,10 @@ class ConversationDecisionTests(unittest.TestCase):
         )
 
     def analyze(self, question, state, model):
-        return analyze_turn(question, state, self.database, model=model)
+        return analyze_turn(question, state, self.database_url, model=model)
 
     def test_explicit_hierarchy_requests_are_deterministic(self):
-        summary = self.analyze(
-            "Summarize Chapter 3.", self.state(), FailIfCalled()
-        )
+        summary = self.analyze("Summarize Chapter 3.", self.state(), FailIfCalled())
         listing = self.analyze(
             "What sections are present in Chapter 7?",
             self.state(),
@@ -130,12 +134,174 @@ class ConversationDecisionTests(unittest.TestCase):
             }
         )
 
-        decision = self.analyze(
-            "Explain the second approach.", self.state(), model
-        )
+        decision = self.analyze("Explain the second approach.", self.state(), model)
 
         self.assertEqual(decision.route, "clarify")
         self.assertEqual(decision.clarification_question, "Which approach do you mean?")
+
+    def test_supplied_clarification_cannot_repeat_the_same_clarify_route(self):
+        model = FakeModel(
+            {
+                "route": "clarify",
+                "history_dependency": "ambiguous",
+                "clarification_question": "Which approach do you mean?",
+                "reason": "The ordinal is ambiguous.",
+            }
+        )
+
+        decision = self.analyze(
+            "I mean the first dataflow mode in Chapter 3.",
+            self.state(pending_clarification="Explain the first approach."),
+            model,
+        )
+
+        self.assertEqual(decision.route, "retrieval_qa")
+        self.assertEqual(decision.history_dependency, "independent")
+        self.assertIn("Data Passing Through Services", decision.standalone_query)
+        self.assertEqual(
+            decision.resolved_scope.node_id,
+            self.nodes["Chapter 3. Data Engineering Fundamentals"]["id"],
+        )
+
+    def test_previous_evidence_resolves_that_section_after_abstention(self):
+        model = FakeModel(
+            {
+                "route": "clarify",
+                "history_dependency": "ambiguous",
+                "clarification_question": "Which section?",
+                "reason": "The section is unclear.",
+            }
+        )
+        evidence = EvidenceRef(
+            node_id=self.nodes["Low-Rank Factorization"]["id"],
+            pages=[8],
+            path="Chapter 7. Model Compression :: Low-Rank Factorization",
+        )
+
+        decision = self.analyze(
+            "Then what does that section actually cover?",
+            self.state(previous_evidence=[evidence]),
+            model,
+        )
+
+        self.assertEqual(decision.route, "retrieval_qa")
+        self.assertEqual(decision.history_dependency, "dependent")
+        self.assertIn("Low-Rank Factorization", decision.standalone_query)
+
+    def test_active_scope_and_evidence_resolve_ordinal_comparison(self):
+        model = FakeModel(
+            {
+                "route": "clarify",
+                "history_dependency": "dependent",
+                "clarification_question": "Which first approach?",
+                "reason": "The ordinal is unclear.",
+            }
+        )
+        scope = self.scope("Chapter 3. Data Engineering Fundamentals", "chapter")
+        evidence = EvidenceRef(
+            node_id=self.nodes["Data Passing Through Services"]["id"],
+            pages=[4],
+            path=(
+                "Chapter 3. Data Engineering Fundamentals :: Modes of Dataflow "
+                ":: Data Passing Through Services"
+            ),
+        )
+
+        decision = self.analyze(
+            "Compare it with the first one.",
+            self.state(active_scope=scope, previous_evidence=[evidence]),
+            model,
+        )
+
+        self.assertEqual(decision.route, "retrieval_qa")
+        self.assertEqual(decision.resolved_scope, scope)
+        self.assertIn("Data Passing Through Services", decision.standalone_query)
+
+    def test_named_topic_outside_active_scope_is_an_independent_switch(self):
+        active = self.scope("Chapter 3. Data Engineering Fundamentals", "chapter")
+        model = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "dependent",
+                "standalone_query": "How does reservoir sampling work?",
+                "scope_node_id": self.nodes["Reservoir Sampling"]["id"],
+                "reason": "It may refer to prior context.",
+            }
+        )
+
+        decision = self.analyze(
+            "How does reservoir sampling work?",
+            self.state(active_scope=active),
+            model,
+        )
+
+        self.assertEqual(decision.history_dependency, "independent")
+        self.assertIsNone(decision.resolved_scope)
+
+    def test_long_self_contained_scenario_is_not_repeatedly_clarified(self):
+        model = FakeModel(
+            {
+                "route": "clarify",
+                "history_dependency": "ambiguous",
+                "clarification_question": "Which campaign?",
+                "reason": "The campaign is unclear.",
+            }
+        )
+        question = (
+            "A campaign brings in wealthier users, but conversion at a fixed "
+            "income is unchanged. What changed?"
+        )
+
+        decision = self.analyze(question, self.state(), model)
+
+        self.assertEqual(decision.route, "retrieval_qa")
+        self.assertEqual(decision.history_dependency, "independent")
+        self.assertIn("distribution shift", decision.standalone_query)
+        self.assertIn("conditional on income", decision.standalone_query)
+
+    def test_revise_named_section_normalizes_to_hierarchy_summary(self):
+        model = FakeModel(
+            {
+                "route": "hierarchy_list",
+                "history_dependency": "independent",
+                "scope_node_id": self.nodes[
+                    "Chapter 7. Model Deployment and Prediction Service"
+                ]["id"],
+                "reason": "List the chapter.",
+            }
+        )
+
+        decision = self.analyze(
+            "Help me revise the Low-Rank Factorization section in Chapter 7.",
+            self.state(),
+            model,
+        )
+
+        self.assertEqual(decision.route, "hierarchy_summary")
+        self.assertEqual(
+            decision.resolved_scope.node_id,
+            self.nodes["Low-Rank Factorization"]["id"],
+        )
+
+    def test_invalid_retrieval_scope_is_ignored_instead_of_failing_turn(self):
+        model = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "dependent",
+                "standalone_query": "What are the hardest operational parts?",
+                "scope_node_id": 999999,
+                "reason": "The scope came from prior context.",
+            }
+        )
+
+        decision = self.analyze(
+            "What are the hardest operational parts?",
+            self.state(previous_answer="Prior grounded answer."),
+            model,
+        )
+
+        self.assertEqual(decision.route, "retrieval_qa")
+        self.assertIsNone(decision.resolved_scope)
 
     def test_invalid_model_output_is_retried_three_times(self):
         model = FakeModel(
@@ -147,9 +313,7 @@ class ConversationDecisionTests(unittest.TestCase):
             }
         )
 
-        with self.assertRaisesRegex(
-            ConversationDecisionError, "after 3 attempts"
-        ):
+        with self.assertRaisesRegex(ConversationDecisionError, "after 3 attempts"):
             self.analyze("Summarize that section.", self.state(), model)
         self.assertEqual(len(model.calls), 3)
 
@@ -162,9 +326,7 @@ class ConversationDecisionTests(unittest.TestCase):
             }
         )
 
-        with self.assertRaisesRegex(
-            ConversationDecisionError, "after 3 attempts"
-        ):
+        with self.assertRaisesRegex(ConversationDecisionError, "after 3 attempts"):
             self.analyze("Make that shorter.", self.state(), model)
 
         decision = self.analyze(
@@ -204,9 +366,7 @@ class ConversationDecisionTests(unittest.TestCase):
 
     def test_empty_question_fails_without_model_call(self):
         model = FakeModel()
-        with self.assertRaisesRegex(
-            ConversationDecisionError, "cannot be empty"
-        ):
+        with self.assertRaisesRegex(ConversationDecisionError, "cannot be empty"):
             self.analyze(" ", self.state(), model)
         self.assertEqual(model.calls, [])
 

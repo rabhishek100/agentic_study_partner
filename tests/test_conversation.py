@@ -1,5 +1,3 @@
-from pathlib import Path
-import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -7,11 +5,17 @@ import langsmith as ls
 from langchain_core.callbacks import BaseCallbackHandler
 
 from parsing.models import ParsedBook, Section, TextBlock
-from storage.sqlite import connect, ingest_book, initialize
-from study.contracts import ConversationState, ScopeRef, TurnResult
-from study.conversation import execute_conversation_turn, new_conversation_state
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
+from study.contracts import ConversationState, EvidenceRef, ScopeRef, TurnResult
+from study.conversation import (
+    execute_conversation_turn,
+    new_conversation_state,
+    record_turn,
+)
 from study.graph import StudyGraphContext, study_turn_graph
 from tests.test_query_routing import CitationSummaryModel
+from tests.postgres import PostgresOwnerMixin
 
 
 class FakeModel:
@@ -55,32 +59,42 @@ def conversation_book():
             level=1,
             start_page=1,
             end_page=1,
-            texts=[TextBlock(text="Foundations overview.", category="NarrativeText", page=1)],
+            texts=[
+                TextBlock(
+                    text="Foundations overview.", category="NarrativeText", page=1
+                )
+            ],
         ),
         Section(
             path=["Chapter 1. Foundations", "Dataflow Modes"],
             level=2,
             start_page=2,
             end_page=2,
-            texts=[TextBlock(text="Database, service, and event dataflow.", category="NarrativeText", page=2)],
+            texts=[
+                TextBlock(
+                    text="Database, service, and event dataflow.",
+                    category="NarrativeText",
+                    page=2,
+                )
+            ],
         ),
     ]
     return ParsedBook(
         source="sources/books/conversation.pdf",
-        toc=[(section.level, section.title, section.start_page) for section in sections],
+        toc=[
+            (section.level, section.title, section.start_page) for section in sections
+        ],
         sections=sections,
     )
 
 
-class ConversationTests(unittest.TestCase):
+class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
     def setUp(self):
         tracing = ls.tracing_context(enabled=False)
         tracing.__enter__()
         self.addCleanup(tracing.__exit__, None, None, None)
-        self.directory = tempfile.TemporaryDirectory()
-        self.source = Path(self.directory.name) / "books.sqlite3"
-        with connect(self.source) as connection:
-            initialize(connection)
+        self.setUpPostgresOwner()
+        with database_connection(self.database_url) as connection:
             self.book_id = ingest_book(
                 connection,
                 conversation_book(),
@@ -92,12 +106,16 @@ class ConversationTests(unittest.TestCase):
             )
             self.chapter = dict(
                 connection.execute(
-                    "SELECT * FROM nodes WHERE node_type = 'chapter'"
+                    """
+                    SELECT * FROM nodes
+                    WHERE node_type = 'chapter' AND owner_id = %s
+                    """,
+                    (self.owner_id,),
                 ).fetchone()
             )
 
     def tearDown(self):
-        self.directory.cleanup()
+        self.tearDownPostgresOwner()
 
     def state(self, **updates):
         values = {
@@ -132,7 +150,7 @@ class ConversationTests(unittest.TestCase):
         result, state = execute_conversation_turn(
             "Summarize Chapter 1.",
             new_conversation_state(book_id=self.book_id, conversation_id="c1"),
-            source_path=self.source,
+            database_url=self.database_url,
             generation_model=CitationSummaryModel(),
         )
 
@@ -159,7 +177,7 @@ class ConversationTests(unittest.TestCase):
             result, state = execute_conversation_turn(
                 "Compare the modes.",
                 self.state(active_scope=scope),
-                source_path=self.source,
+                database_url=self.database_url,
                 analysis_model=analysis,
             )
 
@@ -168,6 +186,8 @@ class ConversationTests(unittest.TestCase):
         )
         self.assertEqual(state.active_scope, scope)
         self.assertEqual(result.history_dependency, "dependent")
+        self.assertEqual(result.resolved_scope, scope)
+        self.assertTrue(execute.call_args.kwargs["force_retrieval"])
 
     def test_ambiguity_clarifies_without_retrieval(self):
         analysis = FakeModel(
@@ -182,7 +202,7 @@ class ConversationTests(unittest.TestCase):
             result, state = execute_conversation_turn(
                 "Explain the second approach.",
                 self.state(),
-                source_path=self.source,
+                database_url=self.database_url,
                 analysis_model=analysis,
             )
 
@@ -206,10 +226,69 @@ class ConversationTests(unittest.TestCase):
             _, state = execute_conversation_turn(
                 "I mean service dataflow.",
                 self.state(pending_clarification="Which approach?"),
-                source_path=self.source,
+                database_url=self.database_url,
                 analysis_model=analysis,
             )
         self.assertIsNone(state.pending_clarification)
+
+    def test_abstention_retains_retrieved_evidence_for_followup_resolution(self):
+        result = self.retrieval_result("unsupported").model_copy(
+            update={
+                "answer": "Insufficient evidence.",
+                "outcome": "abstain",
+                "evidence": [
+                    EvidenceRef(
+                        node_id=self.chapter["id"],
+                        pages=[1],
+                        path=self.chapter["path_text"],
+                    )
+                ],
+            }
+        )
+
+        state = record_turn(self.state(), "Unsupported question?", result)
+
+        self.assertEqual(state.previous_answer, "Insufficient evidence.")
+        self.assertEqual(state.previous_evidence, result.evidence)
+
+    def test_section_hierarchy_decision_serializes_a_parseable_query(self):
+        section = ScopeRef(
+            kind="section",
+            book_id=self.book_id,
+            node_id=self.chapter["id"] + 1,
+            display_path="Chapter 1. Foundations :: Dataflow Modes",
+            start_page=2,
+            end_page=2,
+        )
+        analysis = FakeModel(
+            {
+                "route": "hierarchy_summary",
+                "history_dependency": "dependent",
+                "scope_node_id": section.node_id,
+                "reason": "Summarize the active section.",
+            }
+        )
+        summary = TurnResult(
+            question="serialized",
+            answer="Summary.",
+            route="hierarchy_summary",
+            history_dependency="independent",
+            standalone_query="serialized",
+            resolved_scope=section,
+            outcome="answer",
+        )
+        with patch("study.conversation.execute_query", return_value=summary) as execute:
+            execute_conversation_turn(
+                "Summarize it.",
+                self.state(active_scope=section),
+                database_url=self.database_url,
+                analysis_model=analysis,
+            )
+
+        self.assertEqual(
+            execute.call_args.args[0],
+            "Summarize section Dataflow Modes in chapter 1. Foundations.",
+        )
 
     def test_changing_books_starts_a_new_conversation(self):
         analysis = FakeModel(
@@ -227,7 +306,7 @@ class ConversationTests(unittest.TestCase):
             _, state = execute_conversation_turn(
                 "What is dataflow?",
                 ConversationState(conversation_id="old", book_id=99),
-                source_path=self.source,
+                database_url=self.database_url,
                 book_id=self.book_id,
                 analysis_model=analysis,
             )
@@ -247,7 +326,7 @@ class ConversationTests(unittest.TestCase):
                 "metadata": {"thread_id": "conversation-1"},
             },
             context=StudyGraphContext(
-                source_path=self.source,
+                database_url=self.database_url,
                 retrieval_mode="bm25",
             ),
         )

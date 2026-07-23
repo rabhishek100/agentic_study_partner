@@ -1,86 +1,84 @@
 """Thin LangChain adapter over the project's explicit retrieval layer."""
 
 from functools import lru_cache
-from pathlib import Path
+import os
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
+from pydantic import Field
 
-from .reranker import (
-    DEFAULT_RERANKER_MODEL,
-    DEFAULT_RERANKER_REVISION,
-    LocalCrossEncoder,
-)
+from storage.database import connection, resolve_owner_id
+from .reranker import DEFAULT_RERANKER_MODEL, Reranker, build_reranker
 from .search import RetrievalMode, retrieve
-from .sqlite import connect
 from .vector import (
-    DEFAULT_CHROMA_PATH,
     DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_EMBEDDING_REVISION,
-    LocalEmbedder,
-    persistent_client,
+    Embedder,
+    build_embedder,
 )
 
 
-@lru_cache(maxsize=2)
-def _cached_embedder(model_name: str, revision: str) -> LocalEmbedder:
-    return LocalEmbedder(model_name, revision=revision)
+@lru_cache(maxsize=4)
+def _cached_embedder(provider: str) -> Embedder:
+    """Cache by OpenRouter model id.
+
+    Must match the model provenance stored with the active pgvector rows;
+    vector search filters out incompatible embedding spaces.
+    """
+    return build_embedder(provider)
 
 
-@lru_cache(maxsize=2)
-def _cached_reranker(model_name: str, revision: str) -> LocalCrossEncoder:
-    return LocalCrossEncoder(model_name, revision=revision)
+@lru_cache(maxsize=4)
+def _cached_reranker(provider: str) -> Reranker:
+    """Cache by OpenRouter model id."""
+    return build_reranker(provider)
 
 
-@lru_cache(maxsize=2)
-def _cached_chroma_client(chroma_path: str):
-    return persistent_client(chroma_path)
-
-
-def warm_models() -> None:
-    """Load and cache the embedder and reranker ahead of the first request."""
-    _cached_embedder(DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_REVISION)
-    _cached_reranker(DEFAULT_RERANKER_MODEL, DEFAULT_RERANKER_REVISION)
-    _cached_chroma_client(str(DEFAULT_CHROMA_PATH))
+def warm_models(*, include_reranker: bool = False) -> None:
+    """Construct clients needed by the default retrieval path."""
+    _cached_embedder(os.getenv("OPENROUTER_EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL)
+    if include_reranker:
+        _cached_reranker(
+            os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL
+        )
 
 
 class BookRetriever(BaseRetriever):
     """Expose explicit project retrieval modes as LangChain documents."""
 
-    database_path: str = "data/retrieval.sqlite3"
-    chroma_path: str = str(DEFAULT_CHROMA_PATH)
+    database_url: str = os.getenv("DATABASE_URL", "")
+    owner_id: str = str(resolve_owner_id())
     mode: RetrievalMode = "hybrid"
     book_id: int | None = None
     k: int = 5
-    embedding_model: str = DEFAULT_EMBEDDING_MODEL
-    embedding_revision: str = DEFAULT_EMBEDDING_REVISION
-    reranker_model: str = DEFAULT_RERANKER_MODEL
-    reranker_revision: str = DEFAULT_RERANKER_REVISION
+    embedding_model: str = Field(
+        default_factory=lambda: (
+            os.getenv("OPENROUTER_EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL
+        )
+    )
+    reranker_model: str = Field(
+        default_factory=lambda: (
+            os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL
+        )
+    )
 
     def _get_relevant_documents(self, query: str, *, run_manager) -> list[Document]:
         embedder = (
-            None
-            if self.mode == "bm25"
-            else _cached_embedder(self.embedding_model, self.embedding_revision)
+            None if self.mode == "bm25" else _cached_embedder(self.embedding_model)
         )
         reranker = (
-            _cached_reranker(self.reranker_model, self.reranker_revision)
+            _cached_reranker(self.reranker_model)
             if self.mode == "hybrid_rerank"
             else None
         )
-        client = (
-            None if self.mode == "bm25" else _cached_chroma_client(self.chroma_path)
-        )
-        with connect(Path(self.database_path)) as connection:
+        with connection(self.database_url or None, readonly=True) as database:
             results = retrieve(
-                connection,
+                database,
                 query,
                 mode=self.mode,
+                owner_id=self.owner_id,
                 book_id=self.book_id,
                 limit=self.k,
                 unique_nodes=True,
-                chroma_path=self.chroma_path,
-                client=client,
                 embedder=embedder,
                 reranker=reranker,
             )

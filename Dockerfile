@@ -8,13 +8,24 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 COPY --from=uv /uv /uvx /bin/
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-cache --no-dev --no-install-project
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libmagic1 \
+        libxcb1 \
+        poppler-utils \
+        tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY api ./api
 COPY parsing ./parsing
-COPY retrieval ./retrieval
-COPY storage ./storage
+COPY retrieval/__init__.py retrieval/chunking.py retrieval/langchain.py \
+    retrieval/models.py retrieval/postgres.py retrieval/reranker.py \
+    retrieval/search.py retrieval/vector.py ./retrieval/
+COPY storage/__init__.py storage/database.py storage/postgres.py ./storage/
 COPY study ./study
 
 ENV PATH="/app/.venv/bin:$PATH"

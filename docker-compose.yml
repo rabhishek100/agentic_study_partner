@@ -6,11 +6,9 @@ services:
     env_file:
       - .env
     environment:
-      EMBEDDING_DEVICE: cpu
-      RERANKER_DEVICE: cpu
-    volumes:
-      - ./data:/app/data
-      - huggingface-cache:/root/.cache/huggingface
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     healthcheck:
@@ -39,6 +37,3 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
-
-volumes:
-  huggingface-cache:

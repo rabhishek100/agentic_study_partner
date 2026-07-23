@@ -26,6 +26,16 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("canonical_database_ready", response.json())
         self.assertIn("retrieval_database_ready", response.json())
 
+    @patch("api.main.database_readiness", return_value=(True, False))
+    async def test_health_returns_503_when_database_is_not_ready(self, check):
+        response = await self.client.get("/api/health")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["status"], "unavailable")
+        self.assertTrue(response.json()["canonical_database_ready"])
+        self.assertFalse(response.json()["retrieval_database_ready"])
+        check.assert_called_once_with()
+
     @patch("api.main.execute_conversation_turn")
     async def test_chat_returns_result_and_updated_state(self, execute):
         result = TurnResult(

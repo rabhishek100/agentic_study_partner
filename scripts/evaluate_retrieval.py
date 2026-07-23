@@ -3,16 +3,21 @@
 import argparse
 import json
 from pathlib import Path
-import sqlite3
 
-from retrieval.reranker import LocalCrossEncoder, rerank
+from dotenv import load_dotenv
+
+from retrieval.reranker import DEFAULT_RERANKER_MODEL, build_reranker, rerank
 from retrieval.search import (
     RERANK_CANDIDATE_LIMIT,
     RetrievalMode,
     hybrid_candidates,
     retrieve,
 )
-from retrieval.vector import DEFAULT_COLLECTION, LocalEmbedder, persistent_client
+from retrieval.vector import (
+    DEFAULT_EMBEDDING_MODEL,
+    build_embedder,
+)
+from storage.database import connection as database_connection, resolve_owner_id
 
 
 RETRIEVAL_MODES: tuple[RetrievalMode, ...] = (
@@ -45,9 +50,7 @@ def result_rows(results: list, expected_nodes: set[int]) -> list[dict]:
                 "score": result.score,
                 "retrieval_method": result.retrieval_method,
                 "judgment": (
-                    "expected"
-                    if result.source_node_id in expected_nodes
-                    else "extra"
+                    "expected" if result.source_node_id in expected_nodes else "extra"
                 ),
                 "excerpt": excerpt[:200] + ("…" if len(excerpt) > 200 else ""),
             }
@@ -60,16 +63,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
         description="Compare retrieval methods against node-level judgments."
     )
     parser.add_argument(
-        "--database",
-        type=Path,
-        default=Path("data/retrieval.sqlite3"),
-        help="Derived retrieval database (default: data/retrieval.sqlite3)",
-    )
-    parser.add_argument(
-        "--chroma-path",
-        type=Path,
-        default=Path("data/chroma"),
-        help="Local Chroma directory (default: data/chroma)",
+        "--database-url",
+        help="Postgres URL; defaults to DATABASE_URL",
     )
     parser.add_argument(
         "--gold-set",
@@ -82,6 +77,22 @@ def build_argument_parser() -> argparse.ArgumentParser:
         nargs="+",
         choices=RETRIEVAL_MODES,
         default=list(RETRIEVAL_MODES),
+    )
+    parser.add_argument(
+        "--reranker-model",
+        help=(
+            "OpenRouter reranker model id used for hybrid_rerank "
+            "(defaults to OPENROUTER_RERANKER_MODEL, then "
+            f"{DEFAULT_RERANKER_MODEL})."
+        ),
+    )
+    parser.add_argument(
+        "--embedding-model",
+        help=(
+            "OpenRouter embedder model id used for vector/hybrid modes "
+            "(defaults to OPENROUTER_EMBEDDING_MODEL, then "
+            f"{DEFAULT_EMBEDDING_MODEL}). Must match stored vectors."
+        ),
     )
     return parser
 
@@ -122,13 +133,12 @@ def _category_metrics(results: list[dict]) -> dict:
 
 
 def _evaluate_mode(
-    connection: sqlite3.Connection,
+    connection,
     gold: dict,
     *,
     mode: RetrievalMode,
     book_id: int,
-    chroma_path: Path,
-    client,
+    owner_id,
     embedder,
     reranker,
 ) -> dict:
@@ -136,23 +146,18 @@ def _evaluate_mode(
     for question in gold["questions"]:
         if not question["answerable"]:
             continue
-        expected = {
-            evidence["node_id"] for evidence in question["expected_evidence"]
-        }
+        expected = {evidence["node_id"] for evidence in question["expected_evidence"]}
         candidate_fields = {}
         if mode == "hybrid_rerank":
             candidates = hybrid_candidates(
                 connection,
                 question["query"],
                 book_id=book_id,
+                owner_id=owner_id,
                 candidate_limit=RERANK_CANDIDATE_LIMIT,
-                collection_name=DEFAULT_COLLECTION,
-                client=client,
                 embedder=embedder,
             )
-            candidate_nodes = {
-                candidate.source_node_id for candidate in candidates
-            }
+            candidate_nodes = {candidate.source_node_id for candidate in candidates}
             candidate_fields = {
                 "candidate_nodes_at_20": sorted(candidate_nodes),
                 "candidate_recall_at_20": (
@@ -173,11 +178,10 @@ def _evaluate_mode(
                 connection,
                 question["query"],
                 mode=mode,
+                owner_id=owner_id,
                 book_id=book_id,
                 limit=5,
                 unique_nodes=True,
-                chroma_path=chroma_path,
-                client=client,
                 embedder=embedder,
                 reranker=reranker,
             )
@@ -226,11 +230,10 @@ def _evaluate_mode(
             connection,
             question["query"],
             mode=mode,
+            owner_id=owner_id,
             book_id=book_id,
             limit=5,
             unique_nodes=True,
-            chroma_path=chroma_path,
-            client=client,
             embedder=embedder,
             reranker=reranker,
         )
@@ -251,8 +254,7 @@ def _evaluate_mode(
                     },
                 ),
                 "note": (
-                    "Retrieval only; abstention is evaluated after answer "
-                    "generation."
+                    "Retrieval only; abstention is evaluated after answer generation."
                 ),
             }
         )
@@ -268,45 +270,40 @@ def _evaluate_mode(
 
 
 def evaluate(
-    database: Path,
+    database_url: str | None,
     gold_set: Path,
     *,
-    chroma_path: Path = Path("data/chroma"),
     modes: tuple[RetrievalMode, ...] = RETRIEVAL_MODES,
+    reranker_spec: str | None = None,
+    embedder_spec: str | None = None,
 ) -> dict:
     gold = json.loads(gold_set.read_text(encoding="utf-8"))
-    connection = sqlite3.connect(
-        database.resolve().as_uri() + "?mode=ro",
-        uri=True,
-    )
-    connection.row_factory = sqlite3.Row
-    try:
+    owner = resolve_owner_id()
+    with database_connection(database_url, readonly=True) as connection:
         build = connection.execute(
             """
             SELECT source_book_id, source_file_hash
             FROM chunk_builds
-            WHERE source_file_hash = ?
+            WHERE source_file_hash = %s AND owner_id = %s
             ORDER BY id DESC
             LIMIT 1
             """,
-            (gold["book"]["source_file_sha256"],),
+            (gold["book"]["source_file_sha256"], owner),
         ).fetchone()
         if build is None:
             raise ValueError("retrieval database has no build matching the gold set")
 
         uses_vectors = any(mode != "bm25" for mode in modes)
         uses_reranker = "hybrid_rerank" in modes
-        client = persistent_client(chroma_path) if uses_vectors else None
-        embedder = LocalEmbedder() if uses_vectors else None
-        reranker = LocalCrossEncoder() if uses_reranker else None
+        embedder = build_embedder(embedder_spec) if uses_vectors else None
+        reranker = build_reranker(reranker_spec) if uses_reranker else None
         retrievers = {
             mode: _evaluate_mode(
                 connection,
                 gold,
                 mode=mode,
                 book_id=build["source_book_id"],
-                chroma_path=chroma_path,
-                client=client,
+                owner_id=owner,
                 embedder=embedder,
                 reranker=reranker,
             )
@@ -327,17 +324,17 @@ def evaluate(
                 for mode in modes
             ],
         }
-    finally:
-        connection.close()
 
 
 def main() -> None:
+    load_dotenv()
     args = build_argument_parser().parse_args()
     result = evaluate(
-        args.database,
+        args.database_url,
         args.gold_set,
-        chroma_path=args.chroma_path,
         modes=tuple(args.modes),
+        reranker_spec=args.reranker_model,
+        embedder_spec=args.embedding_model,
     )
     print(json.dumps(result, indent=2))
 

@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Protocol
 
 from study.contracts import ConversationState, TurnResult
@@ -21,18 +20,14 @@ class TurnRunner(Protocol):
 
 @dataclass
 class ProjectRunner:
-    database_path: str | Path = "data/retrieval.sqlite3"
-    source_path: str | Path = "data/books.sqlite3"
-    chroma_path: str | Path = "data/chroma"
+    database_url: str | None = None
     retrieval_mode: str = "hybrid"
 
     def __call__(self, question, state):
         return execute_conversation_turn(
             question,
             state,
-            database_path=self.database_path,
-            source_path=self.source_path,
-            chroma_path=self.chroma_path,
+            database_url=self.database_url,
             retrieval_mode=self.retrieval_mode,
         )
 
@@ -69,26 +64,22 @@ def _score(turn: dict, result: TurnResult, state: ConversationState) -> dict:
     expected_outcome = (
         "answer"
         if turn.get("answerable", True)
-        else (
-            "clarify"
-            if turn["expected_route"] == "clarify"
-            else "abstain"
-        )
+        else ("clarify" if turn["expected_route"] == "clarify" else "abstain")
     )
-    return {
+    checks = {
         "route": result.route == turn["expected_route"],
-        "history_dependency": (
-            result.history_dependency == turn["history_dependency"]
-        ),
+        "history_dependency": (result.history_dependency == turn["history_dependency"]),
         "scope": actual_node == expected_node,
         "outcome": result.outcome == expected_outcome,
-        "evidence_recall": recall,
         "citations_valid": citations_valid,
         "standalone_exact": (
             (result.standalone_query or "").strip().casefold()
-            == turn.get("expected_standalone_query", "").strip().casefold()
+            == (turn.get("expected_standalone_query") or "").strip().casefold()
         ),
     }
+    if turn.get("answerable", True):
+        checks["evidence_recall"] = recall
+    return checks
 
 
 def evaluate_conversations(
@@ -139,6 +130,16 @@ def evaluate_conversations(
                 )
             except Exception as error:
                 errors.append({"turn_id": turn_id, "error": str(error)})
+                checks = {
+                    "route": False,
+                    "history_dependency": False,
+                    "scope": False,
+                    "outcome": False,
+                    "citations_valid": False,
+                    "standalone_exact": False,
+                }
+                if turn.get("answerable", True):
+                    checks["evidence_recall"] = 0.0
                 rows.append(
                     {
                         "conversation_id": conversation["id"],
@@ -147,15 +148,7 @@ def evaluate_conversations(
                         "gold": turn,
                         "prediction": None,
                         "state": state.model_dump(mode="json"),
-                        "checks": {
-                            "route": False,
-                            "history_dependency": False,
-                            "scope": False,
-                            "outcome": False,
-                            "evidence_recall": 0.0,
-                            "citations_valid": False,
-                            "standalone_exact": False,
-                        },
+                        "checks": checks,
                         "answer_judgment": None,
                         "error": str(error),
                     }
@@ -165,9 +158,7 @@ def evaluate_conversations(
         "summary": {
             "turns": len(rows),
             "route_accuracy": _mean(rows, "route"),
-            "history_dependency_accuracy": _mean(
-                rows, "history_dependency"
-            ),
+            "history_dependency_accuracy": _mean(rows, "history_dependency"),
             "scope_accuracy": _mean(rows, "scope"),
             "outcome_accuracy": _mean(rows, "outcome"),
             "required_evidence_recall": _mean(rows, "evidence_recall"),

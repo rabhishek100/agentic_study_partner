@@ -29,6 +29,14 @@ Reasoning is disabled because summarization is evidence transformation, and
 reasoning tokens add cost without improving the deterministic grounding
 contract.
 
+Chapter summaries deliberately use a complete non-streaming provider call and
+are exposed only after deterministic citation validation. A live Chapter 1
+comparison found that the streaming provider path ended without a finish
+reason after 1,852 characters and omitted later required nodes, while the same
+prompt through the normal invocation returned 6,157 characters, covered all
+six required nodes, and passed on the first attempt. Ordinary retrieval QA
+continues to stream token by token.
+
 Gemini 3.1 Flash Lite is the control model because it supports strict
 structured output and configurable reasoning. In a seven-case live check, it
 correctly handled an independent term question, scoped comparison, ordinal

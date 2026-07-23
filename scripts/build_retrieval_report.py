@@ -5,13 +5,12 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
-import sqlite3
 
-from retrieval.reranker import (
-    DEFAULT_RERANKER_MODEL,
-    DEFAULT_RERANKER_REVISION,
-)
+from dotenv import load_dotenv
+
+from retrieval.reranker import DEFAULT_RERANKER_MODEL
 from scripts.evaluate_retrieval import RETRIEVAL_MODES, evaluate
+from storage.database import connection as database_connection, resolve_owner_id
 
 
 TITLE = "Retrieval Evaluation: Four Ranking Strategies"
@@ -28,14 +27,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
         description="Build the retrieval comparison report artifact."
     )
     parser.add_argument(
-        "--database",
-        type=Path,
-        default=Path("data/retrieval.sqlite3"),
-    )
-    parser.add_argument(
-        "--chroma-path",
-        type=Path,
-        default=Path("data/chroma"),
+        "--database-url",
+        help="Postgres URL; defaults to DATABASE_URL",
     )
     parser.add_argument(
         "--gold-set",
@@ -76,7 +69,7 @@ def _source(generated_at: str, model_manifest: dict) -> dict:
         "path": "evaluation/retrieval_gold_seed.json",
         "query": {
             "engine": (
-                "Python, SQLite FTS5, local Chroma, and a local cross-encoder"
+                "Python, Postgres full-text search, pgvector, and a hosted reranker"
             ),
             "language": "python",
             "description": (
@@ -86,15 +79,15 @@ def _source(generated_at: str, model_manifest: dict) -> dict:
             "sql": (
                 "SELECT id, source_book_id, source_node_id, toc_index, "
                 "chunk_index, section_title, path_text, start_page, end_page, "
-                "text, content_types_json FROM chunks "
+                "text, content_types FROM chunks "
                 "WHERE source_book_id = :book_id "
                 "ORDER BY toc_index, chunk_index"
             ),
             "executed_at": generated_at,
             "tables_used": [
-                "data/retrieval.sqlite3: chunks",
-                "data/retrieval.sqlite3: chunks_fts",
-                "data/chroma: book_text_chunks",
+                "Postgres: chunks",
+                "Postgres: chunks.search_vector",
+                "Postgres: chunk_embeddings",
             ],
             "filters": [
                 "Gold-set source SHA-256 must match the indexed book",
@@ -107,7 +100,7 @@ def _source(generated_at: str, model_manifest: dict) -> dict:
                 "MRR@5 is the reciprocal rank of the first required evidence node within five distinct nodes; zero when absent.",
                 "Hybrid uses unweighted reciprocal rank fusion with rank constant 60 over the top 20 BM25 and vector chunks.",
                 "Candidate Recall@20 measures whether required nodes are present before cross-encoder reranking.",
-                "Hybrid + reranker scores the 20 RRF candidates with a pinned local cross-encoder and then keeps five distinct nodes.",
+                "Hybrid + reranker scores the 20 RRF candidates with the configured hosted reranker and then keeps five distinct nodes.",
             ],
             "model": model_manifest,
         },
@@ -172,8 +165,7 @@ def _question_markdown(mode_results: dict[str, dict]) -> str:
         )
         suffix = f"; missing nodes {missing}" if missing else ""
         candidate_suffix = (
-            f"; candidate Recall@20 "
-            f"{_percent(result['candidate_recall_at_20'])}"
+            f"; candidate Recall@20 {_percent(result['candidate_recall_at_20'])}"
             if "candidate_recall_at_20" in result
             else ""
         )
@@ -209,52 +201,57 @@ def _retrieval_rows(mode_results: dict[str, dict]) -> list[dict]:
 
 
 def build_artifact(
-    database: Path,
+    database_url: str | None,
     gold_set: Path,
-    *,
-    chroma_path: Path,
 ) -> dict:
     evaluation = evaluate(
-        database,
+        database_url,
         gold_set,
-        chroma_path=chroma_path,
     )
     generated_at = datetime.now(timezone.utc).isoformat()
-    manifest_path = chroma_path / "index_manifest.json"
+    owner = resolve_owner_id()
+    with database_connection(database_url, readonly=True) as connection:
+        vector_row = connection.execute(
+            """
+            select model_name, model_revision, dimension,
+                   document_format_version, count(*) as vector_count,
+                   max(created_at) as built_at
+            from chunk_embeddings
+            where owner_id = %s
+            group by model_name, model_revision, dimension,
+                     document_format_version
+            order by built_at desc
+            limit 1
+            """,
+            (owner,),
+        ).fetchone()
+        count_row = connection.execute(
+            """
+            select count(*) as chunk_count,
+                   count(distinct source_node_id) as node_count
+            from chunks where owner_id = %s
+            """,
+            (owner,),
+        ).fetchone()
     vector_manifest = (
-        json.loads(manifest_path.read_text(encoding="utf-8"))
-        if manifest_path.exists()
-        else {"status": "manifest unavailable"}
+        dict(vector_row) if vector_row else {"status": "manifest unavailable"}
     )
+    if vector_row and vector_manifest.get("built_at"):
+        vector_manifest["built_at"] = vector_manifest["built_at"].isoformat()
     model_manifest = {
         "vector_index": vector_manifest,
         "reranker": {
-            "model": DEFAULT_RERANKER_MODEL,
-            "revision": DEFAULT_RERANKER_REVISION,
-            "device": os.getenv(
-                "RERANKER_DEVICE",
-                os.getenv("EMBEDDING_DEVICE", "cpu"),
-            ),
+            "model": os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL,
             "candidate_limit": 20,
         },
     }
     source = _source(generated_at, model_manifest)
     by_question = _result_map(evaluation)
 
-    connection = sqlite3.connect(
-        database.resolve().as_uri() + "?mode=ro",
-        uri=True,
-    )
-    try:
-        chunk_count, node_count = connection.execute(
-            "SELECT COUNT(*), COUNT(DISTINCT source_node_id) FROM chunks"
-        ).fetchone()
-    finally:
-        connection.close()
+    chunk_count = count_row["chunk_count"]
+    node_count = count_row["node_count"]
 
-    comparisons = {
-        row["mode"]: row for row in evaluation["comparison"]
-    }
+    comparisons = {row["mode"]: row for row in evaluation["comparison"]}
     best_mode = max(
         RETRIEVAL_MODES,
         key=lambda mode: (
@@ -273,17 +270,24 @@ def build_artifact(
     )
     rerank_delta = rerank_recall - hybrid_recall
     rerank_mrr_delta = (
-        comparisons["hybrid_rerank"]["mrr_at_5"]
-        - comparisons["hybrid"]["mrr_at_5"]
+        comparisons["hybrid_rerank"]["mrr_at_5"] - comparisons["hybrid"]["mrr_at_5"]
     )
-    candidate_recall = comparisons["hybrid_rerank"][
-        "mean_candidate_recall_at_20"
-    ]
+    candidate_recall = comparisons["hybrid_rerank"]["mean_candidate_recall_at_20"]
+    if rerank_delta > 0 or rerank_mrr_delta > 0:
+        reranker_decision = (
+            "Reranking improves the measured seed-set quality, but it also "
+            "adds a paid model inference stage; hybrid remains the "
+            "interactive default until traced latency and cost establish "
+            "that the gain is worth that tradeoff."
+        )
+    else:
+        reranker_decision = (
+            "Reranking does not improve this seed set and adds a paid model "
+            "inference stage, so hybrid remains the interactive default."
+        )
     hybrid_categories = evaluation["retrievers"]["hybrid"]["metrics_by_category"]
     vector_categories = evaluation["retrievers"]["vector"]["metrics_by_category"]
-    rerank_categories = evaluation["retrievers"]["hybrid_rerank"][
-        "metrics_by_category"
-    ]
+    rerank_categories = evaluation["retrievers"]["hybrid_rerank"]["metrics_by_category"]
 
     summary_row = {
         f"{mode}_{metric}": comparisons[mode][field]
@@ -352,8 +356,7 @@ def build_artifact(
             "id": "reranker-shortlist-quality",
             "dataset": "summary_metrics",
             "description": (
-                "Required evidence available to the cross-encoder before "
-                "reranking."
+                "Required evidence available to the cross-encoder before reranking."
             ),
             "sourceId": "retrieval-comparison",
             "metrics": [
@@ -477,10 +480,7 @@ def build_artifact(
                 f"{rerank_mrr_delta:+.1%} versus hybrid. The 20-candidate "
                 f"shortlist has {_percent(candidate_recall)} required-node "
                 "recall, separating candidate-generation misses from ranking "
-                "errors. Because reranking does not improve Recall@5 on this "
-                "set and adds a model inference stage, hybrid remains the "
-                "interactive default until traced latency justifies changing "
-                "it."
+                f"errors. {reranker_decision}"
             ),
             "sourceId": "retrieval-comparison",
             "layout": "full",
@@ -562,10 +562,10 @@ def build_artifact(
             "type": "markdown",
             "body": (
                 "## Methods use one corpus but different ranking signals\n\n"
-                "BM25 uses weighted SQLite FTS5 fields: section title 5×, "
-                "hierarchy path 2×, and body 1×. Vector search embeds book and "
-                "hierarchy context plus the complete chunk body, then searches "
-                "a cosine HNSW index in local Chroma. Hybrid applies unweighted "
+                "Lexical search uses weighted Postgres tsvector fields for "
+                "section title, hierarchy path, and body. Vector search embeds "
+                "book and hierarchy context plus the complete chunk body, then "
+                "runs exact cosine search in pgvector. Hybrid applies unweighted "
                 "reciprocal rank fusion with constant 60 to the top 20 chunks "
                 "from each method. The reranked mode applies the pinned "
                 f"`{DEFAULT_RERANKER_MODEL}` cross-encoder to the first 20 RRF "
@@ -716,11 +716,11 @@ def build_artifact(
 
 
 def main() -> None:
+    load_dotenv()
     args = build_argument_parser().parse_args()
     artifact = build_artifact(
-        args.database,
+        args.database_url,
         args.gold_set,
-        chroma_path=args.chroma_path,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

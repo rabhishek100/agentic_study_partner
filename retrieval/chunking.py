@@ -1,13 +1,15 @@
-"""Construct citation-aware chunks from canonical SQLite rows."""
+"""Construct citation-aware chunks from canonical Postgres rows."""
 
 from dataclasses import asdict, dataclass
 from hashlib import sha256
 import json
 import re
-import sqlite3
+from typing import Any
+from uuid import UUID
 
 import tiktoken
 
+from storage.database import resolve_owner_id
 from .models import Chunk, ChunkSource, ChunkingConfig
 
 
@@ -152,9 +154,10 @@ def _split_words(
 
 
 def _read_units(
-    connection: sqlite3.Connection,
+    connection: Any,
     node_id: int,
     *,
+    owner_id: UUID,
     config: ChunkingConfig,
 ) -> list[_Piece | ChunkSource]:
     rows = connection.execute(
@@ -169,10 +172,11 @@ def _read_units(
             table_blocks.flat_text
         FROM content_blocks
         LEFT JOIN table_blocks ON table_blocks.block_id = content_blocks.id
-        WHERE content_blocks.node_id = ?
+        WHERE content_blocks.node_id = %s
+          AND content_blocks.owner_id = %s
         ORDER BY content_blocks.block_index
         """,
-        (node_id,),
+        (node_id, owner_id),
     ).fetchall()
     encoding = tiktoken.get_encoding(config.encoding_name)
     units: list[_Piece | ChunkSource] = []
@@ -250,8 +254,8 @@ def _overlap(pieces: list[_Piece], budget: int) -> list[_Piece]:
 
 def _make_chunk(
     *,
-    book: sqlite3.Row,
-    node: sqlite3.Row,
+    book: Any,
+    node: Any,
     chunk_index: int,
     pieces: list[_Piece],
     extra_sources: list[ChunkSource],
@@ -273,6 +277,7 @@ def _make_chunk(
     identity = "|".join(
         (
             book["file_hash"],
+            str(book["id"]),
             book["parser_version"],
             CHUNKER_VERSION,
             config_hash(config),
@@ -303,14 +308,20 @@ def _make_chunk(
 
 
 def _build_node_chunks(
-    connection: sqlite3.Connection,
+    connection: Any,
     *,
-    book: sqlite3.Row,
-    node: sqlite3.Row,
+    book: Any,
+    node: Any,
+    owner_id: UUID,
     config: ChunkingConfig,
 ) -> list[Chunk]:
     encoding = tiktoken.get_encoding(config.encoding_name)
-    units = _read_units(connection, node["id"], config=config)
+    units = _read_units(
+        connection,
+        node["id"],
+        owner_id=owner_id,
+        config=config,
+    )
     chunks: list[Chunk] = []
     pieces: list[_Piece] = []
     extra_sources: list[ChunkSource] = []
@@ -369,25 +380,31 @@ def _build_node_chunks(
 
 
 def build_book_chunks(
-    connection: sqlite3.Connection,
+    connection: Any,
     book_id: int,
     *,
+    owner_id: str | UUID | None = None,
     config: ChunkingConfig | None = None,
-) -> tuple[sqlite3.Row, list[Chunk]]:
+) -> tuple[Any, list[Chunk]]:
     """Build all searchable chunks for one canonical book."""
 
     config = config or ChunkingConfig()
+    owner = resolve_owner_id(owner_id)
     book = connection.execute(
-        "SELECT * FROM books WHERE id = ?",
-        (book_id,),
+        "select * from books where id = %s and owner_id = %s",
+        (book_id, owner),
     ).fetchone()
     if book is None:
         raise KeyError(f"book {book_id} does not exist")
 
     excluded = {title.casefold() for title in config.excluded_titles}
     nodes = connection.execute(
-        "SELECT * FROM nodes WHERE book_id = ? ORDER BY toc_index",
-        (book_id,),
+        """
+        select * from nodes
+        where book_id = %s and owner_id = %s
+        order by toc_index
+        """,
+        (book_id, owner),
     ).fetchall()
     chunks: list[Chunk] = []
     for node in nodes:
@@ -398,6 +415,7 @@ def build_book_chunks(
                 connection,
                 book=book,
                 node=node,
+                owner_id=owner,
                 config=config,
             )
         )

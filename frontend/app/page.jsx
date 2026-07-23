@@ -123,9 +123,6 @@ export default function App() {
           if (eventName === "token") {
             streamedText += data.text;
             setAssistantContent(streamedText);
-          } else if (eventName === "restart") {
-            streamedText = "";
-            setAssistantContent("");
           } else if (eventName === "final") {
             settled = true;
             setConversation(data.state);

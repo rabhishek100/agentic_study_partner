@@ -3,7 +3,7 @@
 from typing import Callable, Protocol
 
 
-TokenEventKind = str  # "token" | "restart"
+TokenEventKind = str  # "token"
 TokenCallback = Callable[[TokenEventKind, str], None]
 
 

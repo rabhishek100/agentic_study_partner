@@ -1,9 +1,8 @@
 """Inspect deterministic book, chapter, and section scopes."""
 
 import argparse
-from pathlib import Path
 
-from storage.sqlite import connect_readonly
+from storage.database import connection as database_connection
 from study.content import EvidenceBundle, load_scope_content
 from study.scope import (
     ResolvedScope,
@@ -21,10 +20,8 @@ def build_argument_parser() -> argparse.ArgumentParser:
         )
     )
     parser.add_argument(
-        "--database",
-        type=Path,
-        default=Path("data/books.sqlite3"),
-        help="Canonical SQLite database (default: data/books.sqlite3)",
+        "--database-url",
+        help="Postgres URL; defaults to DATABASE_URL",
     )
     subparsers = parser.add_subparsers(dest="scope_kind", required=True)
 
@@ -48,11 +45,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 
 def _pages(start_page: int, end_page: int) -> str:
-    return (
-        str(start_page)
-        if start_page == end_page
-        else f"{start_page}–{end_page}"
-    )
+    return str(start_page) if start_page == end_page else f"{start_page}–{end_page}"
 
 
 def format_inspection(
@@ -92,9 +85,7 @@ def format_inspection(
             if readable:
                 preview = readable[:240] + ("…" if len(readable) > 240 else "")
             elif block.block_type == "image":
-                preview = (
-                    f"<image: {block.image_mime_type or 'unknown MIME type'}>"
-                )
+                preview = f"<image: {block.image_mime_type or 'unknown MIME type'}>"
             else:
                 preview = "<no readable text>"
             lines.append(
@@ -129,7 +120,7 @@ def main() -> None:
     parser = build_argument_parser()
     args = parser.parse_args()
     try:
-        with connect_readonly(args.database) as connection:
+        with database_connection(args.database_url, readonly=True) as connection:
             scope = _resolve(args, connection)
             evidence = load_scope_content(connection, scope)
     except ScopeResolutionError as error:

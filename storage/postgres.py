@@ -1,64 +1,32 @@
-"""Store and restore ParsedBook objects using SQLite."""
+"""Lossless canonical ParsedBook persistence in Postgres."""
 
 from collections.abc import Mapping
 from datetime import datetime, timezone
 import json
-from pathlib import Path
 import re
-import sqlite3
 from typing import Any
+from uuid import UUID
+
+from psycopg import Connection
+from psycopg.types.json import Jsonb
 
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
+from .database import resolve_owner_id
 
 
-SCHEMA_PATH = Path(__file__).with_name("schema.sql")
 TABLE_MARKER = re.compile(r"^\[TABLE (\d+)]$")
 IMAGE_MARKER = re.compile(r"^\[IMAGE (\d+)]$")
 
 
 class BookAlreadyExistsError(RuntimeError):
-    """The PDF hash is already present and replacement was not requested."""
+    """The owner already has this PDF and replacement was not requested."""
 
 
 class InvalidBookError(ValueError):
     """The ParsedBook cannot be stored without losing information."""
 
 
-def connect(path: str | Path) -> sqlite3.Connection:
-    """Open a configured SQLite connection."""
-
-    if str(path) != ":memory:":
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-
-    connection = sqlite3.connect(str(path))
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    connection.execute("PRAGMA busy_timeout = 5000")
-    if str(path) != ":memory:":
-        connection.execute("PRAGMA journal_mode = WAL")
-    return connection
-
-
-def connect_readonly(path: str | Path) -> sqlite3.Connection:
-    """Open canonical storage without permitting accidental writes."""
-
-    uri = Path(path).resolve().as_uri() + "?mode=ro"
-    connection = sqlite3.connect(uri, uri=True)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    connection.execute("PRAGMA busy_timeout = 5000")
-    return connection
-
-
-def initialize(connection: sqlite3.Connection) -> None:
-    """Create the canonical tables and indexes if they do not exist."""
-
-    connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-
-
 def _marker(block: TextBlock) -> tuple[str, int] | None:
-    """Return the payload type and index represented by a placeholder."""
-
     if block.category == "TablePlaceholder":
         match = TABLE_MARKER.fullmatch(block.text)
         if match:
@@ -69,13 +37,10 @@ def _marker(block: TextBlock) -> tuple[str, int] | None:
             return "image", int(match.group(1))
     else:
         return None
-
     raise InvalidBookError(f"invalid payload placeholder: {block.text!r}")
 
 
 def _validate(book: ParsedBook, page_count: int) -> None:
-    """Check the invariants needed for a lossless relational mapping."""
-
     if not book.sections or len(book.toc) != len(book.sections):
         raise InvalidBookError(
             "TOC and sections must be non-empty and have equal length"
@@ -84,7 +49,6 @@ def _validate(book: ParsedBook, page_count: int) -> None:
         raise InvalidBookError("a section extends beyond the source PDF")
 
     active_path: list[str] = []
-
     for index, (toc_entry, section) in enumerate(
         zip(book.toc, book.sections, strict=True)
     ):
@@ -123,7 +87,6 @@ def _validate(book: ParsedBook, page_count: int) -> None:
             raise InvalidBookError(f"section {index} has unmatched table payloads")
         if image_indexes != list(range(len(section.images))):
             raise InvalidBookError(f"section {index} has unmatched image payloads")
-
         active_path[section.level - 1 :] = [section.title]
 
 
@@ -143,96 +106,104 @@ def _node_type(section: Section) -> str:
 
 
 def ingest_book(
-    connection: sqlite3.Connection,
+    connection: Connection,
     book: ParsedBook,
     *,
+    owner_id: str | UUID | None = None,
     title: str,
     author: str | None,
     file_hash: str,
     page_count: int,
     parser_version: str,
     metadata: Mapping[str, Any] | None = None,
+    source_storage_bucket: str | None = None,
+    source_storage_path: str | None = None,
     replace: bool = False,
 ) -> int:
-    """Atomically insert a ParsedBook and return its database ID."""
+    """Atomically insert a ParsedBook for one server-controlled owner."""
 
+    owner = resolve_owner_id(owner_id)
     file_hash = file_hash.casefold()
     if not re.fullmatch(r"[0-9a-f]{64}", file_hash):
         raise ValueError("file_hash must be a hexadecimal SHA-256 digest")
     if not title.strip():
         raise ValueError("title cannot be empty")
+    if (source_storage_bucket is None) != (source_storage_path is None):
+        raise ValueError("source storage bucket and path must be supplied together")
     _validate(book, page_count)
 
     source_filename = book.source.replace("\\", "/").rsplit("/", 1)[-1]
-    metadata_json = json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
-
-    if connection.in_transaction:
-        raise RuntimeError(
-            "ingest_book requires a connection with no active transaction"
-        )
-
-    with connection:
+    with connection.transaction():
         existing = connection.execute(
-            "SELECT id FROM books WHERE file_hash = ?",
-            (file_hash,),
+            "select id from books where owner_id = %s and file_hash = %s",
+            (owner, file_hash),
         ).fetchone()
         if existing and not replace:
             raise BookAlreadyExistsError(
                 f"this PDF is already stored as book {existing['id']}"
             )
         if existing:
-            connection.execute("DELETE FROM books WHERE id = ?", (existing["id"],))
-
-        cursor = connection.execute(
-            """
-            INSERT INTO books (
-                title, author, source_path, source_filename, file_hash,
-                page_count, parser_version, parsed_at, metadata_json
+            connection.execute(
+                "delete from books where owner_id = %s and id = %s",
+                (owner, existing["id"]),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                title.strip(),
-                author.strip() if author and author.strip() else None,
-                book.source,
-                source_filename,
-                file_hash,
-                page_count,
-                parser_version,
-                datetime.now(timezone.utc).isoformat(),
-                metadata_json,
-            ),
+
+        book_id = int(
+            connection.execute(
+                """
+                insert into books (
+                    owner_id, title, author, source_path, source_filename,
+                    source_storage_bucket, source_storage_path, file_hash,
+                    page_count, parser_version, parsed_at, metadata_json
+                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                returning id
+                """,
+                (
+                    owner,
+                    title.strip(),
+                    author.strip() if author and author.strip() else None,
+                    book.source,
+                    source_filename,
+                    source_storage_bucket,
+                    source_storage_path,
+                    file_hash,
+                    page_count,
+                    parser_version,
+                    datetime.now(timezone.utc),
+                    Jsonb(dict(metadata or {})),
+                ),
+            ).fetchone()["id"]
         )
-        book_id = int(cursor.lastrowid)
         parent_by_level: dict[int, int] = {}
 
         for toc_index, section in enumerate(book.sections):
             parent_id = parent_by_level.get(section.level - 1)
-            cursor = connection.execute(
-                """
-                INSERT INTO nodes (
-                    book_id, parent_id, toc_index, toc_level, node_type,
-                    title, path_text, path_json, start_page, end_page,
-                    direct_text, direct_char_count
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    book_id,
-                    parent_id,
-                    toc_index,
-                    section.level,
-                    _node_type(section),
-                    section.title,
-                    section.label,
-                    json.dumps(section.path, ensure_ascii=False),
-                    section.start_page,
-                    section.end_page,
-                    section.full_text,
-                    len(section.full_text),
-                ),
+            node_id = int(
+                connection.execute(
+                    """
+                    insert into nodes (
+                        owner_id, book_id, parent_id, toc_index, toc_level,
+                        node_type, title, path_text, path_json, start_page,
+                        end_page, direct_text
+                    ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    returning id
+                    """,
+                    (
+                        owner,
+                        book_id,
+                        parent_id,
+                        toc_index,
+                        section.level,
+                        _node_type(section),
+                        section.title,
+                        section.label,
+                        Jsonb(section.path),
+                        section.start_page,
+                        section.end_page,
+                        section.full_text,
+                    ),
+                ).fetchone()["id"]
             )
-            node_id = int(cursor.lastrowid)
             parent_by_level[section.level] = node_id
             parent_by_level = {
                 level: parent
@@ -243,89 +214,104 @@ def ingest_book(
             for block_index, block in enumerate(section.texts):
                 marker = _marker(block)
                 block_type = marker[0] if marker else "text"
-                cursor = connection.execute(
-                    """
-                    INSERT INTO content_blocks (
-                        node_id, block_index, block_type, category,
-                        page_number, text_content, metadata_json
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, '{}')
-                    """,
-                    (
-                        node_id,
-                        block_index,
-                        block_type,
-                        block.category,
-                        block.page,
-                        block.text,
-                    ),
+                block_id = int(
+                    connection.execute(
+                        """
+                        insert into content_blocks (
+                            owner_id, book_id, node_id, block_index, block_type,
+                            category, page_number, text_content, metadata_json
+                        ) values (%s, %s, %s, %s, %s, %s, %s, %s, '{}'::jsonb)
+                        returning id
+                        """,
+                        (
+                            owner,
+                            book_id,
+                            node_id,
+                            block_index,
+                            block_type,
+                            block.category,
+                            block.page,
+                            block.text,
+                        ),
+                    ).fetchone()["id"]
                 )
-                block_id = int(cursor.lastrowid)
-
                 if marker and marker[0] == "table":
                     table = section.tables[marker[1]]
                     connection.execute(
                         """
-                        INSERT INTO table_blocks (block_id, html_content, flat_text)
-                        VALUES (?, ?, ?)
+                        insert into table_blocks (
+                            block_id, owner_id, book_id, html_content, flat_text
+                        ) values (%s, %s, %s, %s, %s)
                         """,
-                        (block_id, table.html, table.text),
+                        (block_id, owner, book_id, table.html, table.text),
                     )
                 elif marker:
                     image = section.images[marker[1]]
                     connection.execute(
                         """
-                        INSERT INTO image_blocks (block_id, mime_type, base64_content)
-                        VALUES (?, ?, ?)
+                        insert into image_blocks (
+                            block_id, owner_id, book_id, mime_type, base64_content
+                        ) values (%s, %s, %s, %s, %s)
                         """,
-                        (block_id, image.mime, image.base64),
+                        (block_id, owner, book_id, image.mime, image.base64),
                     )
-
     return book_id
 
 
-def restore_book(connection: sqlite3.Connection, book_id: int) -> ParsedBook:
-    """Reconstruct the original ParsedBook from canonical rows."""
+def restore_book(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID | None = None,
+) -> ParsedBook:
+    """Reconstruct the original ParsedBook from owner-scoped rows."""
 
+    owner = resolve_owner_id(owner_id)
     book_row = connection.execute(
-        "SELECT source_path FROM books WHERE id = ?",
-        (book_id,),
+        "select source_path from books where id = %s and owner_id = %s",
+        (book_id, owner),
     ).fetchone()
     if book_row is None:
         raise KeyError(f"book {book_id} does not exist")
-
     node_rows = connection.execute(
-        "SELECT * FROM nodes WHERE book_id = ? ORDER BY toc_index",
-        (book_id,),
+        """
+        select * from nodes
+        where book_id = %s and owner_id = %s
+        order by toc_index
+        """,
+        (book_id, owner),
     ).fetchall()
     if not node_rows:
         raise InvalidBookError(f"book {book_id} has no nodes")
 
     sections: list[Section] = []
     toc: list[tuple[int, str, int]] = []
-
     for node in node_rows:
         rows = connection.execute(
             """
-            SELECT
+            select
                 content_blocks.*,
                 table_blocks.html_content,
                 table_blocks.flat_text,
                 image_blocks.mime_type,
                 image_blocks.base64_content
-            FROM content_blocks
-            LEFT JOIN table_blocks ON table_blocks.block_id = content_blocks.id
-            LEFT JOIN image_blocks ON image_blocks.block_id = content_blocks.id
-            WHERE content_blocks.node_id = ?
-            ORDER BY content_blocks.block_index
+            from content_blocks
+            left join table_blocks
+              on table_blocks.block_id = content_blocks.id
+             and table_blocks.owner_id = content_blocks.owner_id
+            left join image_blocks
+              on image_blocks.block_id = content_blocks.id
+             and image_blocks.owner_id = content_blocks.owner_id
+            where content_blocks.node_id = %s
+              and content_blocks.owner_id = %s
+            order by content_blocks.block_index
             """,
-            (node["id"],),
+            (node["id"], owner),
         ).fetchall()
 
         texts: list[TextBlock] = []
         tables: dict[int, TableBlock] = {}
         images: dict[int, ImageBlock] = {}
-
         for row in rows:
             block = TextBlock(
                 text=row["text_content"],
@@ -334,7 +320,6 @@ def restore_book(connection: sqlite3.Connection, book_id: int) -> ParsedBook:
             )
             texts.append(block)
             marker = _marker(block)
-
             if row["block_type"] == "table":
                 if marker is None or marker[0] != "table" or row["flat_text"] is None:
                     raise InvalidBookError(f"table block {row['id']} is inconsistent")
@@ -360,8 +345,11 @@ def restore_book(connection: sqlite3.Connection, book_id: int) -> ParsedBook:
                 raise InvalidBookError(f"content block {row['id']} is inconsistent")
 
         try:
+            path = node["path_json"]
+            if isinstance(path, str):
+                path = json.loads(path)
             section = Section(
-                path=json.loads(node["path_json"]),
+                path=path,
                 level=node["toc_level"],
                 start_page=node["start_page"],
                 end_page=node["end_page"],
@@ -375,7 +363,6 @@ def restore_book(connection: sqlite3.Connection, book_id: int) -> ParsedBook:
             ) from error
         if section.full_text != node["direct_text"]:
             raise InvalidBookError(f"node {node['id']} has inconsistent direct text")
-
         sections.append(section)
         toc.append((section.level, section.title, section.start_page))
 

@@ -35,8 +35,7 @@ def _card(row):
     )
     predicted_query = prediction.get("standalone_query") if prediction else None
     predicted_scope = (
-        prediction.get("resolved_scope")
-        or row.get("state", {}).get("active_scope")
+        prediction.get("resolved_scope") or row.get("state", {}).get("active_scope")
         if prediction
         else None
     )
@@ -45,7 +44,12 @@ def _card(row):
         for name, passed in checks.items()
         if isinstance(passed, bool) and name != "standalone_exact"
     )
-    recall = _percent(checks["evidence_recall"])
+    recall = (
+        '<span class="badge neutral">evidence '
+        f'{_percent(checks["evidence_recall"])}</span>'
+        if "evidence_recall" in checks
+        else ""
+    )
     search = escape(
         " ".join(
             [
@@ -58,31 +62,31 @@ def _card(row):
         ).casefold()
     )
     return f"""
-<article class="turn" data-route="{escape(gold['expected_route'])}"
+<article class="turn" data-route="{escape(gold["expected_route"])}"
  data-search="{search}">
   <header>
-    <div><strong>{escape(row['turn_id'])}</strong> ·
-      {escape(row['conversation_title'])}</div>
-    <div>{badges}<span class="badge neutral">evidence {recall}</span></div>
+    <div><strong>{escape(row["turn_id"])}</strong> ·
+      {escape(row["conversation_title"])}</div>
+    <div>{badges}{recall}</div>
   </header>
-  <h3>{escape(gold['user'])}</h3>
+  <h3>{escape(gold["user"])}</h3>
   <div class="grid">
     <section>
       <h4>Expected</h4>
       <dl>
-        <dt>Route</dt><dd>{escape(gold['expected_route'])}</dd>
-        <dt>Dependency</dt><dd>{escape(gold['history_dependency'])}</dd>
-        <dt>Query</dt><dd>{escape(gold.get('expected_standalone_query', '—'))}</dd>
-        <dt>Scope</dt><dd>{escape(str(gold.get('expected_scope') or '—'))}</dd>
+        <dt>Route</dt><dd>{escape(gold["expected_route"])}</dd>
+        <dt>Dependency</dt><dd>{escape(gold["history_dependency"])}</dd>
+        <dt>Query</dt><dd>{escape(gold.get("expected_standalone_query") or "—")}</dd>
+        <dt>Scope</dt><dd>{escape(str(gold.get("expected_scope") or "—"))}</dd>
       </dl>
-      <p>{escape(gold['reference_answer'])}</p>
+      <p>{escape(gold["reference_answer"])}</p>
     </section>
     <section>
       <h4>Actual</h4>
       <dl>
-        <dt>Route</dt><dd>{escape(prediction['route']) if prediction else 'error'}</dd>
-        <dt>Dependency</dt><dd>{escape(prediction['history_dependency']) if prediction else '—'}</dd>
-        <dt>Query</dt><dd>{escape(predicted_query or '—')}</dd>
+        <dt>Route</dt><dd>{escape(prediction["route"]) if prediction else "error"}</dd>
+        <dt>Dependency</dt><dd>{escape(prediction["history_dependency"]) if prediction else "—"}</dd>
+        <dt>Query</dt><dd>{escape(predicted_query or "—")}</dd>
         <dt>Scope</dt><dd>{_scope(predicted_scope)}</dd>
       </dl>
       <div class="answer">{answer}</div>
@@ -90,7 +94,7 @@ def _card(row):
   </div>
   <details><summary>Raw checks and optional judge</summary>
     <pre>{escape(str(checks))}</pre>
-    <pre>{escape(str(row.get('answer_judgment') or 'Not run'))}</pre>
+    <pre>{escape(str(row.get("answer_judgment") or "Not run"))}</pre>
   </details>
 </article>
 """
@@ -113,8 +117,7 @@ def render_report(evaluation: dict, output: str | Path) -> Path:
     )
     routes = sorted({row["gold"]["expected_route"] for row in evaluation["turns"]})
     options = "".join(
-        f'<option value="{escape(route)}">{escape(route)}</option>'
-        for route in routes
+        f'<option value="{escape(route)}">{escape(route)}</option>' for route in routes
     )
     cards = "".join(_card(row) for row in evaluation["turns"])
     page = f"""<!doctype html>
@@ -148,7 +151,7 @@ pre {{ white-space:pre-wrap;overflow-wrap:anywhere;background:#f6f8fa;padding:10
  .turn header {{ display:block }} }}
 </style></head><body><main>
 <h1>Conversation evaluation</h1>
-<p class="muted">{summary['turns']} turns · {summary['errors']} execution errors.
+<p class="muted">{summary["turns"]} turns · {summary["errors"]} execution errors.
  Exact query wording is retained only as a debugging signal.</p>
 <div class="metrics">{metric_html}</div>
 <div class="controls">

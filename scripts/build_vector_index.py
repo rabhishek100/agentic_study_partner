@@ -1,84 +1,52 @@
-"""Synchronize local Chroma vectors from rebuildable SQLite chunks."""
+"""Synchronize rebuildable pgvector rows from Postgres chunks."""
 
 import argparse
-from pathlib import Path
 
-from retrieval.sqlite import connect, connect_source
+from dotenv import load_dotenv
+
 from retrieval.vector import (
-    DEFAULT_CHROMA_PATH,
-    DEFAULT_COLLECTION,
     DEFAULT_EMBEDDING_MODEL,
-    DEFAULT_EMBEDDING_REVISION,
-    LocalEmbedder,
-    persistent_client,
+    build_embedder,
     rebuild_vector_index,
-    write_manifest,
 )
+from storage.database import connection as database_connection
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Build the local Chroma vector index from derived chunks."
+        description="Build exact-search pgvector rows from derived chunks."
     )
+    parser.add_argument("--database-url", help="Defaults to DATABASE_URL")
     parser.add_argument(
-        "--source-database",
-        type=Path,
-        default=Path("data/books.sqlite3"),
-    )
-    parser.add_argument(
-        "--retrieval-database",
-        type=Path,
-        default=Path("data/retrieval.sqlite3"),
-    )
-    parser.add_argument("--chroma-path", type=Path, default=DEFAULT_CHROMA_PATH)
-    parser.add_argument("--collection", default=DEFAULT_COLLECTION)
-    parser.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
-    parser.add_argument(
-        "--revision",
+        "--embedding-model",
         help=(
-            "Optional model revision. The default model uses the pinned "
-            f"revision {DEFAULT_EMBEDDING_REVISION}."
+            "OpenRouter embedding model id; defaults to "
+            "OPENROUTER_EMBEDDING_MODEL, then " + DEFAULT_EMBEDDING_MODEL
         ),
     )
     parser.add_argument("--book-id", type=int)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument(
-        "--reset",
-        action="store_true",
-        help="Delete and recreate an incompatible derived collection.",
-    )
+    parser.add_argument("--reset", action="store_true")
     return parser
 
 
 def main() -> None:
+    load_dotenv()
     args = build_argument_parser().parse_args()
-    embedder = LocalEmbedder(args.model, revision=args.revision)
-    retrieval = connect(args.retrieval_database)
-    source = connect_source(args.source_database)
-    try:
+    embedder = build_embedder(args.embedding_model)
+    with database_connection(args.database_url) as connection:
         summary = rebuild_vector_index(
-            retrieval,
-            source,
-            client=persistent_client(args.chroma_path),
+            connection,
             embedder=embedder,
-            collection_name=args.collection,
             book_id=args.book_id,
             reset=args.reset,
             batch_size=args.batch_size,
         )
-    finally:
-        retrieval.close()
-        source.close()
-
-    manifest = write_manifest(
-        args.chroma_path,
-        summary,
-        max_sequence_length=embedder.max_sequence_length,
-    )
     print(
-        f"Chroma collection {summary.collection!r}: {summary.total_count} vectors; "
-        f"embedded {summary.embedded_count}, unchanged {summary.unchanged_count}, "
-        f"deleted {summary.deleted_count}. Manifest: {manifest}"
+        f"Postgres: {summary.total_count} vectors; embedded "
+        f"{summary.embedded_count}, unchanged {summary.unchanged_count}, "
+        f"deleted {summary.deleted_count}; model={summary.model_name}, "
+        f"dimension={summary.dimension}."
     )
 
 

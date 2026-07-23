@@ -3,7 +3,8 @@ from types import SimpleNamespace
 import unittest
 
 from scripts.study import format_dry_run, format_outline
-from storage.sqlite import connect, ingest_book, initialize
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
 from study.content import load_scope_content
 from study.context import build_scope_context
 from study.request import (
@@ -22,7 +23,8 @@ from study.summarize import (
     summarize_scope_with_repair,
     validate_summary,
 )
-from tests.test_storage import FILE_HASH, sample_book
+from tests.fixtures import FILE_HASH, sample_book
+from tests.postgres import PostgresOwnerMixin
 
 
 class FakeSummaryModel:
@@ -48,10 +50,11 @@ class SequenceSummaryModel:
         )
 
 
-class StudySummaryTests(unittest.TestCase):
+class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
     def setUp(self) -> None:
-        self.connection = connect(":memory:")
-        initialize(self.connection)
+        self.setUpPostgresOwner()
+        self.database_context = database_connection(self.database_url)
+        self.connection = self.database_context.__enter__()
         self.book_id = ingest_book(
             self.connection,
             sample_book(),
@@ -63,7 +66,8 @@ class StudySummaryTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
-        self.connection.close()
+        self.database_context.__exit__(None, None, None)
+        self.tearDownPostgresOwner()
 
     def _chapter_context(self):
         scope = resolve_chapter(
@@ -80,15 +84,11 @@ class StudySummaryTests(unittest.TestCase):
             StudyRequest("summarize", "chapter", "1"),
         )
         self.assertEqual(
-            parse_study_request(
-                "Summarize section Core idea in chapter 1"
-            ),
+            parse_study_request("Summarize section Core idea in chapter 1"),
             StudyRequest("summarize", "section", "Core idea", "1"),
         )
         self.assertEqual(
-            parse_study_request(
-                "What sections are present in Chapter 1?"
-            ),
+            parse_study_request("What sections are present in Chapter 1?"),
             StudyRequest("list_sections", "chapter", "1"),
         )
         self.assertEqual(
@@ -130,11 +130,15 @@ class StudySummaryTests(unittest.TestCase):
 
     def test_context_skips_known_layout_noise(self) -> None:
         first_block_id = self.connection.execute(
-            "SELECT MIN(id) FROM content_blocks"
-        ).fetchone()[0]
+            "SELECT MIN(id) AS id FROM content_blocks WHERE owner_id = %s",
+            (self.owner_id,),
+        ).fetchone()["id"]
         self.connection.execute(
-            "UPDATE content_blocks SET category = 'Header' WHERE id = ?",
-            (first_block_id,),
+            """
+            UPDATE content_blocks SET category = 'Header'
+            WHERE id = %s AND owner_id = %s
+            """,
+            (first_block_id, self.owner_id),
         )
         scope, context = self._chapter_context()
 
@@ -154,8 +158,7 @@ class StudySummaryTests(unittest.TestCase):
             for node in scope.nodes
         }
         citations = " ".join(
-            f"[N{node_id}:P{page}]"
-            for node_id, page in node_pages.items()
+            f"[N{node_id}:P{page}]" for node_id, page in node_pages.items()
         )
         model = FakeSummaryModel(
             f"# Chapter 1\n\n## Overview\n\nComplete summary. {citations}"
@@ -238,9 +241,7 @@ class StudySummaryTests(unittest.TestCase):
         scope, context = self._chapter_context()
         allowed = sorted(context.allowed_citations)
         first_node, _ = allowed[0]
-        other_page = next(
-            page for node_id, page in allowed if node_id != first_node
-        )
+        other_page = next(page for node_id, page in allowed if node_id != first_node)
         valid_citations = " ".join(
             f"[N{node_id}:P{page}]"
             for node_id in sorted(context.expected_node_ids)
@@ -287,6 +288,46 @@ class StudySummaryTests(unittest.TestCase):
         self.assertTrue(result.validation.valid)
         self.assertEqual(result.attempt_count, 1)
         self.assertEqual(len(model.messages), 1)
+
+    def test_summary_repair_path_never_uses_truncation_prone_stream(self) -> None:
+        scope, context = self._chapter_context()
+        citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id in sorted(context.expected_node_ids)
+            for candidate_node, page in sorted(context.allowed_citations)
+            if candidate_node == node_id
+        )
+
+        class DivergentStreamingModel:
+            def __init__(self):
+                self.invoke_calls = 0
+                self.stream_calls = 0
+
+            def invoke(self, messages):
+                del messages
+                self.invoke_calls += 1
+                return SimpleNamespace(
+                    content=f"Complete summary. {citations}",
+                    response_metadata={"finish_reason": "stop"},
+                )
+
+            def stream(self, messages):
+                del messages
+                self.stream_calls += 1
+                yield SimpleNamespace(content="Truncated draft without citations.")
+
+        model = DivergentStreamingModel()
+
+        result = summarize_scope_with_repair(
+            model,
+            scope=scope,
+            context=context,
+        )
+
+        self.assertTrue(result.validation.valid)
+        self.assertEqual(result.attempt_count, 1)
+        self.assertEqual(model.invoke_calls, 1)
+        self.assertEqual(model.stream_calls, 0)
 
     def test_missing_recap_node_is_a_warning_not_an_error(self) -> None:
         scope, context = self._chapter_context()

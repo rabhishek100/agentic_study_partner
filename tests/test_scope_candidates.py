@@ -1,11 +1,10 @@
-from pathlib import Path
-import tempfile
 import unittest
 
 from pydantic import ValidationError
 
 from parsing.models import ParsedBook, Section, TextBlock
-from storage.sqlite import connect, ingest_book, initialize
+from storage.database import connection as database_connection
+from storage.postgres import ingest_book
 from study.contracts import (
     ConversationMessage,
     ConversationState,
@@ -15,6 +14,7 @@ from study.contracts import (
     TurnDecision,
 )
 from study.scope_candidates import find_scope_candidates
+from tests.postgres import PostgresOwnerMixin
 
 
 FILE_HASH = "b" * 64
@@ -60,21 +60,16 @@ def hierarchy_book() -> ParsedBook:
     return ParsedBook(
         source="sources/books/hierarchy.pdf",
         toc=[
-            (section.level, section.title, section.start_page)
-            for section in sections
+            (section.level, section.title, section.start_page) for section in sections
         ],
         sections=sections,
     )
 
 
-class ScopeCandidateTests(unittest.TestCase):
+class ScopeCandidateTests(PostgresOwnerMixin, unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary_directory = tempfile.TemporaryDirectory()
-        self.database_path = (
-            Path(self.temporary_directory.name) / "books.sqlite3"
-        )
-        with connect(self.database_path) as connection:
-            initialize(connection)
+        self.setUpPostgresOwner()
+        with database_connection(self.database_url) as connection:
             self.book_id = ingest_book(
                 connection,
                 hierarchy_book(),
@@ -87,12 +82,13 @@ class ScopeCandidateTests(unittest.TestCase):
             self.node_ids = {
                 row["title"]: row["id"]
                 for row in connection.execute(
-                    "SELECT id, title FROM nodes"
+                    "SELECT id, title FROM nodes WHERE owner_id = %s",
+                    (self.owner_id,),
                 )
             }
 
     def tearDown(self) -> None:
-        self.temporary_directory.cleanup()
+        self.tearDownPostgresOwner()
 
     def state(self, **updates) -> ConversationState:
         values = {
@@ -112,7 +108,7 @@ class ScopeCandidateTests(unittest.TestCase):
         return find_scope_candidates(
             question,
             state or self.state(),
-            self.database_path,
+            self.database_url,
             limit=limit,
         )
 
@@ -129,9 +125,7 @@ class ScopeCandidateTests(unittest.TestCase):
         self.assertIn("explicit Chapter 3", first.match_reason)
 
     def test_specific_title_phrase_outranks_broader_title(self):
-        candidates = self.candidates(
-            "How does reservoir sampling work?"
-        )
+        candidates = self.candidates("How does reservoir sampling work?")
 
         self.assertEqual(candidates[0].title, "Reservoir Sampling")
         self.assertIn("Sampling", {item.title for item in candidates})
@@ -154,8 +148,7 @@ class ScopeCandidateTests(unittest.TestCase):
         parent = next(
             item
             for item in candidates
-            if item.title
-            == "Chapter 7. Model Deployment and Prediction Service"
+            if item.title == "Chapter 7. Model Deployment and Prediction Service"
         )
         self.assertIn("parent chapter", parent.match_reason)
 
@@ -216,9 +209,7 @@ class ScopeCandidateTests(unittest.TestCase):
             "previous-turn evidence",
             by_id[services_id].match_reason,
         )
-        chapter_id = self.node_ids[
-            "Chapter 3. Data Engineering Fundamentals"
-        ]
+        chapter_id = self.node_ids["Chapter 3. Data Engineering Fundamentals"]
         self.assertIn(chapter_id, by_id)
         self.assertIn("recent Chapter 3", by_id[chapter_id].match_reason)
 
