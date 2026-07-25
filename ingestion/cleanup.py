@@ -24,7 +24,13 @@ from .config import IngestionLimits, load_limits
 from .errors import ErrorCode, IngestionError
 from .jobs import append_event
 from .states import Status
-from .storage_objects import delete_object
+from .storage_objects import delete_object, list_prefix
+
+
+# Bounds for one orphan sweep. A sweep that hits a bound logs what it skipped
+# rather than reporting a clean pass over data it never looked at.
+MAXIMUM_OWNERS_PER_SWEEP = 200
+MAXIMUM_JOBS_PER_OWNER = 200
 
 
 logger = logging.getLogger("study_partner.ingestion.cleanup")
@@ -36,11 +42,16 @@ class CleanupSummary:
 
     abandoned_uploads_cancelled: int = 0
     expired_sources_deleted: int = 0
+    orphaned_objects_deleted: int = 0
     deletions_failed: int = 0
 
     @property
     def total(self) -> int:
-        return self.abandoned_uploads_cancelled + self.expired_sources_deleted
+        return (
+            self.abandoned_uploads_cancelled
+            + self.expired_sources_deleted
+            + self.orphaned_objects_deleted
+        )
 
 
 def _delete_source(connection: Connection, row) -> bool:
@@ -180,6 +191,66 @@ def delete_expired_sources(
     return deleted, failed
 
 
+def delete_orphaned_sources(
+    connection: Connection,
+    *,
+    limits: IngestionLimits,
+) -> tuple[int, int]:
+    """Remove source objects whose job row no longer exists.
+
+    Deleting an account cascades its database rows but leaves its objects in
+    the bucket, because Storage has no foreign key to cascade through. Without
+    this sweep those bytes would be billed forever with nothing referencing
+    them. Returns deleted count and failed-deletion count.
+    """
+
+    known = {
+        row["storage_path"]
+        for row in connection.execute(
+            "select storage_path from ingestion_jobs"
+        ).fetchall()
+    }
+
+    deleted = 0
+    failed = 0
+    try:
+        owners = list_prefix(limits.source_bucket, limit=MAXIMUM_OWNERS_PER_SWEEP)
+    except IngestionError as error:
+        logger.warning("orphan sweep skipped: %s", error.code)
+        return 0, 1
+
+    if len(owners) >= MAXIMUM_OWNERS_PER_SWEEP:
+        logger.warning(
+            "orphan sweep examined the first %s owner prefixes; more remain",
+            MAXIMUM_OWNERS_PER_SWEEP,
+        )
+
+    for owner in owners:
+        try:
+            jobs = list_prefix(
+                limits.source_bucket, owner, limit=MAXIMUM_JOBS_PER_OWNER
+            )
+        except IngestionError:
+            failed += 1
+            continue
+        if len(jobs) >= MAXIMUM_JOBS_PER_OWNER:
+            logger.warning(
+                "orphan sweep examined the first %s job prefixes for one owner",
+                MAXIMUM_JOBS_PER_OWNER,
+            )
+        for job in jobs:
+            path = f"{owner}/{job}/original.pdf"
+            if path in known:
+                continue
+            try:
+                delete_object(limits.source_bucket, path)
+                deleted += 1
+                logger.info("deleted orphaned source object for job %s", job)
+            except IngestionError:
+                failed += 1
+    return deleted, failed
+
+
 def run_cleanup(
     connection: Connection,
     *,
@@ -196,18 +267,23 @@ def run_cleanup(
         deleted, delete_failures = delete_expired_sources(
             connection, limits=limits
         )
+    # Runs after the two job-driven passes so anything they just removed is
+    # already reflected in the job table this sweep compares against.
+    orphaned, orphan_failures = delete_orphaned_sources(connection, limits=limits)
 
     summary = CleanupSummary(
         abandoned_uploads_cancelled=cancelled,
         expired_sources_deleted=deleted,
-        deletions_failed=cancel_failures + delete_failures,
+        orphaned_objects_deleted=orphaned,
+        deletions_failed=cancel_failures + delete_failures + orphan_failures,
     )
     if summary.total or summary.deletions_failed:
         logger.info(
-            "cleanup pass: %s abandoned uploads cancelled, %s sources deleted, "
-            "%s deletions failed",
+            "cleanup pass: %s abandoned uploads cancelled, %s expired sources "
+            "deleted, %s orphaned objects deleted, %s deletions failed",
             summary.abandoned_uploads_cancelled,
             summary.expired_sources_deleted,
+            summary.orphaned_objects_deleted,
             summary.deletions_failed,
         )
     return summary

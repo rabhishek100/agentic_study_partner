@@ -35,6 +35,24 @@ class CleanupTests(unittest.TestCase):
         self.delete_object = deleter.start()
         self.addCleanup(deleter.stop)
 
+        # Default: an empty bucket, so job-driven passes are tested alone.
+        lister = patch("ingestion.cleanup.list_prefix", return_value=[])
+        self.list_prefix = lister.start()
+        self.addCleanup(lister.stop)
+
+    def bucket_contains(self, paths):
+        """Make the fake bucket list the two levels of the given paths."""
+
+        tree: dict[str, list[str]] = {}
+        for path in paths:
+            owner, job, _ = path.split("/")
+            tree.setdefault(owner, []).append(job)
+
+        def fake(bucket, prefix="", *, limit=100):
+            return list(tree) if not prefix else tree.get(prefix, [])
+
+        self.list_prefix.side_effect = fake
+
     def _discard(self):
         with connection(self.database_url) as database:
             database.execute(
@@ -150,6 +168,35 @@ class CleanupTests(unittest.TestCase):
 
         self.assertEqual(summary.total, 0)
         self.assertEqual(self.deleted_objects, [])
+
+    def test_objects_with_no_job_row_are_swept(self):
+        """A deleted account's objects would otherwise be billed forever.
+
+        Storage has no foreign key to cascade through, so removing a user
+        leaves their uploads behind. This sweep is what reclaims them.
+        """
+
+        with connection(self.database_url) as database:
+            live = self.job(database, status="queued", age_interval="1 hour")
+            live_path = f"{self.owner}/{live}/original.pdf"
+            orphan_path = f"{uuid4()}/{uuid4()}/original.pdf"
+            self.bucket_contains([live_path, orphan_path])
+
+            summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 1)
+        self.assertEqual(self.deleted_objects, [orphan_path])
+        # The live job's object must survive.
+        self.assertNotIn(live_path, self.deleted_objects)
+
+    def test_an_unreachable_bucket_does_not_fail_the_pass(self):
+        self.list_prefix.side_effect = IngestionError(ErrorCode.STORAGE_UNAVAILABLE)
+
+        with connection(self.database_url) as database:
+            summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+        self.assertGreaterEqual(summary.deletions_failed, 1)
 
     def test_storage_failures_leave_the_job_eligible_for_the_next_pass(self):
         self.delete_object.side_effect = IngestionError(

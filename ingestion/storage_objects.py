@@ -198,6 +198,37 @@ def download_object(
     )
 
 
+def list_prefix(bucket: str, prefix: str = "", *, limit: int = 100) -> list[str]:
+    """List one level of names under ``prefix``.
+
+    Storage returns folders and objects together; folders have no id. Callers
+    walk the two levels of ``{owner_id}/{job_id}/original.pdf`` themselves
+    rather than asking for a recursive listing, which the API does not offer.
+    """
+
+    with storage_client() as client:
+        try:
+            response = client.post(
+                f"/object/list/{bucket}",
+                json={"prefix": prefix, "limit": limit},
+            )
+        except httpx.HTTPError as error:
+            raise IngestionError(
+                ErrorCode.STORAGE_UNAVAILABLE, detail=f"list failed: {error!r}"
+            ) from error
+    if response.status_code >= 400:
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE,
+            detail=f"list returned {response.status_code}",
+        )
+    try:
+        return [entry["name"] for entry in response.json() if entry.get("name")]
+    except (ValueError, TypeError) as error:
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE, detail="list response was not JSON"
+        ) from error
+
+
 def delete_object(bucket: str, path: str) -> bool:
     """Remove one object. Returns False when it was already gone."""
 
