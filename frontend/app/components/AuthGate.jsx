@@ -37,6 +37,7 @@ export default function AuthGate() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(event) {
@@ -44,13 +45,29 @@ export default function AuthGate() {
     if (busy) return;
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       const credentials = { email: email.trim(), password };
-      const { error: authError } =
-        mode === "sign-in"
-          ? await supabase.auth.signInWithPassword(credentials)
-          : await supabase.auth.signUp(credentials);
-      if (authError) setError(authError.message);
+      if (mode === "sign-in") {
+        const { error: authError } =
+          await supabase.auth.signInWithPassword(credentials);
+        if (authError) setError(authError.message);
+        return;
+      }
+
+      const { data, error: authError } = await supabase.auth.signUp(credentials);
+      if (authError) {
+        setError(authError.message);
+        return;
+      }
+      // A project that requires email confirmation returns a user with no
+      // session. Without this the form would just sit there looking broken.
+      if (!data.session) {
+        setNotice(
+          `Check ${credentials.email} for a confirmation link, then sign in.`,
+        );
+        setMode("sign-in");
+      }
     } catch {
       setError("Could not reach the sign-in service.");
     } finally {
@@ -103,6 +120,7 @@ export default function AuthGate() {
         />
 
         {error && <div className="error">{error}</div>}
+        {notice && <div className="notice">{notice}</div>}
 
         <button className="send" type="submit" disabled={busy}>
           {busy
@@ -119,6 +137,7 @@ export default function AuthGate() {
         onClick={() => {
           setMode(mode === "sign-in" ? "sign-up" : "sign-in");
           setError("");
+          setNotice("");
         }}
       >
         {mode === "sign-in"

@@ -658,3 +658,13 @@ dd {
 .retry:hover {
   background: #fbe6de;
 }
+
+.notice {
+  margin: 14px 0 0;
+  padding: 11px 14px;
+  border: 1px solid #b8cfc2;
+  border-radius: 9px;
+  background: #eef6f1;
+  color: #2f5d4a;
+  font-size: 0.86rem;
+}

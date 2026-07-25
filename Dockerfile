@@ -37,6 +37,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 # worker's extra toolchain is the only difference in content.
 EXPOSE 8000
 
-# Shell form so a platform-injected $PORT is honoured. Compose and local runs
-# have no PORT set and keep using 8000.
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# One image, two roles. START_COMMAND selects the worker; without it the
+# container serves the API. Shell form so a platform-injected $PORT is
+# honoured, and exec so the process still receives SIGTERM directly, which
+# the worker relies on to stop claiming new jobs.
+CMD ["sh", "-c", "if [ -n \"$START_COMMAND\" ]; then exec sh -c \"$START_COMMAND\"; fi; exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
