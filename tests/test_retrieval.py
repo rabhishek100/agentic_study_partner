@@ -355,6 +355,38 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(results[0].retrieval_method, "vector")
         self.assertEqual(results[0].source_book_id, self.book_id)
 
+    def test_vector_index_accepts_integer_embedding_components(self) -> None:
+        """A JSON-decoded embedding can contain int 0 among floats.
+
+        psycopg refuses to adapt a mixed int/float list, so an uncoerced
+        vector fails at the insert. Regression for a book whose second batch
+        happened to contain an exact-zero component.
+        """
+
+        class IntegerZeroEmbedder(FakeEmbedder):
+            @staticmethod
+            def _embed(text: str) -> list[float]:
+                values = FakeEmbedder._embed(text)
+                # Exactly what json.loads produces for 0: an int among floats.
+                values[1] = 0
+                values[-1] = 0
+                return values
+
+        rebuild(
+            self.database,
+            self.book_id,
+            owner_id=self.owner_id,
+            config=self.config,
+        )
+
+        summary = rebuild_vector_index(
+            self.database,
+            embedder=IntegerZeroEmbedder(),
+            owner_id=self.owner_id,
+        )
+
+        self.assertGreater(summary.embedded_count, 0)
+
     def test_hybrid_retrieval_returns_fused_results(self) -> None:
         rebuild(
             self.database,

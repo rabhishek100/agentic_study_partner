@@ -83,7 +83,11 @@ class OpenRouterEmbedder:
                 f"embedding provider returned invalid input indexes: {indexes!r}"
             )
         ordered = sorted(data, key=lambda item: item["index"])
-        embeddings = [item["embedding"] for item in ordered]
+        # JSON decodes an exact-zero component as int, and psycopg refuses to
+        # adapt a mixed int/float list, so normalize every component to float.
+        embeddings = [
+            [float(component) for component in item["embedding"]] for item in ordered
+        ]
         mismatched = [
             len(value) for value in embeddings if len(value) != self.dimension
         ]
@@ -212,7 +216,14 @@ def rebuild_vector_index(
 
     for start in range(0, len(pending), batch_size):
         batch = pending[start : start + batch_size]
-        vectors = embedder.embed_documents([documents[row["id"]] for row, _ in batch])
+        vectors = [
+            # Guard the write for any embedder implementation: one integer
+            # component in a 3,072-float list is a DataError at executemany.
+            [float(component) for component in vector]
+            for vector in embedder.embed_documents(
+                [documents[row["id"]] for row, _ in batch]
+            )
+        ]
         now = datetime.now(timezone.utc)
         with connection.transaction():
             with connection.cursor() as cursor:
