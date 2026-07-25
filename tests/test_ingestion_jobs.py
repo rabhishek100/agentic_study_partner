@@ -28,6 +28,7 @@ from ingestion.jobs import (
 )
 from ingestion.states import Stage, Status
 from storage.database import connection, resolve_database_url
+from tests.postgres import require_empty_ingestion_queue
 
 
 LIMITS = IngestionLimits(max_queued_jobs_per_owner=3, lease_seconds=300)
@@ -35,6 +36,7 @@ LIMITS = IngestionLimits(max_queued_jobs_per_owner=3, lease_seconds=300)
 
 class JobQueueTests(unittest.TestCase):
     def setUp(self):
+        require_empty_ingestion_queue(self)
         self.database_url = resolve_database_url()
         self.owner = str(uuid4())
         self.other_owner = str(uuid4())

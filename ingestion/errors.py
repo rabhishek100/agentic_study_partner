@@ -9,6 +9,10 @@ from enum import StrEnum
 import hashlib
 import struct
 
+import httpx
+import psycopg
+from psycopg import errors as postgres_errors
+
 
 class ErrorCode(StrEnum):
     # Permanent: retrying cannot change the outcome.
@@ -199,6 +203,54 @@ def backoff_seconds(
     return min(base * _jitter(job_id, attempt), float(MAXIMUM_BACKOFF_SECONDS))
 
 
+def _retry_after_seconds(response: httpx.Response) -> float | None:
+    """Read a provider's Retry-After guidance when it is a plain delay."""
+
+    raw = response.headers.get("Retry-After", "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        # HTTP-date form; the regular backoff schedule applies instead.
+        return None
+
+
+def recognize_exception(error: BaseException) -> tuple[ErrorCode, float | None]:
+    """Name a raw exception from a provider, Storage, or the database.
+
+    Stages raise IngestionError for everything they can anticipate; this is
+    the safety net that keeps a recognizable infrastructure failure from
+    being recorded as ``unexpected_error`` with the generic backoff. The
+    first live ingestion surfaced exactly that gap.
+    """
+
+    if isinstance(error, httpx.HTTPStatusError):
+        response = error.response
+        if response.status_code == 429:
+            return ErrorCode.PROVIDER_RATE_LIMITED, _retry_after_seconds(response)
+        if response.status_code >= 500:
+            return ErrorCode.PROVIDER_UNAVAILABLE, None
+        return ErrorCode.UNEXPECTED_ERROR, None
+    if isinstance(error, httpx.TimeoutException):
+        return ErrorCode.PROVIDER_TIMEOUT, None
+    if isinstance(error, httpx.HTTPError):
+        return ErrorCode.PROVIDER_UNAVAILABLE, None
+    if isinstance(
+        error,
+        (
+            postgres_errors.SerializationFailure,
+            postgres_errors.DeadlockDetected,
+        ),
+    ):
+        return ErrorCode.SERIALIZATION_FAILURE, None
+    if isinstance(error, psycopg.OperationalError):
+        return ErrorCode.DATABASE_UNAVAILABLE, None
+    if isinstance(error, OSError):
+        return ErrorCode.TEMPORARY_DISK_ERROR, None
+    return ErrorCode.UNEXPECTED_ERROR, None
+
+
 def classify_failure(
     error: BaseException | IngestionError,
     *,
@@ -212,8 +264,7 @@ def classify_failure(
         code = error.code
         retry_after = error.retry_after_seconds
     else:
-        code = ErrorCode.UNEXPECTED_ERROR
-        retry_after = None
+        code, retry_after = recognize_exception(error)
 
     if not is_retryable(code) or attempt >= max_attempts:
         return RetryDecision(retry=False, delay_seconds=0.0, code=code)

@@ -23,6 +23,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
+from ingestion.cleanup import run_cleanup
 from ingestion.config import IngestionLimits, load_limits
 from ingestion.errors import ErrorCode, IngestionError, classify_failure
 from ingestion.jobs import (
@@ -81,10 +82,16 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
-    handler = logging.StreamHandler()
-    handler.setFormatter(JsonFormatter())
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    # A file copy of the structured stream, so a failed attempt's traceback
+    # survives the terminal scrollback and can be read by tooling.
+    log_file = os.getenv("WORKER_LOG_FILE", "").strip()
+    if log_file:
+        handlers.append(logging.FileHandler(log_file))
+    for handler in handlers:
+        handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
-    root.handlers = [handler]
+    root.handlers = handlers
     root.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
 
 
@@ -152,6 +159,9 @@ class Worker:
             os.getenv("INGESTION_TEMP_ROOT") or tempfile.gettempdir()
         )
         self._stopping = threading.Event()
+        # Force the first loop iteration to run a retention pass, so a worker
+        # that restarts daily still cleans up even with long intervals.
+        self._last_cleanup = -float(self.limits.cleanup_interval_seconds)
 
     def request_stop(self, *_: object) -> None:
         """Stop claiming new work. The current job finishes its attempt."""
@@ -298,10 +308,24 @@ class Worker:
             # so an unrecordable failure still converges instead of hanging.
             logger.exception("could not record job failure", extra=context)
 
+    def run_retention_pass(self) -> None:
+        """Apply the retention policy when its interval has elapsed."""
+
+        now = time.monotonic()
+        if now - self._last_cleanup < self.limits.cleanup_interval_seconds:
+            return
+        self._last_cleanup = now
+        try:
+            with database_connection(self.database_url) as connection:
+                run_cleanup(connection, limits=self.limits)
+        except Exception:
+            logger.exception("retention pass failed")
+
     def run_once(self) -> bool:
         """Claim and run at most one job. True when work was done."""
 
         self.recover_abandoned_jobs()
+        self.run_retention_pass()
         job = self.claim()
         if job is None:
             return False

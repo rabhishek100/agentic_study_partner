@@ -20,6 +20,12 @@ DEFAULT_ALLOWED_CONTENT_TYPES = ("application/pdf",)
 DEFAULT_LEASE_SECONDS = 300
 DEFAULT_POLL_SECONDS = 5
 DEFAULT_MAX_ATTEMPTS = 3
+# A reserved path whose upload never completed is treated as abandoned after
+# this long; the failed/cancelled source-retention window is deliberately
+# longer so a user can still retry a failed job with its original object.
+DEFAULT_ABANDONED_UPLOAD_HOURS = 24
+DEFAULT_SOURCE_RETENTION_DAYS = 7
+DEFAULT_CLEANUP_INTERVAL_SECONDS = 3600
 
 
 def _int(name: str, fallback: int) -> int:
@@ -47,6 +53,9 @@ class IngestionLimits:
     lease_seconds: int = DEFAULT_LEASE_SECONDS
     poll_seconds: int = DEFAULT_POLL_SECONDS
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
+    abandoned_upload_hours: int = DEFAULT_ABANDONED_UPLOAD_HOURS
+    source_retention_days: int = DEFAULT_SOURCE_RETENTION_DAYS
+    cleanup_interval_seconds: int = DEFAULT_CLEANUP_INTERVAL_SECONDS
 
     def storage_path(self, owner_id: object, job_id: object) -> str:
         """Return the immutable object path for one job's source PDF."""
@@ -69,4 +78,13 @@ def load_limits() -> IngestionLimits:
         lease_seconds=_int("INGESTION_LEASE_SECONDS", DEFAULT_LEASE_SECONDS),
         poll_seconds=_int("INGESTION_WORKER_POLL_SECONDS", DEFAULT_POLL_SECONDS),
         max_attempts=_int("INGESTION_MAX_ATTEMPTS", DEFAULT_MAX_ATTEMPTS),
+        abandoned_upload_hours=_int(
+            "INGESTION_ABANDONED_UPLOAD_HOURS", DEFAULT_ABANDONED_UPLOAD_HOURS
+        ),
+        source_retention_days=_int(
+            "INGESTION_SOURCE_RETENTION_DAYS", DEFAULT_SOURCE_RETENTION_DAYS
+        ),
+        cleanup_interval_seconds=_int(
+            "INGESTION_CLEANUP_INTERVAL_SECONDS", DEFAULT_CLEANUP_INTERVAL_SECONDS
+        ),
     )

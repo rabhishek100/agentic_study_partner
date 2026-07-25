@@ -64,6 +64,33 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(response.json()["retrieval_database_ready"])
         check.assert_called_once_with()
 
+    async def test_queue_health_reports_aggregates_without_authentication(self):
+        app.dependency_overrides.clear()
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = {
+            "queued": 2,
+            "processing": 1,
+            "retry_scheduled": 0,
+            "failed_last_day": 3,
+            "oldest_queued_seconds": 42.5,
+            "heartbeat_age": 7.0,
+            "expired_leases": 0,
+        }
+        with patch("api.main.database_connection") as open_connection:
+            open_connection.return_value.__enter__.return_value = connection
+            response = await self.client.get("/api/health/queue")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["queued_jobs"], 2)
+        self.assertEqual(payload["processing_jobs"], 1)
+        self.assertEqual(payload["failed_jobs_last_day"], 3)
+        self.assertAlmostEqual(payload["oldest_queued_seconds"], 42.5)
+        self.assertAlmostEqual(payload["worker_heartbeat_seconds"], 7.0)
+        # Aggregates only: nothing here names a user, a book, or a file.
+        for leaked in ("owner", "email", "filename", "storage_path"):
+            self.assertNotIn(leaked, response.text)
+
     async def test_health_does_not_require_authentication(self):
         app.dependency_overrides.clear()
 

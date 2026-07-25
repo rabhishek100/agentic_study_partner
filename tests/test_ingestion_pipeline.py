@@ -37,6 +37,7 @@ from parsing.models import ParsedBook, Section, TextBlock
 from storage.database import DEFAULT_EMBEDDING_MODEL, connection, resolve_database_url
 from storage.postgres import list_books, restore_book
 from tests.pdf_fixtures import encrypted_pdf, scanned_pdf, structured_pdf
+from tests.postgres import require_empty_ingestion_queue
 
 
 load_dotenv()
@@ -120,6 +121,7 @@ class PipelineFixture(unittest.TestCase):
     """One owner, one uploaded source, one claimed job."""
 
     def setUp(self):
+        require_empty_ingestion_queue(self)
         self.database_url = resolve_database_url()
         self.owner = uuid4()
         self.directory = Path(tempfile.mkdtemp(prefix="pipeline-test-"))

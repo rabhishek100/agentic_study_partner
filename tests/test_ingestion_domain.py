@@ -153,6 +153,54 @@ class RetryPolicyTests(unittest.TestCase):
         self.assertGreater(retried.delay_seconds, 0)
         self.assertFalse(exhausted.retry)
 
+    def test_raw_infrastructure_exceptions_are_recognized(self):
+        import httpx
+        import psycopg
+
+        def http_error(status, headers=None):
+            request = httpx.Request("POST", "https://provider.example/embeddings")
+            response = httpx.Response(status, request=request, headers=headers or {})
+            return httpx.HTTPStatusError("boom", request=request, response=response)
+
+        cases = [
+            (http_error(429, {"Retry-After": "17"}), ErrorCode.PROVIDER_RATE_LIMITED),
+            (http_error(503), ErrorCode.PROVIDER_UNAVAILABLE),
+            (httpx.ReadTimeout("slow"), ErrorCode.PROVIDER_TIMEOUT),
+            (httpx.ConnectError("refused"), ErrorCode.PROVIDER_UNAVAILABLE),
+            (psycopg.OperationalError("connection lost"), ErrorCode.DATABASE_UNAVAILABLE),
+            (OSError("disk full"), ErrorCode.TEMPORARY_DISK_ERROR),
+        ]
+        for error, expected in cases:
+            with self.subTest(expected=expected):
+                decision = classify_failure(
+                    error, attempt=1, max_attempts=3, job_id="job"
+                )
+                self.assertEqual(decision.code, expected)
+                self.assertTrue(decision.retry)
+
+        rate_limited = classify_failure(
+            http_error(429, {"Retry-After": "17"}),
+            attempt=1,
+            max_attempts=3,
+            job_id="job",
+        )
+        self.assertEqual(rate_limited.delay_seconds, 17)
+
+    def test_a_deterministic_data_error_is_not_blamed_on_infrastructure(self):
+        import psycopg
+
+        # Today's int-in-a-float-list bug: a DataError is a code or data
+        # defect, so it must keep the bounded unexpected_error budget rather
+        # than masquerade as a database outage.
+        decision = classify_failure(
+            psycopg.DataError("cannot dump lists of mixed types"),
+            attempt=1,
+            max_attempts=3,
+            job_id="job",
+        )
+
+        self.assertEqual(decision.code, ErrorCode.UNEXPECTED_ERROR)
+
     def test_an_unclassified_exception_is_bounded_but_retryable(self):
         decision = classify_failure(
             RuntimeError("something surprising"),

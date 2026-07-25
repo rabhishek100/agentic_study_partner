@@ -85,6 +85,18 @@ class HealthResponse(ContractModel):
     retrieval_database_ready: bool
 
 
+class QueueHealthResponse(ContractModel):
+    """Aggregate ingestion-queue state. Carries no per-user information."""
+
+    queued_jobs: int
+    processing_jobs: int
+    retry_scheduled_jobs: int
+    failed_jobs_last_day: int
+    oldest_queued_seconds: float | None
+    worker_heartbeat_seconds: float | None
+    expired_leases: int
+
+
 BOOK_NOT_FOUND = HTTPException(status_code=404, detail="book not found")
 
 
@@ -145,6 +157,54 @@ async def health(response: Response) -> HealthResponse:
         canonical_database_ready=canonical_ready,
         retrieval_database_ready=retrieval_ready,
     )
+
+
+@app.get("/api/health/queue", response_model=QueueHealthResponse)
+async def queue_health() -> QueueHealthResponse:
+    """Ingestion queue depth, age, and worker liveness.
+
+    Separate from /api/health on purpose: a deep queue or a quiet worker is
+    an operational signal, not a reason for the API to report itself down.
+    """
+
+    def load() -> QueueHealthResponse:
+        with database_connection(readonly=True) as connection:
+            row = connection.execute(
+                """
+                select
+                    count(*) filter (where status = 'queued') as queued,
+                    count(*) filter (where status in (
+                        'validating', 'parsing', 'persisting', 'chunking',
+                        'embedding', 'verifying'
+                    )) as processing,
+                    count(*) filter (where status = 'retry_scheduled')
+                        as retry_scheduled,
+                    count(*) filter (
+                        where status = 'failed'
+                          and completed_at > now() - interval '1 day'
+                    ) as failed_last_day,
+                    extract(epoch from now() - min(created_at) filter (
+                        where status = 'queued'
+                    )) as oldest_queued_seconds,
+                    extract(epoch from now() - max(heartbeat_at)) as heartbeat_age,
+                    count(*) filter (
+                        where lease_expires_at is not null
+                          and lease_expires_at < now()
+                    ) as expired_leases
+                from ingestion_jobs
+                """
+            ).fetchone()
+        return QueueHealthResponse(
+            queued_jobs=row["queued"],
+            processing_jobs=row["processing"],
+            retry_scheduled_jobs=row["retry_scheduled"],
+            failed_jobs_last_day=row["failed_last_day"],
+            oldest_queued_seconds=row["oldest_queued_seconds"],
+            worker_heartbeat_seconds=row["heartbeat_age"],
+            expired_leases=row["expired_leases"],
+        )
+
+    return await run_in_threadpool(load)
 
 
 @app.get("/api/books", response_model=BookListResponse)
