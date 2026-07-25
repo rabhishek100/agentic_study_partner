@@ -42,7 +42,7 @@ COLUMNS = """
     max_attempts, next_attempt_at, lease_owner, lease_expires_at,
     heartbeat_at, cancellation_requested_at, last_error_code,
     last_error_message, last_error_retryable, provenance_json,
-    created_at, started_at, updated_at, completed_at
+    created_at, started_at, stage_started_at, updated_at, completed_at
 """
 
 MAXIMUM_FILENAME_LENGTH = 255
@@ -95,6 +95,7 @@ class IngestionJob:
     provenance: dict[str, Any]
     created_at: datetime
     started_at: datetime | None
+    stage_started_at: datetime | None
     updated_at: datetime
     completed_at: datetime | None
 
@@ -132,6 +133,7 @@ class IngestionJob:
             provenance=row["provenance_json"] or {},
             created_at=row["created_at"],
             started_at=row["started_at"],
+            stage_started_at=row["stage_started_at"],
             updated_at=row["updated_at"],
             completed_at=row["completed_at"],
         )
@@ -618,7 +620,8 @@ def claim_next_job(
                 "stage = %s, lease_owner = %s, "
                 "lease_expires_at = now() + make_interval(secs => %s), "
                 "heartbeat_at = now(), attempt_count = attempt_count + 1, "
-                "started_at = coalesce(started_at, now()), next_attempt_at = null"
+                "started_at = coalesce(started_at, now()), next_attempt_at = null, "
+                "stage_started_at = now()"
             ),
             parameters=(str(stage), worker_id, limits.lease_seconds),
         )
@@ -760,8 +763,14 @@ def set_stage(
 
     owner = parse_owner_id(owner_id)
     identifier = UUID(str(job_id))
-    assignments = ["stage = %s"]
-    parameters: list[Any] = [str(stage)]
+    # Only restart the stage clock when the stage actually changes, so a
+    # mid-stage update does not reset the elapsed time a client is showing.
+    assignments = [
+        "stage_started_at = case when stage is distinct from %s "
+        "then now() else stage_started_at end",
+        "stage = %s",
+    ]
+    parameters: list[Any] = [str(stage), str(stage)]
 
     if provenance:
         assignments.append("provenance_json = provenance_json || %s")
@@ -802,7 +811,7 @@ def advance_stage(
 
     owner = parse_owner_id(owner_id)
     identifier = UUID(str(job_id))
-    assignments = ["stage = %s"]
+    assignments = ["stage = %s", "stage_started_at = now()"]
     parameters: list[Any] = [str(stage)]
 
     if reset_progress:

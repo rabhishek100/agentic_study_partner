@@ -41,17 +41,61 @@ function statusLabel(status) {
   return STATUS_LABELS[status] || status;
 }
 
+function duration(seconds) {
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  const whole = Math.max(0, Math.round(seconds));
+  if (whole < 60) return `${whole}s`;
+  const minutes = Math.floor(whole / 60);
+  if (minutes < 60) return `${minutes}m ${String(whole % 60).padStart(2, "0")}s`;
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+}
+
+/** Round a countdown to something a reader can act on, never to "0s left". */
+function remainingLabel(seconds) {
+  if (seconds == null) return "estimate unavailable";
+  if (seconds < 45) return "less than a minute left";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `about ${minutes} minute${minutes === 1 ? "" : "s"} left`;
+  const hours = Math.floor(minutes / 60);
+  return `about ${hours}h ${minutes % 60}m left`;
+}
+
 export default function UploadPanel({ onBookReady }) {
   const [job, setJob] = useState(null);
   const [uploadPercent, setUploadPercent] = useState(null);
   const [phase, setPhase] = useState("idle"); // idle | uploading | processing
   const [error, setError] = useState("");
+  // Ticks once a second so elapsed time advances between the 2.5s polls,
+  // instead of the clock visibly freezing and jumping.
+  const [tick, setTick] = useState(0);
   const uploadRef = useRef(null);
   const fileInputRef = useRef(null);
   const notifiedRef = useRef(false);
 
   const jobId = job?.job_id;
   const jobStatus = job?.status;
+
+  // Reattach to a job still running from an earlier visit. The job lives in
+  // Postgres, not in this tab, so a reload or a different device should pick
+  // up exactly where the worker has got to.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { jobs } = await apiFetch("/ingestions?limit=5");
+        const active = jobs.find((entry) => ACTIVE_STATUSES.has(entry.status));
+        if (active && !cancelled) {
+          setJob(active);
+          setPhase("processing");
+        }
+      } catch {
+        // Nothing to reattach to; the panel stays in its idle state.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Durable polling: the job lives in Postgres, so refreshing the page and
   // polling again shows the same truth the worker is writing.
@@ -65,6 +109,12 @@ export default function UploadPanel({ onBookReady }) {
         // Transient poll failures keep the last known state on screen.
       }
     }, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [jobId, jobStatus]);
+
+  useEffect(() => {
+    if (!jobId || !ACTIVE_STATUSES.has(jobStatus)) return undefined;
+    const timer = setInterval(() => setTick((value) => value + 1), 1000);
     return () => clearInterval(timer);
   }, [jobId, jobStatus]);
 
@@ -193,7 +243,25 @@ export default function UploadPanel({ onBookReady }) {
   const busy = phase !== "idle";
   const showProgress =
     busy || jobStatus === "failed" || jobStatus === "cancelled";
-  const processingPercent = job?.progress?.percent;
+  const timing = job?.timing;
+
+  // The server's elapsed time is a snapshot from the last poll; advance it
+  // locally so the clock moves every second rather than every 2.5.
+  const polledAt = useRef({ at: 0, elapsed: 0 });
+  if (timing && polledAt.current.elapsed !== timing.elapsed_seconds) {
+    polledAt.current = { at: Date.now(), elapsed: timing.elapsed_seconds };
+  }
+  const liveElapsed = timing
+    ? timing.elapsed_seconds + (Date.now() - polledAt.current.at) / 1000
+    : null;
+  const liveRemaining =
+    timing?.estimated_remaining_seconds == null
+      ? null
+      : Math.max(
+          0,
+          timing.estimated_remaining_seconds -
+            (Date.now() - polledAt.current.at) / 1000,
+        );
 
   return (
     <div className="upload" aria-label="Upload a book">
@@ -235,17 +303,45 @@ export default function UploadPanel({ onBookReady }) {
           {phase === "uploading" && uploadPercent !== null && (
             <progress max="100" value={uploadPercent} />
           )}
-          {phase === "processing" &&
-            (processingPercent != null ? (
-              <progress max="100" value={processingPercent} />
-            ) : (
-              <progress />
-            ))}
-          {phase === "processing" && job.progress?.total != null && (
-            <p className="upload-detail">
-              {job.progress.completed} / {job.progress.total}{" "}
-              {job.progress.unit || ""}
-            </p>
+
+          {phase === "processing" && timing && (
+            <>
+              <progress max="100" value={timing.percent} />
+              <p className="upload-detail">
+                <strong>{Math.round(timing.percent)}%</strong>
+                {" · "}
+                {duration(liveElapsed)} elapsed
+                {timing.overrunning
+                  ? " · taking longer than expected"
+                  : ` · ${remainingLabel(liveRemaining)}`}
+              </p>
+              {job.progress?.total != null && (
+                <p className="upload-detail">
+                  {job.progress.completed} / {job.progress.total}{" "}
+                  {job.progress.unit || ""}
+                </p>
+              )}
+
+              <ol className="stage-list">
+                {timing.stages.map((entry) => (
+                  <li key={entry.stage} className={`stage ${entry.state}`}>
+                    <span className="stage-mark" aria-hidden="true" />
+                    <span className="stage-label">{entry.label}</span>
+                    <span className="stage-time">
+                      {entry.state === "active"
+                        ? duration(entry.elapsed_seconds)
+                        : entry.state === "pending"
+                          ? `~${duration(entry.expected_seconds)}`
+                          : "done"}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <p className="upload-note">
+                Times are estimates. You can close this page; processing
+                continues and progress is restored when you return.
+              </p>
+            </>
           )}
 
           {jobStatus === "failed" && job.error && (

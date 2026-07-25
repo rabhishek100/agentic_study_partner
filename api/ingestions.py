@@ -27,6 +27,7 @@ from ingestion.jobs import (
     request_cancellation,
     retry_job,
 )
+from ingestion.progress import estimate
 from ingestion.states import Status
 from ingestion.storage_objects import object_info, object_uploader
 from storage.database import connection as database_connection
@@ -73,6 +74,33 @@ class JobProgress(ContractModel):
     percent: float | None
 
 
+class StageView(ContractModel):
+    """One stage's place in the pipeline, for a timeline display."""
+
+    stage: str
+    label: str
+    state: Literal["done", "active", "pending"]
+    expected_seconds: float
+    elapsed_seconds: float | None
+
+
+class JobTiming(ContractModel):
+    """Elapsed and estimated time.
+
+    Estimates come from a measured production run, not from the parser, which
+    reports nothing while it works. ``estimated_remaining_seconds`` is null
+    once a stage has run well past its expected duration, because a countdown
+    that has already reached zero tells the reader less than saying so.
+    """
+
+    percent: float
+    elapsed_seconds: float
+    estimated_total_seconds: float
+    estimated_remaining_seconds: float | None
+    overrunning: bool
+    stages: list[StageView]
+
+
 class JobError(ContractModel):
     code: str
     message: str
@@ -91,7 +119,9 @@ class JobResponse(ContractModel):
     book_id: int | None
     error: JobError | None
     cancellation_requested: bool
+    timing: JobTiming
     created_at: datetime
+    started_at: datetime | None
     updated_at: datetime
     completed_at: datetime | None
 
@@ -113,6 +143,33 @@ def _represent(job: IngestionJob) -> JobResponse:
             code=job.last_error_code,
             message=job.last_error_message or "",
         )
+    progress = estimate(
+        status=job.status,
+        stage=job.stage,
+        page_count=job.page_count,
+        started_at=job.started_at,
+        stage_started_at=job.stage_started_at,
+        completed_at=job.completed_at,
+        progress_completed=job.progress_completed,
+        progress_total=job.progress_total,
+    )
+    timing = JobTiming(
+        percent=progress.percent,
+        elapsed_seconds=progress.elapsed_seconds,
+        estimated_total_seconds=progress.estimated_total_seconds,
+        estimated_remaining_seconds=progress.estimated_remaining_seconds,
+        overrunning=progress.overrunning,
+        stages=[
+            StageView(
+                stage=view.stage,
+                label=view.label,
+                state=view.state,
+                expected_seconds=view.expected_seconds,
+                elapsed_seconds=view.elapsed_seconds,
+            )
+            for view in progress.stages
+        ],
+    )
     return JobResponse(
         job_id=job.id,
         status=job.status,
@@ -131,7 +188,9 @@ def _represent(job: IngestionJob) -> JobResponse:
         book_id=job.book_id,
         error=error,
         cancellation_requested=job.cancellation_requested,
+        timing=timing,
         created_at=job.created_at,
+        started_at=job.started_at,
         updated_at=job.updated_at,
         completed_at=job.completed_at,
     )

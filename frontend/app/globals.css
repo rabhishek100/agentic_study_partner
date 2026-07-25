@@ -668,3 +668,67 @@ dd {
   color: #2f5d4a;
   font-size: 0.86rem;
 }
+
+/* Ingestion stage timeline. */
+.stage-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid #e6e3d9;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 0.76rem;
+}
+
+.stage-mark {
+  width: 9px;
+  height: 9px;
+  justify-self: center;
+  border: 1.5px solid #c4c2b8;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.stage.done .stage-mark {
+  border-color: #4e8267;
+  background: #4e8267;
+}
+
+.stage.active .stage-mark {
+  border-color: #b55f36;
+  background: #b55f36;
+  animation: stage-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes stage-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage.active .stage-mark { animation: none; }
+}
+
+.stage-label {
+  overflow: hidden;
+  color: #8a918d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage.done .stage-label { color: #5b6663; }
+.stage.active .stage-label { color: #25463f; font-weight: 700; }
+
+.stage-time {
+  color: #9aa19d;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage.active .stage-time { color: #b55f36; font-weight: 650; }
