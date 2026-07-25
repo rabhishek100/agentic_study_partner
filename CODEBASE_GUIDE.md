@@ -21,7 +21,7 @@ The active pipeline is:
 | `api/auth.py` | Verify Supabase access tokens and derive `owner_id` from the token subject. |
 | `api/ingestions.py` | Owner-scoped upload lifecycle: create, complete, status, list, cancel, retry. |
 | `api/main.py` | Serve health, the ready-book library, synchronous chat, and SSE streaming. |
-| `frontend/` | Provide the minimal Next.js chat interface. The upload and sign-in UI is in progress. |
+| `frontend/` | Minimal Next.js interface: Supabase sign-in, resumable upload with durable job progress, the ready-book library, and grounded chat. |
 
 ## Database authority
 

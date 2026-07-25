@@ -45,6 +45,10 @@ services:
       dockerfile: Dockerfile
       args:
         BACKEND_URL: http://api:8000
+        # The browser signs in and uploads against Supabase directly, so these
+        # must be reachable from the host browser, not from inside Compose.
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
     environment:
       BACKEND_URL: http://api:8000
     depends_on:

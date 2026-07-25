@@ -13,6 +13,7 @@ wheels/
 # Editor
 .vscode/
 .DS_Store
+.claude/settings.local.json
 
 # Frontend and browser-check artifacts
 node_modules/

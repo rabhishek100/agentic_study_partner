@@ -5,10 +5,10 @@ a lossless hierarchical model, stores canonical and rebuildable retrieval data
 in Supabase Postgres, and uses an inspectable LangGraph workflow to produce
 grounded answers and complete-scope summaries with citations.
 
-The backend is **multi-user**. Every request derives its owner from a verified
-Supabase access token, and an asynchronous worker ingests uploaded PDFs without
-holding a request open. The browser upload and sign-in UI is still in progress;
-until it lands, the API is exercised through tokens directly. See
+The application is **multi-user**. The browser signs in with Supabase Auth,
+uploads PDFs resumably to private Storage, and polls durable job progress while
+an asynchronous worker parses, imports, chunks, embeds, and verifies each book.
+Every API request derives its owner from a verified access token. See
 [`docs/book-ingestion-service.md`](docs/book-ingestion-service.md) for the
 service design and [`docs/supabase-migration-plan.md`](docs/supabase-migration-plan.md)
 for the database cutover history.
@@ -257,8 +257,13 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. The browser calls Next.js `/api`, which forwards
-to FastAPI at `http://localhost:8000`. The sign-in and upload interface is
-still in progress, so the browser client cannot yet authenticate.
+to FastAPI at `http://localhost:8000`, and talks to Supabase directly for
+sign-in and resumable uploads. Copy `frontend/.env.example` to
+`frontend/.env.local` first; the committed defaults match the local Supabase
+CLI stack. Create an account, upload a PDF, watch the job progress in the
+sidebar, and the book becomes selectable when verification finishes. Run the
+worker (`uv run python -m worker.main`) alongside the API or uploads will
+queue without being processed.
 
 The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
 `POST /api/chat/stream`, and the `/api/ingestions` lifecycle. Everything except

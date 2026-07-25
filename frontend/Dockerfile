@@ -11,6 +11,12 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     NEXT_OUTPUT=standalone
 ARG BACKEND_URL=http://api:8000
 ENV BACKEND_URL=$BACKEND_URL
+# NEXT_PUBLIC values are inlined into the client bundle at build time, so they
+# must arrive as build arguments. Both are publishable browser credentials.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
