@@ -107,21 +107,46 @@ After the web service gets its public URL, set `CORS_ALLOWED_ORIGINS` on the
 api service to that origin and redeploy the api. Then add the same URL to
 Supabase → Authentication → URL Configuration (Site URL and redirect URLs).
 
-## Resources
+## Resources and cost
 
-Not yet measured, so start generous and tighten from Railway's metrics:
+Railway bills actual per-second CPU and memory consumption, not a reserved
+allocation, so what an idle worker *holds* is what an idle worker *costs*.
+Measured on this codebase:
 
-- **worker**: the `hi_res` parser loads layout and table models and holds a
-  whole book's parsed elements in memory. Start at 4 GB and watch peak
-  memory across a large ingestion; the spec wants 25–30% headroom over the
-  measured peak. A 269-page book took roughly 16 minutes of parsing on a
-  laptop, so allow generous request timeouts nowhere — nothing waits on it.
-- **api**: small; it never parses. 512 MB–1 GB.
-- **web**: small.
+| Measurement | Value |
+|---|---|
+| Worker idle RSS, parser imported eagerly | 571 MB |
+| Worker idle RSS, parser imported lazily (current) | 86 MB |
+| Peak RSS parsing 41 dense pages with `hi_res` | 1,081 MB |
+| `hi_res` parse rate | ~3.7 s/page |
+
+The worker therefore defers `parsing.parser` until a document is actually
+being parsed (`parsing.version` carries the version constant so provenance
+comparisons stay cheap). Idle cost drops roughly seven-fold, which is the
+difference between a worker that is affordable to leave running and one that
+is not.
+
+Starting points, to tighten from Railway's metrics:
+
+- **worker**: 2 GB limit. Idle consumption is ~86 MB; a large book peaks
+  above 1 GB while parsing. A 269-page book took about 16 minutes.
+- **api**: 512 MB. It never parses.
+- **web**: 512 MB.
+
+The always-on worker is preferred over a cron schedule: Railway's minimum
+cron interval is 5 minutes, which would add up to 5 minutes of dead time
+before an upload starts processing, and the measured idle cost does not
+justify that. If cost ever does become a concern, the cron alternative works
+with no code changes — set a schedule and use `python -m worker.main --once`,
+which claims one job, finishes it, and exits. Railway skips a scheduled run
+while the previous one is still active, which matches the one-job-at-a-time
+lease model.
 
 The shared image carries Torch and the parser toolchain, so builds are slow
 and the image is multiple gigabytes on both api and worker. Splitting a slim
-api image is the documented next optimisation.
+api image is the documented next optimisation; it would cut the api service's
+image pull, not its memory, since the parser is no longer imported there
+either.
 
 Set a spending alert and a hard budget limit on the Railway project before
 sending it any real traffic.

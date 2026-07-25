@@ -8,9 +8,18 @@ from unstructured.partition.pdf import partition_pdf
 from unstructured.staging.base import elements_from_json, elements_to_json
 
 from .models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
+from .version import PARSER_VERSION
 
 
-PARSER_VERSION = "toc-hi-res-v1"
+__all__ = [
+    "PARSER_VERSION",
+    "build_sections",
+    "extract_elements",
+    "extract_toc",
+    "load_parsed_book",
+    "parse_book",
+]
+
 CACHE_DIR = Path("cache")
 ELEMENTS_CACHE = CACHE_DIR / "elements.json"
 BOOK_CACHE = CACHE_DIR / "parsed_book.json"

@@ -274,8 +274,11 @@ class StubbedParserTests(PipelineFixture):
 
     def setUp(self):
         super().setUp()
+        # Patched at its source: the pipeline imports the parser lazily, so
+        # there is deliberately no module-level name to replace.
         self.parser = patch(
-            "ingestion.pipeline.parse_book", side_effect=lambda *a, **k: stub_parsed_book()
+            "parsing.parser.parse_book",
+            side_effect=lambda *a, **k: stub_parsed_book(),
         )
         self.parser.start()
         self.addCleanup(self.parser.stop)

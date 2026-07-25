@@ -22,8 +22,9 @@ from worker.main import Worker
 class WorkerTests(PipelineFixture):
     def setUp(self):
         super().setUp()
+        # The pipeline imports the parser lazily, so patch it at its source.
         self.parser = patch(
-            "ingestion.pipeline.parse_book",
+            "parsing.parser.parse_book",
             side_effect=lambda *a, **k: stub_parsed_book(),
         )
         self.parser.start()

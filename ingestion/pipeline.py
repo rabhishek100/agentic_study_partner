@@ -16,7 +16,7 @@ from typing import Any
 from uuid import UUID
 
 from parsing.models import ParsedBook
-from parsing.parser import PARSER_VERSION, parse_book
+from parsing.version import PARSER_VERSION
 from retrieval.models import ChunkingConfig
 from retrieval.postgres import rebuild as rebuild_chunks
 from retrieval.vector import rebuild_vector_index
@@ -439,6 +439,10 @@ def _ingest_source(
             total=report.page_count,
             unit="pages",
         )
+
+    # Deferred: importing the parser pulls in Unstructured and Torch, about
+    # half a gigabyte of resident memory that an idle worker should not hold.
+    from parsing.parser import parse_book
 
     try:
         book = parse_book(
