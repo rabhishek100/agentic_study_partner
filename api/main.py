@@ -23,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 load_dotenv()
 
 from api.auth import current_owner
+from api.ingestions import router as ingestion_router
 from retrieval.langchain import warm_models
 from storage.database import (
     book_retrieval_completeness,
@@ -117,8 +118,9 @@ app.add_middleware(
     allow_origins=_allowed_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
 )
+app.include_router(ingestion_router)
 
 
 @app.on_event("startup")
