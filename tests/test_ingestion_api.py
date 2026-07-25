@@ -366,7 +366,9 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(status_response.json()["retryable"])
         self.assertEqual(retry.status_code, 200)
-        self.assertEqual(retry.json()["status"], "queued")
+        # A manual retry is an immediately eligible scheduled retry, so the
+        # worker resumes from the failed stage instead of re-parsing.
+        self.assertEqual(retry.json()["status"], "retry_scheduled")
         self.assertEqual(retry.json()["attempt"], 0)
         self.assertIsNone(retry.json()["error"])
 

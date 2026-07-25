@@ -65,10 +65,17 @@ class StateMachineTests(unittest.TestCase):
             frozenset({Status.READY, Status.CANCELLED, Status.FAILED}),
         )
 
-    def test_a_failed_job_can_only_be_requeued(self):
+    def test_a_failed_job_can_only_be_rescheduled(self):
         # Terminal for the worker, but a person may retry a retryable failure.
-        self.assertTrue(can_transition(Status.FAILED, Status.QUEUED))
-        for target in (Status.READY, Status.PARSING, Status.CANCELLED):
+        # The retry is a scheduled one so the recorded stage stays resumable;
+        # plain ``queued`` may only enter the pipeline at validation.
+        self.assertTrue(can_transition(Status.FAILED, Status.RETRY_SCHEDULED))
+        for target in (
+            Status.READY,
+            Status.PARSING,
+            Status.CANCELLED,
+            Status.QUEUED,
+        ):
             with self.subTest(target=target):
                 self.assertFalse(can_transition(Status.FAILED, target))
 

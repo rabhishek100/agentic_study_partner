@@ -535,14 +535,65 @@ class JobQueueTests(unittest.TestCase):
             )
             self.assertTrue(failed.last_error_retryable)
 
-            requeued = retry_job(
+            rescheduled = retry_job(
                 database, owner_id=self.owner, job_id=claimed.id, limits=LIMITS
             )
 
-        self.assertEqual(requeued.status, Status.QUEUED)
-        self.assertEqual(requeued.attempt_count, 0)
-        self.assertIsNone(requeued.last_error_code)
-        self.assertIsNone(requeued.completed_at)
+        self.assertEqual(rescheduled.status, Status.RETRY_SCHEDULED)
+        self.assertEqual(rescheduled.attempt_count, 0)
+        self.assertIsNone(rescheduled.last_error_code)
+        self.assertIsNone(rescheduled.completed_at)
+
+    def test_a_manual_retry_is_claimable_and_resumes_its_stage(self):
+        """Regression: retry of a job that failed mid-embedding.
+
+        The old design sent the job back to ``queued`` while keeping
+        ``stage = build_embeddings``; the claim then attempted the forbidden
+        ``queued -> embedding`` transition on every poll and wedged the queue.
+        """
+
+        with connection(self.database_url) as database:
+            self.queued(database)
+            claimed = claim_next_job(database, worker_id="worker-1", limits=LIMITS)
+            database.execute(
+                "update ingestion_jobs set status = 'embedding', "
+                "stage = 'build_embeddings' where id = %s",
+                (claimed.id,),
+            )
+            fail_job(
+                database,
+                owner_id=self.owner,
+                job_id=claimed.id,
+                current_status=Status.EMBEDDING,
+                error=IngestionError(ErrorCode.STORAGE_UNAVAILABLE),
+            )
+            retry_job(
+                database, owner_id=self.owner, job_id=claimed.id, limits=LIMITS
+            )
+
+            resumed = claim_next_job(database, worker_id="worker-2", limits=LIMITS)
+
+        self.assertIsNotNone(resumed)
+        self.assertEqual(resumed.id, claimed.id)
+        self.assertEqual(resumed.status, Status.EMBEDDING)
+        self.assertEqual(resumed.stage, Stage.BUILD_EMBEDDINGS)
+
+    def test_claiming_survives_a_stage_its_status_cannot_resume(self):
+        """A hand-corrupted row restarts the pipeline instead of wedging it."""
+
+        with connection(self.database_url) as database:
+            job = self.queued(database)
+            database.execute(
+                "update ingestion_jobs set stage = 'build_embeddings' "
+                "where id = %s",
+                (job.id,),
+            )
+
+            claimed = claim_next_job(database, worker_id="worker-1", limits=LIMITS)
+
+        self.assertIsNotNone(claimed)
+        self.assertEqual(claimed.status, Status.VALIDATING)
+        self.assertEqual(claimed.stage, Stage.VERIFY_UPLOAD)
 
     def test_a_failed_job_exposes_only_a_safe_message(self):
         with connection(self.database_url) as database:

@@ -23,9 +23,11 @@ from .config import IngestionLimits, load_limits
 from .errors import ErrorCode, IngestionError, classify_failure, safe_message
 from .states import (
     CLAIMABLE_STATUSES,
+    PIPELINE,
     PROCESSING_STATUSES,
     Stage,
     Status,
+    can_transition,
     is_terminal,
     resume_step,
     validate_transition,
@@ -509,11 +511,12 @@ def retry_job(
     job_id: str | UUID,
     limits: IngestionLimits | None = None,
 ) -> IngestionJob:
-    """Re-queue a failed job whose failure was marked retryable.
+    """Reschedule a failed job whose failure was marked retryable.
 
-    The attempt budget is reset because a person decided to try again; the
-    original Storage object is reused, and the worker resumes from whatever
-    checkpoints are still valid.
+    A manual retry is an immediately eligible scheduled retry: the attempt
+    budget resets because a person decided to try again, the original Storage
+    object is reused, and the recorded stage lets the worker resume from
+    whatever checkpoints are still valid instead of re-parsing the book.
     """
 
     limits = limits or load_limits()
@@ -529,12 +532,12 @@ def retry_job(
                 ErrorCode.ATTEMPTS_EXHAUSTED,
                 detail=f"failure {job.last_error_code} is not retryable",
             )
-        queued = _transition(
+        rescheduled = _transition(
             connection,
             owner_id=owner,
             job_id=identifier,
             expected=Status.FAILED,
-            target=Status.QUEUED,
+            target=Status.RETRY_SCHEDULED,
             assignments=(
                 "attempt_count = 0, max_attempts = %s, next_attempt_at = now(), "
                 "completed_at = null, last_error_code = null, "
@@ -547,10 +550,10 @@ def retry_job(
             owner_id=owner,
             job_id=identifier,
             event_type="retry_requested",
-            status=Status.QUEUED,
+            status=Status.RETRY_SCHEDULED,
             stage=job.stage,
         )
-    return queued
+    return rescheduled
 
 
 def claim_next_job(
@@ -597,7 +600,14 @@ def claim_next_job(
         if candidate is None:
             return None
 
+        current = Status(candidate["status"])
         status, stage = resume_step(candidate["stage"])
+        if not can_transition(current, status):
+            # A recorded stage this status cannot resume should never happen,
+            # but if it does the job restarts from the beginning of the
+            # pipeline. The alternative is a claim that raises on the same
+            # candidate at every poll and wedges the whole queue.
+            status, stage = PIPELINE[0]
         claimed = _transition(
             connection,
             owner_id=candidate["owner_id"],

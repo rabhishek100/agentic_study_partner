@@ -107,8 +107,11 @@ _ALLOWED: dict[Status, frozenset[Status]] = {
     # any processing status directly.
     Status.RETRY_SCHEDULED: frozenset(PROCESSING_STATUSES)
     | frozenset({Status.QUEUED, Status.CANCELLED, Status.FAILED}),
-    # Manual retry of a retryable failure re-queues the existing source object.
-    Status.FAILED: frozenset({Status.QUEUED}),
+    # Manual retry is an immediately scheduled retry: it keeps the recorded
+    # stage so the claim resumes from valid checkpoints. Sending the job back
+    # to ``queued`` instead would strand that stage, because ``queued`` may
+    # only ever enter the pipeline at validation.
+    Status.FAILED: frozenset({Status.RETRY_SCHEDULED}),
     Status.READY: frozenset(),
     Status.CANCELLED: frozenset(),
     Status.CLASSIFYING: frozenset({Status.OCR, Status.NEEDS_TOC_REVIEW, Status.PARSING})
