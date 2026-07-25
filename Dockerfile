@@ -33,8 +33,10 @@ COPY worker ./worker
 ENV PATH="/app/.venv/bin:$PATH"
 
 # The API and the worker share one image and differ only by command. Splitting
-# them into a slim API image and a parser/OCR worker image is deferred to the
-# deployment-hardening phase, where the Railway services are configured.
+# them into a slim API image and a parser/OCR worker image is deferred; the
+# worker's extra toolchain is the only difference in content.
 EXPOSE 8000
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so a platform-injected $PORT is honoured. Compose and local runs
+# have no PORT set and keep using 8000.
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

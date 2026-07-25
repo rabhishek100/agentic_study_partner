@@ -30,6 +30,12 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000
 
+# next.config.mjs reads BACKEND_URL when the standalone server starts, so it
+# must exist at runtime as well as at build time. A platform that injects it
+# as a service variable overrides this default.
+ARG BACKEND_URL=http://api:8000
+ENV BACKEND_URL=$BACKEND_URL
+
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 
