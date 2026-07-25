@@ -190,6 +190,10 @@ def ingest_book(
             ).fetchone()["id"]
         )
         parent_by_level: dict[int, int] = {}
+        # Blocks and their payloads are collected across every node, then
+        # written in batches once the node ids are known.
+        pending_blocks: list[tuple] = []
+        pending_payloads: list[tuple | None] = []
 
         for toc_index, section in enumerate(book.sections):
             parent_id = parent_by_level.get(section.level - 1)
@@ -228,49 +232,106 @@ def ingest_book(
 
             for block_index, block in enumerate(section.texts):
                 marker = _marker(block)
-                block_type = marker[0] if marker else "text"
-                block_id = int(
-                    connection.execute(
-                        """
-                        insert into content_blocks (
-                            owner_id, book_id, node_id, block_index, block_type,
-                            category, page_number, text_content, metadata_json
-                        ) values (%s, %s, %s, %s, %s, %s, %s, %s, '{}'::jsonb)
-                        returning id
-                        """,
-                        (
-                            owner,
-                            book_id,
-                            node_id,
-                            block_index,
-                            block_type,
-                            block.category,
-                            block.page,
-                            block.text,
-                        ),
-                    ).fetchone()["id"]
+                pending_blocks.append(
+                    (
+                        owner,
+                        book_id,
+                        node_id,
+                        block_index,
+                        marker[0] if marker else "text",
+                        block.category,
+                        block.page,
+                        block.text,
+                    )
                 )
-                if marker and marker[0] == "table":
-                    table = section.tables[marker[1]]
-                    connection.execute(
-                        """
-                        insert into table_blocks (
-                            block_id, owner_id, book_id, html_content, flat_text
-                        ) values (%s, %s, %s, %s, %s)
-                        """,
-                        (block_id, owner, book_id, table.html, table.text),
-                    )
-                elif marker:
-                    image = section.images[marker[1]]
-                    connection.execute(
-                        """
-                        insert into image_blocks (
-                            block_id, owner_id, book_id, mime_type, base64_content
-                        ) values (%s, %s, %s, %s, %s)
-                        """,
-                        (block_id, owner, book_id, image.mime, image.base64),
-                    )
+                pending_payloads.append(
+                    None if marker is None else (marker[0], section, marker[1])
+                )
+
+        _insert_payloads(
+            connection,
+            owner=owner,
+            book_id=book_id,
+            blocks=pending_blocks,
+            payloads=pending_payloads,
+        )
     return book_id
+
+
+# One statement per this many rows. Large enough that a book costs a handful
+# of round trips instead of thousands, small enough to keep any single
+# statement and its parameter list manageable.
+INSERT_BATCH_SIZE = 500
+
+
+def _insert_payloads(
+    connection: Connection,
+    *,
+    owner: UUID,
+    book_id: int,
+    blocks: list[tuple],
+    payloads: list[tuple | None],
+) -> None:
+    """Insert every content block and its payload in batched statements.
+
+    Row-by-row inserts cost one network round trip each, which is invisible
+    against a local database and dominant against a remote one: a 2,562-block
+    book spent over five minutes here when the database was a continent away.
+    Multi-row inserts return their ids in value order, which is what lets the
+    payload rows be matched back to their blocks.
+    """
+
+    block_ids: list[int] = []
+    for start in range(0, len(blocks), INSERT_BATCH_SIZE):
+        batch = blocks[start : start + INSERT_BATCH_SIZE]
+        values = ", ".join(
+            ["(%s, %s, %s, %s, %s, %s, %s, %s, '{}'::jsonb)"] * len(batch)
+        )
+        rows = connection.execute(
+            f"""
+            insert into content_blocks (
+                owner_id, book_id, node_id, block_index, block_type,
+                category, page_number, text_content, metadata_json
+            ) values {values}
+            returning id
+            """,
+            [field for row in batch for field in row],
+        ).fetchall()
+        block_ids.extend(int(row["id"]) for row in rows)
+
+    if len(block_ids) != len(blocks):
+        raise InvalidBookError(
+            f"stored {len(block_ids)} content blocks for {len(blocks)} parsed blocks"
+        )
+
+    tables: list[tuple] = []
+    images: list[tuple] = []
+    for block_id, payload in zip(block_ids, payloads, strict=True):
+        if payload is None:
+            continue
+        kind, section, index = payload
+        if kind == "table":
+            table = section.tables[index]
+            tables.append((block_id, owner, book_id, table.html, table.text))
+        else:
+            image = section.images[index]
+            images.append((block_id, owner, book_id, image.mime, image.base64))
+
+    for rows_to_insert, table_name, columns in (
+        (tables, "table_blocks", "block_id, owner_id, book_id, html_content, flat_text"),
+        (
+            images,
+            "image_blocks",
+            "block_id, owner_id, book_id, mime_type, base64_content",
+        ),
+    ):
+        for start in range(0, len(rows_to_insert), INSERT_BATCH_SIZE):
+            batch = rows_to_insert[start : start + INSERT_BATCH_SIZE]
+            values = ", ".join(["(%s, %s, %s, %s, %s)"] * len(batch))
+            connection.execute(
+                f"insert into {table_name} ({columns}) values {values}",
+                [field for row in batch for field in row],
+            )
 
 
 def mark_book_ready(
