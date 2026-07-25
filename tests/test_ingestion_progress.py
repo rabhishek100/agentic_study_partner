@@ -53,6 +53,29 @@ class EstimateTests(unittest.TestCase):
         # No countdown is offered once the estimate is clearly wrong.
         self.assertIsNone(overdue.estimated_remaining_seconds)
 
+    def test_a_published_total_with_no_movement_does_not_pin_progress_at_zero(self):
+        """Regression: a 389-page parse sat at 1% for its whole duration.
+
+        The parse stage publishes its page total before starting and cannot
+        update the count while the parser runs, so a total alone must not be
+        taken as evidence that zero pages are done.
+        """
+
+        stuck = running(
+            Stage.PARSE_PAGES,
+            in_stage_seconds=26 * 60,
+            pages=389,
+            progress_completed=0,
+            progress_total=389,
+        )
+
+        self.assertGreater(stuck.percent, 40.0)
+        self.assertLess(stuck.percent, 99.0)
+        # The countdown must shrink as the parse proceeds, not stay near total.
+        self.assertLess(
+            stuck.estimated_remaining_seconds, stuck.estimated_total_seconds / 2
+        )
+
     def test_a_real_count_is_preferred_over_the_clock(self):
         counted = running(
             Stage.BUILD_EMBEDDINGS,

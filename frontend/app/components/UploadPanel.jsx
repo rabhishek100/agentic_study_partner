@@ -315,11 +315,14 @@ export default function UploadPanel({ onBookReady }) {
                   ? " · taking longer than expected"
                   : ` · ${remainingLabel(liveRemaining)}`}
               </p>
-              {job.progress?.total != null && (
+              {job.progress?.total != null && job.progress.completed > 0 && (
                 <p className="upload-detail">
                   {job.progress.completed} / {job.progress.total}{" "}
                   {job.progress.unit || ""}
                 </p>
+              )}
+              {job.page_count != null && job.progress?.completed === 0 && (
+                <p className="upload-detail">{job.page_count} pages</p>
               )}
 
               <ol className="stage-list">

@@ -180,8 +180,11 @@ def estimate(
     in_stage = _elapsed(stage_started_at, now) or 0.0
     stage_expected = expected[current_stage] or 1.0
 
-    # Prefer a real count when the stage publishes one.
-    if progress_total:
+    # Prefer a real count, but only once it is actually moving. The parse
+    # stage publishes its page total up front and cannot update the count
+    # while the parser runs, so trusting the total alone pins a long parse at
+    # zero for its entire duration.
+    if progress_total and progress_completed > 0:
         fraction = min(1.0, max(0.0, progress_completed / progress_total))
     else:
         # Time-based, capped just under complete: an estimate must not claim
