@@ -74,7 +74,7 @@ def hybrid_candidates(
     query: str,
     *,
     book_id: int | None,
-    owner_id: str | UUID | None,
+    owner_id: str | UUID,
     candidate_limit: int,
     embedder: Embedder,
 ) -> list[SearchResult]:
@@ -127,7 +127,7 @@ def retrieve(
     query: str,
     *,
     mode: RetrievalMode = "hybrid",
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     book_id: int | None = None,
     limit: int = 5,
     unique_nodes: bool = False,

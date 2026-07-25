@@ -4,9 +4,14 @@ import argparse
 from html import escape
 import json
 from pathlib import Path
+from uuid import UUID
 
 from scripts.validate_multiturn_gold import validate
-from storage.database import connection as database_connection, resolve_owner_id
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 
 
 def _evidence(items, nodes):
@@ -28,11 +33,11 @@ def _evidence(items, nodes):
     )
 
 
-def build_html(gold, validation, connection):
+def build_html(gold, validation, connection, *, owner_id: str | UUID):
     nodes = {
         row["id"]: dict(row)
         for row in connection.execute(
-            "select * from nodes where owner_id = %s", (resolve_owner_id(),)
+            "select * from nodes where owner_id = %s", (parse_owner_id(owner_id),)
         )
     }
     cards = []
@@ -102,13 +107,25 @@ def main():
     parser.add_argument(
         "--output", type=Path, default=Path("evaluation/multiturn_gold.html")
     )
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
+    )
     args = parser.parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     gold = json.loads(args.gold_set.read_text(encoding="utf-8"))
     with database_connection(args.database_url, readonly=True) as connection:
-        validation = validate(gold, connection, allow_pending=False)
+        validation = validate(
+            gold,
+            connection,
+            owner_id=owner_id,
+            allow_pending=False,
+        )
         if not validation["valid"]:
             raise SystemExit("\n".join(validation["errors"]))
-        html = build_html(gold, validation, connection)
+        html = build_html(gold, validation, connection, owner_id=owner_id)
     args.output.write_text(html, encoding="utf-8")
     print(args.output)
 

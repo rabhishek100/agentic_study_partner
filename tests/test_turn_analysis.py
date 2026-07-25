@@ -39,6 +39,7 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
             self.book_id = ingest_book(
                 connection,
                 hierarchy_book(),
+                owner_id=self.owner_id,
                 title="Hierarchy Book",
                 author="Test Author",
                 file_hash=FILE_HASH,
@@ -76,7 +77,13 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         )
 
     def analyze(self, question, state, model):
-        return analyze_turn(question, state, self.database_url, model=model)
+        return analyze_turn(
+            question,
+            state,
+            self.database_url,
+            owner_id=self.owner_id,
+            model=model,
+        )
 
     def test_explicit_hierarchy_requests_are_deterministic(self):
         summary = self.analyze("Summarize Chapter 3.", self.state(), FailIfCalled())

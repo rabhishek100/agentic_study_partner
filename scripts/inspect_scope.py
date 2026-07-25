@@ -2,7 +2,11 @@
 
 import argparse
 
-from storage.database import connection as database_connection
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 from study.content import EvidenceBundle, load_scope_content
 from study.scope import (
     ResolvedScope,
@@ -22,6 +26,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--database-url",
         help="Postgres URL; defaults to DATABASE_URL",
+    )
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
     )
     subparsers = parser.add_subparsers(dest="scope_kind", required=True)
 
@@ -95,22 +103,25 @@ def format_inspection(
     return "\n".join(lines)
 
 
-def _resolve(args, connection) -> ResolvedScope:
+def _resolve(args, connection, owner_id) -> ResolvedScope:
     if args.scope_kind == "book":
         return resolve_book(
             connection,
             args.reference,
+            owner_id=owner_id,
             book_id=args.book_id,
         )
     if args.scope_kind == "chapter":
         return resolve_chapter(
             connection,
             args.reference,
+            owner_id=owner_id,
             book_id=args.book_id,
         )
     return resolve_section(
         connection,
         args.reference,
+        owner_id=owner_id,
         book_id=args.book_id,
         chapter=args.chapter,
     )
@@ -119,10 +130,13 @@ def _resolve(args, connection) -> ResolvedScope:
 def main() -> None:
     parser = build_argument_parser()
     args = parser.parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     try:
         with database_connection(args.database_url, readonly=True) as connection:
-            scope = _resolve(args, connection)
-            evidence = load_scope_content(connection, scope)
+            scope = _resolve(args, connection, owner_id)
+            evidence = load_scope_content(connection, scope, owner_id=owner_id)
     except ScopeResolutionError as error:
         parser.error(str(error))
     print(

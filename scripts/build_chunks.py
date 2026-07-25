@@ -3,7 +3,11 @@
 import argparse
 from retrieval.models import ChunkingConfig
 from retrieval.postgres import rebuild
-from storage.database import connection as database_connection
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -24,11 +28,18 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-tokens", type=int, default=800)
     parser.add_argument("--overlap-tokens", type=int, default=80)
     parser.add_argument("--encoding", default="cl100k_base")
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
+    )
     return parser
 
 
 def main() -> None:
     args = build_argument_parser().parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     config = ChunkingConfig(
         target_tokens=args.target_tokens,
         max_tokens=args.max_tokens,
@@ -36,7 +47,12 @@ def main() -> None:
         encoding_name=args.encoding,
     )
     with database_connection(args.database_url) as connection:
-        summary = rebuild(connection, args.book_id, config=config)
+        summary = rebuild(
+            connection,
+            args.book_id,
+            owner_id=owner_id,
+            config=config,
+        )
 
     print(
         f"Built {summary.chunk_count} chunks from "

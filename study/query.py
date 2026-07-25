@@ -3,12 +3,13 @@
 import os
 import re
 from typing import Protocol
+from uuid import UUID
 
 from dotenv import load_dotenv
 
 from retrieval.langchain import BookRetriever
 from retrieval.search import RetrievalMode
-from storage.database import connection as database_connection, resolve_owner_id
+from storage.database import connection as database_connection, parse_owner_id
 from .content import load_scope_content
 from .contracts import (
     CitationRef,
@@ -111,6 +112,7 @@ def _resolve_hierarchy_request(
     question: str,
     *,
     database_url: str | None,
+    owner_id: str | UUID,
     book_id: int | None,
 ) -> tuple[StudyRequest, ResolvedScope] | None:
     """Return a resolved study request, or None for ordinary retrieval."""
@@ -122,7 +124,12 @@ def _resolve_hierarchy_request(
 
     try:
         with database_connection(database_url, readonly=True) as source:
-            scope = resolve_study_request(source, request, book_id=book_id)
+            scope = resolve_study_request(
+                source,
+                request,
+                owner_id=owner_id,
+                book_id=book_id,
+            )
     except ScopeNotFoundError:
         if request.scope_kind == "named":
             return None
@@ -135,6 +142,7 @@ def _answer_hierarchy_request(
     scope: ResolvedScope,
     *,
     database_url: str | None,
+    owner_id: str | UUID,
     model: ChatModel | None,
     token_callback: TokenCallback | None = None,
 ) -> TurnResult:
@@ -163,7 +171,7 @@ def _answer_hierarchy_request(
         )
 
     with database_connection(database_url, readonly=True) as source:
-        evidence_bundle = load_scope_content(source, scope)
+        evidence_bundle = load_scope_content(source, scope, owner_id=owner_id)
     context = build_scope_context(evidence_bundle)
     config = _summary_config()
     budget = prompt_budget(
@@ -264,6 +272,7 @@ def _answer_retrieval_question(
     question: str,
     *,
     database_url: str | None,
+    owner_id: str | UUID,
     book_id: int | None,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
@@ -271,7 +280,7 @@ def _answer_retrieval_question(
 ) -> TurnResult:
     """Answer one ordinary question from top-k retrieval evidence."""
 
-    owner = resolve_owner_id()
+    owner = parse_owner_id(owner_id)
     with database_connection(database_url, readonly=True) as source:
         if book_id is None:
             rows = source.execute(
@@ -414,6 +423,7 @@ def execute_query(
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     *,
+    owner_id: str | UUID,
     model: ChatModel | None = None,
     token_callback: TokenCallback | None = None,
     force_retrieval: bool = False,
@@ -426,6 +436,7 @@ def execute_query(
         hierarchy = _resolve_hierarchy_request(
             question,
             database_url=database_url,
+            owner_id=owner_id,
             book_id=book_id,
         )
     if hierarchy is not None:
@@ -434,6 +445,7 @@ def execute_query(
             request,
             scope,
             database_url=database_url,
+            owner_id=owner_id,
             model=model,
             token_callback=token_callback,
         )
@@ -441,6 +453,7 @@ def execute_query(
     return _answer_retrieval_question(
         question,
         database_url=database_url,
+        owner_id=owner_id,
         book_id=book_id,
         retrieval_mode=retrieval_mode,
         model=model,
@@ -454,6 +467,7 @@ def answer_query(
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     *,
+    owner_id: str | UUID,
     model: ChatModel | None = None,
 ) -> str:
     """Compatibility wrapper returning the existing reader-facing Markdown."""
@@ -463,5 +477,6 @@ def answer_query(
         database_url=database_url,
         book_id=book_id,
         retrieval_mode=retrieval_mode,
+        owner_id=owner_id,
         model=model,
     ).answer

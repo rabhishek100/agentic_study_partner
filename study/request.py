@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 from psycopg import Connection
 from typing import Literal
+from uuid import UUID
 
 from .scope import (
     ResolvedScope,
@@ -143,27 +144,31 @@ def resolve_study_request(
     connection: Connection,
     request: StudyRequest,
     *,
+    owner_id: str | UUID,
     book_id: int | None = None,
 ) -> ResolvedScope:
     """Map a parsed request to one canonical book, chapter, or section."""
 
     if request.scope_kind == "book":
-        return resolve_book(connection, book_id=book_id)
+        return resolve_book(connection, owner_id=owner_id, book_id=book_id)
     if request.scope_kind == "chapter":
         return resolve_chapter(
             connection,
             request.scope_reference,
+            owner_id=owner_id,
             book_id=book_id,
         )
     if request.scope_kind == "section":
         return resolve_section(
             connection,
             request.scope_reference,
+            owner_id=owner_id,
             book_id=book_id,
             chapter=request.chapter_reference,
         )
     return resolve_named_scope(
         connection,
         request.scope_reference,
+        owner_id=owner_id,
         book_id=book_id,
     )

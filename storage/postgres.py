@@ -11,7 +11,7 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
-from .database import resolve_owner_id
+from .database import parse_owner_id
 
 
 TABLE_MARKER = re.compile(r"^\[TABLE (\d+)]$")
@@ -109,7 +109,7 @@ def ingest_book(
     connection: Connection,
     book: ParsedBook,
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     title: str,
     author: str | None,
     file_hash: str,
@@ -118,11 +118,18 @@ def ingest_book(
     metadata: Mapping[str, Any] | None = None,
     source_storage_bucket: str | None = None,
     source_storage_path: str | None = None,
+    ingestion_job_id: str | UUID | None = None,
+    ready: bool = True,
     replace: bool = False,
 ) -> int:
-    """Atomically insert a ParsedBook for one server-controlled owner."""
+    """Atomically insert a ParsedBook for one caller-supplied owner.
 
-    owner = resolve_owner_id(owner_id)
+    Manual imports mark the book ready immediately. The ingestion worker passes
+    ``ready=False`` so the book stays invisible to study and retrieval until
+    chunks, embeddings, and verification have all succeeded.
+    """
+
+    owner = parse_owner_id(owner_id)
     file_hash = file_hash.casefold()
     if not re.fullmatch(r"[0-9a-f]{64}", file_hash):
         raise ValueError("file_hash must be a hexadecimal SHA-256 digest")
@@ -133,6 +140,8 @@ def ingest_book(
     _validate(book, page_count)
 
     source_filename = book.source.replace("\\", "/").rsplit("/", 1)[-1]
+    job_id = UUID(str(ingestion_job_id)) if ingestion_job_id else None
+    now = datetime.now(timezone.utc)
     with connection.transaction():
         existing = connection.execute(
             "select id from books where owner_id = %s and file_hash = %s",
@@ -154,8 +163,11 @@ def ingest_book(
                 insert into books (
                     owner_id, title, author, source_path, source_filename,
                     source_storage_bucket, source_storage_path, file_hash,
-                    page_count, parser_version, parsed_at, metadata_json
-                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    page_count, parser_version, parsed_at, metadata_json,
+                    ingestion_job_id, status, ready_at
+                ) values (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
                 returning id
                 """,
                 (
@@ -169,8 +181,11 @@ def ingest_book(
                     file_hash,
                     page_count,
                     parser_version,
-                    datetime.now(timezone.utc),
+                    now,
                     Jsonb(dict(metadata or {})),
+                    job_id,
+                    "ready" if ready else "processing",
+                    now if ready else None,
                 ),
             ).fetchone()["id"]
         )
@@ -258,15 +273,99 @@ def ingest_book(
     return book_id
 
 
+def mark_book_ready(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> None:
+    """Publish a verified book in one short transaction.
+
+    Only the ingestion worker calls this, and only after every readiness check
+    has passed. Until then the book exists but no study or retrieval entry
+    point will select it.
+    """
+
+    owner = parse_owner_id(owner_id)
+    updated = connection.execute(
+        """
+        update books
+        set status = 'ready', ready_at = now()
+        where id = %s and owner_id = %s and status <> 'ready'
+        """,
+        (book_id, owner),
+    ).rowcount
+    if not updated:
+        # Either the book is already published or it does not belong to this
+        # owner; both mean this call must not silently invent a ready book.
+        row = connection.execute(
+            "select status from books where id = %s and owner_id = %s",
+            (book_id, owner),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"book {book_id} does not exist")
+
+
+def list_books(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    ready_only: bool = True,
+) -> list[dict[str, Any]]:
+    """List one owner's books, newest first.
+
+    Study and retrieval entry points use the default: a book that is still
+    being processed must never be selectable.
+    """
+
+    owner = parse_owner_id(owner_id)
+    predicate = "and status = 'ready'" if ready_only else ""
+    return connection.execute(
+        f"""
+        select
+            id, title, author, source_filename, page_count, status,
+            ready_at, parsed_at, ingestion_job_id
+        from books
+        where owner_id = %s {predicate}
+        order by coalesce(ready_at, parsed_at) desc, id desc
+        """,
+        (owner,),
+    ).fetchall()
+
+
+def ready_book(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> dict[str, Any] | None:
+    """Return one ready owner-scoped book, or None.
+
+    None covers "does not exist", "belongs to someone else", and "not ready
+    yet" on purpose: callers turn all three into the same 404 so book IDs
+    cannot be enumerated.
+    """
+
+    owner = parse_owner_id(owner_id)
+    return connection.execute(
+        """
+        select id, title, author, page_count, status, ready_at
+        from books
+        where id = %s and owner_id = %s and status = 'ready'
+        """,
+        (book_id, owner),
+    ).fetchone()
+
+
 def restore_book(
     connection: Connection,
     book_id: int,
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
 ) -> ParsedBook:
     """Reconstruct the original ParsedBook from owner-scoped rows."""
 
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     book_row = connection.execute(
         "select source_path from books where id = %s and owner_id = %s",
         (book_id, owner),

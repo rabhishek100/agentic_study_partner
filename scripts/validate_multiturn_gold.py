@@ -4,8 +4,13 @@ import argparse
 import json
 from pathlib import Path
 import re
+from uuid import UUID
 
-from storage.database import connection as database_connection, resolve_owner_id
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 
 
 CITATION = re.compile(r"\[N(\d+):P(\d+)]")
@@ -20,8 +25,8 @@ DEPENDENCIES = {"independent", "dependent", "ambiguous"}
 ROLES = {"required", "supporting", "optional_recap"}
 
 
-def _canonical(connection, book_id):
-    owner = resolve_owner_id()
+def _canonical(connection, book_id, owner_id):
+    owner = parse_owner_id(owner_id)
     book = connection.execute(
         "select * from books where id = %s and owner_id = %s", (book_id, owner)
     ).fetchone()
@@ -35,12 +40,12 @@ def _canonical(connection, book_id):
     return book, nodes
 
 
-def validate(gold: dict, connection, *, allow_pending=False):
+def validate(gold: dict, connection, *, owner_id: str | UUID, allow_pending=False):
     """Return all structural and canonical-data errors in one pass."""
 
     errors = []
     book_id = gold.get("book", {}).get("database_book_id")
-    book, nodes = _canonical(connection, book_id)
+    book, nodes = _canonical(connection, book_id, owner_id)
     if not book:
         errors.append(f"book {book_id!r} does not exist")
 
@@ -152,10 +157,22 @@ def main():
     )
     parser.add_argument("--database-url", help="Postgres URL; defaults to DATABASE_URL")
     parser.add_argument("--allow-pending-review", action="store_true")
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
+    )
     args = parser.parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     gold = json.loads(args.gold_set.read_text(encoding="utf-8"))
     with database_connection(args.database_url, readonly=True) as connection:
-        result = validate(gold, connection, allow_pending=args.allow_pending_review)
+        result = validate(
+            gold,
+            connection,
+            owner_id=owner_id,
+            allow_pending=args.allow_pending_review,
+        )
     print(json.dumps(result, indent=2))
     raise SystemExit(0 if result["valid"] else 1)
 

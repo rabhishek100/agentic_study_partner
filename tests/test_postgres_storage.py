@@ -25,6 +25,7 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
 
     def ingest(self, book=None, **overrides) -> int:
         arguments = {
+            "owner_id": self.owner_id,
             "title": "Sample",
             "author": "Test Author",
             "file_hash": FILE_HASH,
@@ -39,7 +40,7 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
         original = sample_book()
         book_id = self.ingest(original)
 
-        restored = restore_book(self.database, book_id)
+        restored = restore_book(self.database, book_id, owner_id=self.owner_id)
         self.assertEqual(original.model_dump(), restored.model_dump())
 
         nodes = self.database.execute(

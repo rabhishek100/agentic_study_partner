@@ -6,11 +6,12 @@ import os
 import re
 import time
 from typing import Protocol
+from uuid import UUID
 
 from dotenv import load_dotenv
 from pydantic import Field, model_validator
 
-from storage.database import connection as database_connection, resolve_owner_id
+from storage.database import connection as database_connection, parse_owner_id
 
 from .contracts import (
     ContractModel,
@@ -105,6 +106,8 @@ def _explicit_hierarchy_decision(
     question: str,
     state: ConversationState,
     database_url: str | None,
+    *,
+    owner_id: str | UUID,
 ) -> TurnDecision | None:
     try:
         request = parse_study_request(question)
@@ -112,6 +115,7 @@ def _explicit_hierarchy_decision(
             scope = resolve_study_request(
                 connection,
                 request,
+                owner_id=owner_id,
                 book_id=state.book_id,
             )
     except (UnsupportedStudyRequestError, ScopeResolutionError):
@@ -286,6 +290,7 @@ def _clarification_fallback(
     candidates: list[ScopeCandidate],
     state: ConversationState,
     database_url: str | None,
+    owner_id: str | UUID,
 ) -> TurnDecision:
     """Resolve narrow, evidence-backed coreference without another model call."""
 
@@ -400,7 +405,7 @@ def _clarification_fallback(
         ordinal_container = None
         if ordinal:
             index = ORDINAL_INDEX[ordinal.group(1).casefold()]
-            owner = resolve_owner_id()
+            owner = parse_owner_id(owner_id)
             with database_connection(database_url, readonly=True) as connection:
                 for candidate in candidates:
                     if candidate.kind != "section":
@@ -533,16 +538,27 @@ def analyze_turn(
     state: ConversationState,
     database_url: str | None = None,
     *,
+    owner_id: str | UUID,
     model: AnalysisModel | None = None,
 ) -> TurnDecision:
     load_dotenv()
     if not question.strip():
         raise ConversationDecisionError("question cannot be empty")
-    explicit = _explicit_hierarchy_decision(question, state, database_url)
+    explicit = _explicit_hierarchy_decision(
+        question,
+        state,
+        database_url,
+        owner_id=owner_id,
+    )
     if explicit:
         return explicit
 
-    candidates = find_scope_candidates(question, state, database_url)
+    candidates = find_scope_candidates(
+        question,
+        state,
+        database_url,
+        owner_id=owner_id,
+    )
     messages = [
         ("system", SYSTEM_PROMPT),
         (
@@ -582,6 +598,7 @@ def analyze_turn(
                 candidates=candidates,
                 state=state,
                 database_url=database_url,
+                owner_id=owner_id,
             )
             logger.info(
                 "analyze_turn attempt %d/3 succeeded in %.2fs (total %.2fs)",

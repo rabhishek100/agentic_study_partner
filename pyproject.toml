@@ -22,6 +22,7 @@ dependencies = [
     # them to the CPU-only wheel index instead of torch's default CUDA build.
     "torch>=2.10",
     "torchvision",
+    "pyjwt[crypto]>=2.10,<3",
 ]
 
 [dependency-groups]

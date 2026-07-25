@@ -1,8 +1,9 @@
 """Small deterministic candidate set for the conversation control model."""
 
 import re
+from uuid import UUID
 
-from storage.database import connection as database_connection, resolve_owner_id
+from storage.database import connection as database_connection, parse_owner_id
 
 from .contracts import ConversationState, ScopeCandidate
 
@@ -76,11 +77,9 @@ def _aliases(title):
     return aliases
 
 
-def _rows(connection, book_id):
+def _rows(connection, book_id, owner_id):
     predicate = "AND book_id = %s" if book_id is not None else ""
-    parameters = (
-        (resolve_owner_id(), book_id) if book_id is not None else (resolve_owner_id(),)
-    )
+    parameters = (owner_id, book_id) if book_id is not None else (owner_id,)
     return connection.execute(
         f"""
         SELECT id, book_id, parent_id, toc_index, node_type, title,
@@ -131,12 +130,14 @@ def find_scope_candidates(
     state: ConversationState,
     database_url: str | None = None,
     *,
+    owner_id: str | UUID,
     limit: int = 8,
 ) -> list[ScopeCandidate]:
     """Rank named, recent, active, and evidence-backed canonical scopes."""
 
     if limit <= 0:
         raise ValueError("limit must be positive")
+    owner = parse_owner_id(owner_id)
     normalized = _normalize(question)
     question_tokens = _tokens(question)
     chapter_numbers = set(CHAPTER.findall(question))
@@ -146,7 +147,7 @@ def find_scope_candidates(
     recent_chapters = set(CHAPTER.findall(recent))
 
     with database_connection(database_url, readonly=True) as connection:
-        rows = _rows(connection, state.book_id)
+        rows = _rows(connection, state.book_id, owner)
     by_id, bounds = _bounds(rows)
     ranked = {}
 

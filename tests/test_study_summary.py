@@ -58,6 +58,7 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         self.book_id = ingest_book(
             self.connection,
             sample_book(),
+            owner_id=self.owner_id,
             title="Sample Book",
             author="Test Author",
             file_hash=FILE_HASH,
@@ -73,9 +74,14 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_chapter(
             self.connection,
             1,
+            owner_id=self.owner_id,
             book_id=self.book_id,
         )
-        evidence = load_scope_content(self.connection, scope)
+        evidence = load_scope_content(
+            self.connection,
+            scope,
+            owner_id=self.owner_id,
+        )
         return scope, build_scope_context(evidence)
 
     def test_parses_supported_natural_language_requests(self) -> None:
@@ -107,6 +113,7 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_study_request(
             self.connection,
             request,
+            owner_id=self.owner_id,
             book_id=self.book_id,
         )
 

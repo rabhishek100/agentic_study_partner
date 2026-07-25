@@ -7,7 +7,11 @@ from pathlib import Path
 import fitz
 
 from parsing.parser import PARSER_VERSION, load_parsed_book
-from storage.database import connection as database_connection
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 from storage.postgres import ingest_book
 
 
@@ -54,11 +58,18 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Explicitly replace a book with the same PDF hash",
     )
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
+    )
     return parser
 
 
 def main() -> None:
     args = build_argument_parser().parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     book = load_parsed_book(args.cache)
     source_pdf = args.source or Path(book.source)
     if not source_pdf.is_file():
@@ -82,6 +93,7 @@ def main() -> None:
         book_id = ingest_book(
             connection,
             book,
+            owner_id=owner_id,
             title=title,
             author=author,
             file_hash=hash_file(source_pdf),

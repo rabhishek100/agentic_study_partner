@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from evals.judge import OpenRouterAnswerJudge
 from evals.multiturn import ProjectRunner, evaluate_conversations
 from evals.report import render_report
+from storage.database import environment_owner_id, parse_owner_id
 
 
 DEFAULT_GOLD = Path("evaluation/multiturn_gold.json")
@@ -24,6 +25,10 @@ def _arguments():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--book-id", type=int)
     parser.add_argument("--retrieval-mode", default="hybrid")
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
+    )
     parser.add_argument(
         "--judge-answers",
         action="store_true",
@@ -48,6 +53,9 @@ def _select(dataset, args):
 def main():
     load_dotenv()
     args = _arguments()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     dataset = json.loads(args.gold.read_text(encoding="utf-8"))
     selected = _select(dataset, args)
     book_id = args.book_id or dataset["book"]["database_book_id"]
@@ -58,7 +66,7 @@ def main():
 
     evaluation = evaluate_conversations(
         selected,
-        ProjectRunner(retrieval_mode=args.retrieval_mode),
+        ProjectRunner(owner_id=owner_id, retrieval_mode=args.retrieval_mode),
         book_id=book_id,
         answer_judge=OpenRouterAnswerJudge() if args.judge_answers else None,
         on_turn=lambda turn_id: print(f"Running {turn_id}...", flush=True),

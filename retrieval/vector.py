@@ -11,7 +11,7 @@ from uuid import UUID
 import httpx
 from psycopg import Connection
 
-from storage.database import resolve_owner_id
+from storage.database import parse_owner_id
 from .postgres import SearchResult, search_result_from_row
 
 
@@ -134,7 +134,7 @@ def rebuild_vector_index(
     connection: Connection,
     *,
     embedder: Embedder,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     book_id: int | None = None,
     reset: bool = False,
     batch_size: int = 32,
@@ -148,7 +148,7 @@ def rebuild_vector_index(
             f"database expects {POSTGRES_EMBEDDING_DIMENSION}-dimension vectors; "
             f"embedder reports {embedder.dimension}"
         )
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     params: list[object] = [owner]
     predicate = ""
     if book_id is not None:
@@ -275,7 +275,7 @@ def vector_search(
     query: str,
     *,
     embedder: Embedder,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     book_id: int | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
@@ -284,7 +284,7 @@ def vector_search(
 
     if limit <= 0:
         raise ValueError("limit must be positive")
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     query_vector = embedder.embed_query(query)
     candidate_limit = max(limit * 4, 40) if unique_nodes else limit
     params: list[object] = [

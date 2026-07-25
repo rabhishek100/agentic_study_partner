@@ -73,6 +73,7 @@ class ScopeCandidateTests(PostgresOwnerMixin, unittest.TestCase):
             self.book_id = ingest_book(
                 connection,
                 hierarchy_book(),
+                owner_id=self.owner_id,
                 title="Hierarchy Book",
                 author="Test Author",
                 file_hash=FILE_HASH,
@@ -109,6 +110,7 @@ class ScopeCandidateTests(PostgresOwnerMixin, unittest.TestCase):
             question,
             state or self.state(),
             self.database_url,
+            owner_id=self.owner_id,
             limit=limit,
         )
 

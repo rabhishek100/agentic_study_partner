@@ -11,7 +11,7 @@ from uuid import UUID
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
-from storage.database import resolve_owner_id
+from storage.database import parse_owner_id
 from .chunking import CHUNKER_VERSION, build_book_chunks, config_hash, config_json
 from .models import ChunkingConfig
 
@@ -51,12 +51,12 @@ def rebuild(
     connection: Connection,
     book_id: int,
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     config: ChunkingConfig | None = None,
 ) -> BuildSummary:
     """Atomically replace one owner/book/configuration chunk build."""
 
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     config = config or ChunkingConfig()
     book, chunks = build_book_chunks(
         connection,
@@ -259,7 +259,7 @@ def search(
     connection: Connection,
     query: str,
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     book_id: int | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
@@ -268,7 +268,7 @@ def search(
 
     if limit <= 0:
         raise ValueError("limit must be positive")
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     search_query = _fts_query(query)
     predicate = "owner_id = %s and (%s::bigint is null or source_book_id = %s)"
     corpus = connection.execute(
@@ -326,11 +326,11 @@ def chunks_by_id(
     connection: Connection,
     chunk_ids: list[str],
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
 ) -> dict[str, Any]:
     if not chunk_ids:
         return {}
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     rows = connection.execute(
         "select * from chunks where owner_id = %s and id = any(%s)",
         (owner, chunk_ids),

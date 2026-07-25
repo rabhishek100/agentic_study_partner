@@ -9,10 +9,12 @@ import logging
 import os
 import queue
 import threading
+from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import Field
@@ -20,8 +22,15 @@ from starlette.concurrency import run_in_threadpool
 
 load_dotenv()
 
+from api.auth import current_owner
 from retrieval.langchain import warm_models
-from storage.database import close_pools, database_readiness
+from storage.database import (
+    book_retrieval_completeness,
+    close_pools,
+    connection as database_connection,
+    database_readiness,
+)
+from storage.postgres import list_books, ready_book
 from study.analyze import ConversationDecisionError
 from study.contracts import ContractModel, ConversationState, TurnResult
 from study.conversation import execute_conversation_turn
@@ -43,7 +52,9 @@ RetrievalMode = Literal["bm25", "vector", "hybrid", "hybrid_rerank"]
 class ChatRequest(ContractModel):
     question: str = Field(min_length=1, max_length=10_000)
     retrieval_mode: RetrievalMode = "hybrid"
-    book_id: int | None = Field(default=1, gt=0)
+    # Required and always verified against the caller's ready books. There is
+    # deliberately no default: a chat turn must never fall back to book 1.
+    book_id: int = Field(gt=0)
     state: ConversationState | None = None
 
 
@@ -52,10 +63,40 @@ class ChatResponse(ContractModel):
     state: ConversationState
 
 
+class BookSummary(ContractModel):
+    book_id: int
+    title: str
+    author: str | None
+    page_count: int | None
+    ready_at: datetime | None
+    chunk_count: int
+    embedding_count: int
+    retrieval_complete: bool
+
+
+class BookListResponse(ContractModel):
+    books: list[BookSummary]
+
+
 class HealthResponse(ContractModel):
     status: Literal["ok", "unavailable"]
     canonical_database_ready: bool
     retrieval_database_ready: bool
+
+
+BOOK_NOT_FOUND = HTTPException(status_code=404, detail="book not found")
+
+
+def _require_ready_book(owner_id: UUID, book_id: int) -> None:
+    """Reject anything that is not this owner's verified, ready book.
+
+    Missing, someone else's, and still-processing books all return the same
+    404 so book IDs cannot be probed.
+    """
+
+    with database_connection(readonly=True) as connection:
+        if ready_book(connection, book_id, owner_id=owner_id) is None:
+            raise BOOK_NOT_FOUND
 
 
 def _allowed_origins() -> list[str]:
@@ -104,13 +145,47 @@ async def health(response: Response) -> HealthResponse:
     )
 
 
+@app.get("/api/books", response_model=BookListResponse)
+async def books(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
+    """List the caller's ready books. Processing books are not selectable."""
+
+    def load() -> list[BookSummary]:
+        with database_connection(readonly=True) as connection:
+            rows = list_books(connection, owner_id=owner_id)
+            summaries = []
+            for row in rows:
+                chunks, embeddings = book_retrieval_completeness(
+                    connection, owner_id=owner_id, book_id=row["id"]
+                )
+                summaries.append(
+                    BookSummary(
+                        book_id=row["id"],
+                        title=row["title"],
+                        author=row["author"],
+                        page_count=row["page_count"],
+                        ready_at=row["ready_at"],
+                        chunk_count=chunks,
+                        embedding_count=embeddings,
+                        retrieval_complete=chunks > 0 and chunks == embeddings,
+                    )
+                )
+            return summaries
+
+    return BookListResponse(books=await run_in_threadpool(load))
+
+
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ChatResponse:
+    await run_in_threadpool(_require_ready_book, owner_id, request.book_id)
     try:
         result, updated = await run_in_threadpool(
             execute_conversation_turn,
             request.question.strip(),
             request.state,
+            owner_id=owner_id,
             retrieval_mode=request.retrieval_mode,
             book_id=request.book_id,
         )
@@ -143,7 +218,10 @@ def _sse(event: str, data: dict) -> str:
 
 
 @app.post("/api/chat/stream")
-async def chat_stream(request: ChatRequest) -> StreamingResponse:
+async def chat_stream(
+    request: ChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> StreamingResponse:
     """Stream the answer as it is generated instead of waiting for it whole.
 
     Ordinary answers emit `token` events as generation text arrives. Hierarchy
@@ -152,6 +230,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
     `error` event.
     """
 
+    await run_in_threadpool(_require_ready_book, owner_id, request.book_id)
     loop = asyncio.get_running_loop()
     events: queue.Queue = queue.Queue()
 
@@ -163,6 +242,7 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
             result, updated = execute_conversation_turn(
                 request.question.strip(),
                 request.state,
+                owner_id=owner_id,
                 retrieval_mode=request.retrieval_mode,
                 book_id=request.book_id,
                 token_callback=on_token,

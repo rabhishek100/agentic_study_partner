@@ -98,6 +98,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
             self.book_id = ingest_book(
                 connection,
                 conversation_book(),
+                owner_id=self.owner_id,
                 title="Conversation Book",
                 author="Test Author",
                 file_hash="d" * 64,
@@ -151,6 +152,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
             "Summarize Chapter 1.",
             new_conversation_state(book_id=self.book_id, conversation_id="c1"),
             database_url=self.database_url,
+            owner_id=self.owner_id,
             generation_model=CitationSummaryModel(),
         )
 
@@ -178,6 +180,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
                 "Compare the modes.",
                 self.state(active_scope=scope),
                 database_url=self.database_url,
+                owner_id=self.owner_id,
                 analysis_model=analysis,
             )
 
@@ -203,6 +206,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
                 "Explain the second approach.",
                 self.state(),
                 database_url=self.database_url,
+                owner_id=self.owner_id,
                 analysis_model=analysis,
             )
 
@@ -227,6 +231,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
                 "I mean service dataflow.",
                 self.state(pending_clarification="Which approach?"),
                 database_url=self.database_url,
+                owner_id=self.owner_id,
                 analysis_model=analysis,
             )
         self.assertIsNone(state.pending_clarification)
@@ -282,6 +287,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
                 "Summarize it.",
                 self.state(active_scope=section),
                 database_url=self.database_url,
+                owner_id=self.owner_id,
                 analysis_model=analysis,
             )
 
@@ -307,6 +313,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
                 "What is dataflow?",
                 ConversationState(conversation_id="old", book_id=99),
                 database_url=self.database_url,
+                owner_id=self.owner_id,
                 book_id=self.book_id,
                 analysis_model=analysis,
             )
@@ -326,6 +333,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
                 "metadata": {"thread_id": "conversation-1"},
             },
             context=StudyGraphContext(
+                owner_id=self.owner_id,
                 database_url=self.database_url,
                 retrieval_mode="bm25",
             ),
