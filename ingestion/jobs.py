@@ -731,6 +731,51 @@ def record_progress(
     )
 
 
+def set_stage(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    job_id: str | UUID,
+    current_status: Status,
+    stage: Stage,
+    provenance: dict[str, Any] | None = None,
+    **columns: Any,
+) -> IngestionJob:
+    """Move within a status, for stages that share one lifecycle state.
+
+    Validation covers verifying the upload, downloading it, and preflight.
+    Those are separate units of work but one lifecycle state, so this records
+    the stage without pretending a status transition happened.
+    """
+
+    owner = parse_owner_id(owner_id)
+    identifier = UUID(str(job_id))
+    assignments = ["stage = %s"]
+    parameters: list[Any] = [str(stage)]
+
+    if provenance:
+        assignments.append("provenance_json = provenance_json || %s")
+        parameters.append(Jsonb(provenance))
+    for column, value in columns.items():
+        assignments.append(f"{column} = %s")
+        parameters.append(value)
+
+    row = connection.execute(
+        f"""
+        update ingestion_jobs
+        set {", ".join(assignments)}
+        where id = %s and owner_id = %s and status = %s
+        returning {COLUMNS}
+        """,
+        (*parameters, identifier, owner, str(current_status)),
+    ).fetchone()
+    if row is None:
+        raise JobConflictError(
+            f"ingestion job {identifier} was not in status {current_status}"
+        )
+    return IngestionJob.from_row(row)
+
+
 def advance_stage(
     connection: Connection,
     *,

@@ -77,17 +77,32 @@ PIPELINE: tuple[tuple[Status, Stage], ...] = (
 
 # Any processing status may fail, be scheduled for retry, or be cancelled at a
 # safe boundary, so those edges are added to every processing state below.
-_INTERRUPTIONS = frozenset({Status.FAILED, Status.RETRY_SCHEDULED, Status.CANCELLED})
+# ``validating`` is included as well: a resumed attempt whose earlier work is
+# not recoverable restarts from the beginning rather than continuing on top of
+# state it cannot verify.
+_INTERRUPTIONS = frozenset(
+    {
+        Status.FAILED,
+        Status.RETRY_SCHEDULED,
+        Status.CANCELLED,
+        Status.VALIDATING,
+    }
+)
 
 _ALLOWED: dict[Status, frozenset[Status]] = {
     Status.AWAITING_UPLOAD: frozenset({Status.QUEUED, Status.CANCELLED, Status.FAILED}),
     Status.QUEUED: frozenset({Status.VALIDATING, Status.CANCELLED, Status.FAILED}),
-    Status.VALIDATING: frozenset({Status.PARSING, Status.READY}) | _INTERRUPTIONS,
+    Status.VALIDATING: frozenset({Status.PARSING, Status.READY})
+    | (_INTERRUPTIONS - {Status.VALIDATING}),
     Status.PARSING: frozenset({Status.PERSISTING}) | _INTERRUPTIONS,
     Status.PERSISTING: frozenset({Status.CHUNKING}) | _INTERRUPTIONS,
     Status.CHUNKING: frozenset({Status.EMBEDDING}) | _INTERRUPTIONS,
-    Status.EMBEDDING: frozenset({Status.VERIFYING}) | _INTERRUPTIONS,
-    Status.VERIFYING: frozenset({Status.READY}) | _INTERRUPTIONS,
+    # Chunks and embeddings are derived data and always rebuildable, so a
+    # resumed attempt may drop back to rebuild them rather than trust partial
+    # output it cannot verify. Canonical content is never re-entered this way.
+    Status.EMBEDDING: frozenset({Status.VERIFYING, Status.CHUNKING})
+    | _INTERRUPTIONS,
+    Status.VERIFYING: frozenset({Status.READY, Status.CHUNKING}) | _INTERRUPTIONS,
     # A scheduled retry resumes at whichever stage failed, so it may re-enter
     # any processing status directly.
     Status.RETRY_SCHEDULED: frozenset(PROCESSING_STATUSES)

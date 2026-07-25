@@ -24,6 +24,21 @@ services:
       retries: 6
       start_period: 20s
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "worker.main"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
+      SUPABASE_URL: ${DOCKER_SUPABASE_URL:-${SUPABASE_URL:-http://host.docker.internal:54321}}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # No published port: the worker polls Postgres and serves no traffic.
+    restart: unless-stopped
+
   web:
     build:
       context: frontend

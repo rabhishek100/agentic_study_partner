@@ -306,6 +306,93 @@ def mark_book_ready(
             raise KeyError(f"book {book_id} does not exist")
 
 
+def ready_book_by_hash(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    file_hash: str,
+) -> dict[str, Any] | None:
+    """Find this owner's existing ready book for a source hash.
+
+    Duplicate detection is owner-scoped on purpose: one user must not be able
+    to learn that another user uploaded the same file.
+    """
+
+    return connection.execute(
+        """
+        select id, title, ready_at from books
+        where owner_id = %s and file_hash = %s and status = 'ready'
+        """,
+        (parse_owner_id(owner_id), file_hash.casefold()),
+    ).fetchone()
+
+
+def book_for_job(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    ingestion_job_id: str | UUID,
+) -> dict[str, Any] | None:
+    """Find the book a previous attempt of this job already committed.
+
+    Canonical ingestion is one transaction, so a book row existing means the
+    whole import succeeded. A resumed attempt reuses it instead of importing
+    the same content twice.
+    """
+
+    return connection.execute(
+        """
+        select id, status, file_hash, parser_version, page_count
+        from books
+        where owner_id = %s and ingestion_job_id = %s
+        """,
+        (parse_owner_id(owner_id), UUID(str(ingestion_job_id))),
+    ).fetchone()
+
+
+def delete_book(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> bool:
+    """Remove a book and every row that cascades from it."""
+
+    return bool(
+        connection.execute(
+            "delete from books where id = %s and owner_id = %s",
+            (book_id, parse_owner_id(owner_id)),
+        ).rowcount
+    )
+
+
+def canonical_counts(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> dict[str, int]:
+    """Count the canonical rows stored for one book."""
+
+    owner = parse_owner_id(owner_id)
+    return dict(
+        connection.execute(
+            """
+            select
+                (select count(*) from nodes
+                 where book_id = %s and owner_id = %s) as nodes,
+                (select count(*) from content_blocks
+                 where book_id = %s and owner_id = %s) as blocks,
+                (select count(*) from table_blocks
+                 where book_id = %s and owner_id = %s) as tables,
+                (select count(*) from image_blocks
+                 where book_id = %s and owner_id = %s) as images
+            """,
+            (book_id, owner) * 4,
+        ).fetchone()
+    )
+
+
 def list_books(
     connection: Connection,
     *,

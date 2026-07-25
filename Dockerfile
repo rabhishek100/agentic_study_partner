@@ -21,15 +21,20 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api ./api
+COPY ingestion ./ingestion
 COPY parsing ./parsing
 COPY retrieval/__init__.py retrieval/chunking.py retrieval/langchain.py \
     retrieval/models.py retrieval/postgres.py retrieval/reranker.py \
     retrieval/search.py retrieval/vector.py ./retrieval/
 COPY storage/__init__.py storage/database.py storage/postgres.py ./storage/
 COPY study ./study
+COPY worker ./worker
 
 ENV PATH="/app/.venv/bin:$PATH"
 
+# The API and the worker share one image and differ only by command. Splitting
+# them into a slim API image and a parser/OCR worker image is deferred to the
+# deployment-hardening phase, where the Railway services are configured.
 EXPOSE 8000
 
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

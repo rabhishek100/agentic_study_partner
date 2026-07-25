@@ -5,11 +5,13 @@ a lossless hierarchical model, stores canonical and rebuildable retrieval data
 in Supabase Postgres, and uses an inspectable LangGraph workflow to produce
 grounded answers and complete-scope summaries with citations.
 
-The backend currently runs in **bootstrap single-user mode**. It scopes every
-query by `DEFAULT_OWNER_ID`, but the Next.js Auth flow and cross-user isolation
-tests are intentionally deferred. See
-[`docs/supabase-migration-plan.md`](docs/supabase-migration-plan.md) for the
-cutover plan and the exact deferred work.
+The backend is **multi-user**. Every request derives its owner from a verified
+Supabase access token, and an asynchronous worker ingests uploaded PDFs without
+holding a request open. The browser upload and sign-in UI is still in progress;
+until it lands, the API is exercised through tokens directly. See
+[`docs/book-ingestion-service.md`](docs/book-ingestion-service.md) for the
+service design and [`docs/supabase-migration-plan.md`](docs/supabase-migration-plan.md)
+for the database cutover history.
 
 ## Architecture
 
@@ -41,8 +43,13 @@ The source/derived boundary is unchanged:
 
 Important modules:
 
-- `storage/postgres.py`: canonical validation, ingestion, and restoration.
-- `storage/database.py`: pooled Postgres connections and bootstrap owner.
+- `storage/postgres.py`: canonical validation, ingestion, restoration, and
+  book readiness.
+- `storage/database.py`: pooled Postgres connections and owner validation.
+- `api/auth.py`: Supabase token verification and request-derived ownership.
+- `ingestion/`: limits, job state machine, retry policy, durable queue, PDF
+  preflight, and the ingestion pipeline.
+- `worker/main.py`: the lease-based ingestion worker.
 - `retrieval/postgres.py`: deterministic chunk builds and full-text search.
 - `retrieval/vector.py`: provenance-checked pgvector synchronization and exact
   cosine search.
@@ -78,8 +85,15 @@ The defaults in `.env.example` match the Supabase CLI database:
 
 ```text
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+SUPABASE_URL=http://127.0.0.1:54321
 DEFAULT_OWNER_ID=00000000-0000-4000-8000-000000000001
 ```
+
+`SUPABASE_URL` is the issuer the API verifies access tokens against and the
+Storage endpoint the API and worker use with `SUPABASE_SERVICE_ROLE_KEY`.
+`DEFAULT_OWNER_ID` is now used only by local CLI and evaluation commands;
+request handlers derive the owner from the verified token subject and never
+read it.
 
 For hosted Supabase, use the pooled application connection as `DATABASE_URL`
 and the direct connection as `MIGRATION_DATABASE_URL`. Do not expose either
@@ -95,6 +109,52 @@ uv run python -m scripts.import_book
 The parser cache is rebuildable from the source PDF. Canonical content lives
 in Postgres after import; the retired SQLite migration path and local vector
 store are no longer part of the repository or runtime.
+
+## Upload a book through the ingestion service
+
+This is the multi-user path. An authenticated user reserves a job, uploads
+directly to private Storage, and the worker does the rest outside the request:
+
+```text
+POST /api/ingestions            reserve {owner_id}/{job_id}/original.pdf
+  -> upload to private Storage  resumable, 50 MiB and application/pdf only
+POST /api/ingestions/{id}/complete   verify the stored object, queue the job
+GET  /api/ingestions/{id}       durable status while the worker runs
+GET  /api/books                 the book appears only after verification
+```
+
+`POST /api/ingestions` requires an `Idempotency-Key` header, so a retried
+request returns the original job instead of reserving a second upload path.
+Cancel and retry live at `/api/ingestions/{id}/cancel` and `/retry`; retry is
+allowed only for a failure the worker marked retryable.
+
+Run the worker alongside the API:
+
+```bash
+uv run python -m worker.main
+```
+
+It claims one job at a time with `FOR UPDATE SKIP LOCKED`, holds a lease it
+renews while working, and stops at a safe boundary on `SIGTERM`. A crashed
+attempt is reclaimed once its lease expires and resumes from the canonical
+import when one committed. Use `--once` to process a single job and exit.
+
+The first release accepts digital PDFs with embedded text and an embedded
+table of contents. Scanned, mixed, and outline-less PDFs are classified and
+refused with a specific reason rather than guessed at, because OCR alone
+cannot establish trustworthy chapter boundaries.
+
+Current limits, all configurable:
+
+| Limit | Value |
+|---|---:|
+| Source object size | 50 MiB |
+| PDF pages | 400 |
+| Pending jobs per user | 3 |
+| Worker concurrency | 1 |
+
+The page cap stays below the 1,000-page design target until page-batched
+parsing and its benchmarks land.
 
 ## Build retrieval data
 
@@ -197,13 +257,20 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. The browser calls Next.js `/api`, which forwards
-to FastAPI at `http://localhost:8000`. The interface remains intentionally
-single-user until the deferred Supabase Auth stage is implemented.
+to FastAPI at `http://localhost:8000`. The sign-in and upload interface is
+still in progress, so the browser client cannot yet authenticate.
 
-The API exposes `GET /api/health` and `POST /api/chat`. Health returns 503 when
-the canonical schema, pgvector schema, or configured embedding provenance is
-not ready. Every study turn and LLM call can be traced in LangSmith when the
-standard LangSmith environment variables are configured.
+The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
+`POST /api/chat/stream`, and the `/api/ingestions` lifecycle. Everything except
+health requires a Supabase bearer token.
+
+Health reports infrastructure readiness only: it returns 503 when the canonical
+or retrieval schema is missing, and stays healthy while a book is being
+ingested. Per-book completeness is reported per book by `GET /api/books`.
+
+Every study turn and LLM call can be traced in LangSmith when the standard
+LangSmith environment variables are configured. LangSmith is not used as the
+ingestion job database; Postgres is.
 
 ## Verification
 
@@ -228,15 +295,22 @@ requests. Postgres integration tests require the local Supabase stack.
 
 ## Docker
 
-Start Supabase on the host first, then run the API and frontend containers:
+Start Supabase on the host first, then run the API, worker, and frontend
+containers:
 
 ```bash
 npx --yes supabase@2.109.1 start
 docker compose up --build
 ```
 
-For local Supabase, the API container reaches the host database through
-`DOCKER_DATABASE_URL`. When that override is absent, Compose uses
-`DATABASE_URL`, so the same image can connect directly to hosted Supabase;
-unset `DOCKER_DATABASE_URL` in that case. The API container has no local
-database volume; canonical and derived retrieval data live in Postgres.
+For local Supabase, the containers reach the host database and Storage through
+`DOCKER_DATABASE_URL` and `DOCKER_SUPABASE_URL`. When those overrides are
+absent, Compose uses `DATABASE_URL` and `SUPABASE_URL`, so the same image can
+connect directly to hosted Supabase; unset the overrides in that case.
+
+The API and worker share one image and differ only by command: the worker runs
+`python -m worker.main` and publishes no port. Splitting them into a slim API
+image without the parser toolchain is deferred to deployment hardening. Neither
+container keeps a local database volume, and the worker's filesystem is
+disposable: the source PDF and job state both live in managed storage, so
+losing the container costs one attempt rather than a book.

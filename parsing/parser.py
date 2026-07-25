@@ -73,7 +73,11 @@ def extract_elements(
         extract_image_block_to_payload=True,
     )
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    elements_to_json(elements, filename=str(cache_path))
+    # Write through a sibling and rename, so a process killed mid-write leaves
+    # no truncated cache that a later run would mistake for a complete parse.
+    partial_path = cache_path.with_name(cache_path.name + ".partial")
+    elements_to_json(elements, filename=str(partial_path))
+    partial_path.replace(cache_path)
     return elements
 
 

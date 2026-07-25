@@ -25,6 +25,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
           DEFAULT_OWNER_ID: 00000000-0000-4000-8000-000000000001
+          # Local Supabase CLI development credentials, not secrets. Without
+          # these the Storage-backed ingestion tests skip instead of running.
+          SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
         run: uv run python -m unittest discover -s tests -v
       - name: Stop local Supabase
         if: always()
@@ -59,9 +63,34 @@ jobs:
         run: >-
           docker run --rm agentic-study-partner-api:ci python -c
           'from importlib.util import find_spec; from shutil import which;
-          import api.main, parsing.parser, retrieval.vector, storage.postgres;
+          import api.main, api.ingestions, parsing.parser, retrieval.vector,
+          storage.postgres, worker.main;
           assert which("pdftoppm") is not None;
           assert which("tesseract") is not None;
           assert find_spec("gradio") is None;
           assert find_spec("retrieval.sqlite") is None;
           assert find_spec("storage.sqlite") is None'
+      - name: Parse a real PDF inside the worker image
+        run: >-
+          docker run --rm agentic-study-partner-api:ci python -c
+          'import fitz, tempfile;
+          from pathlib import Path;
+          from ingestion.config import IngestionLimits;
+          from ingestion.preflight import preflight;
+          from parsing.parser import parse_book;
+          directory = Path(tempfile.mkdtemp());
+          source = directory / "smoke.pdf";
+          document = fitz.open();
+          page = document.new_page();
+          page.insert_text((72, 96), "Monitoring input distributions detects "
+          "training-serving skew before accuracy degrades.", fontsize=11);
+          document.set_toc([[1, "Chapter 1", 1]]);
+          document.save(str(source));
+          document.close();
+          report = preflight(source, limits=IngestionLimits());
+          assert report.document_class == "structured_digital", report.document_class;
+          book = parse_book(source, force=True,
+          book_cache=directory / "b.json", elements_cache=directory / "e.json");
+          assert len(book.sections) == 1, book.sections;
+          assert book.sections[0].full_text.strip(), "no text extracted";
+          print("worker parse smoke test passed")'
