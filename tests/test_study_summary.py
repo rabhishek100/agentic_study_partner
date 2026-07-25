@@ -423,6 +423,45 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             )
         self.assertIsNone(model.messages)
 
+    def test_outline_of_a_chapter_without_subsections_says_so(self) -> None:
+        """A flat embedded outline lists chapters only.
+
+        Regression: the outline rendered a bare "Sections:" heading over an
+        empty list for such a chapter instead of telling the reader there is
+        nothing to list.
+        """
+
+        from study.scope import ResolvedScope, ScopeNode
+
+        chapter = ScopeNode(
+            id=1,
+            book_id=1,
+            parent_id=None,
+            toc_index=0,
+            level=1,
+            node_type="chapter",
+            title="CHAPTER 1: SCALE FROM ZERO TO MILLIONS OF USERS",
+            path_text="CHAPTER 1: SCALE FROM ZERO TO MILLIONS OF USERS",
+            start_page=5,
+            end_page=33,
+        )
+        scope = ResolvedScope(
+            kind="chapter",
+            book_id=1,
+            book_title="System Design Interview",
+            root_node_id=1,
+            display_path=chapter.path_text,
+            start_page=5,
+            end_page=33,
+            nodes=(chapter,),
+        )
+
+        outline = format_outline(scope)
+
+        self.assertNotIn("Sections:", outline)
+        self.assertIn("lists no subsections", outline)
+        self.assertIn("summary", outline)
+
     def test_outline_and_dry_run_are_inspectable(self) -> None:
         scope, context = self._chapter_context()
         outline = format_outline(scope)

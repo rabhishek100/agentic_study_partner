@@ -12,10 +12,22 @@ def format_outline(scope: ResolvedScope) -> str:
         f"Book: {scope.book_title}",
         f"PDF pages: {scope.start_page}–{scope.end_page}",
         "",
-        "Sections:",
     ]
+    descendants = scope.nodes[1:]
+    if not descendants:
+        # Books with a flat embedded outline list chapters only, so a chapter
+        # can legitimately own no subsections. Say so instead of rendering an
+        # empty list under a bare heading.
+        lines.append(
+            "This book's table of contents lists no subsections under "
+            f"{scope.nodes[0].title}. You can still ask questions about it or "
+            "request a summary."
+        )
+        return "\n".join(lines)
+
+    lines.append("Sections:")
     root_level = scope.nodes[0].level
-    for node in scope.nodes[1:]:
+    for node in descendants:
         indent = "  " * max(0, node.level - root_level - 1)
         pages = (
             str(node.start_page)
