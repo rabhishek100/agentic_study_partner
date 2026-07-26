@@ -444,12 +444,32 @@ def _ingest_source(
     # half a gigabyte of resident memory that an idle worker should not hold.
     from parsing.parser import parse_book
 
+    def report_batch(completed: int, total: int) -> None:
+        """Publish real page progress as each batch of pages finishes."""
+
+        pages_done = min(report.page_count, round(report.page_count * completed / total))
+        try:
+            with _database(database_url) as progress_connection:
+                record_progress(
+                    progress_connection,
+                    owner_id=owner_id,
+                    job_id=job.id,
+                    completed=pages_done,
+                    total=report.page_count,
+                    unit="pages",
+                )
+        except Exception:
+            # Progress is a convenience; losing an update must not fail a
+            # parse that is otherwise going fine.
+            logger.warning("could not record parse progress", exc_info=True)
+
     try:
         book = parse_book(
             source,
             force=True,
             book_cache=work_dir / PARSED_BOOK_CACHE,
             elements_cache=work_dir / ELEMENTS_CACHE,
+            on_batch=report_batch,
         )
     except IngestionError:
         raise
