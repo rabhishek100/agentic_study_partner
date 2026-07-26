@@ -1,5 +1,7 @@
 """Parse a PDF into the TOC-aligned models defined in ``models.py``."""
 
+import os
+import tempfile
 from pathlib import Path
 
 import fitz
@@ -15,6 +17,8 @@ __all__ = [
     "PARSER_VERSION",
     "build_sections",
     "extract_elements",
+    "extract_selective",
+    "pages_needing_layout",
     "extract_toc",
     "load_parsed_book",
     "parse_book",
@@ -64,9 +68,113 @@ def build_sections(toc: list[tuple[int, str, int]], page_count: int) -> list[Sec
     return sections
 
 
+def pages_needing_layout(pdf_path: str | Path) -> list[int]:
+    """Zero-based pages that hold an embedded image or a detectable table.
+
+    Only these pages need the layout model. Pages of plain prose carry their
+    text in the PDF already, and rendering them to pixels to rediscover it is
+    the bulk of a long parse.
+
+    Detection is deliberately biased towards including a page: an unreadable
+    page, or one whose table detection raises, is treated as needing layout.
+    Extracting a page twice costs seconds; missing a table loses content the
+    canonical store is supposed to hold losslessly.
+    """
+
+    rich: list[int] = []
+    with fitz.open(pdf_path) as document:
+        for index, page in enumerate(document):
+            try:
+                if page.get_images():
+                    rich.append(index)
+                    continue
+                if page.find_tables().tables:
+                    rich.append(index)
+            except Exception:
+                rich.append(index)
+    return rich
+
+
+def _subset(pdf_path: str | Path, pages: list[int], destination: Path) -> Path:
+    """Write the given pages, in order, into their own PDF."""
+
+    with fitz.open(pdf_path) as document:
+        subset = fitz.open()
+        for page in pages:
+            subset.insert_pdf(document, from_page=page, to_page=page)
+        subset.save(str(destination))
+        subset.close()
+    return destination
+
+
+def _restore_page_numbers(elements, pages: list[int]) -> list:
+    """Rewrite subset page numbers back to the original document's numbering.
+
+    Chunks cite page numbers, so a page that survives extraction with the
+    wrong number is worse than one that fails loudly.
+    """
+
+    restored = []
+    for element in elements:
+        number = element.metadata.page_number
+        if number is None or not 1 <= number <= len(pages):
+            raise ValueError(
+                f"extracted element reports page {number} outside the "
+                f"{len(pages)}-page subset it came from"
+            )
+        element.metadata.page_number = pages[number - 1] + 1
+        restored.append(element)
+    return restored
+
+
+def _partition(path: Path, strategy: str):
+    options: dict = {"filename": str(path), "strategy": strategy}
+    if strategy == "hi_res":
+        options.update(
+            infer_table_structure=True,
+            extract_image_block_types=["Image"],
+            extract_image_block_to_payload=True,
+        )
+    return partition_pdf(**options)
+
+
+def extract_selective(pdf_path: str | Path):
+    """Extract with the layout model only where it is needed.
+
+    Pages holding images or tables go through ``hi_res``; the rest go through
+    the text-only parser, which is roughly fifty times quicker. Every element
+    is mapped back to its original page and the two sets are merged in page
+    order, so the result is indistinguishable downstream from a whole-document
+    ``hi_res`` parse.
+    """
+
+    with fitz.open(pdf_path) as document:
+        total = document.page_count
+    rich = pages_needing_layout(pdf_path)
+    plain = [page for page in range(total) if page not in set(rich)]
+
+    if not plain:
+        # Nothing to save; avoid the copy and parse the original directly.
+        return _partition(Path(pdf_path), "hi_res")
+
+    elements = []
+    with tempfile.TemporaryDirectory(prefix="selective-extract-") as directory:
+        workspace = Path(directory)
+        for pages, strategy in ((rich, "hi_res"), (plain, "fast")):
+            if not pages:
+                continue
+            subset = _subset(pdf_path, pages, workspace / f"{strategy}.pdf")
+            elements.extend(_restore_page_numbers(_partition(subset, strategy), pages))
+
+    # Stable sort keeps each page's reading order as its parser produced it.
+    elements.sort(key=lambda element: element.metadata.page_number)
+    return elements
+
+
 def extract_elements(
     pdf_path: str | Path,
     cache_path: str | Path = ELEMENTS_CACHE,
+    selective: bool | None = None,
 ):
     """Run the expensive layout parser once, then reuse its JSON cache."""
 
@@ -74,12 +182,12 @@ def extract_elements(
     if cache_path.exists():
         return elements_from_json(filename=str(cache_path))
 
-    elements = partition_pdf(
-        filename=str(pdf_path),
-        strategy="hi_res",
-        infer_table_structure=True,
-        extract_image_block_types=["Image"],
-        extract_image_block_to_payload=True,
+    if selective is None:
+        selective = os.getenv("PARSER_SELECTIVE_LAYOUT", "1").strip() != "0"
+    elements = (
+        extract_selective(pdf_path)
+        if selective
+        else _partition(Path(pdf_path), "hi_res")
     )
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     # Write through a sibling and rename, so a process killed mid-write leaves
