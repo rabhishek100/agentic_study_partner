@@ -283,11 +283,19 @@ class SafeMessageTests(unittest.TestCase):
 
 
 class LimitTests(unittest.TestCase):
-    def test_defaults_stay_below_the_unproven_page_target(self):
+    def test_defaults_match_the_design_target(self):
+        """The page cap reached 1,000 only once batched parsing was measured.
+
+        It sat at 400 while parsing held a whole document in memory, which
+        cost one production worker an OOM kill. Batches bound per-process
+        memory, so the target is now supportable; docs/parser-performance.md
+        carries the numbers.
+        """
+
         limits = IngestionLimits()
 
         self.assertEqual(limits.max_source_bytes, 52_428_800)
-        self.assertLess(limits.max_pages, 1000)
+        self.assertEqual(limits.max_pages, 1000)
         self.assertEqual(limits.allowed_content_types, ("application/pdf",))
 
     def test_storage_paths_are_owner_scoped_and_fixed(self):

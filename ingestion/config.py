@@ -12,9 +12,11 @@ import os
 
 DEFAULT_SOURCE_BUCKET = "book-sources"
 DEFAULT_MAX_SOURCE_BYTES = 52_428_800  # 50 MiB
-# Below the 1,000-page target on purpose: that claim needs batched parsing and
-# measured worker resources, which are a later delivery phase.
-DEFAULT_MAX_PAGES = 400
+# The design target, reachable now that parsing runs as bounded page batches
+# across a process pool: each batch holds a fixed slice of the document, so
+# parse memory no longer grows with book length. docs/parser-performance.md
+# records the measurements behind this.
+DEFAULT_MAX_PAGES = 1000
 DEFAULT_MAX_QUEUED_JOBS_PER_OWNER = 3
 DEFAULT_ALLOWED_CONTENT_TYPES = ("application/pdf",)
 DEFAULT_LEASE_SECONDS = 300

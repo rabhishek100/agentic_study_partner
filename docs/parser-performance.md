@@ -60,24 +60,39 @@ uv run python -m scripts.compare_extraction sources/books/<book>.pdf
 
 It exits non-zero if tables, images, or text regress.
 
-## What is left
+## Adopted: page-batched parallel extraction
 
-The safe way to speed this up is to run the *same* parser concurrently rather
-than to run less of it. Page-batched extraction with a process pool is
-lossless by construction: every page still goes through `hi_res`.
+Running the *same* parser concurrently is lossless by construction: every
+page still goes through `hi_res`, so only the scheduling changes.
 
-Measured on a laptop, four processes over 24 pages gave only 1.34x, because
-each process reloads the model (~20s) and the machine's four performance
-cores were already saturated by ONNX. Both costs amortise better on a longer
-book and on a machine with more headroom: the deployed worker averaged 1.37
-of its 8 vCPU during a real parse. That needs measuring on the worker itself
-before any number is promised.
+Measured on the deployed worker over 24 pages of a real book:
 
-Page batching is also what the ingestion design already wants for other
-reasons: bounded memory, per-batch checkpoints, and real per-page progress
-instead of a stage that reports nothing for twenty-five minutes.
-`parsing.parser._subset` and `_restore_page_numbers` exist for this, with
-tests, and are what a batched implementation would build on.
+| | Time | Per page | Elements | Speedup |
+|---|---:|---:|---:|---:|
+| serial | 96.7s | 4.03s | 257 | 1.00x |
+| parallel(2) | 46.1s | 1.92s | 257 | 2.10x |
+| parallel(4) | 24.7s | 1.03s | 257 | 3.92x |
+| parallel(6) | 16.8s | 0.70s | 257 | 5.76x |
+
+A laptop had said 1.34x, because its four performance cores were already
+saturated by ONNX. Measuring on the hardware that does the work was the
+difference between rejecting this and adopting it.
+
+The whole-book run matched the reference parse exactly: 177 sections, 4,201
+blocks, 32 tables, 119 images, 821,672 characters, every delta zero.
+
+Four workers is the default rather than six. Each process holds its own copy
+of the layout model at roughly 1.2 GB, measured flat across successive
+batches, so a long book peaks near 5.3 GB of the worker's 8 GB during
+parsing. Assembly happens after the pool closes and costs far less: 569 MB
+for a 200-page document.
+
+## Page limit
+
+The cap was 400 while parsing held a whole document in memory. Batches bound
+per-process memory, so it is now 1,000, the original design target. A
+1,000-page book projects to roughly 17 minutes on the worker at 4 workers,
+and 40-100 MB of database rows depending on how many images it carries.
 
 ## Also measured, and not worth it
 

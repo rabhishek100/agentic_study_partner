@@ -149,12 +149,11 @@ Current limits, all configurable:
 | Limit | Value |
 |---|---:|
 | Source object size | 50 MiB |
-| PDF pages | 400 |
+| PDF pages | 1,000 |
 | Pending jobs per user | 3 |
 | Worker concurrency | 1 |
 
-The page cap stays below the 1,000-page design target until page-batched
-parsing and its benchmarks land.
+
 
 ## Build retrieval data
 

@@ -25,7 +25,7 @@ owner-scoped policies are applied, and the existing book is backfilled as
 `ready` with 332/332 compatible embeddings. Canonical row counts were
 unchanged by the migration.
 
-Railway services are not created yet.
+All three services are deployed and verified end to end.
 
 ## Connection choice
 
@@ -78,7 +78,7 @@ Everything the api has except `PORT` and `CORS_ALLOWED_ORIGINS`, plus:
 
 | Variable | Value |
 |---|---|
-| `INGESTION_MAX_PAGES` | `400` until batched parsing lands |
+| `INGESTION_MAX_PAGES` | `1000` |
 | `INGESTION_MAX_SOURCE_BYTES` | `52428800` |
 | `INGESTION_MAX_QUEUED_JOBS_PER_OWNER` | `3` |
 | `INGESTION_LEASE_SECONDS` | `300` |
@@ -117,8 +117,10 @@ Measured on this codebase:
 |---|---|
 | Worker idle RSS, parser imported eagerly | 571 MB |
 | Worker idle RSS, parser imported lazily (current) | 86 MB |
-| Peak RSS parsing 41 dense pages with `hi_res` | 1,081 MB |
-| `hi_res` parse rate | ~3.7 s/page |
+| Peak RSS per parse process, steady across batches | 1,232 MB |
+| `hi_res` parse rate, serial, on the worker | 4.03 s/page |
+| ...across four processes | 1.03 s/page (3.92x) |
+| ...across six processes | 0.70 s/page (5.76x) |
 
 The worker therefore defers `parsing.parser` until a document is actually
 being parsed (`parsing.version` carries the version constant so provenance
@@ -128,8 +130,10 @@ is not.
 
 Starting points, to tighten from Railway's metrics:
 
-- **worker**: 2 GB limit. Idle consumption is ~86 MB; a large book peaks
-  above 1 GB while parsing. A 269-page book took about 16 minutes.
+- **worker**: 8 GB limit. Idle consumption is ~86 MB. Parsing runs four
+  processes by default and each holds its own copy of the layout model at
+  roughly 1.2 GB, so a long book peaks near 5 GB. Four rather than the
+  fastest-measured six leaves headroom; `PARSER_WORKERS` tunes it.
 - **api**: 512 MB. It never parses.
 - **web**: 512 MB.
 
