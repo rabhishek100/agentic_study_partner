@@ -24,6 +24,9 @@ __all__ = [
     "parse_book",
 ]
 
+# A page whose only vector content is a rule or underline is not a table.
+MINIMUM_DRAWINGS = 4
+
 CACHE_DIR = Path("cache")
 ELEMENTS_CACHE = CACHE_DIR / "elements.json"
 BOOK_CACHE = CACHE_DIR / "parsed_book.json"
@@ -90,6 +93,13 @@ def pages_needing_layout(pdf_path: str | Path) -> list[int]:
                     continue
                 if page.find_tables().tables:
                     rich.append(index)
+                    continue
+                # Vector drawings catch what the two detectors above miss:
+                # borderless tables and diagrams drawn as paths rather than
+                # embedded rasters. The threshold ignores a page whose only
+                # drawing is a header rule or an underline.
+                if len(page.get_drawings()) >= MINIMUM_DRAWINGS:
+                    rich.append(index)
             except Exception:
                 rich.append(index)
     return rich
@@ -142,10 +152,13 @@ def extract_selective(pdf_path: str | Path):
     """Extract with the layout model only where it is needed.
 
     Pages holding images or tables go through ``hi_res``; the rest go through
-    the text-only parser, which is roughly fifty times quicker. Every element
-    is mapped back to its original page and the two sets are merged in page
-    order, so the result is indistinguishable downstream from a whole-document
-    ``hi_res`` parse.
+    the text-only parser, which is roughly fifty times quicker.
+
+    Opt-in only, and unsafe for a document whose tables matter: measured
+    against a full parse of the reference book this is 2.3x quicker but finds
+    24 of its 32 tables, because borderless tables are visible to the layout
+    model and to no cheap detector. ``docs/parser-performance.md`` records the
+    comparison. Use it for a document known to have no tables, or not at all.
     """
 
     with fitz.open(pdf_path) as document:
@@ -183,7 +196,12 @@ def extract_elements(
         return elements_from_json(filename=str(cache_path))
 
     if selective is None:
-        selective = os.getenv("PARSER_SELECTIVE_LAYOUT", "1").strip() != "0"
+        # Off by default. Whole-book validation on the reference book found
+        # selective extraction still misses 8 of 32 tables even with vector
+        # drawings included: hi_res finds borderless tables visually and no
+        # cheap classifier predicts that. Losing a quarter of a book's tables
+        # is not a trade worth 2.3x. See docs/parser-performance.md.
+        selective = os.getenv("PARSER_SELECTIVE_LAYOUT", "0").strip() == "1"
     elements = (
         extract_selective(pdf_path)
         if selective
