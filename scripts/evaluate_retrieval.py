@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+from uuid import UUID
 
 from dotenv import load_dotenv
 
@@ -17,7 +18,11 @@ from retrieval.vector import (
     DEFAULT_EMBEDDING_MODEL,
     build_embedder,
 )
-from storage.database import connection as database_connection, resolve_owner_id
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 
 
 RETRIEVAL_MODES: tuple[RetrievalMode, ...] = (
@@ -93,6 +98,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
             "(defaults to OPENROUTER_EMBEDDING_MODEL, then "
             f"{DEFAULT_EMBEDDING_MODEL}). Must match stored vectors."
         ),
+    )
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
     )
     return parser
 
@@ -273,12 +282,13 @@ def evaluate(
     database_url: str | None,
     gold_set: Path,
     *,
+    owner_id: str | UUID,
     modes: tuple[RetrievalMode, ...] = RETRIEVAL_MODES,
     reranker_spec: str | None = None,
     embedder_spec: str | None = None,
 ) -> dict:
     gold = json.loads(gold_set.read_text(encoding="utf-8"))
-    owner = resolve_owner_id()
+    owner = parse_owner_id(owner_id)
     with database_connection(database_url, readonly=True) as connection:
         build = connection.execute(
             """
@@ -329,9 +339,13 @@ def evaluate(
 def main() -> None:
     load_dotenv()
     args = build_argument_parser().parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     result = evaluate(
         args.database_url,
         args.gold_set,
+        owner_id=owner_id,
         modes=tuple(args.modes),
         reranker_spec=args.reranker_model,
         embedder_spec=args.embedding_model,

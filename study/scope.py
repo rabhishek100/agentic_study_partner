@@ -3,10 +3,11 @@
 from dataclasses import dataclass
 import re
 from typing import Any, Literal
+from uuid import UUID
 
 from psycopg import Connection
 
-from storage.database import resolve_owner_id
+from storage.database import parse_owner_id
 
 
 ScopeKind = Literal["book", "chapter", "section"]
@@ -127,18 +128,18 @@ def _candidate(row: Any) -> ScopeMatch:
 def _book_rows(
     connection: Connection,
     *,
+    owner_id: UUID,
     book_id: int | None,
 ) -> list[Any]:
-    owner = resolve_owner_id()
     if book_id is None:
         rows = connection.execute(
             "select * from books where owner_id = %s order by id",
-            (owner,),
+            (owner_id,),
         ).fetchall()
     else:
         rows = connection.execute(
             "select * from books where id = %s and owner_id = %s",
-            (book_id, owner),
+            (book_id, owner_id),
         ).fetchall()
     if not rows:
         raise ScopeNotFoundError("book", book_id)
@@ -159,6 +160,8 @@ def _book_candidate(row: Any) -> ScopeMatch:
 def _all_book_nodes(
     connection: Connection,
     book_id: int,
+    *,
+    owner_id: UUID,
 ) -> tuple[ScopeNode, ...]:
     rows = connection.execute(
         """
@@ -166,7 +169,7 @@ def _all_book_nodes(
         where book_id = %s and owner_id = %s
         order by toc_index
         """,
-        (book_id, resolve_owner_id()),
+        (book_id, owner_id),
     ).fetchall()
     return tuple(_node(row) for row in rows)
 
@@ -174,6 +177,8 @@ def _all_book_nodes(
 def _subtree_nodes(
     connection: Connection,
     node_id: int,
+    *,
+    owner_id: UUID,
 ) -> tuple[ScopeNode, ...]:
     rows = connection.execute(
         """
@@ -194,7 +199,7 @@ def _subtree_nodes(
         FROM subtree
         ORDER BY toc_index
         """,
-        (node_id, resolve_owner_id()),
+        (node_id, owner_id),
     ).fetchall()
     return tuple(_node(row) for row in rows)
 
@@ -203,9 +208,10 @@ def _resolved_node(
     connection: Connection,
     row: Any,
     *,
+    owner_id: UUID,
     kind: Literal["chapter", "section"],
 ) -> ResolvedScope:
-    nodes = _subtree_nodes(connection, row["id"])
+    nodes = _subtree_nodes(connection, row["id"], owner_id=owner_id)
     return ResolvedScope(
         kind=kind,
         book_id=row["book_id"],
@@ -222,11 +228,13 @@ def resolve_book(
     connection: Connection,
     reference: str | None = None,
     *,
+    owner_id: str | UUID,
     book_id: int | None = None,
 ) -> ResolvedScope:
     """Resolve one book by ID or deterministic title matching."""
 
-    rows = _book_rows(connection, book_id=book_id)
+    owner = parse_owner_id(owner_id)
+    rows = _book_rows(connection, owner_id=owner, book_id=book_id)
     if reference is not None:
         target = _normalize(reference)
         if not target:
@@ -243,7 +251,7 @@ def resolve_book(
         )
 
     book = rows[0]
-    nodes = _all_book_nodes(connection, book["id"])
+    nodes = _all_book_nodes(connection, book["id"], owner_id=owner)
     return ResolvedScope(
         kind="book",
         book_id=book["id"],
@@ -263,11 +271,13 @@ def resolve_book(
 def list_chapters(
     connection: Connection,
     *,
+    owner_id: str | UUID,
     book_id: int,
 ) -> tuple[ScopeNode, ...]:
     """Return canonical chapters in table-of-contents order."""
 
-    _book_rows(connection, book_id=book_id)
+    owner = parse_owner_id(owner_id)
+    _book_rows(connection, owner_id=owner, book_id=book_id)
     rows = connection.execute(
         """
         SELECT *
@@ -275,7 +285,7 @@ def list_chapters(
         WHERE book_id = %s AND owner_id = %s AND node_type = 'chapter'
         ORDER BY toc_index
         """,
-        (book_id, resolve_owner_id()),
+        (book_id, owner),
     ).fetchall()
     return tuple(_node(row) for row in rows)
 
@@ -309,12 +319,13 @@ def resolve_chapter(
     connection: Connection,
     reference: str | int,
     *,
+    owner_id: str | UUID,
     book_id: int | None = None,
 ) -> ResolvedScope:
     """Resolve a chapter number or title, returning its complete subtree."""
 
-    _book_rows(connection, book_id=book_id)
-    owner = resolve_owner_id()
+    owner = parse_owner_id(owner_id)
+    _book_rows(connection, owner_id=owner, book_id=book_id)
     parameters: tuple[object, ...] = (owner,) if book_id is None else (owner, book_id)
     predicate = "" if book_id is None else "AND nodes.book_id = %s"
     rows = connection.execute(
@@ -349,22 +360,25 @@ def resolve_chapter(
             reference,
             tuple(_candidate(row) for row in matches),
         )
-    return _resolved_node(connection, matches[0], kind="chapter")
+    return _resolved_node(connection, matches[0], owner_id=owner, kind="chapter")
 
 
 def resolve_section(
     connection: Connection,
     reference: str,
     *,
+    owner_id: str | UUID,
     book_id: int | None = None,
     chapter: str | int | None = None,
 ) -> ResolvedScope:
     """Resolve one non-chapter TOC node, optionally within a chapter."""
 
+    owner = parse_owner_id(owner_id)
     if chapter is not None:
         chapter_scope = resolve_chapter(
             connection,
             chapter,
+            owner_id=owner,
             book_id=book_id,
         )
         allowed_ids = set(chapter_scope.node_ids[1:])
@@ -372,6 +386,7 @@ def resolve_section(
     else:
         selected_book_id = resolve_book(
             connection,
+            owner_id=owner,
             book_id=book_id,
         ).book_id
         allowed_ids = None
@@ -385,7 +400,7 @@ def resolve_section(
           AND nodes.node_type != 'chapter'
         ORDER BY nodes.toc_index
         """,
-        (selected_book_id, resolve_owner_id()),
+        (selected_book_id, owner),
     ).fetchall()
     if allowed_ids is not None:
         rows = [row for row in rows if row["id"] in allowed_ids]
@@ -411,19 +426,22 @@ def resolve_section(
             reference,
             tuple(_candidate(row) for row in matches),
         )
-    return _resolved_node(connection, matches[0], kind="section")
+    return _resolved_node(connection, matches[0], owner_id=owner, kind="section")
 
 
 def resolve_named_scope(
     connection: Connection,
     reference: str,
     *,
+    owner_id: str | UUID,
     book_id: int | None = None,
 ) -> ResolvedScope:
     """Resolve an exact chapter/section title, then a unique partial title."""
 
+    owner = parse_owner_id(owner_id)
     selected_book_id = resolve_book(
         connection,
+        owner_id=owner,
         book_id=book_id,
     ).book_id
     target = _normalize(reference)
@@ -440,7 +458,7 @@ def resolve_named_scope(
           )
         ORDER BY nodes.toc_index
         """,
-        (selected_book_id, resolve_owner_id()),
+        (selected_book_id, owner),
     ).fetchall()
 
     exact = [
@@ -463,4 +481,4 @@ def resolve_named_scope(
         )
     row = matches[0]
     kind = "chapter" if row["node_type"] == "chapter" else "section"
-    return _resolved_node(connection, row, kind=kind)
+    return _resolved_node(connection, row, owner_id=owner, kind=kind)

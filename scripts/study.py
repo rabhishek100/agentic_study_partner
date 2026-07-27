@@ -7,7 +7,11 @@ import sys
 
 from dotenv import load_dotenv
 
-from storage.database import connection as database_connection
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 from study.content import load_scope_content
 from study.context import ScopeContext, build_scope_context
 from study.request import (
@@ -42,6 +46,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Postgres URL; defaults to DATABASE_URL",
     )
     parser.add_argument("--book-id", type=int)
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -122,12 +130,16 @@ def main() -> None:
     load_dotenv()
     parser = build_argument_parser()
     args = parser.parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     try:
         request = parse_study_request(args.query)
         with database_connection(args.database_url, readonly=True) as connection:
             scope = resolve_study_request(
                 connection,
                 request,
+                owner_id=owner_id,
                 book_id=args.book_id,
             )
             if request.intent in {"list_chapters", "list_sections"}:
@@ -137,7 +149,7 @@ def main() -> None:
                     else format_outline(scope)
                 )
                 return
-            evidence = load_scope_content(connection, scope)
+            evidence = load_scope_content(connection, scope, owner_id=owner_id)
         context = build_scope_context(evidence)
         config = SummaryConfig(
             context_window_tokens=args.context_window,

@@ -1,7 +1,7 @@
 """Execute one conversational turn over summaries and book retrieval."""
 
 import re
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
 
@@ -97,6 +97,7 @@ def execute_decision(
     state: ConversationState,
     *,
     database_url: str | None,
+    owner_id: str | UUID,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
     token_callback: TokenCallback | None = None,
@@ -122,6 +123,7 @@ def execute_decision(
         database_url=database_url,
         book_id=state.book_id,
         retrieval_mode=retrieval_mode,
+        owner_id=owner_id,
         model=model,
         token_callback=token_callback,
         force_retrieval=decision.route == "retrieval_qa",
@@ -185,6 +187,7 @@ def execute_conversation_turn(
     question: str,
     state: ConversationState | None = None,
     *,
+    owner_id: str | UUID,
     database_url: str | None = None,
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
@@ -209,6 +212,7 @@ def execute_conversation_turn(
             },
         },
         context=StudyGraphContext(
+            owner_id=owner_id,
             database_url=database_url,
             retrieval_mode=retrieval_mode,
             analysis_model=analysis_model,

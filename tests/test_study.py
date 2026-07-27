@@ -34,6 +34,7 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         return ingest_book(
             self.connection,
             sample_book(),
+            owner_id=self.owner_id,
             title=title,
             author="Test Author",
             file_hash=file_hash,
@@ -45,6 +46,7 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_chapter(
             self.connection,
             1,
+            owner_id=self.owner_id,
             book_id=self.book_id,
         )
 
@@ -62,12 +64,17 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         )
 
     def test_lists_chapters_in_toc_order_and_resolves_section(self) -> None:
-        chapters = list_chapters(self.connection, book_id=self.book_id)
+        chapters = list_chapters(
+            self.connection,
+            owner_id=self.owner_id,
+            book_id=self.book_id,
+        )
         self.assertEqual([chapter.title for chapter in chapters], ["Chapter 1"])
 
         scope = resolve_section(
             self.connection,
             "Core idea",
+            owner_id=self.owner_id,
             book_id=self.book_id,
             chapter="Chapter 1",
         )
@@ -83,9 +90,14 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_chapter(
             self.connection,
             "chapter 1",
+            owner_id=self.owner_id,
             book_id=self.book_id,
         )
-        evidence = load_scope_content(self.connection, scope)
+        evidence = load_scope_content(
+            self.connection,
+            scope,
+            owner_id=self.owner_id,
+        )
         blocks = [
             block for node_content in evidence.nodes for block in node_content.blocks
         ]
@@ -107,9 +119,14 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_chapter(
             self.connection,
             "1",
+            owner_id=self.owner_id,
             book_id=self.book_id,
         )
-        evidence = load_scope_content(self.connection, scope)
+        evidence = load_scope_content(
+            self.connection,
+            scope,
+            owner_id=self.owner_id,
+        )
 
         output = format_inspection(scope, evidence)
 
@@ -126,12 +143,13 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         )
 
         with self.assertRaises(AmbiguousScopeError) as captured:
-            resolve_chapter(self.connection, 1)
+            resolve_chapter(self.connection, 1, owner_id=self.owner_id)
         self.assertEqual(len(captured.exception.candidates), 2)
 
         scope = resolve_chapter(
             self.connection,
             1,
+            owner_id=self.owner_id,
             book_id=second_book_id,
         )
         self.assertEqual(scope.book_id, second_book_id)
@@ -145,6 +163,7 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         descriptive_book_id = ingest_book(
             self.connection,
             book,
+            owner_id=self.owner_id,
             title="Descriptive Sample",
             author="Test Author",
             file_hash="c" * 64,
@@ -155,6 +174,7 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_chapter(
             self.connection,
             1,
+            owner_id=self.owner_id,
             book_id=descriptive_book_id,
         )
 
@@ -165,24 +185,35 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
             resolve_chapter(
                 self.connection,
                 99,
+                owner_id=self.owner_id,
                 book_id=self.book_id,
             )
         with self.assertRaises(ScopeNotFoundError):
             resolve_chapter(
                 self.connection,
                 "Chapter 1. Wrong title",
+                owner_id=self.owner_id,
                 book_id=self.book_id,
             )
         with self.assertRaises(ScopeNotFoundError):
             resolve_section(
                 self.connection,
                 "Not a real section",
+                owner_id=self.owner_id,
                 book_id=self.book_id,
             )
 
     def test_resolves_the_complete_book(self) -> None:
-        scope = resolve_book(self.connection, book_id=self.book_id)
-        evidence = load_scope_content(self.connection, scope)
+        scope = resolve_book(
+            self.connection,
+            owner_id=self.owner_id,
+            book_id=self.book_id,
+        )
+        evidence = load_scope_content(
+            self.connection,
+            scope,
+            owner_id=self.owner_id,
+        )
 
         self.assertEqual(scope.kind, "book")
         self.assertIsNone(scope.root_node_id)

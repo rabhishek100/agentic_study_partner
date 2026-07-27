@@ -16,8 +16,12 @@ The active pipeline is:
 | `retrieval/vector.py` | Synchronize provenance-checked `vector(3072)` rows and run exact cosine search. |
 | `retrieval/search.py` | Expose lexical, vector, RRF hybrid, and hosted-reranker strategies. |
 | `study/` | Resolve hierarchy scopes, load complete evidence, validate citations, and orchestrate turns with LangGraph. |
-| `api/main.py` | Serve health, synchronous chat, and SSE streaming over the shared study workflow. |
-| `frontend/` | Provide the minimal Next.js chat interface. Supabase Auth is intentionally deferred. |
+| `ingestion/` | Limits, job state machine, retry policy, durable job queue, PDF preflight, and the ingestion pipeline. |
+| `worker/main.py` | Poll Postgres, claim one job under a lease, run the pipeline, and record the outcome. |
+| `api/auth.py` | Verify Supabase access tokens and derive `owner_id` from the token subject. |
+| `api/ingestions.py` | Owner-scoped upload lifecycle: create, complete, status, list, cancel, retry. |
+| `api/main.py` | Serve health, the ready-book library, synchronous chat, and SSE streaming. |
+| `frontend/` | Minimal Next.js interface: Supabase sign-in, resumable upload with durable job progress, the ready-book library, and grounded chat. |
 
 ## Database authority
 
@@ -30,7 +34,9 @@ The active pipeline is:
 
 Canonical tables are `books`, `nodes`, `content_blocks`, `table_blocks`, and
 `image_blocks`. Derived tables are `chunk_builds`, `chunks`, `chunk_sources`,
-and `chunk_embeddings`; their contents are always rebuildable.
+and `chunk_embeddings`; their contents are always rebuildable. `ingestion_jobs`
+and `ingestion_job_events` carry the durable upload lifecycle: the job table is
+the queue, the lease, the checkpoint, and the progress source of truth.
 
 The pre-cutover SQLite and Chroma implementations have been retired. Runtime
 and tests use the same Postgres canonical-storage and retrieval boundaries.
@@ -48,17 +54,27 @@ and tests use the same Postgres canonical-storage and retrieval boundaries.
 | `scripts/evaluate_retrieval.py` | Compare all frozen retrieval modes. |
 | `scripts/evaluate_multiturn.py` | Replay the stateful conversation gold set. |
 | `scripts/build_*_report.py`, `scripts/render_retrieval_report.py` | Produce inspectable evaluation artifacts and self-contained review pages. |
+| `python -m worker.main` | Run the ingestion worker. `--once` processes a single job and exits. |
+
+The manual scripts remain the local path for a book you already have on disk.
+The worker is the multi-user path: it does the same work from an uploaded
+source, with leases, retries, verification, and durable progress.
 
 ## Evaluation and tests
 
 `evaluation/` contains frozen retrieval/multi-turn judgments and generated
 reports. `evals/` contains reusable scoring/replay code. Tests cover canonical
 round trips, Postgres chunk/vector rebuilds, ranking, scope resolution,
-summaries, citations, conversations, the API, and report logic.
+summaries, citations, conversations, the API, report logic, token
+verification, job-queue behaviour, PDF classification, and the ingestion
+pipeline end to end.
 
 Most application tests provision a temporary owner in local Supabase and
-cascade-delete it afterward. These fixtures test single-owner behavior only;
-cross-user/RLS security testing belongs to the deferred Auth stage.
+cascade-delete it afterward. `tests/test_multi_user_isolation.py` provisions
+two owners and asserts isolation through both application filters and RLS.
+`tests/pdf_fixtures.py` generates PDFs with PyMuPDF, so no binary fixtures are
+committed. The Storage-backed ingestion tests skip unless `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` are configured.
 
 ## Local and generated data
 
@@ -70,6 +86,8 @@ cross-user/RLS security testing belongs to the deferred Auth stage.
 | `outputs/`, `evaluation/runs/` | Generated summaries and routine evaluation outputs. |
 | `.env`, `.venv/`, `__pycache__/` | Local secrets/environment/cache; never source artifacts. |
 
-Architecture decisions and the temporary single-user boundary are documented
-in [`docs/architecture.md`](docs/architecture.md) and
-[`docs/supabase-migration-plan.md`](docs/supabase-migration-plan.md).
+Architecture decisions are documented in
+[`docs/architecture.md`](docs/architecture.md), the database cutover history in
+[`docs/supabase-migration-plan.md`](docs/supabase-migration-plan.md), and the
+upload service design in
+[`docs/book-ingestion-service.md`](docs/book-ingestion-service.md).

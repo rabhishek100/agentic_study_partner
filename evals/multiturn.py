@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
+from uuid import UUID
 
 from study.contracts import ConversationState, TurnResult
 from study.conversation import execute_conversation_turn, new_conversation_state
@@ -20,6 +21,7 @@ class TurnRunner(Protocol):
 
 @dataclass
 class ProjectRunner:
+    owner_id: str | UUID
     database_url: str | None = None
     retrieval_mode: str = "hybrid"
 
@@ -27,6 +29,7 @@ class ProjectRunner:
         return execute_conversation_turn(
             question,
             state,
+            owner_id=self.owner_id,
             database_url=self.database_url,
             retrieval_mode=self.retrieval_mode,
         )

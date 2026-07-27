@@ -139,6 +139,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         self.book_id = ingest_book(
             self.database,
             sample_book(),
+            owner_id=self.owner_id,
             title="Retrieval",
             author="Test",
             file_hash=FILE_HASH,
@@ -159,6 +160,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         first = rebuild(
             self.database,
             self.book_id,
+            owner_id=self.owner_id,
             config=self.config,
         )
         first_ids = [
@@ -174,6 +176,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         second = rebuild(
             self.database,
             self.book_id,
+            owner_id=self.owner_id,
             config=self.config,
         )
         second_ids = [
@@ -202,6 +205,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         results = search(
             self.database,
             "Which prediction mode is optimized for low latency?",
+            owner_id=self.owner_id,
             book_id=self.book_id,
             limit=3,
         )
@@ -215,6 +219,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         rebuild(
             self.database,
             self.book_id,
+            owner_id=self.owner_id,
             config=self.config,
         )
         rows = self.database.execute(
@@ -259,7 +264,12 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(content_types, {"text", "table", "image"})
 
     def test_derived_rows_can_be_deleted_without_canonical_loss(self) -> None:
-        rebuild(self.database, self.book_id, config=self.config)
+        rebuild(
+            self.database,
+            self.book_id,
+            owner_id=self.owner_id,
+            config=self.config,
+        )
         self.database.execute(
             "delete from chunk_builds where owner_id = %s",
             (self.owner_id,),
@@ -285,6 +295,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         rebuild(
             self.database,
             self.book_id,
+            owner_id=self.owner_id,
             config=config,
         )
         chunks = self.database.execute(
@@ -311,6 +322,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         rebuild(
             self.database,
             self.book_id,
+            owner_id=self.owner_id,
             config=self.config,
         )
         embedder = FakeEmbedder()
@@ -318,10 +330,12 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         first = rebuild_vector_index(
             self.database,
             embedder=embedder,
+            owner_id=self.owner_id,
         )
         second = rebuild_vector_index(
             self.database,
             embedder=embedder,
+            owner_id=self.owner_id,
         )
 
         self.assertGreater(first.embedded_count, 0)
@@ -332,6 +346,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
             self.database,
             "online prediction architecture",
             embedder=embedder,
+            owner_id=self.owner_id,
             limit=3,
             unique_nodes=True,
         )
@@ -340,22 +355,57 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(results[0].retrieval_method, "vector")
         self.assertEqual(results[0].source_book_id, self.book_id)
 
+    def test_vector_index_accepts_integer_embedding_components(self) -> None:
+        """A JSON-decoded embedding can contain int 0 among floats.
+
+        psycopg refuses to adapt a mixed int/float list, so an uncoerced
+        vector fails at the insert. Regression for a book whose second batch
+        happened to contain an exact-zero component.
+        """
+
+        class IntegerZeroEmbedder(FakeEmbedder):
+            @staticmethod
+            def _embed(text: str) -> list[float]:
+                values = FakeEmbedder._embed(text)
+                # Exactly what json.loads produces for 0: an int among floats.
+                values[1] = 0
+                values[-1] = 0
+                return values
+
+        rebuild(
+            self.database,
+            self.book_id,
+            owner_id=self.owner_id,
+            config=self.config,
+        )
+
+        summary = rebuild_vector_index(
+            self.database,
+            embedder=IntegerZeroEmbedder(),
+            owner_id=self.owner_id,
+        )
+
+        self.assertGreater(summary.embedded_count, 0)
+
     def test_hybrid_retrieval_returns_fused_results(self) -> None:
         rebuild(
             self.database,
             self.book_id,
+            owner_id=self.owner_id,
             config=self.config,
         )
         embedder = FakeEmbedder()
         rebuild_vector_index(
             self.database,
             embedder=embedder,
+            owner_id=self.owner_id,
         )
 
         results = retrieve(
             self.database,
             "online prediction architecture",
             mode="hybrid",
+            owner_id=self.owner_id,
             book_id=self.book_id,
             limit=3,
             unique_nodes=True,
@@ -370,6 +420,7 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         rebuild(
             self.database,
             self.book_id,
+            owner_id=self.owner_id,
             config=self.config,
         )
         embedder = FakeEmbedder()
@@ -377,12 +428,14 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         rebuild_vector_index(
             self.database,
             embedder=embedder,
+            owner_id=self.owner_id,
         )
 
         results = retrieve(
             self.database,
             "online prediction architecture",
             mode="hybrid_rerank",
+            owner_id=self.owner_id,
             book_id=self.book_id,
             limit=3,
             unique_nodes=True,

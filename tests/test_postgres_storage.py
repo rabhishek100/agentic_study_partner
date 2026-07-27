@@ -25,6 +25,7 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
 
     def ingest(self, book=None, **overrides) -> int:
         arguments = {
+            "owner_id": self.owner_id,
             "title": "Sample",
             "author": "Test Author",
             "file_hash": FILE_HASH,
@@ -35,11 +36,44 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
         arguments.update(overrides)
         return ingest_book(self.database, book or sample_book(), **arguments)
 
+    def test_a_top_level_entry_is_a_chapter_whatever_it_is_called(self) -> None:
+        """Regression: chapters numbered without the word were lost.
+
+        `_node_type` read the role off the title, so "Chapter 1 Introduction"
+        was a chapter and "1 Introduction" was `other`. Scope search excludes
+        `other`, so a 613-page book whose outline numbered its chapters
+        without the word had all thirteen of them invisible to the question
+        "what sections are present in Chapter 1?".
+        """
+
+        from parsing.models import Section
+        from storage.postgres import _node_type
+
+        def top_level(title):
+            return Section(path=[title], level=1, start_page=1, end_page=2)
+
+        for title in ("Chapter 1 Introduction", "1 Introduction", "Preface"):
+            with self.subTest(title=title):
+                self.assertEqual(_node_type(top_level(title)), "chapter")
+
+        self.assertEqual(_node_type(top_level("Appendix A Data")), "appendix")
+
+    def test_depth_names_the_lower_levels(self) -> None:
+        from parsing.models import Section
+        from storage.postgres import _node_type
+
+        for level, expected in ((2, "section"), (3, "subsection"), (4, "nested_section")):
+            with self.subTest(level=level):
+                section = Section(
+                    path=["Chapter"] * level, level=level, start_page=1, end_page=2
+                )
+                self.assertEqual(_node_type(section), expected)
+
     def test_lossless_round_trip_and_hierarchy(self) -> None:
         original = sample_book()
         book_id = self.ingest(original)
 
-        restored = restore_book(self.database, book_id)
+        restored = restore_book(self.database, book_id, owner_id=self.owner_id)
         self.assertEqual(original.model_dump(), restored.model_dump())
 
         nodes = self.database.execute(

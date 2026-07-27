@@ -5,12 +5,17 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+from uuid import UUID
 
 from dotenv import load_dotenv
 
 from retrieval.reranker import DEFAULT_RERANKER_MODEL
 from scripts.evaluate_retrieval import RETRIEVAL_MODES, evaluate
-from storage.database import connection as database_connection, resolve_owner_id
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+    parse_owner_id,
+)
 
 
 TITLE = "Retrieval Evaluation: Four Ranking Strategies"
@@ -39,6 +44,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         default=Path("evaluation/retrieval_comparison_artifact.json"),
+    )
+    parser.add_argument(
+        "--owner-id",
+        help="Owner UUID; defaults to DEFAULT_OWNER_ID",
     )
     return parser
 
@@ -203,13 +212,16 @@ def _retrieval_rows(mode_results: dict[str, dict]) -> list[dict]:
 def build_artifact(
     database_url: str | None,
     gold_set: Path,
+    *,
+    owner_id: str | UUID,
 ) -> dict:
+    owner = parse_owner_id(owner_id)
     evaluation = evaluate(
         database_url,
         gold_set,
+        owner_id=owner,
     )
     generated_at = datetime.now(timezone.utc).isoformat()
-    owner = resolve_owner_id()
     with database_connection(database_url, readonly=True) as connection:
         vector_row = connection.execute(
             """
@@ -718,9 +730,13 @@ def build_artifact(
 def main() -> None:
     load_dotenv()
     args = build_argument_parser().parse_args()
+    owner_id = (
+        parse_owner_id(args.owner_id) if args.owner_id else environment_owner_id()
+    )
     artifact = build_artifact(
         args.database_url,
         args.gold_set,
+        owner_id=owner_id,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

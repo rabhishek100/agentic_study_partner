@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd frontend && BACKEND_URL=http://127.0.0.1:8001 npm run dev"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

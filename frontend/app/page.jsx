@@ -1,7 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
+
+import { apiFetch } from "../lib/api";
+import { accessToken } from "../lib/supabase";
+import AuthGate, { signOut, useSession } from "./components/AuthGate";
+import UploadPanel from "./components/UploadPanel";
 
 const API_BASE = "/api";
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
@@ -17,11 +22,14 @@ function diagnosticValue(value, fallback = "Not applicable") {
 }
 
 export default function App() {
+  const { session, sessionLoading } = useSession();
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
   const [conversation, setConversation] = useState(null);
   const [retrievalMode, setRetrievalMode] = useState("hybrid");
-  const [bookId, setBookId] = useState(1);
+  const [books, setBooks] = useState([]);
+  const [booksLoaded, setBooksLoaded] = useState(false);
+  const [selectedBookId, setSelectedBookId] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -31,10 +39,29 @@ export default function App() {
     [conversation],
   );
 
+  const loadBooks = useCallback(async () => {
+    try {
+      const payload = await apiFetch("/books");
+      setBooks(payload.books);
+      setSelectedBookId(
+        (current) =>
+          current ?? (payload.books.length ? payload.books[0].book_id : null),
+      );
+    } catch {
+      // The library panel shows its empty state; chat stays disabled.
+    } finally {
+      setBooksLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (session) loadBooks();
+  }, [session, loadBooks]);
+
   async function sendQuestion(event, suggestedQuestion) {
     event?.preventDefault();
     const submitted = (suggestedQuestion ?? question).trim();
-    if (!submitted || isLoading) return;
+    if (!submitted || isLoading || !selectedBookId) return;
 
     setQuestion("");
     setError("");
@@ -69,13 +96,17 @@ export default function App() {
     }
 
     try {
+      const token = await accessToken();
       const response = await fetch(`${API_BASE}/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           question: submitted,
           retrieval_mode: retrievalMode,
-          book_id: Number(bookId),
+          book_id: Number(selectedBookId),
           state: conversation,
         }),
         signal: controller.signal,
@@ -158,6 +189,36 @@ export default function App() {
     setQuestion("");
   }
 
+  function selectBook(bookId) {
+    setSelectedBookId(bookId);
+    // Conversation state is scoped to one book; switching starts fresh.
+    clearConversation();
+  }
+
+  if (sessionLoading) {
+    return (
+      <main className="shell centered">
+        <div className="thinking" role="status">
+          <span />
+          <span />
+          <span />
+          Loading…
+        </div>
+      </main>
+    );
+  }
+
+  if (!session) {
+    return (
+      <main className="shell centered">
+        <AuthGate />
+      </main>
+    );
+  }
+
+  const selectedBook = books.find((book) => book.book_id === selectedBookId);
+  const hasBooks = books.length > 0;
+
   return (
     <main className="shell">
       <header className="masthead">
@@ -169,24 +230,52 @@ export default function App() {
             answer. Important claims include book references.
           </p>
         </div>
-        <div className="status" aria-label="Conversation status">
-          <span className="status-dot" />
-          {conversation ? "Conversation active" : "Ready to study"}
+        <div className="masthead-side">
+          <div className="status" aria-label="Conversation status">
+            <span className="status-dot" />
+            {conversation ? "Conversation active" : "Ready to study"}
+          </div>
+          <div className="account">
+            <span className="account-email">{session.user.email}</span>
+            <button className="clear" type="button" onClick={() => signOut()}>
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 
       <section className="workspace">
         <aside className="settings" aria-label="Study settings">
           <div>
-            <p className="section-label">Study settings</p>
-            <label htmlFor="book-id">Book ID</label>
-            <input
-              id="book-id"
-              min="1"
-              type="number"
-              value={bookId}
-              onChange={(event) => setBookId(event.target.value)}
-            />
+            <p className="section-label">Your library</p>
+            {hasBooks ? (
+              <>
+                <label htmlFor="book-select">Book</label>
+                <select
+                  id="book-select"
+                  value={selectedBookId ?? ""}
+                  onChange={(event) => selectBook(Number(event.target.value))}
+                >
+                  {books.map((book) => (
+                    <option key={book.book_id} value={book.book_id}>
+                      {book.title}
+                      {book.author ? ` — ${book.author}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedBook && !selectedBook.retrieval_complete && (
+                  <p className="upload-note">
+                    Search data for this book is still building.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="upload-note">
+                {booksLoaded
+                  ? "No books yet. Upload a PDF to get started."
+                  : "Loading your library…"}
+              </p>
+            )}
 
             <label htmlFor="retrieval-mode">Search method</label>
             <select
@@ -200,6 +289,8 @@ export default function App() {
               <option value="hybrid_rerank">Hybrid + reranking</option>
             </select>
           </div>
+
+          <UploadPanel onBookReady={loadBooks} />
 
           <div className="details">
             <p className="section-label">Last turn</p>
@@ -233,19 +324,29 @@ export default function App() {
             {messages.length === 0 ? (
               <div className="welcome">
                 <p className="welcome-mark">ASP</p>
-                <h2>What would you like to understand?</h2>
-                <p>Start with one of these, or ask your own question.</p>
-                <div className="starters">
-                  {STARTERS.map((starter) => (
-                    <button
-                      type="button"
-                      key={starter}
-                      onClick={(event) => sendQuestion(event, starter)}
-                    >
-                      {starter}
-                    </button>
-                  ))}
-                </div>
+                <h2>
+                  {hasBooks
+                    ? "What would you like to understand?"
+                    : "Upload a book to begin"}
+                </h2>
+                <p>
+                  {hasBooks
+                    ? "Start with one of these, or ask your own question."
+                    : "Add a PDF from the panel on the left. It becomes selectable once processing and verification finish."}
+                </p>
+                {hasBooks && (
+                  <div className="starters">
+                    {STARTERS.map((starter) => (
+                      <button
+                        type="button"
+                        key={starter}
+                        onClick={(event) => sendQuestion(event, starter)}
+                      >
+                        {starter}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               messages.map((message, index) => (
@@ -289,13 +390,15 @@ export default function App() {
                   sendQuestion(event);
                 }
               }}
-              placeholder="Ask about the book…"
-              disabled={isLoading}
+              placeholder={
+                hasBooks ? "Ask about the book…" : "Upload a book first…"
+              }
+              disabled={isLoading || !hasBooks}
             />
             <button
               className="send"
               type="submit"
-              disabled={isLoading || !question.trim()}
+              disabled={isLoading || !question.trim() || !selectedBookId}
             >
               {isLoading ? "Working…" : "Send"}
             </button>

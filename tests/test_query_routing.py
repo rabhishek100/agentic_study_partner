@@ -68,6 +68,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             self.book_id = ingest_book(
                 connection,
                 sample_book(),
+                owner_id=self.owner_id,
                 title="Sample Book",
                 author="Test Author",
                 file_hash=FILE_HASH,
@@ -84,6 +85,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "What sections are present in Chapter 1?",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
             )
 
         retriever.assert_not_called()
@@ -97,6 +99,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "what chapters does this book have",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
             )
 
         retriever.assert_not_called()
@@ -114,6 +117,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "What sections are present in Chapter 1?",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
             )
 
         retriever.assert_not_called()
@@ -129,6 +133,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "Summarize Chapter 1",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
                 model=CitationSummaryModel(),
             )
 
@@ -144,6 +149,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "Summarize section Core idea in Chapter 1",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
                 model=CitationSummaryModel(),
             )
 
@@ -159,6 +165,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             "Summarize Chapter 1",
             database_url=self.database_url,
             book_id=self.book_id,
+            owner_id=self.owner_id,
             model=model,
         )
 
@@ -175,6 +182,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             "Summarize Chapter 1",
             database_url=self.database_url,
             book_id=self.book_id,
+            owner_id=self.owner_id,
             model=model,
             token_callback=lambda kind, text: events.append((kind, text)),
         )
@@ -200,6 +208,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "Summarize reservoir sampling",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
                 model=StaticAnswerModel(),
             )
 
@@ -225,6 +234,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "How should I choose LoRA target modules?",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
                 model=InsufficientAnswerModel(),
             )
 
@@ -250,6 +260,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 "What sections are present in Chapter 1?",
                 database_url=self.database_url,
                 book_id=self.book_id,
+                owner_id=self.owner_id,
                 model=StaticAnswerModel(),
                 force_retrieval=True,
             )

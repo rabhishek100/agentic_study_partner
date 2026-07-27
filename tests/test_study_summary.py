@@ -58,6 +58,7 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         self.book_id = ingest_book(
             self.connection,
             sample_book(),
+            owner_id=self.owner_id,
             title="Sample Book",
             author="Test Author",
             file_hash=FILE_HASH,
@@ -73,9 +74,14 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_chapter(
             self.connection,
             1,
+            owner_id=self.owner_id,
             book_id=self.book_id,
         )
-        evidence = load_scope_content(self.connection, scope)
+        evidence = load_scope_content(
+            self.connection,
+            scope,
+            owner_id=self.owner_id,
+        )
         return scope, build_scope_context(evidence)
 
     def test_parses_supported_natural_language_requests(self) -> None:
@@ -107,6 +113,7 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         scope = resolve_study_request(
             self.connection,
             request,
+            owner_id=self.owner_id,
             book_id=self.book_id,
         )
 
@@ -415,6 +422,45 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
                 ),
             )
         self.assertIsNone(model.messages)
+
+    def test_outline_of_a_chapter_without_subsections_says_so(self) -> None:
+        """A flat embedded outline lists chapters only.
+
+        Regression: the outline rendered a bare "Sections:" heading over an
+        empty list for such a chapter instead of telling the reader there is
+        nothing to list.
+        """
+
+        from study.scope import ResolvedScope, ScopeNode
+
+        chapter = ScopeNode(
+            id=1,
+            book_id=1,
+            parent_id=None,
+            toc_index=0,
+            level=1,
+            node_type="chapter",
+            title="CHAPTER 1: SCALE FROM ZERO TO MILLIONS OF USERS",
+            path_text="CHAPTER 1: SCALE FROM ZERO TO MILLIONS OF USERS",
+            start_page=5,
+            end_page=33,
+        )
+        scope = ResolvedScope(
+            kind="chapter",
+            book_id=1,
+            book_title="System Design Interview",
+            root_node_id=1,
+            display_path=chapter.path_text,
+            start_page=5,
+            end_page=33,
+            nodes=(chapter,),
+        )
+
+        outline = format_outline(scope)
+
+        self.assertNotIn("Sections:", outline)
+        self.assertIn("lists no subsections", outline)
+        self.assertIn("summary", outline)
 
     def test_outline_and_dry_run_are_inspectable(self) -> None:
         scope, context = self._chapter_context()

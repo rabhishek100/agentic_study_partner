@@ -7,7 +7,7 @@ from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import Field
 
-from storage.database import connection, resolve_owner_id
+from storage.database import connection
 from .reranker import DEFAULT_RERANKER_MODEL, Reranker, build_reranker
 from .search import RetrievalMode, retrieve
 from .vector import (
@@ -46,7 +46,7 @@ class BookRetriever(BaseRetriever):
     """Expose explicit project retrieval modes as LangChain documents."""
 
     database_url: str = os.getenv("DATABASE_URL", "")
-    owner_id: str = str(resolve_owner_id())
+    owner_id: str
     mode: RetrievalMode = "hybrid"
     book_id: int | None = None
     k: int = 5

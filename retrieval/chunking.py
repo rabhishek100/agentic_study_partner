@@ -9,7 +9,7 @@ from uuid import UUID
 
 import tiktoken
 
-from storage.database import resolve_owner_id
+from storage.database import parse_owner_id
 from .models import Chunk, ChunkSource, ChunkingConfig
 
 
@@ -383,13 +383,13 @@ def build_book_chunks(
     connection: Any,
     book_id: int,
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     config: ChunkingConfig | None = None,
 ) -> tuple[Any, list[Chunk]]:
     """Build all searchable chunks for one canonical book."""
 
     config = config or ChunkingConfig()
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     book = connection.execute(
         "select * from books where id = %s and owner_id = %s",
         (book_id, owner),

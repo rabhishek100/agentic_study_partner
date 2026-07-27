@@ -4,7 +4,10 @@ import unittest
 
 from scripts.build_multiturn_report import build_html
 from scripts.validate_multiturn_gold import validate
-from storage.database import connection as database_connection
+from storage.database import (
+    connection as database_connection,
+    environment_owner_id,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,13 +18,14 @@ class MultiturnGoldTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.gold = json.loads(GOLD_PATH.read_text(encoding="utf-8"))
+        cls.owner_id = environment_owner_id()
         cls.database_context = database_connection(readonly=True)
         cls.connection = cls.database_context.__enter__()
         book_id = cls.gold["book"]["database_book_id"]
         if (
             cls.connection.execute(
-                "select 1 from books where id = %s",
-                (book_id,),
+                "select 1 from books where id = %s and owner_id = %s",
+                (book_id, cls.owner_id),
             ).fetchone()
             is None
         ):
@@ -33,7 +37,12 @@ class MultiturnGoldTests(unittest.TestCase):
         cls.database_context.__exit__(None, None, None)
 
     def test_frozen_dataset_passes_canonical_validation(self):
-        result = validate(self.gold, self.connection, allow_pending=False)
+        result = validate(
+            self.gold,
+            self.connection,
+            owner_id=self.owner_id,
+            allow_pending=False,
+        )
 
         self.assertTrue(result["valid"], result["errors"])
         self.assertEqual(result["conversation_count"], 11)
@@ -44,10 +53,16 @@ class MultiturnGoldTests(unittest.TestCase):
         validation = validate(
             self.gold,
             self.connection,
+            owner_id=self.owner_id,
             allow_pending=False,
         )
 
-        rendered = build_html(self.gold, validation, self.connection)
+        rendered = build_html(
+            self.gold,
+            validation,
+            self.connection,
+            owner_id=self.owner_id,
+        )
 
         self.assertIn("Model-adjudicated, not human-verified", rendered)
         self.assertIn('id="search"', rendered)

@@ -11,7 +11,7 @@ from uuid import UUID
 import httpx
 from psycopg import Connection
 
-from storage.database import resolve_owner_id
+from storage.database import parse_owner_id
 from .postgres import SearchResult, search_result_from_row
 
 
@@ -83,7 +83,11 @@ class OpenRouterEmbedder:
                 f"embedding provider returned invalid input indexes: {indexes!r}"
             )
         ordered = sorted(data, key=lambda item: item["index"])
-        embeddings = [item["embedding"] for item in ordered]
+        # JSON decodes an exact-zero component as int, and psycopg refuses to
+        # adapt a mixed int/float list, so normalize every component to float.
+        embeddings = [
+            [float(component) for component in item["embedding"]] for item in ordered
+        ]
         mismatched = [
             len(value) for value in embeddings if len(value) != self.dimension
         ]
@@ -134,7 +138,7 @@ def rebuild_vector_index(
     connection: Connection,
     *,
     embedder: Embedder,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     book_id: int | None = None,
     reset: bool = False,
     batch_size: int = 32,
@@ -148,7 +152,7 @@ def rebuild_vector_index(
             f"database expects {POSTGRES_EMBEDDING_DIMENSION}-dimension vectors; "
             f"embedder reports {embedder.dimension}"
         )
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     params: list[object] = [owner]
     predicate = ""
     if book_id is not None:
@@ -212,7 +216,14 @@ def rebuild_vector_index(
 
     for start in range(0, len(pending), batch_size):
         batch = pending[start : start + batch_size]
-        vectors = embedder.embed_documents([documents[row["id"]] for row, _ in batch])
+        vectors = [
+            # Guard the write for any embedder implementation: one integer
+            # component in a 3,072-float list is a DataError at executemany.
+            [float(component) for component in vector]
+            for vector in embedder.embed_documents(
+                [documents[row["id"]] for row, _ in batch]
+            )
+        ]
         now = datetime.now(timezone.utc)
         with connection.transaction():
             with connection.cursor() as cursor:
@@ -275,7 +286,7 @@ def vector_search(
     query: str,
     *,
     embedder: Embedder,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     book_id: int | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
@@ -284,7 +295,7 @@ def vector_search(
 
     if limit <= 0:
         raise ValueError("limit must be positive")
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     query_vector = embedder.embed_query(query)
     candidate_limit = max(limit * 4, 40) if unique_nodes else limit
     params: list[object] = [

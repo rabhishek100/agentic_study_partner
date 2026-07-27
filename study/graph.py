@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Literal, NotRequired, TypedDict
+from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
@@ -32,6 +33,7 @@ class StudyGraphOutput(TypedDict):
 
 @dataclass(frozen=True)
 class StudyGraphContext:
+    owner_id: str | UUID
     database_url: str | None = None
     retrieval_mode: RetrievalMode = "hybrid"
     analysis_model: AnalysisModel | None = None
@@ -48,6 +50,7 @@ def plan_turn(
             state["question"],
             state["conversation"],
             runtime.context.database_url,
+            owner_id=runtime.context.owner_id,
             model=runtime.context.analysis_model,
         )
     }
@@ -82,6 +85,7 @@ def execute_route(
             state["decision"],
             state["conversation"],
             database_url=runtime.context.database_url,
+            owner_id=runtime.context.owner_id,
             retrieval_mode=runtime.context.retrieval_mode,
             model=runtime.context.generation_model,
             token_callback=runtime.context.token_callback,

@@ -1,10 +1,11 @@
 """Load complete canonical content for an already resolved scope."""
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from psycopg import Connection
 
-from storage.database import resolve_owner_id
+from storage.database import parse_owner_id
 
 from .scope import ResolvedScope, ScopeNode
 
@@ -77,9 +78,12 @@ class EvidenceBundle:
 def load_scope_content(
     connection: Connection,
     scope: ResolvedScope,
+    *,
+    owner_id: str | UUID,
 ) -> EvidenceBundle:
     """Load every block in scope order, flattening tables for readable text."""
 
+    owner = parse_owner_id(owner_id)
     by_node: dict[int, list[ContentBlock]] = {node.id: [] for node in scope.nodes}
     if not by_node:
         return EvidenceBundle(scope=scope, nodes=())
@@ -109,7 +113,7 @@ def load_scope_content(
           AND content_blocks.owner_id = %s
         ORDER BY nodes.toc_index, content_blocks.block_index
         """,
-        (list(by_node), resolve_owner_id()),
+        (list(by_node), owner),
     ).fetchall()
     for row in rows:
         by_node[row["node_id"]].append(

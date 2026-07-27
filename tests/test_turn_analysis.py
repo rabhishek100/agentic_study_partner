@@ -39,6 +39,7 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
             self.book_id = ingest_book(
                 connection,
                 hierarchy_book(),
+                owner_id=self.owner_id,
                 title="Hierarchy Book",
                 author="Test Author",
                 file_hash=FILE_HASH,
@@ -76,7 +77,13 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         )
 
     def analyze(self, question, state, model):
-        return analyze_turn(question, state, self.database_url, model=model)
+        return analyze_turn(
+            question,
+            state,
+            self.database_url,
+            owner_id=self.owner_id,
+            model=model,
+        )
 
     def test_explicit_hierarchy_requests_are_deterministic(self):
         summary = self.analyze("Summarize Chapter 3.", self.state(), FailIfCalled())
@@ -303,7 +310,9 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(decision.route, "retrieval_qa")
         self.assertIsNone(decision.resolved_scope)
 
-    def test_invalid_model_output_is_retried_three_times(self):
+    def test_a_scope_outside_a_real_candidate_list_is_retried_three_times(self):
+        """The model was shown choices and ignored them: try again."""
+
         model = FakeModel(
             {
                 "route": "hierarchy_summary",
@@ -314,8 +323,36 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ConversationDecisionError, "after 3 attempts"):
-            self.analyze("Summarize that section.", self.state(), model)
+            self.analyze(
+                "Summarize the Low-Rank Factorization section.", self.state(), model
+            )
         self.assertEqual(len(model.calls), 3)
+
+    def test_a_question_matching_nothing_in_the_book_asks_rather_than_fails(self):
+        """Regression: a 613-page book showed a raw internal error.
+
+        Every one of its chapters was typed `other` and excluded from scope
+        search, so "what sections are present in Chapter 1?" offered the model
+        no candidates at all. It named one anyway, three times, and the reader
+        was shown "selected scope is not canonical". Retrying cannot help when
+        there was nothing to choose from.
+        """
+
+        model = FakeModel(
+            {
+                "route": "hierarchy_list",
+                "history_dependency": "independent",
+                "scope_node_id": 999999,
+                "reason": "Invented scope.",
+            }
+        )
+
+        decision = self.analyze("Summarize that section.", self.state(), model)
+
+        self.assertEqual(decision.route, "clarify")
+        self.assertIn("could not find", decision.clarification_question)
+        # Asked once and answered; the retry loop is not the right tool here.
+        self.assertEqual(len(model.calls), 1)
 
     def test_prior_transform_requires_an_answer(self):
         model = FakeModel(

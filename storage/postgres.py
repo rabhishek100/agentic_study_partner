@@ -11,7 +11,7 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
-from .database import resolve_owner_id
+from .database import parse_owner_id
 
 
 TABLE_MARKER = re.compile(r"^\[TABLE (\d+)]$")
@@ -91,13 +91,24 @@ def _validate(book: ParsedBook, page_count: int) -> None:
 
 
 def _node_type(section: Section) -> str:
+    """Name a node's structural role from its depth in the outline.
+
+    Depth is the only signal a PDF outline actually carries. Reading the role
+    off the title instead classified "Chapter 1 Introduction" as a chapter and
+    "1 Introduction" as `other`, and `other` is excluded from scope search, so
+    a book that numbered its chapters without the word lost every one of them:
+    all thirteen chapters of one 613-page book were invisible to the question
+    "what sections are present in Chapter 1?".
+
+    Front matter is level 1 too, so a preface is now a chapter. That is the
+    lesser error - it is a top-level scope, and treating it as one costs a
+    slightly odd label, where the old rule cost whole books.
+    """
+
     if section.level == 1:
-        title = section.title.casefold()
-        if title.startswith("chapter"):
-            return "chapter"
-        if title.startswith("appendix"):
+        if section.title.casefold().startswith("appendix"):
             return "appendix"
-        return "other"
+        return "chapter"
     if section.level == 2:
         return "section"
     if section.level == 3:
@@ -109,7 +120,7 @@ def ingest_book(
     connection: Connection,
     book: ParsedBook,
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
     title: str,
     author: str | None,
     file_hash: str,
@@ -118,11 +129,18 @@ def ingest_book(
     metadata: Mapping[str, Any] | None = None,
     source_storage_bucket: str | None = None,
     source_storage_path: str | None = None,
+    ingestion_job_id: str | UUID | None = None,
+    ready: bool = True,
     replace: bool = False,
 ) -> int:
-    """Atomically insert a ParsedBook for one server-controlled owner."""
+    """Atomically insert a ParsedBook for one caller-supplied owner.
 
-    owner = resolve_owner_id(owner_id)
+    Manual imports mark the book ready immediately. The ingestion worker passes
+    ``ready=False`` so the book stays invisible to study and retrieval until
+    chunks, embeddings, and verification have all succeeded.
+    """
+
+    owner = parse_owner_id(owner_id)
     file_hash = file_hash.casefold()
     if not re.fullmatch(r"[0-9a-f]{64}", file_hash):
         raise ValueError("file_hash must be a hexadecimal SHA-256 digest")
@@ -133,6 +151,8 @@ def ingest_book(
     _validate(book, page_count)
 
     source_filename = book.source.replace("\\", "/").rsplit("/", 1)[-1]
+    job_id = UUID(str(ingestion_job_id)) if ingestion_job_id else None
+    now = datetime.now(timezone.utc)
     with connection.transaction():
         existing = connection.execute(
             "select id from books where owner_id = %s and file_hash = %s",
@@ -154,8 +174,11 @@ def ingest_book(
                 insert into books (
                     owner_id, title, author, source_path, source_filename,
                     source_storage_bucket, source_storage_path, file_hash,
-                    page_count, parser_version, parsed_at, metadata_json
-                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    page_count, parser_version, parsed_at, metadata_json,
+                    ingestion_job_id, status, ready_at
+                ) values (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
                 returning id
                 """,
                 (
@@ -169,12 +192,19 @@ def ingest_book(
                     file_hash,
                     page_count,
                     parser_version,
-                    datetime.now(timezone.utc),
+                    now,
                     Jsonb(dict(metadata or {})),
+                    job_id,
+                    "ready" if ready else "processing",
+                    now if ready else None,
                 ),
             ).fetchone()["id"]
         )
         parent_by_level: dict[int, int] = {}
+        # Blocks and their payloads are collected across every node, then
+        # written in batches once the node ids are known.
+        pending_blocks: list[tuple] = []
+        pending_payloads: list[tuple | None] = []
 
         for toc_index, section in enumerate(book.sections):
             parent_id = parent_by_level.get(section.level - 1)
@@ -213,60 +243,288 @@ def ingest_book(
 
             for block_index, block in enumerate(section.texts):
                 marker = _marker(block)
-                block_type = marker[0] if marker else "text"
-                block_id = int(
-                    connection.execute(
-                        """
-                        insert into content_blocks (
-                            owner_id, book_id, node_id, block_index, block_type,
-                            category, page_number, text_content, metadata_json
-                        ) values (%s, %s, %s, %s, %s, %s, %s, %s, '{}'::jsonb)
-                        returning id
-                        """,
-                        (
-                            owner,
-                            book_id,
-                            node_id,
-                            block_index,
-                            block_type,
-                            block.category,
-                            block.page,
-                            block.text,
-                        ),
-                    ).fetchone()["id"]
+                pending_blocks.append(
+                    (
+                        owner,
+                        book_id,
+                        node_id,
+                        block_index,
+                        marker[0] if marker else "text",
+                        block.category,
+                        block.page,
+                        block.text,
+                    )
                 )
-                if marker and marker[0] == "table":
-                    table = section.tables[marker[1]]
-                    connection.execute(
-                        """
-                        insert into table_blocks (
-                            block_id, owner_id, book_id, html_content, flat_text
-                        ) values (%s, %s, %s, %s, %s)
-                        """,
-                        (block_id, owner, book_id, table.html, table.text),
-                    )
-                elif marker:
-                    image = section.images[marker[1]]
-                    connection.execute(
-                        """
-                        insert into image_blocks (
-                            block_id, owner_id, book_id, mime_type, base64_content
-                        ) values (%s, %s, %s, %s, %s)
-                        """,
-                        (block_id, owner, book_id, image.mime, image.base64),
-                    )
+                pending_payloads.append(
+                    None if marker is None else (marker[0], section, marker[1])
+                )
+
+        _insert_payloads(
+            connection,
+            owner=owner,
+            book_id=book_id,
+            blocks=pending_blocks,
+            payloads=pending_payloads,
+        )
     return book_id
+
+
+# One statement per this many rows. Large enough that a book costs a handful
+# of round trips instead of thousands, small enough to keep any single
+# statement and its parameter list manageable.
+INSERT_BATCH_SIZE = 500
+
+
+def _insert_payloads(
+    connection: Connection,
+    *,
+    owner: UUID,
+    book_id: int,
+    blocks: list[tuple],
+    payloads: list[tuple | None],
+) -> None:
+    """Insert every content block and its payload in batched statements.
+
+    Row-by-row inserts cost one network round trip each, which is invisible
+    against a local database and dominant against a remote one: a 2,562-block
+    book spent over five minutes here when the database was a continent away.
+    Multi-row inserts return their ids in value order, which is what lets the
+    payload rows be matched back to their blocks.
+    """
+
+    block_ids: list[int] = []
+    for start in range(0, len(blocks), INSERT_BATCH_SIZE):
+        batch = blocks[start : start + INSERT_BATCH_SIZE]
+        values = ", ".join(
+            ["(%s, %s, %s, %s, %s, %s, %s, %s, '{}'::jsonb)"] * len(batch)
+        )
+        rows = connection.execute(
+            f"""
+            insert into content_blocks (
+                owner_id, book_id, node_id, block_index, block_type,
+                category, page_number, text_content, metadata_json
+            ) values {values}
+            returning id
+            """,
+            [field for row in batch for field in row],
+        ).fetchall()
+        block_ids.extend(int(row["id"]) for row in rows)
+
+    if len(block_ids) != len(blocks):
+        raise InvalidBookError(
+            f"stored {len(block_ids)} content blocks for {len(blocks)} parsed blocks"
+        )
+
+    tables: list[tuple] = []
+    images: list[tuple] = []
+    for block_id, payload in zip(block_ids, payloads, strict=True):
+        if payload is None:
+            continue
+        kind, section, index = payload
+        if kind == "table":
+            table = section.tables[index]
+            tables.append((block_id, owner, book_id, table.html, table.text))
+        else:
+            image = section.images[index]
+            images.append((block_id, owner, book_id, image.mime, image.base64))
+
+    for rows_to_insert, table_name, columns in (
+        (tables, "table_blocks", "block_id, owner_id, book_id, html_content, flat_text"),
+        (
+            images,
+            "image_blocks",
+            "block_id, owner_id, book_id, mime_type, base64_content",
+        ),
+    ):
+        for start in range(0, len(rows_to_insert), INSERT_BATCH_SIZE):
+            batch = rows_to_insert[start : start + INSERT_BATCH_SIZE]
+            values = ", ".join(["(%s, %s, %s, %s, %s)"] * len(batch))
+            connection.execute(
+                f"insert into {table_name} ({columns}) values {values}",
+                [field for row in batch for field in row],
+            )
+
+
+def mark_book_ready(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> None:
+    """Publish a verified book in one short transaction.
+
+    Only the ingestion worker calls this, and only after every readiness check
+    has passed. Until then the book exists but no study or retrieval entry
+    point will select it.
+    """
+
+    owner = parse_owner_id(owner_id)
+    updated = connection.execute(
+        """
+        update books
+        set status = 'ready', ready_at = now()
+        where id = %s and owner_id = %s and status <> 'ready'
+        """,
+        (book_id, owner),
+    ).rowcount
+    if not updated:
+        # Either the book is already published or it does not belong to this
+        # owner; both mean this call must not silently invent a ready book.
+        row = connection.execute(
+            "select status from books where id = %s and owner_id = %s",
+            (book_id, owner),
+        ).fetchone()
+        if row is None:
+            raise KeyError(f"book {book_id} does not exist")
+
+
+def ready_book_by_hash(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    file_hash: str,
+) -> dict[str, Any] | None:
+    """Find this owner's existing ready book for a source hash.
+
+    Duplicate detection is owner-scoped on purpose: one user must not be able
+    to learn that another user uploaded the same file.
+    """
+
+    return connection.execute(
+        """
+        select id, title, ready_at from books
+        where owner_id = %s and file_hash = %s and status = 'ready'
+        """,
+        (parse_owner_id(owner_id), file_hash.casefold()),
+    ).fetchone()
+
+
+def book_for_job(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    ingestion_job_id: str | UUID,
+) -> dict[str, Any] | None:
+    """Find the book a previous attempt of this job already committed.
+
+    Canonical ingestion is one transaction, so a book row existing means the
+    whole import succeeded. A resumed attempt reuses it instead of importing
+    the same content twice.
+    """
+
+    return connection.execute(
+        """
+        select id, status, file_hash, parser_version, page_count
+        from books
+        where owner_id = %s and ingestion_job_id = %s
+        """,
+        (parse_owner_id(owner_id), UUID(str(ingestion_job_id))),
+    ).fetchone()
+
+
+def delete_book(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> bool:
+    """Remove a book and every row that cascades from it."""
+
+    return bool(
+        connection.execute(
+            "delete from books where id = %s and owner_id = %s",
+            (book_id, parse_owner_id(owner_id)),
+        ).rowcount
+    )
+
+
+def canonical_counts(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> dict[str, int]:
+    """Count the canonical rows stored for one book."""
+
+    owner = parse_owner_id(owner_id)
+    return dict(
+        connection.execute(
+            """
+            select
+                (select count(*) from nodes
+                 where book_id = %s and owner_id = %s) as nodes,
+                (select count(*) from content_blocks
+                 where book_id = %s and owner_id = %s) as blocks,
+                (select count(*) from table_blocks
+                 where book_id = %s and owner_id = %s) as tables,
+                (select count(*) from image_blocks
+                 where book_id = %s and owner_id = %s) as images
+            """,
+            (book_id, owner) * 4,
+        ).fetchone()
+    )
+
+
+def list_books(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    ready_only: bool = True,
+) -> list[dict[str, Any]]:
+    """List one owner's books, newest first.
+
+    Study and retrieval entry points use the default: a book that is still
+    being processed must never be selectable.
+    """
+
+    owner = parse_owner_id(owner_id)
+    predicate = "and status = 'ready'" if ready_only else ""
+    return connection.execute(
+        f"""
+        select
+            id, title, author, source_filename, page_count, status,
+            ready_at, parsed_at, ingestion_job_id
+        from books
+        where owner_id = %s {predicate}
+        order by coalesce(ready_at, parsed_at) desc, id desc
+        """,
+        (owner,),
+    ).fetchall()
+
+
+def ready_book(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+) -> dict[str, Any] | None:
+    """Return one ready owner-scoped book, or None.
+
+    None covers "does not exist", "belongs to someone else", and "not ready
+    yet" on purpose: callers turn all three into the same 404 so book IDs
+    cannot be enumerated.
+    """
+
+    owner = parse_owner_id(owner_id)
+    return connection.execute(
+        """
+        select id, title, author, page_count, status, ready_at
+        from books
+        where id = %s and owner_id = %s and status = 'ready'
+        """,
+        (book_id, owner),
+    ).fetchone()
 
 
 def restore_book(
     connection: Connection,
     book_id: int,
     *,
-    owner_id: str | UUID | None = None,
+    owner_id: str | UUID,
 ) -> ParsedBook:
     """Reconstruct the original ParsedBook from owner-scoped rows."""
 
-    owner = resolve_owner_id(owner_id)
+    owner = parse_owner_id(owner_id)
     book_row = connection.execute(
         "select source_path from books where id = %s and owner_id = %s",
         (book_id, owner),
