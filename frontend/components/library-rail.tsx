@@ -1,10 +1,23 @@
 "use client";
 
-import { AlertCircle, Library, RotateCcw, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronDown,
+  Library,
+  RotateCcw,
+  Settings2,
+  Trash2,
+} from "lucide-react";
+import { useState } from "react";
 
 import { UploadPanel } from "@/components/upload-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -15,29 +28,38 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BookSummary, RetrievalMode, TurnResult } from "@/lib/types";
+import type { BookSummary, RetrievalMode } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
-const RETRIEVAL_MODES: { value: RetrievalMode; label: string }[] = [
-  { value: "hybrid", label: "Hybrid (recommended)" },
-  { value: "bm25", label: "Keyword" },
-  { value: "vector", label: "Meaning-based" },
-  { value: "hybrid_rerank", label: "Hybrid + reranking" },
+const RETRIEVAL_MODES: {
+  value: RetrievalMode;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "hybrid", label: "Hybrid", hint: "Keyword and meaning combined" },
+  { value: "bm25", label: "Keyword", hint: "Exact terms only" },
+  { value: "vector", label: "Meaning-based", hint: "Paraphrase tolerant" },
+  {
+    value: "hybrid_rerank",
+    label: "Hybrid + reranking",
+    hint: "Slower, usually more precise",
+  },
 ];
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function SectionHeading({
+  children,
+  id,
+}: {
+  children: React.ReactNode;
+  id?: string;
+}) {
   return (
-    <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+    <h2
+      id={id}
+      className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+    >
       {children}
     </h2>
-  );
-}
-
-function Detail({ term, value }: { term: string; value: string }) {
-  return (
-    <div className="space-y-0.5 border-b border-border py-2 last:border-b-0">
-      <dt className="text-[0.7rem] text-muted-foreground">{term}</dt>
-      <dd className="break-words text-xs leading-snug">{value}</dd>
-    </div>
   );
 }
 
@@ -50,8 +72,6 @@ export interface LibraryRailProps {
   onSelectBook: (bookId: number) => void;
   retrievalMode: RetrievalMode;
   onRetrievalModeChange: (mode: RetrievalMode) => void;
-  lastResult: TurnResult | null;
-  activeScope: string;
   hasConversation: boolean;
   onClearConversation: () => void;
   onBooksChanged: () => void;
@@ -66,21 +86,18 @@ export function LibraryRail({
   onSelectBook,
   retrievalMode,
   onRetrievalModeChange,
-  lastResult,
-  activeScope,
   hasConversation,
   onClearConversation,
   onBooksChanged,
 }: LibraryRailProps) {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const selectedBook = books.find((book) => book.book_id === selectedBookId);
   const hasBooks = books.length > 0;
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
       <section aria-labelledby="library-heading" className="space-y-2">
-        <SectionHeading>
-          <span id="library-heading">Your library</span>
-        </SectionHeading>
+        <SectionHeading id="library-heading">Your library</SectionHeading>
 
         {!booksLoaded ? (
           <div className="space-y-2" aria-hidden>
@@ -140,27 +157,6 @@ export function LibraryRail({
             </p>
           </div>
         )}
-
-        <div className="space-y-1.5 pt-1">
-          <Label htmlFor="retrieval-mode">Search method</Label>
-          <Select
-            value={retrievalMode}
-            onValueChange={(value) =>
-              onRetrievalModeChange(value as RetrievalMode)
-            }
-          >
-            <SelectTrigger id="retrieval-mode" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {RETRIEVAL_MODES.map((mode) => (
-                <SelectItem key={mode.value} value={mode.value}>
-                  {mode.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </section>
 
       <Separator />
@@ -169,23 +165,53 @@ export function LibraryRail({
 
       <Separator />
 
-      <section aria-labelledby="last-turn-heading" className="space-y-1">
-        <SectionHeading>
-          <span id="last-turn-heading">Last turn</span>
-        </SectionHeading>
-        <dl>
-          <Detail term="Route" value={lastResult?.route ?? "Not applicable"} />
-          <Detail
-            term="Search query"
-            value={lastResult?.standalone_query ?? "Not applicable"}
+      {/*
+        Retrieval mode is an advanced control, not a front-door choice: a
+        reader has no basis for preferring "keyword" over "meaning-based"
+        before seeing an answer. Which mode ran is reported per answer in the
+        inspector, where it is actually interpretable.
+      */}
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <CollapsibleTrigger className="flex w-full items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground transition-colors hover:text-foreground">
+          <Settings2 className="size-3.5" aria-hidden />
+          Advanced
+          <ChevronDown
+            className={cn(
+              "ml-auto size-3.5 transition-transform",
+              advancedOpen && "rotate-180",
+            )}
+            aria-hidden
           />
-          <Detail term="Active scope" value={activeScope} />
-          <Detail
-            term="Outcome"
-            value={lastResult?.outcome ?? "Not applicable"}
-          />
-        </dl>
-      </section>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-2 space-y-1.5">
+            <Label htmlFor="retrieval-mode">Search method</Label>
+            <Select
+              value={retrievalMode}
+              onValueChange={(value) =>
+                onRetrievalModeChange(value as RetrievalMode)
+              }
+            >
+              <SelectTrigger id="retrieval-mode" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RETRIEVAL_MODES.map((mode) => (
+                  <SelectItem key={mode.value} value={mode.value}>
+                    {mode.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {
+                RETRIEVAL_MODES.find((mode) => mode.value === retrievalMode)
+                  ?.hint
+              }
+            </p>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <Button
         variant="outline"

@@ -33,6 +33,13 @@ export interface EvidenceRef {
   node_id: number;
   pages: number[];
   path: string;
+  /**
+   * Populated by the server on every fresh result. Nullable only because a
+   * conversation state serialized before these fields existed still loads;
+   * see the note on `EvidenceRef` in study/contracts.py.
+   */
+  book_id: number | null;
+  book_title: string | null;
   rank: number | null;
   chunk_id: string | null;
   chunk_index: number | null;
@@ -45,6 +52,7 @@ export interface CitationRef {
   marker: string;
   node_id: number;
   page: number;
+  book_id: number | null;
   evidence_rank: number | null;
 }
 

@@ -56,6 +56,13 @@ class EvidenceRef(ContractModel):
     node_id: int
     pages: list[int]
     path: str
+    # Book identity is what makes a reference readable once evidence can span
+    # several books: a page number alone says nothing about which book it is
+    # in. Producers always populate these; they are optional only so that a
+    # conversation state serialized before this field existed still loads.
+    # Stage 3 moves conversation state server-side and can then require them.
+    book_id: int | None = None
+    book_title: str | None = None
     rank: int | None = None
     chunk_id: str | None = None
     chunk_index: int | None = None
@@ -68,6 +75,7 @@ class CitationRef(ContractModel):
     marker: str
     node_id: int
     page: int
+    book_id: int | None = None
     evidence_rank: int | None = None
 
 

@@ -57,16 +57,6 @@ export default function Page() {
     if (session) loadBooks();
   }, [session, loadBooks]);
 
-  const activeScope = useMemo(
-    () => conversation?.active_scope?.display_path ?? "No active scope",
-    [conversation],
-  );
-
-  const lastResult = useMemo(
-    () => turns.filter((turn) => turn.result).at(-1)?.result ?? null,
-    [turns],
-  );
-
   const hasBooks = books.length > 0;
   const canSend = hasBooks && selectedBookId !== null;
 
@@ -162,8 +152,6 @@ export default function Page() {
           onSelectBook={selectBook}
           retrievalMode={retrievalMode}
           onRetrievalModeChange={setRetrievalMode}
-          lastResult={lastResult}
-          activeScope={activeScope}
           hasConversation={turns.length > 0}
           onClearConversation={reset}
           onBooksChanged={loadBooks}

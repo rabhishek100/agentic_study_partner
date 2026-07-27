@@ -33,7 +33,6 @@ from .streaming import TokenCallback, invoke_with_streaming
 from .summarize import (
     ContextWindowExceededError,
     SummaryConfig,
-    append_references,
     build_summary_messages,
     prompt_budget,
     summarize_scope_with_repair,
@@ -199,26 +198,19 @@ def _answer_hierarchy_request(
             + "; ".join(result.validation.errors)
         )
 
-    summary = append_references(result.text, scope=scope)
-    route = (
-        f"_Scope route: complete {scope.kind} subtree — "
-        f"{scope.display_path} (PDF pp. {scope.start_page}–{scope.end_page})_"
-    )
-    warning_text = "\n".join(
-        f"> **Validation warning:** {warning}" for warning in result.validation.warnings
-    )
-    answer = (
-        f"{route}\n\n{summary}"
-        if not warning_text
-        else f"{route}\n\n{warning_text}\n\n{summary}"
-    )
+    # The answer is the summary and nothing else. The scope, the reference
+    # list, and the validation warnings that used to be concatenated here are
+    # all already first-class fields on TurnResult (`resolved_scope`,
+    # `evidence`/`citations`, `warnings`), and the interface renders them as
+    # structure. Baking them into markdown made them unreadable and forced the
+    # client to parse prose to recover data the server already had.
+    answer = result.text.rstrip()
+    warnings = list(result.validation.warnings)
     if result.attempt_count > 1:
-        warning = (
+        warnings.append(
             "An earlier draft failed deterministic citation validation and "
             "was regenerated with exact validation feedback."
         )
-        warning_text = f"> **Validation repair:** {warning}"
-        answer = f"{route}\n\n{warning_text}\n\n{summary}"
     if token_callback is not None:
         # Summary drafts are buffered until citation validation succeeds. This
         # exposes one stable answer instead of streaming an invalid draft and
@@ -234,6 +226,8 @@ def _answer_hierarchy_request(
                 if candidate_node_id == node_id
             ),
             path=nodes[node_id].path_text,
+            book_id=scope.book_id,
+            book_title=scope.book_title,
         )
         for node_id in sorted(
             context.expected_node_ids,
@@ -252,6 +246,7 @@ def _answer_hierarchy_request(
                 marker=match.group(0),
                 node_id=citation[0],
                 page=citation[1],
+                book_id=scope.book_id,
             )
         )
     return TurnResult(
@@ -264,7 +259,7 @@ def _answer_hierarchy_request(
         evidence=evidence,
         citations=citations,
         outcome="answer",
-        warnings=list(result.validation.warnings),
+        warnings=warnings,
     )
 
 
@@ -337,15 +332,6 @@ def _answer_retrieval_question(
         [("system", rules), ("human", f"Question: {question}\n\n{evidence}")],
         token_callback=token_callback,
     )
-    sources = ["### Sources"]
-    for i, document in enumerate(documents, 1):
-        metadata = document.metadata
-        hierarchy = metadata["path"].replace(" :: ", " → ")
-        pages = str(metadata["start_page"])
-        if metadata["end_page"] != metadata["start_page"]:
-            pages += f"–{metadata['end_page']}"
-        book = books.get(metadata["book_id"], f"Book {metadata['book_id']}")
-        sources.append(f"- **[S{i}]** {book} → {hierarchy} — PDF p. {pages}")
     reply_text = str(reply.content).strip()
     insufficient = INSUFFICIENT_EVIDENCE_MARKER in reply_text or bool(
         INSUFFICIENT_EVIDENCE_LANGUAGE.search(reply_text)
@@ -367,7 +353,10 @@ def _answer_retrieval_question(
             INSUFFICIENT_EVIDENCE_MARKER,
             "Insufficient evidence:",
         )
-    answer = f"{reply_text}\n\n_Retrieval: {retrieval_mode}_\n\n" + "\n".join(sources)
+    # The source list and the retrieval-mode line that used to be appended here
+    # are `evidence` and `retrieval_mode` on the result. See the note in
+    # `_answer_hierarchy_request`.
+    answer = reply_text
     evidence_refs = [
         EvidenceRef(
             node_id=document.metadata.get("node_id", 0),
@@ -378,6 +367,8 @@ def _answer_retrieval_question(
                 )
             ),
             path=document.metadata["path"],
+            book_id=document.metadata.get("book_id"),
+            book_title=books.get(document.metadata.get("book_id", 0)),
             rank=rank,
             chunk_id=document.metadata.get("chunk_id"),
             chunk_index=document.metadata.get("chunk_index"),
@@ -401,6 +392,7 @@ def _answer_retrieval_question(
                 marker=marker,
                 node_id=document.metadata.get("node_id", 0),
                 page=document.metadata["start_page"],
+                book_id=document.metadata.get("book_id"),
                 evidence_rank=rank,
             )
         )

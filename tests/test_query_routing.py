@@ -129,7 +129,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
 
     def test_chapter_summary_uses_complete_scope_without_retrieval(self):
         with patch("study.query.BookRetriever") as retriever:
-            answer = answer_query(
+            result = execute_query(
                 "Summarize Chapter 1",
                 database_url=self.database_url,
                 book_id=self.book_id,
@@ -138,14 +138,47 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             )
 
         retriever.assert_not_called()
-        self.assertIn("Scope route: complete chapter subtree", answer)
-        self.assertIn("Complete grounded summary", answer)
-        self.assertIn("## References", answer)
-        self.assertIn("Sample Book → Chapter 1", answer)
+        self.assertIn("Complete grounded summary", result.answer)
+        self.assertEqual(result.resolved_scope.kind, "chapter")
+        self.assertEqual(result.resolved_scope.display_path, "Chapter 1")
+        self.assertTrue(
+            any(reference.path.startswith("Chapter 1") for reference in result.evidence)
+        )
+        self.assertTrue(
+            all(
+                reference.book_title == "Sample Book"
+                and reference.book_id == self.book_id
+                for reference in result.evidence
+            )
+        )
+
+    def test_summary_answer_carries_no_rendered_scope_or_reference_block(self):
+        """Presentation belongs to the interface, not to the answer string.
+
+        Scope, references, and retrieval mode are all first-class fields on
+        the result; concatenating them into markdown forced the client to
+        parse prose to recover data the server already had.
+        """
+
+        with patch("study.query.BookRetriever"):
+            result = execute_query(
+                "Summarize Chapter 1",
+                database_url=self.database_url,
+                book_id=self.book_id,
+                owner_id=self.owner_id,
+                model=CitationSummaryModel(),
+            )
+
+        self.assertNotIn("## References", result.answer)
+        self.assertNotIn("Scope route", result.answer)
+        self.assertNotIn("_Retrieval:", result.answer)
+        # The inline grounding markers are the contract and must survive.
+        self.assertRegex(result.answer, r"\[N\d+:P\d+]")
+        self.assertTrue(result.citations)
 
     def test_section_summary_maps_within_chapter_without_retrieval(self):
         with patch("study.query.BookRetriever") as retriever:
-            answer = answer_query(
+            result = execute_query(
                 "Summarize section Core idea in Chapter 1",
                 database_url=self.database_url,
                 book_id=self.book_id,
@@ -154,14 +187,15 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             )
 
         retriever.assert_not_called()
-        self.assertIn("Scope route: complete section subtree", answer)
-        self.assertIn("Chapter 1 → Core idea", answer)
-        self.assertIn("Chapter 1 → Core idea → Diagram", answer)
+        self.assertEqual(result.resolved_scope.kind, "section")
+        paths = {reference.path for reference in result.evidence}
+        self.assertIn("Chapter 1 :: Core idea", paths)
+        self.assertIn("Chapter 1 :: Core idea :: Diagram", paths)
 
     def test_invalid_summary_is_regenerated_once_with_validation_feedback(self):
         model = RepairingCitationSummaryModel()
 
-        answer = answer_query(
+        result = execute_query(
             "Summarize Chapter 1",
             database_url=self.database_url,
             book_id=self.book_id,
@@ -170,9 +204,14 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
         )
 
         self.assertEqual(model.calls, 2)
-        self.assertIn("Validation repair", answer)
-        self.assertIn("Repaired summary", answer)
-        self.assertIn("## References", answer)
+        self.assertIn("Repaired summary", result.answer)
+        self.assertNotIn("Bad citation", result.answer)
+        # The repair is reported as a warning rather than pasted into the
+        # answer, so the interface can present it as metadata.
+        self.assertTrue(
+            any("regenerated" in warning for warning in result.warnings),
+            result.warnings,
+        )
 
     def test_summary_stream_exposes_only_the_validated_repaired_answer(self):
         model = RepairingCitationSummaryModel()
@@ -204,7 +243,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
         )
         with patch("study.query.BookRetriever") as retriever:
             retriever.return_value.invoke.return_value = [document]
-            answer = answer_query(
+            result = execute_query(
                 "Summarize reservoir sampling",
                 database_url=self.database_url,
                 book_id=self.book_id,
@@ -213,9 +252,14 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             )
 
         retriever.assert_called_once()
-        self.assertIn("A grounded retrieval answer. [S1]", answer)
-        self.assertIn("_Retrieval: hybrid_", answer)
-        self.assertIn("Sample Book → Chapter 1 → Core idea", answer)
+        self.assertIn("A grounded retrieval answer. [S1]", result.answer)
+        self.assertNotIn("### Sources", result.answer)
+        self.assertNotIn("_Retrieval:", result.answer)
+        self.assertEqual(result.retrieval_mode, "hybrid")
+        self.assertEqual(
+            [(reference.book_title, reference.path) for reference in result.evidence],
+            [("Sample Book", "Chapter 1 :: Core idea")],
+        )
 
     def test_model_can_mark_retrieved_evidence_insufficient(self):
         document = SimpleNamespace(

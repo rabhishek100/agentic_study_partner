@@ -2,11 +2,13 @@
 
 import { AlertCircle, Check, Copy, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
 
+import { Answer } from "@/components/conversation/answer";
+import { AnswerInspector } from "@/components/conversation/inspector";
+import { References } from "@/components/conversation/references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import type { ChatTurn } from "@/lib/types";
+import type { ChatTurn, EvidenceRef } from "@/lib/types";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -58,10 +60,18 @@ export interface TurnViewProps {
   isLast: boolean;
   canRetry: boolean;
   onRetry: () => void;
+  onOpenReference?: (reference: EvidenceRef) => void;
 }
 
-export function TurnView({ turn, isLast, canRetry, onRetry }: TurnViewProps) {
+export function TurnView({
+  turn,
+  isLast,
+  canRetry,
+  onRetry,
+  onOpenReference,
+}: TurnViewProps) {
   const showThinking = turn.status === "streaming" && !turn.answer;
+  const result = turn.result;
 
   return (
     <article className="space-y-4" aria-labelledby={`question-${turn.id}`}>
@@ -78,9 +88,19 @@ export function TurnView({ turn, isLast, canRetry, onRetry }: TurnViewProps) {
         {showThinking && <ThinkingIndicator label="Checking the book…" />}
 
         {turn.answer && (
-          <div className="answer-prose">
-            <ReactMarkdown>{turn.answer}</ReactMarkdown>
-          </div>
+          <Answer
+            text={turn.answer}
+            evidence={result?.evidence ?? []}
+            citations={result?.citations ?? []}
+            onOpenReference={onOpenReference}
+          />
+        )}
+
+        {result && result.evidence.length > 0 && (
+          <References
+            evidence={result.evidence}
+            onOpenReference={onOpenReference}
+          />
         )}
 
         {turn.status === "stopped" && (
@@ -98,7 +118,7 @@ export function TurnView({ turn, isLast, canRetry, onRetry }: TurnViewProps) {
         )}
 
         {turn.status !== "streaming" && (
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {turn.answer && <CopyButton text={turn.answer} />}
             {isLast && canRetry && (
               <Button variant="ghost" size="xs" onClick={onRetry}>
@@ -106,6 +126,7 @@ export function TurnView({ turn, isLast, canRetry, onRetry }: TurnViewProps) {
                 {turn.status === "failed" ? "Try again" : "Regenerate"}
               </Button>
             )}
+            {result && <AnswerInspector result={result} />}
           </div>
         )}
       </div>
