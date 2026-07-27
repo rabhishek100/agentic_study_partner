@@ -13,6 +13,7 @@ from unstructured.partition.pdf import partition_pdf
 from unstructured.staging.base import elements_from_json, elements_to_json
 
 from .models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
+from .threads import limit_inference_threads
 from .version import PARSER_VERSION
 
 
@@ -283,6 +284,11 @@ def ocr_mode() -> str:
 
 
 def _partition(path: Path, strategy: str):
+    # Before any model is built: both libraries fix their pool width when a
+    # session is constructed, and in a batched parse this call is the first
+    # thing the worker process does.
+    limit_inference_threads()
+
     options: dict = {"filename": str(path), "strategy": strategy}
     if strategy == "hi_res":
         options.update(
