@@ -11,6 +11,13 @@ deployed worker took 24m51s to parse, 33s to chunk, 10s to embed, and 5s to
 verify. Persistence was 5m18s before inserts were batched and is now a small
 fraction of that. Re-measure and update these when the parser, the hardware,
 or the batch size changes.
+
+They are a starting guess, not an answer. Parse cost per page varies far more
+between books than any constant can absorb: the same parser across the same
+four processes measured 0.53 s/page on the reference book and 10.4 s/page on
+a 535-page one, and it was the second that made a job promise 49 minutes and
+take 92. So a constant is used only until the stage reports real progress,
+after which the stage's own observed rate takes over.
 """
 
 from dataclasses import dataclass
@@ -70,6 +77,11 @@ STAGE_LABELS: dict[Stage, str] = {
 # rather than being shown a countdown that has already reached zero.
 OVERRUN_FACTOR = 1.5
 
+# A stage must have been running at least this long before its own rate is
+# trusted over the constant. The first batch of a parse lands early and its
+# rate is dominated by model loading, which the remaining batches do not pay.
+MINIMUM_OBSERVED_SECONDS = 20.0
+
 
 @dataclass(frozen=True)
 class StageView:
@@ -120,9 +132,15 @@ def estimate(
 ) -> JobProgress:
     """Estimate overall progress and remaining time for one job.
 
-    Stages that report real counts use them. The parse stage, which cannot,
-    is estimated from elapsed time against its expected duration and is
-    capped below completion so it never claims to be finished early.
+    Stages that report real counts use them, and once such a stage has been
+    running long enough for its rate to mean something, that rate replaces
+    the constant for the rest of the stage — a book parsing at twice the
+    expected cost per page reports a total that grows to match, rather than a
+    countdown to a deadline it has already missed.
+
+    A stage with no count of its own is estimated from elapsed time against
+    its expected duration, capped below completion so it never claims to be
+    finished early.
     """
 
     now = now or datetime.now(timezone.utc)
@@ -177,6 +195,7 @@ def estimate(
 
     index = STAGE_ORDER.index(current_stage)
     done_seconds = sum(expected[step] for step in STAGE_ORDER[:index])
+    later_seconds = sum(expected[step] for step in STAGE_ORDER[index + 1 :])
     in_stage = _elapsed(stage_started_at, now) or 0.0
     stage_expected = expected[current_stage] or 1.0
 
@@ -186,13 +205,22 @@ def estimate(
     # zero for its entire duration.
     if progress_total and progress_completed > 0:
         fraction = min(1.0, max(0.0, progress_completed / progress_total))
+        # This stage is reporting how much of itself it has finished and how
+        # long that took, which is a measurement of this book on this worker.
+        # Prefer it to a constant derived from a different book.
+        if fraction > 0 and in_stage >= MINIMUM_OBSERVED_SECONDS:
+            stage_expected = max(in_stage, in_stage / fraction)
+            expected[current_stage] = stage_expected
     else:
         # Time-based, capped just under complete: an estimate must not claim
         # a stage finished when only the clock says so.
         fraction = min(0.97, in_stage / stage_expected)
 
+    total = done_seconds + stage_expected + later_seconds
     percent = 100.0 * (done_seconds + stage_expected * fraction) / total
     remaining = max(0.0, total - (done_seconds + stage_expected * fraction))
+    # A stage running to its own projection is not overrunning; it has been
+    # re-estimated. Only a stage still judged against the constant can be.
     overrunning = in_stage > stage_expected * OVERRUN_FACTOR
 
     stages = []

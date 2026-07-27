@@ -184,5 +184,73 @@ class EstimateTests(unittest.TestCase):
         self.assertLess(total, 45 * 60)
 
 
+class ObservedRateTests(unittest.TestCase):
+    """Once a stage reports its own rate, that rate beats the constant.
+
+    Parse cost per page varies roughly twentyfold between books on identical
+    hardware, which is how a job came to promise 49 minutes and take 92.
+    """
+
+    def _parsing(self, *, in_stage_seconds, completed, total=535, pages=535):
+        return running(
+            Stage.PARSE_PAGES,
+            in_stage_seconds=in_stage_seconds,
+            pages=pages,
+            progress_completed=completed,
+            progress_total=total,
+        )
+
+    def test_a_slow_book_grows_its_own_estimate(self):
+        # A quarter done after 30 minutes projects to about two hours, not to
+        # the constant's fifty.
+        slow = self._parsing(in_stage_seconds=30 * 60, completed=134)
+
+        self.assertGreater(slow.estimated_total_seconds, 100 * 60)
+        self.assertLess(slow.estimated_total_seconds, 140 * 60)
+
+    def test_a_fast_book_shrinks_its_own_estimate(self):
+        fast = self._parsing(in_stage_seconds=60, completed=300)
+
+        # Well under the constant's projection for a 535-page book.
+        self.assertLess(fast.estimated_total_seconds, 20 * 60)
+
+    def test_a_projected_stage_is_not_reported_as_overrunning(self):
+        """Re-estimating is the alternative to declaring the job late."""
+
+        slow = self._parsing(in_stage_seconds=90 * 60, completed=400)
+
+        self.assertFalse(slow.overrunning)
+        self.assertIsNotNone(slow.estimated_remaining_seconds)
+
+    def test_the_remaining_time_matches_the_observed_rate(self):
+        # Half the pages in 40 minutes means roughly 40 minutes of parsing
+        # left, plus the stages that follow.
+        half = self._parsing(in_stage_seconds=40 * 60, completed=268)
+
+        self.assertGreater(half.estimated_remaining_seconds, 35 * 60)
+        self.assertLess(half.estimated_remaining_seconds, 55 * 60)
+
+    def test_an_early_report_is_not_trusted_yet(self):
+        """One batch in, the rate is mostly model loading."""
+
+        instant = self._parsing(in_stage_seconds=2, completed=25)
+        constant = stage_seconds(Stage.PARSE_PAGES, 535)
+
+        self.assertAlmostEqual(
+            instant.estimated_total_seconds,
+            sum(stage_seconds(stage, 535) for stage in STAGE_ORDER),
+            delta=1.0,
+        )
+        self.assertGreater(constant, 0)
+
+    def test_the_projection_never_runs_backwards(self):
+        """A stage cannot be projected to finish before it already has run."""
+
+        nearly = self._parsing(in_stage_seconds=60 * 60, completed=535)
+
+        self.assertGreaterEqual(nearly.estimated_total_seconds, 60 * 60)
+        self.assertGreaterEqual(nearly.estimated_remaining_seconds, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
