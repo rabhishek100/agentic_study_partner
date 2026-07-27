@@ -37,6 +37,15 @@ MINIMUM_DRAWINGS = 4
 DEFAULT_BATCH_PAGES = 25
 DEFAULT_PARSE_WORKERS = 4
 
+# `hi_res` shells out to Tesseract for every page by default
+# ("entire_page"), even for a digital PDF that already carries its text.
+# Restricting OCR to regions the text layer does not cover halves the
+# per-page cost. Preflight only admits documents with a text layer, so the
+# full-page pass has nothing to contribute that pdfminer has not already
+# read - except text drawn inside a figure. See docs/parser-performance.md.
+BLOCK_OCR = "individual_blocks"
+FULL_PAGE_OCR = "entire_page"
+
 logger = logging.getLogger("study_partner.parsing")
 
 
@@ -261,6 +270,18 @@ def extract_batched(
     return elements
 
 
+def ocr_mode() -> str:
+    """Which pages Tesseract reads.
+
+    ``PARSER_FULL_PAGE_OCR=1`` restores Unstructured's default for a document
+    whose text has to be read off the page rather than out of the file.
+    """
+
+    if os.getenv("PARSER_FULL_PAGE_OCR", "0").strip() == "1":
+        return FULL_PAGE_OCR
+    return BLOCK_OCR
+
+
 def _partition(path: Path, strategy: str):
     options: dict = {"filename": str(path), "strategy": strategy}
     if strategy == "hi_res":
@@ -268,6 +289,7 @@ def _partition(path: Path, strategy: str):
             infer_table_structure=True,
             extract_image_block_types=["Image"],
             extract_image_block_to_payload=True,
+            ocr_mode=ocr_mode(),
         )
     return partition_pdf(**options)
 

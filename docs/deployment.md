@@ -122,6 +122,9 @@ Measured on this codebase:
 | ...across four processes | 1.03 s/page (3.92x) |
 | ...across six processes | 0.70 s/page (5.76x) |
 
+Those parse rates predate block-level OCR, which measured a further 1.16-1.19x
+on a laptop and has not yet been re-measured on the worker.
+
 The worker therefore defers `parsing.parser` until a document is actually
 being parsed (`parsing.version` carries the version constant so provenance
 comparisons stay cheap). Idle cost drops roughly seven-fold, which is the

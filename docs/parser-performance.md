@@ -22,6 +22,22 @@ detected tables, and extracts text and images per region. That is what
 produces the tables and images the canonical store holds, and it costs the
 same on a page of plain prose as on a page of diagrams.
 
+Profiled warm on a laptop, one page at a time, the 3.53 s/page divides as:
+
+| Component | s/page | Share | A GPU helps? |
+|---|---:|---:|---|
+| Tesseract OCR subprocess | 1.28 | 36% | no — CPU binary |
+| ONNX inference (YOLOX, table-transformer) | 1.12 | 32% | **yes** |
+| Waiting on the OCR thread pool | 0.35 | 10% | no |
+| PIL encode of image payloads | 0.32 | 9% | no |
+| PIL decode and page render | 0.23 | 7% | no |
+| Everything else | 0.23 | 6% | no |
+
+Only a third of the work is inference, which puts the ceiling on GPU
+acceleration at **1.47x** by Amdahl's law even if inference became free. That
+is why the parser stays on CPU: a GPU would turn a 92-minute book into a
+66-minute one and add a second deployment target to do it.
+
 ## Rejected: selective layout extraction
 
 The idea: classify pages cheaply with PyMuPDF, run `hi_res` only on pages
@@ -86,6 +102,58 @@ of the layout model at roughly 1.2 GB, measured flat across successive
 batches, so a long book peaks near 5.3 GB of the worker's 8 GB during
 parsing. Assembly happens after the pool closes and costs far less: 569 MB
 for a 200-page document.
+
+## Adopted: OCR only where the text layer is missing
+
+`hi_res` defaults to `ocr_mode="entire_page"`: it shells out to Tesseract for
+every page and re-reads text pdfminer has already taken out of the file.
+Preflight only admits documents that carry a text layer, so that pass has
+almost nothing to contribute. `individual_blocks` runs OCR only on regions
+the text layer does not cover.
+
+A serial profile made this look like the big win. Warm, one page at a time,
+Tesseract was 1.28 s/page of a 3.53 s/page total, and switching modes on a
+12-page sample took 4.05 s/page to 2.03 s/page — **2.0x**.
+
+**Through the production path it is 1.19x.** Measured with `extract_batched`
+at four workers, which is how books are actually parsed:
+
+| Book | Full-page OCR | Block OCR | Speedup | Deltas |
+|---|---:|---:|---:|---|
+| Reference, 389 pages, whole book | 2.45 s/page | 2.12 s/page | 1.16x | 32 tables, 119 images, 821,672 chars — all zero |
+| AI Engineering, 60 pages | 2.51 s/page | 2.10 s/page | 1.19x | 577 elements, 13 tables, 31 images — all zero |
+
+The serial number was measuring a queue, not the work. Tesseract runs in a
+subprocess, so a serial parse sits idle waiting for it; with four processes
+one worker's OCR wait overlaps another's layout inference and the pool had
+already recovered most of that time. What remains is the real CPU the OCR
+pass burns, and that is the 1.19x. **The same trap as the 1.34x laptop
+measurement, in the opposite direction: measure the configuration that ships.**
+
+It is adopted anyway, because the content is identical and the speedup is
+free. The whole-book run matched the reference parse on every metric. Four
+strings differed, all of them OCR reading text off artwork rather than out of
+the file:
+
+```text
+O'REILLY”                 <- the cover logo
+01, non                   <- fragments of a chart axis
+df.info() <class 'pandas.core.frame.DataFrame'> ...   <- a code screenshot
+```
+
+That is the trade: text drawn *inside* a figure stops becoming searchable
+text. The figure itself is still captured as an image payload. For a book
+whose text must be read off the page rather than out of the file, restore the
+old behaviour with `PARSER_FULL_PAGE_OCR=1`.
+
+Reproduce with:
+
+```bash
+uv run python -m scripts.compare_ocr_mode sources/books/<book>.pdf
+```
+
+`PARSER_VERSION` moved to `toc-hi-res-v2`, so a book half-committed under the
+old mode is rebuilt rather than resumed against output it no longer matches.
 
 ## Page limit
 

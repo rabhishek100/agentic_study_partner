@@ -25,19 +25,17 @@ import fitz
 
 
 def _partition(path: str):
-    """Parse one PDF with the full layout pipeline. Top level so it pickles."""
+    """Parse one PDF exactly as the pipeline does. Top level so it pickles.
 
-    from unstructured.partition.pdf import partition_pdf
+    Calls the pipeline's own partition rather than restating its options: a
+    benchmark that drifts from the settings it claims to measure is worse
+    than no benchmark. The import stays deferred so the module keeps costing
+    nothing until a parse actually runs.
+    """
 
-    return len(
-        partition_pdf(
-            filename=path,
-            strategy="hi_res",
-            infer_table_structure=True,
-            extract_image_block_types=["Image"],
-            extract_image_block_to_payload=True,
-        )
-    )
+    from parsing.parser import _partition as partition
+
+    return len(partition(Path(path), "hi_res"))
 
 
 def slice_pdf(source: Path, first: int, last: int, destination: Path) -> Path:
