@@ -64,6 +64,26 @@ def newest_source(workspace: Path) -> Path:
     raise SystemExit("no source objects in the bucket to benchmark")
 
 
+def cpu_allowance() -> str:
+    """How many cores this container may actually use.
+
+    ``os.cpu_count()`` reports the host's processors, which on a shared
+    platform can be an order of magnitude more than the cgroup will let the
+    process consume. Parsing spawns one process per worker, so the gap
+    between the two numbers is the difference between a pool that runs and a
+    pool that thrashes.
+    """
+
+    visible = os.cpu_count()
+    try:
+        quota, period = Path("/sys/fs/cgroup/cpu.max").read_text().split()
+    except (OSError, ValueError):
+        return f"{visible} visible, no cgroup v2 quota readable"
+    if quota == "max":
+        return f"{visible} visible, no quota"
+    return f"{visible} visible, quota {int(quota) / int(period):.2f} cores"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, help="local PDF; defaults to Storage")
