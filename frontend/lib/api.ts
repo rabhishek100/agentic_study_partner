@@ -2,12 +2,14 @@
 
 import { accessToken } from "./supabase";
 
-const API_BASE = "/api";
+export const API_BASE = "/api";
 
-async function detail(response) {
+async function detail(response: Response): Promise<string> {
   const raw = await response.text();
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as {
+      detail?: string | { message?: string };
+    };
     if (typeof parsed.detail === "string") return parsed.detail;
     // Ingestion errors carry {code, message}; the message is written for users.
     if (parsed.detail?.message) return parsed.detail.message;
@@ -18,13 +20,19 @@ async function detail(response) {
 }
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
     super(message);
+    this.name = "ApiError";
     this.status = status;
   }
 }
 
-export async function apiFetch(path, { headers, ...options } = {}) {
+export async function apiFetch<T>(
+  path: string,
+  { headers, ...options }: RequestInit = {},
+): Promise<T> {
   const token = await accessToken();
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -37,6 +45,7 @@ export async function apiFetch(path, { headers, ...options } = {}) {
   if (!response.ok) {
     throw new ApiError(await detail(response), response.status);
   }
-  if (response.status === 204) return null;
-  return response.json();
+  // 204 carries no body; the caller types these as void.
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }

@@ -50,6 +50,10 @@ jobs:
         run: npm ci
       - name: Audit production dependencies
         run: npm audit --omit=dev
+      - name: Type-check the frontend
+        run: npm run typecheck
+      - name: Run frontend tests
+        run: npm test
       - name: Build Next.js frontend
         run: npm run build
 
