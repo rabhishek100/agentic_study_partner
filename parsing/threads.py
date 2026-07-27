@@ -12,9 +12,19 @@ ONNX Runtime takes its width from `SessionOptions`, not from the environment:
 `unstructured_inference` constructs its sessions without options, the only
 way in is to supply a default as they are built.
 
-Opt in with `PARSER_INFERENCE_THREADS`. Whether this helps is a question
-about a particular container, so it is measured per deployment rather than
-assumed - see docs/parser-performance.md.
+Measured on the worker over the same 24 pages, the cap is worth 3.9x to a
+serial parse and nothing at all to a batched one:
+
+    threads     serial       parallel(4)
+    48 (default) 4.45 s/page  0.50 s/page
+    2            1.60 s/page  0.53 s/page
+    8            1.14 s/page  0.52 s/page
+
+So it defaults to the cgroup allowance, which costs the batched path nothing
+and rescues every path that parses a document whole: a book shorter than one
+batch, a single-worker configuration, and the fallback taken when the process
+pool breaks. `PARSER_INFERENCE_THREADS` overrides it; a host with no cgroup
+quota to read is left as the libraries found it.
 """
 
 import logging
@@ -45,7 +55,7 @@ def allowed_cores() -> float | None:
 
 
 def requested_threads() -> int | None:
-    """Threads each inference pool should use, or None to leave the default."""
+    """An explicit `PARSER_INFERENCE_THREADS`, or None if it is unset."""
 
     raw = os.getenv("PARSER_INFERENCE_THREADS", "").strip()
     if not raw:
@@ -59,6 +69,22 @@ def requested_threads() -> int | None:
     return threads
 
 
+def thread_cap() -> int | None:
+    """Threads each inference pool should use, or None to leave the default.
+
+    An explicit setting wins. Otherwise the container's own quota decides,
+    which is the number the libraries should have used and did not.
+    """
+
+    explicit = requested_threads()
+    if explicit is not None:
+        return explicit
+    cores = allowed_cores()
+    if cores is None:
+        return None
+    return max(1, int(cores))
+
+
 def limit_inference_threads() -> int | None:
     """Cap this process's inference pools. Returns the cap, or None.
 
@@ -68,12 +94,9 @@ def limit_inference_threads() -> int | None:
     """
 
     global _applied
-    if _applied:
-        return requested_threads()
-
-    threads = requested_threads()
-    if threads is None:
-        return None
+    threads = thread_cap()
+    if _applied or threads is None:
+        return threads
 
     _applied = True
     os.environ["OMP_NUM_THREADS"] = str(threads)
@@ -126,4 +149,9 @@ def _limit_onnxruntime(threads: int) -> None:
     onnxruntime.InferenceSession = bounded
 
 
-__all__ = ["allowed_cores", "limit_inference_threads", "requested_threads"]
+__all__ = [
+    "allowed_cores",
+    "limit_inference_threads",
+    "requested_threads",
+    "thread_cap",
+]

@@ -122,15 +122,19 @@ Measured on this codebase:
 | Worker memory limit | 8 GB |
 | `hi_res` parse rate, serial, full-page OCR | 5.24 s/page |
 | ...across four processes | 0.93 s/page |
-| `hi_res` parse rate, serial, block OCR (current) | 4.16 s/page |
+| `hi_res` parse rate, serial, block OCR | 4.16 s/page |
 | ...across two processes | 0.99 s/page |
 | ...across four processes | **0.53 s/page** |
 | ...across six processes | 0.41 s/page |
+| ...serial, with the thread cap (current) | **1.14 s/page** |
 
 `os.cpu_count()` reports the host's 48 processors, not the 8 the cgroup
-allows. Anything that sizes a thread pool from it — ONNX Runtime and OpenMP
-both do by default — will oversubscribe this container. See
-`docs/parser-performance.md`; it is an open question, not a settled one.
+allows, and ONNX Runtime sized its thread pool from the former. A serial
+parse was 3.9x slower than it needed to be as a result. The parser now caps
+its inference pools at the cgroup allowance; `PARSER_INFERENCE_THREADS`
+overrides it, and there is no need to set it on Railway. The batched path was
+never affected, so book ingestion timings do not change — the fallback paths
+do. See `docs/parser-performance.md`.
 
 The worker therefore defers `parsing.parser` until a document is actually
 being parsed (`parsing.version` carries the version constant so provenance

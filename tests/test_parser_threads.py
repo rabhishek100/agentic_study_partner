@@ -10,7 +10,12 @@ import unittest
 from unittest.mock import patch
 
 import parsing.threads as threads_module
-from parsing.threads import allowed_cores, limit_inference_threads, requested_threads
+from parsing.threads import (
+    allowed_cores,
+    limit_inference_threads,
+    requested_threads,
+    thread_cap,
+)
 
 
 class RequestedThreadsTests(unittest.TestCase):
@@ -66,15 +71,43 @@ class AllowedCoresTests(unittest.TestCase):
         self.assertIsNone(self._reading("garbage"))
 
 
+class ThreadCapTests(unittest.TestCase):
+    """The default comes from the container, since that is what was wrong."""
+
+    def _cap(self, *, environment, cores):
+        with patch.dict("os.environ", environment, clear=True):
+            with patch.object(threads_module, "allowed_cores", return_value=cores):
+                return thread_cap()
+
+    def test_the_quota_decides_when_nothing_is_set(self):
+        self.assertEqual(self._cap(environment={}, cores=8.0), 8)
+
+    def test_an_explicit_setting_wins_over_the_quota(self):
+        self.assertEqual(
+            self._cap(environment={"PARSER_INFERENCE_THREADS": "2"}, cores=8.0), 2
+        )
+
+    def test_a_host_with_no_quota_is_left_alone(self):
+        # A laptop is not oversubscribed; its libraries already see the truth.
+        self.assertIsNone(self._cap(environment={}, cores=None))
+
+    def test_a_fractional_quota_rounds_down_to_a_whole_thread(self):
+        self.assertEqual(self._cap(environment={}, cores=2.5), 2)
+
+    def test_a_quota_below_one_core_still_leaves_a_thread(self):
+        self.assertEqual(self._cap(environment={}, cores=0.25), 1)
+
+
 class LimitTests(unittest.TestCase):
     def setUp(self):
         threads_module._applied = False
         self.addCleanup(setattr, threads_module, "_applied", False)
 
-    def test_nothing_happens_without_a_setting(self):
+    def test_nothing_happens_where_there_is_no_quota_to_read(self):
         with patch.dict("os.environ", {}, clear=True):
-            with patch.object(threads_module, "_limit_onnxruntime") as onnx:
-                self.assertIsNone(limit_inference_threads())
+            with patch.object(threads_module, "allowed_cores", return_value=None):
+                with patch.object(threads_module, "_limit_onnxruntime") as onnx:
+                    self.assertIsNone(limit_inference_threads())
         onnx.assert_not_called()
 
     def test_the_cap_reaches_onnxruntime_and_the_openmp_variables(self):
@@ -96,7 +129,7 @@ class LimitTests(unittest.TestCase):
         with patch.dict("os.environ", {"PARSER_INFERENCE_THREADS": "2"}):
             with patch.object(threads_module, "_limit_onnxruntime") as onnx:
                 limit_inference_threads()
-                limit_inference_threads()
+                self.assertEqual(limit_inference_threads(), 2)
 
         self.assertEqual(onnx.call_count, 1)
 

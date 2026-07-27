@@ -90,6 +90,11 @@ Measured on the deployed worker over 24 pages of a real book:
 | parallel(4) | 24.7s | 1.03s | 257 | 3.92x |
 | parallel(6) | 16.8s | 0.70s | 257 | 5.76x |
 
+**Those speedups are overstated and the serial row is why** — see "the serial
+baseline was throttling itself" below. Against a serial parse that is not
+fighting its own thread pool, four processes are worth about 2.2x. The
+per-page figures in the other rows stand; only the ratios were wrong.
+
 A laptop had said 1.34x, because its four performance cores were already
 saturated by ONNX. Measuring on the hardware that does the work was the
 difference between rejecting this and adopting it.
@@ -139,18 +144,50 @@ that counts is the deployed one, and none of the three could have been
 predicted from the others. **Measure the configuration that ships** — the same
 lesson as the 1.34x laptop reading, arrived at from the opposite direction.
 
-### Two things this benchmark did not explain
+## Solved: the serial baseline was throttling itself
 
-Parallel(4) is **7.85x** the serial run and parallel(6) is **10.21x**, on a
-pool of four and six processes. Superlinear speedup means the serial baseline
-is doing something the batched one is not; what, is not yet known. Speedup
-ratios against serial should not be quoted until it is.
+The benchmark kept reporting **superlinear** speedup — parallel(4) at 7.85x
+on a pool of four, parallel(6) at 10.21x on a pool of six. A pool of four
+cannot be eight times quicker, so the serial baseline had to be wrong.
 
-A suspect worth testing: the container sees `os.cpu_count() == 48` but its
-cgroup quota is `800000 100000`, i.e. **8 cores**. ONNX Runtime and OpenMP
-size their thread pools from the visible count by default, so a single parse
-process may open ~48 intra-op threads against an 8-core allowance and spend
-its time being throttled. That would inflate the serial baseline specifically.
+It was. The container sees `os.cpu_count() == 48`; its cgroup quota is
+`800000 100000`, i.e. **8 cores**. ONNX Runtime sizes its intra-op pool from
+the visible count, so one parse process opened roughly 48 threads to run on
+8 and spent its time being descheduled.
+
+Capping the pool, same container, same 24 pages:
+
+| Threads per process | Serial | Parallel(4) | Ratio |
+|---|---:|---:|---:|
+| 48 (library default) | 4.45 s/page | 0.50 s/page | 8.83x |
+| 2 | 1.60 s/page | 0.53 s/page | 3.01x |
+| **8 (the quota)** | **1.14 s/page** | 0.52 s/page | **2.21x** |
+
+Two conclusions, and the second is the uncomfortable one:
+
+**A serial parse was 3.9x slower than it needed to be** — 4.45 s/page against
+1.14. Every path that parses a document whole pays this: a book shorter than
+one batch, a single-worker configuration, and the fallback taken when the
+process pool breaks.
+
+**The batched path never had the problem, so every parallel speedup recorded
+here has been inflated by a broken baseline.** Four processes are worth about
+**2.2x**, not the 3.92x this document claimed, and six are not worth 5.76x.
+The batched numbers themselves (0.50-0.53 s/page) were always correct and
+have not moved through any of this; only the ratios were wrong, because they
+were divided by a serial run that was throttling itself.
+
+`PARSER_INFERENCE_THREADS` overrides the cap. It defaults to the cgroup
+allowance, which costs the batched path nothing and is worth 3.9x to every
+other path. A host with no quota to read is left alone, since it is not
+oversubscribed in the first place.
+
+### Still unexplained
+
+The 535-page book parsed at 10.4 s/page across four processes, against
+0.52 s/page here on the same hardware and the same pool width — a factor of
+twenty. Thread oversubscription is now ruled out: it never affected the
+batched path.
 
 It is adopted anyway, because the content is identical and the speedup is
 free. The whole-book run matched the reference parse on every metric. Four
