@@ -182,11 +182,27 @@ Then per service, from the repository root:
 ```bash
 railway up --service api
 railway up --service worker
-railway up --service web
+railway up ./frontend --path-as-root --service web
 ```
 
-Railway builds the Dockerfile for each service. The web service needs its
-root directory set to `frontend` in service settings first.
+**`railway up` uploads the linked project root, not your shell's working
+directory.** The link lives in `.railway/` at the repository root, so
+`cd frontend && railway up --service web` still uploads the whole repository —
+Railway then finds the root `Dockerfile` (the Python API image) and deploys
+*that* to the web service, which crash-loops on `node server.js`. `--path-as-root`
+is what makes `frontend/` the archive root, so `frontend/railway.json` and
+`frontend/Dockerfile` are the ones used. A bare `railway up ./frontend`
+without the flag treats the path as a filter prefix and fails with
+`prefix not found`.
+
+None of the three services has a root directory set in Railway (verify with
+`railway status --json`); the api and worker are correct only because the
+Dockerfile they want happens to be the one at the repository root.
+
+If a deploy puts the wrong image on a service, the fastest recovery is the
+Railway dashboard — Deployments → the last good one → Redeploy. The CLI's
+`railway redeploy` only redeploys the *latest* deployment, which is the broken
+one, and there is no redeploy-by-id.
 
 ## Post-deploy verification
 
