@@ -226,6 +226,15 @@ def _openrouter_model() -> AnalysisModel:
     return model.with_structured_output(ModelDecision, method="json_schema")
 
 
+class NoScopeOffered(ValueError):
+    """The model named a scope when it had not been shown any.
+
+    Distinct from picking the wrong one out of a real list: there was nothing
+    to pick, so another attempt will invent another id. Retrying is the wrong
+    response and a raw error is the wrong thing to show for it.
+    """
+
+
 def _selected_scope(
     node_id: int | None,
     *,
@@ -241,6 +250,8 @@ def _selected_scope(
         None,
     )
     if candidate is None:
+        if not candidates:
+            raise NoScopeOffered("no canonical scope matched the question")
         raise ValueError("selected scope is not canonical")
     return ScopeRef(
         kind=candidate.kind,
@@ -265,6 +276,23 @@ def _validated_decision(
             candidates=candidates,
             state=state,
         )
+    except NoScopeOffered:
+        if decision.route == "retrieval_qa":
+            # Searching the whole book still answers the question.
+            scope = None
+        else:
+            # A hierarchy route cannot proceed without a scope, and nothing in
+            # the book matched, so the next two attempts would invent two more
+            # ids and end in an internal error the reader cannot act on.
+            return TurnDecision(
+                route="clarify",
+                history_dependency=decision.history_dependency,
+                clarification_question=(
+                    "I could not find that chapter or section in this book. "
+                    "Which part did you mean?"
+                ),
+                reason="no canonical scope matched the question",
+            )
     except ValueError:
         if decision.route != "retrieval_qa":
             raise

@@ -10,7 +10,10 @@ from .contracts import ConversationState, ScopeCandidate
 
 NON_WORD = re.compile(r"[^\w]+", re.UNICODE)
 CHAPTER = re.compile(r"\bchapter\s+(\d+)\b", re.IGNORECASE)
-CHAPTER_TITLE = re.compile(r"^\s*chapter\s+(\d+)\b", re.IGNORECASE)
+# "Chapter 1 Introduction" and "1 Introduction" name the same thing; only one
+# of them says so. The lookahead keeps "2.1 What Is Statistical Learning?" out,
+# since a section is not chapter 2.
+CHAPTER_TITLE = re.compile(r"^\s*(?:chapter\s+)?(\d+)(?!\.?\d)", re.IGNORECASE)
 STOPWORDS = {
     "a",
     "about",
@@ -154,7 +157,9 @@ def find_scope_candidates(
     for row in rows:
         match = CHAPTER_TITLE.match(row["title"])
         number = match.group(1) if match else None
-        if number in chapter_numbers:
+        # Only a chapter answers to "Chapter 5". A section numbered "5 Notes"
+        # inside another chapter must not claim the reference.
+        if number in chapter_numbers and row["node_type"] == "chapter":
             _add(ranked, row, 1200, f"explicit Chapter {number} reference")
 
         aliases = _aliases(row["title"])

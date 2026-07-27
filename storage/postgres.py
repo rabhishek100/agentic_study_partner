@@ -91,13 +91,24 @@ def _validate(book: ParsedBook, page_count: int) -> None:
 
 
 def _node_type(section: Section) -> str:
+    """Name a node's structural role from its depth in the outline.
+
+    Depth is the only signal a PDF outline actually carries. Reading the role
+    off the title instead classified "Chapter 1 Introduction" as a chapter and
+    "1 Introduction" as `other`, and `other` is excluded from scope search, so
+    a book that numbered its chapters without the word lost every one of them:
+    all thirteen chapters of one 613-page book were invisible to the question
+    "what sections are present in Chapter 1?".
+
+    Front matter is level 1 too, so a preface is now a chapter. That is the
+    lesser error - it is a top-level scope, and treating it as one costs a
+    slightly odd label, where the old rule cost whole books.
+    """
+
     if section.level == 1:
-        title = section.title.casefold()
-        if title.startswith("chapter"):
-            return "chapter"
-        if title.startswith("appendix"):
+        if section.title.casefold().startswith("appendix"):
             return "appendix"
-        return "other"
+        return "chapter"
     if section.level == 2:
         return "section"
     if section.level == 3:

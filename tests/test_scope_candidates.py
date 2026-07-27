@@ -13,7 +13,7 @@ from study.contracts import (
     ScopeRef,
     TurnDecision,
 )
-from study.scope_candidates import find_scope_candidates
+from study.scope_candidates import CHAPTER_TITLE, find_scope_candidates
 from tests.postgres import PostgresOwnerMixin
 
 
@@ -64,6 +64,123 @@ def hierarchy_book() -> ParsedBook:
         ],
         sections=sections,
     )
+
+
+def bare_numbered_book() -> ParsedBook:
+    """A book that numbers its chapters without saying "Chapter".
+
+    Modelled on the outline that broke scope search: top-level entries read
+    "1 Introduction", and sections carry dotted numbers of their own.
+    """
+
+    paths = [
+        ["Preface"],
+        ["1 Introduction"],
+        ["1 Introduction", "An Overview of Statistical Learning"],
+        ["2 Statistical Learning"],
+        ["2 Statistical Learning", "2.1 What Is Statistical Learning?"],
+        ["2 Statistical Learning", "2.1 What Is Statistical Learning?", "2.1.1 Why Estimate f?"],
+    ]
+    sections = [
+        Section(
+            path=path,
+            level=len(path),
+            start_page=page,
+            end_page=page,
+            texts=[
+                TextBlock(
+                    text=f"Content for {path[-1]}", category="NarrativeText", page=page
+                )
+            ],
+        )
+        for page, path in enumerate(paths, start=1)
+    ]
+    return ParsedBook(
+        source="sources/books/bare.pdf",
+        toc=[(s.level, s.title, s.start_page) for s in sections],
+        sections=sections,
+    )
+
+
+class ChapterTitleTests(unittest.TestCase):
+    """Which titles answer to "Chapter N"."""
+
+    def _number(self, title):
+        match = CHAPTER_TITLE.match(title)
+        return match.group(1) if match else None
+
+    def test_a_chapter_is_recognised_with_or_without_the_word(self):
+        self.assertEqual(self._number("Chapter 3. Data Engineering"), "3")
+        self.assertEqual(self._number("1 Introduction"), "1")
+        self.assertEqual(self._number("1. Introduction"), "1")
+
+    def test_a_dotted_section_number_is_not_a_chapter(self):
+        # "2.1 What Is Statistical Learning?" is not chapter 2.
+        self.assertIsNone(self._number("2.1 What Is Statistical Learning?"))
+        self.assertIsNone(self._number("2.1.1 Why Estimate f?"))
+
+    def test_an_unnumbered_title_has_no_number(self):
+        self.assertIsNone(self._number("Preface"))
+
+
+class BareNumberedBookTests(PostgresOwnerMixin, unittest.TestCase):
+    """Regression: a book numbered this way lost every chapter.
+
+    Top-level entries were typed `other`, which scope search excludes, so no
+    candidate existed for "what sections are present in Chapter 1?" and the
+    reader was shown an internal error.
+    """
+
+    def setUp(self) -> None:
+        self.setUpPostgresOwner()
+        with database_connection(self.database_url) as connection:
+            self.book_id = ingest_book(
+                connection,
+                bare_numbered_book(),
+                owner_id=self.owner_id,
+                title="Bare Numbered Book",
+                author="Test Author",
+                file_hash="c" * 64,
+                page_count=6,
+                parser_version="test-v1",
+            )
+            self.node_ids = {
+                row["title"]: row["id"]
+                for row in connection.execute(
+                    "SELECT id, title FROM nodes WHERE owner_id = %s",
+                    (self.owner_id,),
+                )
+            }
+
+    def tearDown(self) -> None:
+        self.tearDownPostgresOwner()
+
+    def _candidates(self, question):
+        return find_scope_candidates(
+            question,
+            ConversationState(conversation_id="c", book_id=self.book_id),
+            self.database_url,
+            owner_id=self.owner_id,
+        )
+
+    def test_chapter_one_is_found_by_number(self):
+        candidates = self._candidates("What sections are present in Chapter 1?")
+
+        self.assertTrue(candidates, "the question found no scope at all")
+        first = candidates[0]
+        self.assertEqual(first.node_id, self.node_ids["1 Introduction"])
+        self.assertEqual(first.kind, "chapter")
+
+    def test_a_dotted_section_does_not_answer_for_its_chapter(self):
+        candidates = self._candidates("Summarize Chapter 2.")
+
+        self.assertEqual(candidates[0].node_id, self.node_ids["2 Statistical Learning"])
+        explicit = [c for c in candidates if "explicit Chapter" in c.match_reason]
+        self.assertEqual(
+            [c.title for c in explicit],
+            ["2 Statistical Learning"],
+            "a numbered section claimed the chapter reference",
+        )
 
 
 class ScopeCandidateTests(PostgresOwnerMixin, unittest.TestCase):
