@@ -115,20 +115,42 @@ A serial profile made this look like the big win. Warm, one page at a time,
 Tesseract was 1.28 s/page of a 3.53 s/page total, and switching modes on a
 12-page sample took 4.05 s/page to 2.03 s/page — **2.0x**.
 
-**Through the production path it is 1.19x.** Measured with `extract_batched`
-at four workers, which is how books are actually parsed:
+**On a laptop, through the production path, it is 1.19x.** Measured with
+`extract_batched` at four workers:
 
 | Book | Full-page OCR | Block OCR | Speedup | Deltas |
 |---|---:|---:|---:|---|
 | Reference, 389 pages, whole book | 2.45 s/page | 2.12 s/page | 1.16x | 32 tables, 119 images, 821,672 chars — all zero |
 | AI Engineering, 60 pages | 2.51 s/page | 2.10 s/page | 1.19x | 577 elements, 13 tables, 31 images — all zero |
 
-The serial number was measuring a queue, not the work. Tesseract runs in a
-subprocess, so a serial parse sits idle waiting for it; with four processes
-one worker's OCR wait overlaps another's layout inference and the pool had
-already recovered most of that time. What remains is the real CPU the OCR
-pass burns, and that is the 1.19x. **The same trap as the 1.34x laptop
-measurement, in the opposite direction: measure the configuration that ships.**
+**On the deployed worker it is 1.75x.** Both modes, same container, same 24
+pages, back to back:
+
+| | Serial | Per page | Parallel(4) | Per page |
+|---|---:|---:|---:|---:|
+| Full-page OCR | 125.7s | 5.24s | 22.2s | 0.93s |
+| Block OCR | 99.9s | 4.16s | **12.7s** | **0.53s** |
+| Gain | | 1.26x | | **1.75x** |
+
+Block OCR at other pool sizes: 0.99 s/page at two workers, 0.41 s/page at six.
+
+Three measurements of the same change gave 2.0x, 1.19x and 1.75x. The number
+that counts is the deployed one, and none of the three could have been
+predicted from the others. **Measure the configuration that ships** — the same
+lesson as the 1.34x laptop reading, arrived at from the opposite direction.
+
+### Two things this benchmark did not explain
+
+Parallel(4) is **7.85x** the serial run and parallel(6) is **10.21x**, on a
+pool of four and six processes. Superlinear speedup means the serial baseline
+is doing something the batched one is not; what, is not yet known. Speedup
+ratios against serial should not be quoted until it is.
+
+A suspect worth testing: the container sees `os.cpu_count() == 48` but its
+cgroup quota is `800000 100000`, i.e. **8 cores**. ONNX Runtime and OpenMP
+size their thread pools from the visible count by default, so a single parse
+process may open ~48 intra-op threads against an 8-core allowance and spend
+its time being throttled. That would inflate the serial baseline specifically.
 
 It is adopted anyway, because the content is identical and the speedup is
 free. The whole-book run matched the reference parse on every metric. Four

@@ -118,12 +118,19 @@ Measured on this codebase:
 | Worker idle RSS, parser imported eagerly | 571 MB |
 | Worker idle RSS, parser imported lazily (current) | 86 MB |
 | Peak RSS per parse process, steady across batches | 1,232 MB |
-| `hi_res` parse rate, serial, on the worker | 4.03 s/page |
-| ...across four processes | 1.03 s/page (3.92x) |
-| ...across six processes | 0.70 s/page (5.76x) |
+| Worker CPUs visible vs cgroup quota | 48 visible, **8 allowed** |
+| Worker memory limit | 8 GB |
+| `hi_res` parse rate, serial, full-page OCR | 5.24 s/page |
+| ...across four processes | 0.93 s/page |
+| `hi_res` parse rate, serial, block OCR (current) | 4.16 s/page |
+| ...across two processes | 0.99 s/page |
+| ...across four processes | **0.53 s/page** |
+| ...across six processes | 0.41 s/page |
 
-Those parse rates predate block-level OCR, which measured a further 1.16-1.19x
-on a laptop and has not yet been re-measured on the worker.
+`os.cpu_count()` reports the host's 48 processors, not the 8 the cgroup
+allows. Anything that sizes a thread pool from it — ONNX Runtime and OpenMP
+both do by default — will oversubscribe this container. See
+`docs/parser-performance.md`; it is an open question, not a settled one.
 
 The worker therefore defers `parsing.parser` until a document is actually
 being parsed (`parsing.version` carries the version constant so provenance
