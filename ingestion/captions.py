@@ -37,7 +37,9 @@ from storage.database import parse_owner_id
 logger = logging.getLogger("study_partner.ingestion.captions")
 
 OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_CAPTION_MODEL = "google/gemini-3-flash"
+# Chosen from OpenRouter's vision-capable list on price/capability:
+# $0.10/M input, which puts one full corpus pass in the tens of cents.
+DEFAULT_CAPTION_MODEL = "google/gemini-2.5-flash-lite"
 
 # Both thresholds come from `scripts/evaluate_figures.py` over the real corpus
 # rather than from intuition; see evaluation/figure_selection_measurement.md.
