@@ -113,9 +113,19 @@ export function SplitPane({
         )}
       />
 
+      {/*
+        Full width below the breakpoint, a share of the row above it — carried
+        as a custom property so the mobile rule is a plain class rather than an
+        inline style fighting it.
+
+        `overflow-hidden` matters as much as the width: without it one long
+        unbroken string inside the pane sets its own minimum and pushes the
+        entire row wider than the viewport, which is what a signed URL in an
+        error message did.
+      */}
       <div
-        className="min-w-0 shrink-0 grow md:grow-0"
-        style={{ width: `${percent}%` }}
+        className="w-full min-w-0 shrink-0 overflow-hidden md:w-[var(--pane)]"
+        style={{ "--pane": `${percent}%` } as React.CSSProperties}
       >
         {aside}
       </div>

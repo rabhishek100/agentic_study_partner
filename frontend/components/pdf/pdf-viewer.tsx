@@ -79,9 +79,13 @@ export function PdfViewer({
         if (!cancelled) setSource(payload.url);
       } catch (caught) {
         if (!cancelled) {
+          const detail = (caught as Error).message ?? "";
+          // API messages are written for readers; anything containing a URL
+          // is not, and would leak a signed token onto the page.
           setError(
-            (caught as Error).message ||
-              "This book's original file could not be opened.",
+            detail && !detail.includes("http")
+              ? detail
+              : "This book's original file could not be opened.",
           );
         }
       }
@@ -117,7 +121,7 @@ export function PdfViewer({
   }, [page, target.page, target.excerpt]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-card">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-card">
       <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{target.bookTitle}</p>
@@ -161,12 +165,15 @@ export function PdfViewer({
         </p>
       )}
 
-      <div ref={containerRef} className="min-h-0 flex-1 overflow-auto p-4">
+      <div
+        ref={containerRef}
+        className="min-h-0 w-full flex-1 overflow-auto p-4"
+      >
         {error ? (
           <Alert variant="destructive">
             <AlertCircle aria-hidden />
             <AlertTitle>Cannot open this book</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription className="break-words">{error}</AlertDescription>
           </Alert>
         ) : !source ? (
           <Skeleton className="h-96 w-full" />
@@ -174,9 +181,12 @@ export function PdfViewer({
           <Document
             file={source}
             onLoadSuccess={({ numPages }) => setPageCount(numPages)}
-            onLoadError={(cause) =>
-              setError(cause.message || "The document could not be read.")
-            }
+            onLoadError={(cause) => {
+              // pdf.js puts the whole signed URL in its message, token and
+              // all. Log it for debugging and show the reader a sentence.
+              console.error("PDF load failed", cause);
+              setError("The document could not be read.");
+            }}
             loading={<Skeleton className="h-96 w-full" />}
             className={cn("flex justify-center")}
           >

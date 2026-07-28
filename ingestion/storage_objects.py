@@ -302,8 +302,10 @@ def signed_object_url(bucket: str, path: str, *, expires_in: int = 900) -> str |
             ErrorCode.STORAGE_UNAVAILABLE,
             detail="storage returned no signed URL",
         )
-    # Supabase returns a path relative to /storage/v1.
-    return f"{_base_url()}/storage/v1{signed}" if signed.startswith("/") else signed
+    # Storage returns a path already relative to /storage/v1, and
+    # `_base_url()` already ends in it — appending it again produced
+    # `/storage/v1/storage/v1/...`, which 404s.
+    return f"{_base_url()}{signed}" if signed.startswith("/") else signed
 
 
 def upload_object(

@@ -34,8 +34,20 @@ class SignedUrlTests(unittest.TestCase):
                 200,
                 {"signedURL": "/object/sign/book-sources/o/j/original.pdf?token=x"},
             )
-        self.assertTrue(url.startswith("https://project.supabase.co/storage/v1/"))
-        self.assertIn("token=x", url)
+        self.assertEqual(
+            url,
+            "https://project.supabase.co/storage/v1"
+            "/object/sign/book-sources/o/j/original.pdf?token=x",
+        )
+
+    def test_the_storage_prefix_is_not_repeated(self):
+        """`_base_url()` already ends in /storage/v1 and so does the path."""
+
+        with patch.dict(
+            "os.environ", {"SUPABASE_URL": "https://project.supabase.co"}
+        ):
+            url = self.sign(200, {"signedURL": "/object/sign/b/p.pdf?token=x"})
+        self.assertNotIn("/storage/v1/storage/v1", url)
 
     def test_a_missing_object_reads_as_gone_not_as_an_outage(self):
         """Storage answers 400 with a not_found body rather than a 404."""
