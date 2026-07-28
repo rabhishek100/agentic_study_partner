@@ -7,7 +7,7 @@ import { TurnView } from "@/components/conversation/turn-view";
 import { Welcome } from "@/components/conversation/welcome";
 import { Button } from "@/components/ui/button";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
-import type { ChatTurn } from "@/lib/types";
+import type { ChatTurn, EvidenceRef } from "@/lib/types";
 
 /**
  * Announced to assistive technology when a turn settles.
@@ -34,6 +34,7 @@ export interface ConversationViewProps {
   onRetry: () => void;
   /** What the next question will search, e.g. "All 3 books". */
   scopeSummary?: string | null;
+  onOpenReference?: (reference: EvidenceRef) => void;
 }
 
 export function ConversationView({
@@ -45,6 +46,7 @@ export function ConversationView({
   onStop,
   onRetry,
   scopeSummary,
+  onOpenReference,
 }: ConversationViewProps) {
   const { viewportRef, contentRef, isPinned, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
@@ -77,6 +79,7 @@ export function ConversationView({
                 isLast={index === turns.length - 1}
                 canRetry={canSend && !isStreaming}
                 onRetry={onRetry}
+                onOpenReference={onOpenReference}
               />
             ))
           )}

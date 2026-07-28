@@ -247,3 +247,48 @@ def delete_object(bucket: str, path: str) -> bool:
             detail=f"delete returned {response.status_code}",
         )
     return True
+
+
+def signed_object_url(bucket: str, path: str, *, expires_in: int = 900) -> str | None:
+    """Return a short-lived read URL for one private object.
+
+    The service key signs the URL and never leaves this module; the browser
+    receives only a time-limited link. Returns None when the object is gone —
+    a ready book whose source was removed by the retention policy is an
+    explainable state, not an error.
+    """
+
+    if expires_in <= 0:
+        raise ValueError("expires_in must be positive")
+
+    with storage_client() as client:
+        response = client.post(
+            # `_base_url()` already ends in /storage/v1, like every other
+            # call in this module.
+            f"/object/sign/{bucket}/{path}",
+            json={"expiresIn": expires_in},
+        )
+    # Storage answers a missing object with 400 and a `not_found` body, not
+    # a 404, so status alone cannot distinguish "gone" from "broken" — and
+    # treating a missing file as an outage would tell the reader to retry
+    # something that will never succeed.
+    if response.status_code >= 400:
+        try:
+            body = response.json()
+        except ValueError:
+            body = {}
+        if str(body.get("statusCode")) == "404" or body.get("error") == "not_found":
+            return None
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE,
+            detail=f"signing failed with status {response.status_code}",
+        )
+
+    signed = response.json().get("signedURL") or response.json().get("signedUrl")
+    if not signed:
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE,
+            detail="storage returned no signed URL",
+        )
+    # Supabase returns a path relative to /storage/v1.
+    return f"{_base_url()}/storage/v1{signed}" if signed.startswith("/") else signed

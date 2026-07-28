@@ -8,6 +8,7 @@ import { describeSelection } from "@/components/book-selector";
 import { AuthGate } from "@/components/auth-gate";
 import { ConversationView } from "@/components/conversation/conversation-view";
 import { LibraryRail } from "@/components/library-rail";
+import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +24,12 @@ import { useChat } from "@/hooks/use-chat";
 import { useConversations } from "@/hooks/use-conversations";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
-import type { BookListResponse, BookSummary, RetrievalMode } from "@/lib/types";
+import type {
+  BookListResponse,
+  BookSummary,
+  EvidenceRef,
+  RetrievalMode,
+} from "@/lib/types";
 
 export default function Page() {
   const { session, sessionLoading } = useSession();
@@ -31,7 +37,9 @@ export default function Page() {
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
   const [selectedBookIds, setSelectedBookIds] = useState<number[]>([]);
-  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("hybrid_rerank");
+  const [retrievalMode, setRetrievalMode] =
+    useState<RetrievalMode>("hybrid_rerank");
+  const [reading, setReading] = useState<PdfTarget | null>(null);
 
   const {
     turns,
@@ -119,6 +127,23 @@ export default function Page() {
     retry({ bookIds: selectedBookIds, retrievalMode });
   }, [retry, selectedBookIds, retrievalMode]);
 
+  const openReference = useCallback(
+    (reference: EvidenceRef) => {
+      if (reference.book_id === null) return;
+      setReading({
+        bookId: reference.book_id,
+        bookTitle:
+          reference.book_title ??
+          books.find((book) => book.book_id === reference.book_id)?.title ??
+          "This book",
+        // The first cited page is where the passage begins.
+        page: reference.pages[0] ?? 1,
+        excerpt: reference.excerpt,
+      });
+    },
+    [books],
+  );
+
   function selectBooks(bookIds: number[]) {
     const unchanged =
       bookIds.length === selectedBookIds.length &&
@@ -194,6 +219,11 @@ export default function Page() {
           </DropdownMenuContent>
         </DropdownMenu>
       }
+      aside={
+        reading ? (
+          <PdfViewer target={reading} onClose={() => setReading(null)} />
+        ) : null
+      }
       rail={
         <LibraryRail
           books={books}
@@ -219,6 +249,7 @@ export default function Page() {
       }
     >
       <ConversationView
+        onOpenReference={openReference}
         turns={turns}
         isStreaming={isStreaming}
         hasBooks={hasBooks}

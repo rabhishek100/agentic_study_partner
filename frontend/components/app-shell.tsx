@@ -4,6 +4,7 @@ import { PanelLeft } from "lucide-react";
 import { useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { SplitPane } from "@/components/pdf/split-pane";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,10 +23,7 @@ export interface AppShellProps {
   /** Account controls, right-aligned in the header. */
   account: React.ReactNode;
   children: React.ReactNode;
-  /**
-   * Optional third region, docked to the right of the conversation. The PDF
-   * viewer lands here; until then the shell is a two-region layout.
-   */
+  /** The document pane, docked right of the conversation when open. */
   aside?: React.ReactNode;
 }
 
@@ -90,8 +88,9 @@ export function AppShell({
         <aside className="hidden w-72 shrink-0 border-r border-border bg-sidebar lg:block xl:w-80">
           {rail}
         </aside>
-        <main className="flex min-w-0 flex-1 flex-col">{children}</main>
-        {aside}
+        <SplitPane aside={aside ?? null}>
+          <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+        </SplitPane>
       </div>
     </div>
   );

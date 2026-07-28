@@ -107,6 +107,13 @@ export interface ChatResponse {
   state: ConversationState;
 }
 
+export interface BookSourceResponse {
+  book_id: number;
+  url: string;
+  expires_at: string;
+  page_count: number | null;
+}
+
 export interface ConversationSummary {
   conversation_id: string;
   title: string;

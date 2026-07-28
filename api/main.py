@@ -12,7 +12,7 @@ import logging
 import os
 import queue
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID
 
@@ -27,6 +27,8 @@ load_dotenv()
 
 from api.auth import current_owner
 from api.ingestions import router as ingestion_router
+from ingestion.errors import IngestionError
+from ingestion.storage_objects import signed_object_url
 from retrieval.langchain import warm_models
 from storage.database import (
     book_retrieval_completeness,
@@ -692,3 +694,74 @@ async def block_image(
         media_type=mime_type,
         headers={"ETag": etag, "Cache-Control": IMAGE_CACHE_CONTROL},
     )
+
+
+class BookSourceResponse(ContractModel):
+    """A time-limited link to one book's original PDF."""
+
+    book_id: int
+    url: str
+    expires_at: datetime
+    page_count: int | None
+
+
+SOURCE_UNAVAILABLE = HTTPException(
+    status_code=404,
+    detail="this book's original file is no longer stored",
+)
+# Long enough to read a chapter, short enough that a leaked link expires.
+SOURCE_URL_TTL_SECONDS = 900
+
+
+@app.get("/api/books/{book_id}/source", response_model=BookSourceResponse)
+async def book_source(
+    book_id: int,
+    owner_id: UUID = Depends(current_owner),
+) -> BookSourceResponse:
+    """Sign a short-lived URL for the caller's own book PDF.
+
+    Ready books keep their source precisely so it can be read alongside an
+    answer. A book whose object the retention policy removed returns 404 with
+    a message the interface can explain, rather than presenting a viewer that
+    silently fails to load.
+    """
+
+    def sign() -> BookSourceResponse:
+        with database_connection(readonly=True) as connection:
+            row = ready_book(connection, book_id, owner_id=owner_id)
+            if row is None:
+                raise BOOK_NOT_FOUND
+            details = connection.execute(
+                """
+                select source_storage_bucket, source_storage_path, page_count
+                from books where id = %s and owner_id = %s
+                """,
+                (book_id, owner_id),
+            ).fetchone()
+
+        bucket = details["source_storage_bucket"]
+        path = details["source_storage_path"]
+        if not bucket or not path:
+            # Books imported by the manual CLI path never had a stored object.
+            raise SOURCE_UNAVAILABLE
+
+        try:
+            url = signed_object_url(bucket, path, expires_in=SOURCE_URL_TTL_SECONDS)
+        except IngestionError as error:
+            logger.warning("signing book %s failed: %s", book_id, error.code)
+            raise HTTPException(
+                status_code=503,
+                detail="the document store is unavailable",
+            ) from error
+        if url is None:
+            raise SOURCE_UNAVAILABLE
+
+        return BookSourceResponse(
+            book_id=book_id,
+            url=url,
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(seconds=SOURCE_URL_TTL_SECONDS),
+            page_count=details["page_count"],
+        )
+
+    return await run_in_threadpool(sign)

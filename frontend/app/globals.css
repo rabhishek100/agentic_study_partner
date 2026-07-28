@@ -197,6 +197,29 @@
 
 @layer components {
     /*
+     * The cited passage inside a rendered PDF page. pdf.js positions text-layer
+     * spans absolutely over the canvas with transparent text, so the highlight
+     * is a background on the span itself rather than any kind of overlay.
+     */
+    .react-pdf__Page__textContent span[data-cited] {
+        background-color: color-mix(in oklch, var(--citation) 35%, transparent);
+        border-radius: 0.15em;
+        /* Pulses once on arrival; suppressed under reduced motion by the
+           global rule in the base layer. */
+        animation: cited-pulse 1.1s ease-out 1;
+    }
+
+    @keyframes cited-pulse {
+        0%,
+        100% {
+            background-color: color-mix(in oklch, var(--citation) 35%, transparent);
+        }
+        30% {
+            background-color: color-mix(in oklch, var(--citation) 70%, transparent);
+        }
+    }
+
+    /*
      * Answer prose. This is long-form reading material, so it uses the serif
      * stack and a wider line height than the interface chrome around it.
      */
