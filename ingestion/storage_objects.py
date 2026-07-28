@@ -75,6 +75,26 @@ def storage_client(timeout: float = REQUEST_TIMEOUT_SECONDS) -> Iterator[httpx.C
         yield client
 
 
+def _reports_missing(response: httpx.Response) -> bool:
+    """Whether Storage is saying the object does not exist.
+
+    It answers a missing object with 400 and a `not_found` body rather than a
+    404, so status alone cannot tell "gone" from "broken". Conflating the two
+    makes a permanently missing file look like a transient outage, which the
+    pipeline then retries and the interface then tells the reader to retry.
+    """
+
+    if response.status_code == 404:
+        return True
+    if response.status_code != 400:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return str(body.get("statusCode")) == "404" or body.get("error") == "not_found"
+
+
 def object_info(bucket: str, path: str) -> ObjectInfo | None:
     """Return stored object metadata, or None when the object does not exist."""
 
@@ -86,7 +106,7 @@ def object_info(bucket: str, path: str) -> ObjectInfo | None:
                 ErrorCode.STORAGE_UNAVAILABLE, detail=f"object info failed: {error!r}"
             ) from error
 
-    if response.status_code == 404:
+    if _reports_missing(response):
         return None
     if response.status_code >= 500:
         raise IngestionError(
@@ -268,17 +288,9 @@ def signed_object_url(bucket: str, path: str, *, expires_in: int = 900) -> str |
             f"/object/sign/{bucket}/{path}",
             json={"expiresIn": expires_in},
         )
-    # Storage answers a missing object with 400 and a `not_found` body, not
-    # a 404, so status alone cannot distinguish "gone" from "broken" — and
-    # treating a missing file as an outage would tell the reader to retry
-    # something that will never succeed.
+    if _reports_missing(response):
+        return None
     if response.status_code >= 400:
-        try:
-            body = response.json()
-        except ValueError:
-            body = {}
-        if str(body.get("statusCode")) == "404" or body.get("error") == "not_found":
-            return None
         raise IngestionError(
             ErrorCode.STORAGE_UNAVAILABLE,
             detail=f"signing failed with status {response.status_code}",
@@ -292,3 +304,34 @@ def signed_object_url(bucket: str, path: str, *, expires_in: int = 900) -> str |
         )
     # Supabase returns a path relative to /storage/v1.
     return f"{_base_url()}/storage/v1{signed}" if signed.startswith("/") else signed
+
+
+def upload_object(
+    bucket: str,
+    path: str,
+    payload: bytes,
+    *,
+    content_type: str = "application/pdf",
+    overwrite: bool = False,
+) -> None:
+    """Store one object. Used to restore a source the bucket has lost.
+
+    Uploads are normally resumable and come from the browser; this is the
+    server-side path for putting a known-good file back where a book already
+    expects it.
+    """
+
+    with storage_client() as client:
+        response = client.post(
+            f"/object/{bucket}/{path}",
+            content=payload,
+            headers={
+                "content-type": content_type,
+                "x-upsert": "true" if overwrite else "false",
+            },
+        )
+    if response.status_code >= 400:
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE,
+            detail=f"upload returned {response.status_code}: {response.text[:200]}",
+        )

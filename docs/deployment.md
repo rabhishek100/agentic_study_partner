@@ -216,6 +216,34 @@ npx supabase@2.109.1 db push --db-url "$MIGRATION_DATABASE_URL"
 Apply the migration **before** deploying an API that depends on it, or every
 request touching the new tables fails until it lands.
 
+## Source PDFs
+
+A ready book's original PDF is kept so the reading pane can open the page an
+answer cites. Nothing else in the system can reproduce it: canonical content,
+chunks, embeddings, and captions all survive without it, but the viewer cannot.
+
+Every source object in production went missing at some point before
+2026-07-28, with no `source_deleted` event and no `source_deleted_at`
+provenance marker on any job — so neither the retention sweep nor a manual
+cancel did it, since both record their work. `delete_orphaned_sources` is the
+only path that deletes without recording anything, and it reconstructs paths
+from two Storage listings, so any drift in what those listings return makes a
+live path look orphaned. The cause was never proven. The sweep now refuses to
+delete any object a book references, independently of whether it can find the
+job row.
+
+To put a lost source back — a byte copy, not a re-ingest:
+
+```bash
+uv run python -m scripts.restore_book_source --check sources/books/*.pdf
+uv run python -m scripts.restore_book_source sources/books/*.pdf
+```
+
+Files are matched to books by SHA-256 against `books.file_hash`, never by
+name, so a different edition or a re-exported copy will not match — which is
+the point: only the exact bytes that produced a book's pages can be trusted to
+make page 78 the page 78 its answers cite.
+
 ## Post-deploy verification
 
 ```bash
