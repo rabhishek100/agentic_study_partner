@@ -64,7 +64,8 @@ export interface ConversationMessage {
 
 export interface ConversationState {
   conversation_id: string;
-  book_id: number | null;
+  /** Books this conversation may search; empty means the whole library. */
+  book_ids: number[];
   messages: ConversationMessage[];
   active_scope: ScopeRef | null;
   pending_clarification: string | null;

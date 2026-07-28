@@ -21,6 +21,13 @@
  */
 
 @theme inline {
+    /*
+     * Must stay a reference to the next/font variable. `shadcn add` rewrites
+     * this to a literal "Geist", "Geist Fallback" stack, which names fonts
+     * that do not exist — next/font generates a hashed family and exposes it
+     * only through `--font-geist-sans` on <html>. Check this line after any
+     * shadcn CLI run.
+     */
     --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     --font-serif: var(--font-reading-serif), Georgia, "Times New Roman", serif;
     --font-heading: var(--font-reading-serif), Georgia, serif;

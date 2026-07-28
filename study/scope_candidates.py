@@ -80,9 +80,10 @@ def _aliases(title):
     return aliases
 
 
-def _rows(connection, book_id, owner_id):
-    predicate = "AND book_id = %s" if book_id is not None else ""
-    parameters = (owner_id, book_id) if book_id is not None else (owner_id,)
+def _rows(connection, book_ids, owner_id):
+    scope = sorted({int(identifier) for identifier in book_ids or ()}) or None
+    predicate = "AND book_id = any(%s)" if scope is not None else ""
+    parameters = (owner_id, scope) if scope is not None else (owner_id,)
     return connection.execute(
         f"""
         SELECT id, book_id, parent_id, toc_index, node_type, title,
@@ -150,7 +151,7 @@ def find_scope_candidates(
     recent_chapters = set(CHAPTER.findall(recent))
 
     with database_connection(database_url, readonly=True) as connection:
-        rows = _rows(connection, state.book_id, owner)
+        rows = _rows(connection, state.book_ids, owner)
     by_id, bounds = _bounds(rows)
     ranked = {}
 

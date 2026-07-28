@@ -1,5 +1,6 @@
 """Unified lexical, semantic, fused, and reranked retrieval."""
 
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import Literal
 from uuid import UUID
@@ -74,6 +75,7 @@ def hybrid_candidates(
     query: str,
     *,
     book_id: int | None,
+    book_ids: Sequence[int] | None = None,
     owner_id: str | UUID,
     candidate_limit: int,
     embedder: Embedder,
@@ -85,6 +87,7 @@ def hybrid_candidates(
         query,
         owner_id=owner_id,
         book_id=book_id,
+        book_ids=book_ids,
         limit=candidate_limit,
         unique_nodes=False,
     )
@@ -94,6 +97,7 @@ def hybrid_candidates(
         embedder=embedder,
         owner_id=owner_id,
         book_id=book_id,
+        book_ids=book_ids,
         limit=candidate_limit,
         unique_nodes=False,
     )
@@ -129,6 +133,7 @@ def retrieve(
     mode: RetrievalMode = "hybrid",
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
     embedder: Embedder | None = None,
@@ -142,6 +147,7 @@ def retrieve(
             query,
             owner_id=owner_id,
             book_id=book_id,
+            book_ids=book_ids,
             limit=limit,
             unique_nodes=unique_nodes,
         )
@@ -156,6 +162,7 @@ def retrieve(
             embedder=embedder,
             owner_id=owner_id,
             book_id=book_id,
+            book_ids=book_ids,
             limit=limit,
             unique_nodes=unique_nodes,
         )
@@ -167,6 +174,7 @@ def retrieve(
         connection,
         query,
         book_id=book_id,
+        book_ids=book_ids,
         owner_id=owner_id,
         candidate_limit=candidate_limit,
         embedder=embedder,

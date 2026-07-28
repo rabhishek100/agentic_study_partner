@@ -1,5 +1,6 @@
 """Persist chunks and search them with Postgres full-text search."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -13,7 +14,7 @@ from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
 from .chunking import CHUNKER_VERSION, build_book_chunks, config_hash, config_json
-from .models import ChunkingConfig
+from .models import ChunkingConfig, book_scope
 
 
 QUERY_TOKEN = re.compile(r"\w+(?:['’]\w+)?", re.UNICODE)
@@ -261,6 +262,7 @@ def search(
     *,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
 ) -> list[SearchResult]:
@@ -269,14 +271,17 @@ def search(
     if limit <= 0:
         raise ValueError("limit must be positive")
     owner = parse_owner_id(owner_id)
+    scope = book_scope(book_id, book_ids)
     search_query = _fts_query(query)
-    predicate = "owner_id = %s and (%s::bigint is null or source_book_id = %s)"
+    predicate = (
+        "owner_id = %s and (%s::bigint[] is null or source_book_id = any(%s))"
+    )
     corpus = connection.execute(
         f"""
         select id, search_vector::text as search_vector_text
         from chunks where {predicate}
         """,
-        (owner, book_id, book_id),
+        (owner, scope, scope),
     ).fetchall()
     if not corpus:
         return []
@@ -294,7 +299,7 @@ def search(
         where {predicate}
           and search_vector @@ websearch_to_tsquery('english', %s)
         """,
-        (owner, book_id, book_id, search_query),
+        (owner, scope, scope, search_query),
     ).fetchall()
     rows.sort(
         key=lambda row: (

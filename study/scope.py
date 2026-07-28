@@ -1,12 +1,14 @@
 """Resolve book hierarchy references without retrieval or model calls."""
 
 from dataclasses import dataclass
+from collections.abc import Sequence
 import re
 from typing import Any, Literal
 from uuid import UUID
 
 from psycopg import Connection
 
+from retrieval.models import book_scope
 from storage.database import parse_owner_id
 
 
@@ -130,19 +132,21 @@ def _book_rows(
     *,
     owner_id: UUID,
     book_id: int | None,
+    book_ids: Sequence[int] | None = None,
 ) -> list[Any]:
-    if book_id is None:
+    scope = book_scope(book_id, book_ids)
+    if scope is None:
         rows = connection.execute(
             "select * from books where owner_id = %s order by id",
             (owner_id,),
         ).fetchall()
     else:
         rows = connection.execute(
-            "select * from books where id = %s and owner_id = %s",
-            (book_id, owner_id),
+            "select * from books where owner_id = %s and id = any(%s) order by id",
+            (owner_id, scope),
         ).fetchall()
     if not rows:
-        raise ScopeNotFoundError("book", book_id)
+        raise ScopeNotFoundError("book", book_id if scope is None else scope)
     return rows
 
 
@@ -230,11 +234,14 @@ def resolve_book(
     *,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
 ) -> ResolvedScope:
     """Resolve one book by ID or deterministic title matching."""
 
     owner = parse_owner_id(owner_id)
-    rows = _book_rows(connection, owner_id=owner, book_id=book_id)
+    rows = _book_rows(
+        connection, owner_id=owner, book_id=book_id, book_ids=book_ids
+    )
     if reference is not None:
         target = _normalize(reference)
         if not target:
@@ -321,13 +328,20 @@ def resolve_chapter(
     *,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
 ) -> ResolvedScope:
-    """Resolve a chapter number or title, returning its complete subtree."""
+    """Resolve a chapter number or title, returning its complete subtree.
+
+    With several books in scope a bare "chapter 3" matches once per book and
+    raises `AmbiguousScopeError`, which the turn analyser turns into a
+    clarifying question rather than a guess.
+    """
 
     owner = parse_owner_id(owner_id)
-    _book_rows(connection, owner_id=owner, book_id=book_id)
-    parameters: tuple[object, ...] = (owner,) if book_id is None else (owner, book_id)
-    predicate = "" if book_id is None else "AND nodes.book_id = %s"
+    _book_rows(connection, owner_id=owner, book_id=book_id, book_ids=book_ids)
+    scope = book_scope(book_id, book_ids)
+    parameters: tuple[object, ...] = (owner,) if scope is None else (owner, scope)
+    predicate = "" if scope is None else "AND nodes.book_id = any(%s)"
     rows = connection.execute(
         f"""
         SELECT nodes.*, books.title AS book_title
@@ -369,6 +383,7 @@ def resolve_section(
     *,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
     chapter: str | int | None = None,
 ) -> ResolvedScope:
     """Resolve one non-chapter TOC node, optionally within a chapter."""
@@ -380,6 +395,7 @@ def resolve_section(
             chapter,
             owner_id=owner,
             book_id=book_id,
+            book_ids=book_ids,
         )
         allowed_ids = set(chapter_scope.node_ids[1:])
         selected_book_id = chapter_scope.book_id
@@ -388,6 +404,7 @@ def resolve_section(
             connection,
             owner_id=owner,
             book_id=book_id,
+            book_ids=book_ids,
         ).book_id
         allowed_ids = None
 
@@ -435,6 +452,7 @@ def resolve_named_scope(
     *,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
 ) -> ResolvedScope:
     """Resolve an exact chapter/section title, then a unique partial title."""
 
@@ -443,6 +461,7 @@ def resolve_named_scope(
         connection,
         owner_id=owner,
         book_id=book_id,
+        book_ids=book_ids,
     ).book_id
     target = _normalize(reference)
     if not target:

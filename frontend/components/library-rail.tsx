@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { BookSelector } from "@/components/book-selector";
 import { UploadPanel } from "@/components/upload-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -68,8 +69,8 @@ export interface LibraryRailProps {
   booksLoaded: boolean;
   booksError: string;
   onRetryLoadBooks: () => void;
-  selectedBookId: number | null;
-  onSelectBook: (bookId: number) => void;
+  selectedBookIds: number[];
+  onSelectBooks: (bookIds: number[]) => void;
   retrievalMode: RetrievalMode;
   onRetrievalModeChange: (mode: RetrievalMode) => void;
   hasConversation: boolean;
@@ -82,8 +83,8 @@ export function LibraryRail({
   booksLoaded,
   booksError,
   onRetryLoadBooks,
-  selectedBookId,
-  onSelectBook,
+  selectedBookIds,
+  onSelectBooks,
   retrievalMode,
   onRetrievalModeChange,
   hasConversation,
@@ -91,7 +92,6 @@ export function LibraryRail({
   onBooksChanged,
 }: LibraryRailProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const selectedBook = books.find((book) => book.book_id === selectedBookId);
   const hasBooks = books.length > 0;
 
   return (
@@ -122,30 +122,12 @@ export function LibraryRail({
             </AlertDescription>
           </Alert>
         ) : hasBooks ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="book-select">Book</Label>
-            <Select
-              value={selectedBookId ? String(selectedBookId) : undefined}
-              onValueChange={(value) => onSelectBook(Number(value))}
-            >
-              <SelectTrigger id="book-select" className="w-full">
-                <SelectValue placeholder="Choose a book" />
-              </SelectTrigger>
-              <SelectContent>
-                {books.map((book) => (
-                  <SelectItem key={book.book_id} value={String(book.book_id)}>
-                    {book.title}
-                    {book.author ? ` — ${book.author}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedBook && !selectedBook.retrieval_complete && (
-              <p className="text-xs text-muted-foreground">
-                Search data for this book is still building.
-              </p>
-            )}
-          </div>
+          <BookSelector
+            books={books}
+            selected={selectedBookIds}
+            onChange={onSelectBooks}
+            hasConversation={hasConversation}
+          />
         ) : (
           <div className="rounded-lg border border-dashed border-input px-3 py-6 text-center">
             <Library

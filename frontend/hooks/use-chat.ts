@@ -16,7 +16,7 @@ import type {
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
 
 interface SendOptions {
-  bookId: number;
+  bookIds: number[];
   retrievalMode: RetrievalMode;
 }
 
@@ -46,7 +46,7 @@ export function useChat() {
   }, []);
 
   const send = useCallback(
-    async (question: string, { bookId, retrievalMode }: SendOptions) => {
+    async (question: string, { bookIds, retrievalMode }: SendOptions) => {
       const submitted = question.trim();
       if (!submitted || controllerRef.current) return;
 
@@ -92,7 +92,7 @@ export function useChat() {
           body: JSON.stringify({
             question: submitted,
             retrieval_mode: retrievalMode,
-            book_id: bookId,
+            book_ids: bookIds,
             state: conversation,
           }),
           signal: controller.signal,

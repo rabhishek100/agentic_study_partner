@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import Field
+from pydantic import Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 load_dotenv()
@@ -54,9 +54,18 @@ class ChatRequest(ContractModel):
     question: str = Field(min_length=1, max_length=10_000)
     retrieval_mode: RetrievalMode = "hybrid"
     # Required and always verified against the caller's ready books. There is
-    # deliberately no default: a chat turn must never fall back to book 1.
-    book_id: int = Field(gt=0)
+    # deliberately no default and an empty list is rejected: a chat turn must
+    # never fall back to book 1, and it must never silently widen to the whole
+    # library either. The client sends the reader's selection explicitly.
+    book_ids: list[int] = Field(min_length=1, max_length=50)
     state: ConversationState | None = None
+
+    @field_validator("book_ids")
+    @classmethod
+    def unique_positive_book_ids(cls, value: list[int]) -> list[int]:
+        if any(identifier <= 0 for identifier in value):
+            raise ValueError("book_ids must be positive")
+        return sorted(set(value))
 
 
 class ChatResponse(ContractModel):
@@ -100,16 +109,19 @@ class QueueHealthResponse(ContractModel):
 BOOK_NOT_FOUND = HTTPException(status_code=404, detail="book not found")
 
 
-def _require_ready_book(owner_id: UUID, book_id: int) -> None:
+def _require_ready_books(owner_id: UUID, book_ids: list[int]) -> None:
     """Reject anything that is not this owner's verified, ready book.
 
     Missing, someone else's, and still-processing books all return the same
-    404 so book IDs cannot be probed.
+    404 so book IDs cannot be probed. Every id in a multi-book selection is
+    checked: one unreadable book fails the turn rather than being dropped from
+    the scope, which would answer a narrower question than the one asked.
     """
 
     with database_connection(readonly=True) as connection:
-        if ready_book(connection, book_id, owner_id=owner_id) is None:
-            raise BOOK_NOT_FOUND
+        for book_id in book_ids:
+            if ready_book(connection, book_id, owner_id=owner_id) is None:
+                raise BOOK_NOT_FOUND
 
 
 def _allowed_origins() -> list[str]:
@@ -241,7 +253,7 @@ async def chat(
     request: ChatRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ChatResponse:
-    await run_in_threadpool(_require_ready_book, owner_id, request.book_id)
+    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
     try:
         result, updated = await run_in_threadpool(
             execute_conversation_turn,
@@ -249,7 +261,7 @@ async def chat(
             request.state,
             owner_id=owner_id,
             retrieval_mode=request.retrieval_mode,
-            book_id=request.book_id,
+            book_ids=request.book_ids,
         )
     except (
         ContextWindowExceededError,
@@ -292,7 +304,7 @@ async def chat_stream(
     `error` event.
     """
 
-    await run_in_threadpool(_require_ready_book, owner_id, request.book_id)
+    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
     loop = asyncio.get_running_loop()
     events: queue.Queue = queue.Queue()
 
@@ -306,7 +318,7 @@ async def chat_stream(
                 request.state,
                 owner_id=owner_id,
                 retrieval_mode=request.retrieval_mode,
-                book_id=request.book_id,
+                book_ids=request.book_ids,
                 token_callback=on_token,
             )
             events.put(

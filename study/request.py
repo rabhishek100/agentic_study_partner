@@ -1,5 +1,6 @@
 """Parse explicit natural-language study requests into deterministic scopes."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 import re
 from psycopg import Connection
@@ -146,17 +147,24 @@ def resolve_study_request(
     *,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
 ) -> ResolvedScope:
     """Map a parsed request to one canonical book, chapter, or section."""
 
     if request.scope_kind == "book":
-        return resolve_book(connection, owner_id=owner_id, book_id=book_id)
+        return resolve_book(
+            connection,
+            owner_id=owner_id,
+            book_id=book_id,
+            book_ids=book_ids,
+        )
     if request.scope_kind == "chapter":
         return resolve_chapter(
             connection,
             request.scope_reference,
             owner_id=owner_id,
             book_id=book_id,
+            book_ids=book_ids,
         )
     if request.scope_kind == "section":
         return resolve_section(
@@ -164,6 +172,7 @@ def resolve_study_request(
             request.scope_reference,
             owner_id=owner_id,
             book_id=book_id,
+            book_ids=book_ids,
             chapter=request.chapter_reference,
         )
     return resolve_named_scope(
@@ -171,4 +180,5 @@ def resolve_study_request(
         request.scope_reference,
         owner_id=owner_id,
         book_id=book_id,
+        book_ids=book_ids,
     )

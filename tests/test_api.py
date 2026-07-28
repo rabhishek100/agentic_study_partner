@@ -34,6 +34,22 @@ def owner_scoped_book(book_id: int | None = 1):
         yield lookup
 
 
+@contextmanager
+def owner_scoped_books(ready_ids: set[int]):
+    """Serve a specific set of ready books, refusing every other id."""
+
+    connection = MagicMock()
+    with (
+        patch("api.main.database_connection") as open_connection,
+        patch("api.main.ready_book") as lookup,
+    ):
+        open_connection.return_value.__enter__.return_value = connection
+        lookup.side_effect = lambda _connection, requested, **_kwargs: (
+            {"id": requested, "status": "ready"} if requested in ready_ids else None
+        )
+        yield lookup
+
+
 class ApiTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.client = AsyncClient(
@@ -103,8 +119,8 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
         for method, path, payload in (
             ("get", "/api/books", None),
-            ("post", "/api/chat", {"question": "Hi", "book_id": 1}),
-            ("post", "/api/chat/stream", {"question": "Hi", "book_id": 1}),
+            ("post", "/api/chat", {"question": "Hi", "book_ids": [1]}),
+            ("post", "/api/chat/stream", {"question": "Hi", "book_ids": [1]}),
         ):
             with self.subTest(path=path):
                 response = await getattr(self.client, method)(
@@ -161,7 +177,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             outcome="answer",
             retrieval_mode="hybrid",
         )
-        state = ConversationState(conversation_id="conversation-1", book_id=1)
+        state = ConversationState(conversation_id="conversation-1", book_ids=[1])
         execute.return_value = (result, state)
 
         with owner_scoped_book():
@@ -170,7 +186,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                 json={
                     "question": "What is training-serving skew?",
                     "retrieval_mode": "hybrid",
-                    "book_id": 1,
+                    "book_ids": [1],
                 },
             )
 
@@ -187,7 +203,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         with owner_scoped_book(book_id=None):
             response = await self.client.post(
                 "/api/chat",
-                json={"question": "Explain drift", "book_id": 4242},
+                json={"question": "Explain drift", "book_ids": [4242]},
             )
 
         self.assertEqual(response.status_code, 404)
@@ -201,10 +217,60 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 422)
 
+    async def test_chat_rejects_an_empty_book_selection(self):
+        """An empty list must not be read as "search everything"."""
+
+        response = await self.client.post(
+            "/api/chat",
+            json={"question": "Explain drift", "book_ids": []},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    @patch("api.main.execute_conversation_turn")
+    async def test_chat_accepts_several_books(self, execute):
+        execute.return_value = (
+            TurnResult(
+                question="Compare the two",
+                answer="Both describe skew [S1].",
+                route="retrieval_qa",
+                history_dependency="independent",
+                standalone_query="Compare the two",
+                outcome="answer",
+                retrieval_mode="hybrid",
+            ),
+            ConversationState(conversation_id="c", book_ids=[3, 7]),
+        )
+        with owner_scoped_books({3, 7}):
+            response = await self.client.post(
+                "/api/chat",
+                json={"question": "Compare the two", "book_ids": [7, 3, 7]},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        # Deduplicated and ordered before it reaches the workflow.
+        self.assertEqual(execute.call_args.kwargs["book_ids"], [3, 7])
+
+    @patch("api.main.execute_conversation_turn")
+    async def test_chat_rejects_the_whole_turn_when_one_book_is_unusable(
+        self,
+        execute,
+    ):
+        """Dropping the bad book would silently answer a narrower question."""
+
+        with owner_scoped_books({3}):
+            response = await self.client.post(
+                "/api/chat",
+                json={"question": "Compare the two", "book_ids": [3, 4242]},
+            )
+
+        self.assertEqual(response.status_code, 404)
+        execute.assert_not_called()
+
     async def test_chat_rejects_unknown_retrieval_mode(self):
         response = await self.client.post(
             "/api/chat",
-            json={"question": "Hello", "retrieval_mode": "magic", "book_id": 1},
+            json={"question": "Hello", "retrieval_mode": "magic", "book_ids": [1]},
         )
 
         self.assertEqual(response.status_code, 422)
@@ -219,7 +285,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                 json={
                     "question": "Explain drift",
                     "retrieval_mode": "bm25",
-                    "book_id": 1,
+                    "book_ids": [1],
                 },
             )
 
@@ -237,7 +303,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             outcome="answer",
             retrieval_mode="hybrid",
         )
-        state = ConversationState(conversation_id="conversation-1", book_id=1)
+        state = ConversationState(conversation_id="conversation-1", book_ids=[1])
 
         def fake_execute(question, conversation_state, **kwargs):
             token_callback = kwargs["token_callback"]
@@ -254,7 +320,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                 json={
                     "question": "What is training-serving skew?",
                     "retrieval_mode": "hybrid",
-                    "book_id": 1,
+                    "book_ids": [1],
                 },
             ) as response:
                 self.assertEqual(response.status_code, 200)
@@ -274,7 +340,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         with owner_scoped_book(book_id=None):
             response = await self.client.post(
                 "/api/chat/stream",
-                json={"question": "Explain drift", "book_id": 4242},
+                json={"question": "Explain drift", "book_ids": [4242]},
             )
 
         self.assertEqual(response.status_code, 404)
@@ -291,7 +357,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                 json={
                     "question": "Explain drift",
                     "retrieval_mode": "bm25",
-                    "book_id": 1,
+                    "book_ids": [1],
                 },
             ) as response:
                 self.assertEqual(response.status_code, 200)

@@ -116,7 +116,7 @@ def _explicit_hierarchy_decision(
                 connection,
                 request,
                 owner_id=owner_id,
-                book_id=state.book_id,
+                book_ids=state.book_ids or None,
             )
     except (UnsupportedStudyRequestError, ScopeResolutionError):
         return None

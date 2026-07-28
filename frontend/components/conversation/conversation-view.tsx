@@ -32,6 +32,8 @@ export interface ConversationViewProps {
   onSend: (question: string) => void;
   onStop: () => void;
   onRetry: () => void;
+  /** What the next question will search, e.g. "All 3 books". */
+  scopeSummary?: string | null;
 }
 
 export function ConversationView({
@@ -42,6 +44,7 @@ export function ConversationView({
   onSend,
   onStop,
   onRetry,
+  scopeSummary,
 }: ConversationViewProps) {
   const { viewportRef, contentRef, isPinned, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
@@ -111,7 +114,9 @@ export function ConversationView({
             onStop={onStop}
           />
           <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
-            Answers are limited to the evidence found in the selected book.
+            {scopeSummary
+              ? `Answers are limited to evidence found in ${scopeSummary.toLowerCase()}.`
+              : "Answers are limited to the evidence found in your books."}
           </p>
         </div>
       </div>

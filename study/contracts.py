@@ -81,7 +81,11 @@ class CitationRef(ContractModel):
 
 class ConversationState(ContractModel):
     conversation_id: str
-    book_id: int | None = None
+    # The books this conversation may search. Empty means every book the owner
+    # has. The last resolved scope's book lives on `active_scope` instead:
+    # resolving one turn to one book must not silently narrow the selection
+    # the reader made for the whole conversation.
+    book_ids: list[int] = Field(default_factory=list)
     messages: list[ConversationMessage] = Field(default_factory=list)
     active_scope: ScopeRef | None = None
     pending_clarification: str | None = None

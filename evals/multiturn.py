@@ -99,7 +99,8 @@ def evaluate_conversations(
     errors = []
     for conversation in conversations:
         state = new_conversation_state(
-            book_id=book_id,
+            # The multi-turn gold set is defined against one book at a time.
+            book_ids=[book_id] if book_id is not None else None,
             conversation_id=conversation["id"],
         )
         for turn in conversation["turns"]:

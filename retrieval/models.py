@@ -1,6 +1,32 @@
 """Data contracts for rebuildable retrieval chunks."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+
+
+def book_scope(
+    book_id: int | None,
+    book_ids: Sequence[int] | None,
+) -> list[int] | None:
+    """Normalize the two book-filter spellings into one optional list.
+
+    `book_id` is the single-book form the scripts and evaluations use;
+    `book_ids` is the multi-book form a chat turn uses. `None` from both means
+    every book the owner has, which is a deliberate choice at the call site
+    rather than a default that can be reached by accident — an empty
+    `book_ids` is rejected instead of silently widening to the whole library.
+    """
+
+    if book_ids is not None:
+        scope = sorted({int(identifier) for identifier in book_ids})
+        if not scope:
+            raise ValueError(
+                "book_ids cannot be empty; pass None to search every book"
+            )
+        return scope
+    if book_id is not None:
+        return [int(book_id)]
+    return None
 
 
 DEFAULT_EXCLUDED_TITLES = (

@@ -1,5 +1,6 @@
 """Shared routing for hierarchy operations and ordinary retrieval questions."""
 
+from collections.abc import Sequence
 import os
 import re
 from typing import Protocol
@@ -8,6 +9,7 @@ from uuid import UUID
 from dotenv import load_dotenv
 
 from retrieval.langchain import BookRetriever
+from retrieval.models import book_scope
 from retrieval.search import RetrievalMode
 from storage.database import connection as database_connection, parse_owner_id
 from .content import load_scope_content
@@ -113,6 +115,7 @@ def _resolve_hierarchy_request(
     database_url: str | None,
     owner_id: str | UUID,
     book_id: int | None,
+    book_ids: Sequence[int] | None = None,
 ) -> tuple[StudyRequest, ResolvedScope] | None:
     """Return a resolved study request, or None for ordinary retrieval."""
 
@@ -128,6 +131,7 @@ def _resolve_hierarchy_request(
                 request,
                 owner_id=owner_id,
                 book_id=book_id,
+                book_ids=book_ids,
             )
     except ScopeNotFoundError:
         if request.scope_kind == "named":
@@ -269,6 +273,7 @@ def _answer_retrieval_question(
     database_url: str | None,
     owner_id: str | UUID,
     book_id: int | None,
+    book_ids: Sequence[int] | None = None,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
     token_callback: TokenCallback | None = None,
@@ -276,16 +281,17 @@ def _answer_retrieval_question(
     """Answer one ordinary question from top-k retrieval evidence."""
 
     owner = parse_owner_id(owner_id)
+    scope = book_scope(book_id, book_ids)
     with database_connection(database_url, readonly=True) as source:
-        if book_id is None:
+        if scope is None:
             rows = source.execute(
                 "select id, title from books where owner_id = %s",
                 (owner,),
             ).fetchall()
         else:
             rows = source.execute(
-                "select id, title from books where id = %s and owner_id = %s",
-                (book_id, owner),
+                "select id, title from books where owner_id = %s and id = any(%s)",
+                (owner, scope),
             ).fetchall()
         books = {row["id"]: row["title"] for row in rows}
     documents = BookRetriever(
@@ -293,6 +299,7 @@ def _answer_retrieval_question(
         owner_id=str(owner),
         mode=retrieval_mode,
         book_id=book_id,
+        book_ids=book_ids,
         k=5,
     ).invoke(question)
     if not documents:
@@ -415,6 +422,7 @@ def execute_query(
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     *,
+    book_ids: Sequence[int] | None = None,
     owner_id: str | UUID,
     model: ChatModel | None = None,
     token_callback: TokenCallback | None = None,
@@ -430,6 +438,7 @@ def execute_query(
             database_url=database_url,
             owner_id=owner_id,
             book_id=book_id,
+            book_ids=book_ids,
         )
     if hierarchy is not None:
         request, scope = hierarchy
@@ -447,6 +456,7 @@ def execute_query(
         database_url=database_url,
         owner_id=owner_id,
         book_id=book_id,
+        book_ids=book_ids,
         retrieval_mode=retrieval_mode,
         model=model,
         token_callback=token_callback,

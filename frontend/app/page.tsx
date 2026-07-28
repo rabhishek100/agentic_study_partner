@@ -1,9 +1,10 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { describeSelection } from "@/components/book-selector";
 import { AuthGate } from "@/components/auth-gate";
 import { ConversationView } from "@/components/conversation/conversation-view";
 import { LibraryRail } from "@/components/library-rail";
@@ -28,7 +29,7 @@ export default function Page() {
   const [books, setBooks] = useState<BookSummary[]>([]);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
-  const [selectedBookId, setSelectedBookId] = useState<number | null>(null);
+  const [selectedBookIds, setSelectedBookIds] = useState<number[]>([]);
   const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("hybrid");
 
   const { turns, conversation, isStreaming, send, stop, retry, reset } =
@@ -39,8 +40,14 @@ export default function Page() {
     try {
       const payload = await apiFetch<BookListResponse>("/books");
       setBooks(payload.books);
-      setSelectedBookId(
-        (current) => current ?? (payload.books[0]?.book_id ?? null),
+      // Default to the whole library: cross-book study is the point, and
+      // narrowing is the deliberate exception rather than the starting point.
+      setSelectedBookIds((current) =>
+        current.length > 0
+          ? current.filter((bookId) =>
+              payload.books.some((book) => book.book_id === bookId),
+            )
+          : payload.books.map((book) => book.book_id),
       );
     } catch (caught) {
       // "You have no books" and "the library could not be loaded" are
@@ -58,25 +65,31 @@ export default function Page() {
   }, [session, loadBooks]);
 
   const hasBooks = books.length > 0;
-  const canSend = hasBooks && selectedBookId !== null;
+  const canSend = hasBooks && selectedBookIds.length > 0;
 
   const handleSend = useCallback(
     (question: string) => {
-      if (selectedBookId === null) return;
-      send(question, { bookId: selectedBookId, retrievalMode });
+      if (selectedBookIds.length === 0) return;
+      send(question, { bookIds: selectedBookIds, retrievalMode });
     },
-    [send, selectedBookId, retrievalMode],
+    [send, selectedBookIds, retrievalMode],
   );
 
   const handleRetry = useCallback(() => {
-    if (selectedBookId === null) return;
-    retry({ bookId: selectedBookId, retrievalMode });
-  }, [retry, selectedBookId, retrievalMode]);
+    if (selectedBookIds.length === 0) return;
+    retry({ bookIds: selectedBookIds, retrievalMode });
+  }, [retry, selectedBookIds, retrievalMode]);
 
-  function selectBook(bookId: number) {
-    if (bookId === selectedBookId) return;
-    setSelectedBookId(bookId);
-    // Conversation state is scoped to one book; switching starts fresh.
+  function selectBooks(bookIds: number[]) {
+    const unchanged =
+      bookIds.length === selectedBookIds.length &&
+      bookIds.every((bookId, index) => bookId === selectedBookIds[index]);
+    if (unchanged) return;
+    setSelectedBookIds(bookIds);
+    // Earlier answers were grounded in the previous selection, so a different
+    // set of books is a different conversation. The server enforces the same
+    // rule; resetting here keeps the interface from showing turns that the
+    // next request will no longer carry.
     reset();
   }
 
@@ -148,8 +161,8 @@ export default function Page() {
           booksLoaded={booksLoaded}
           booksError={booksError}
           onRetryLoadBooks={loadBooks}
-          selectedBookId={selectedBookId}
-          onSelectBook={selectBook}
+          selectedBookIds={selectedBookIds}
+          onSelectBooks={selectBooks}
           retrievalMode={retrievalMode}
           onRetrievalModeChange={setRetrievalMode}
           hasConversation={turns.length > 0}
@@ -166,6 +179,9 @@ export default function Page() {
         onSend={handleSend}
         onStop={stop}
         onRetry={handleRetry}
+        scopeSummary={
+          hasBooks ? describeSelection(books, selectedBookIds) : null
+        }
       />
     </AppShell>
   );
