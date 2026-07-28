@@ -30,10 +30,10 @@ from .states import Stage, Status, is_terminal
 SECONDS_PER_PAGE: dict[Stage, float] = {
     Stage.PARSE_PAGES: 5.6,
     Stage.PERSIST_CANONICAL: 0.08,
-    # One vision call per figure, and figure density tracks page count.
-    # Measured across the production corpus: ~0.5 figures per page, at a
-    # few seconds each, with repeated images captioned only once.
-    Stage.CAPTION_FIGURES: 1.4,
+    # Measured over the production backfill: 1,806 pages carried 810
+    # figures, of which 692 were worth captioning (0.38 per page) at
+    # ~2.2s each. Boilerplate and repeats cost nothing.
+    Stage.CAPTION_FIGURES: 0.84,
     Stage.BUILD_CHUNKS: 0.13,
     Stage.BUILD_EMBEDDINGS: 0.05,
     Stage.VERIFY_BOOK: 0.02,

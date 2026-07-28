@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from ingestion.captions import OpenRouterCaptioner, caption_book_figures
-from retrieval.postgres import rebuild_chunks
+from retrieval.postgres import rebuild as rebuild_chunks
 from retrieval.vector import build_embedder, rebuild_vector_index
 from storage.database import connection as database_connection, parse_owner_id
 
@@ -119,8 +119,15 @@ def main() -> None:
                 owner_id=owner,
                 captioner=captioner,
                 only_missing=not arguments.recaption,
+                # Flushed: stdout is block-buffered when redirected to a
+                # file, and an unflushed progress line makes a long backfill
+                # look stalled for minutes at a time.
                 on_progress=lambda done, total, title=book["title"]: (
-                    print(f"  {title[:40]:42} {done}/{total}", end="\r")
+                    print(
+                        f"  {title[:40]:42} {done}/{total}",
+                        end="\r",
+                        flush=True,
+                    )
                 ),
             )
         print(

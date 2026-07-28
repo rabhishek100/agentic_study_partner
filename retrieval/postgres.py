@@ -72,28 +72,19 @@ def rebuild(
 
     with connection.transaction():
         connection.execute("select pg_advisory_xact_lock(%s)", (book_id,))
-        existing = connection.execute(
+        # Every prior build for this book goes, not just one matching this
+        # chunker version and config. Retrieval does not filter by build, so a
+        # superseded build's chunks stay searchable alongside the new ones —
+        # which is exactly what happened when the chunker was bumped to v2 for
+        # figure captions: every book ended up with both, and every query could
+        # match the same passage twice, once without its caption.
+        connection.execute(
             """
-            select id from chunk_builds
-            where owner_id = %s
-              and source_book_id = %s
-              and parser_version = %s
-              and chunker_version = %s
-              and config_hash = %s
+            delete from chunk_builds
+            where owner_id = %s and source_book_id = %s
             """,
-            (
-                owner,
-                book_id,
-                book["parser_version"],
-                CHUNKER_VERSION,
-                configuration_hash,
-            ),
-        ).fetchone()
-        if existing:
-            connection.execute(
-                "delete from chunk_builds where id = %s and owner_id = %s",
-                (existing["id"], owner),
-            )
+            (owner, book_id),
+        )
 
         build_id = int(
             connection.execute(
