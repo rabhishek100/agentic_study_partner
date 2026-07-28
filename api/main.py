@@ -65,7 +65,12 @@ RetrievalMode = Literal["bm25", "vector", "hybrid", "hybrid_rerank"]
 
 class ChatRequest(ContractModel):
     question: str = Field(min_length=1, max_length=10_000)
-    retrieval_mode: RetrievalMode = "hybrid"
+    # Chosen from the frozen gold-set comparison in
+    # evaluation/retrieval_comparison_artifact.json, where reranking wins
+    # on every metric: Recall@5 1.00 against 0.93 for hybrid alone, and
+    # MRR@5 0.96 against 0.85. This is the product default; the library
+    # functions keep "hybrid" so evaluations state their mode explicitly.
+    retrieval_mode: RetrievalMode = "hybrid_rerank"
     # Required and always verified against the caller's ready books. There is
     # deliberately no default and an empty list is rejected: a chat turn must
     # never fall back to book 1, and it must never silently widen to the whole

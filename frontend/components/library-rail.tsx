@@ -40,14 +40,14 @@ const RETRIEVAL_MODES: {
   label: string;
   hint: string;
 }[] = [
-  { value: "hybrid", label: "Hybrid", hint: "Keyword and meaning combined" },
-  { value: "bm25", label: "Keyword", hint: "Exact terms only" },
-  { value: "vector", label: "Meaning-based", hint: "Paraphrase tolerant" },
   {
     value: "hybrid_rerank",
     label: "Hybrid + reranking",
-    hint: "Slower, usually more precise",
+    hint: "Best measured accuracy — the default",
   },
+  { value: "hybrid", label: "Hybrid", hint: "Keyword and meaning combined" },
+  { value: "bm25", label: "Keyword", hint: "Exact terms only" },
+  { value: "vector", label: "Meaning-based", hint: "Paraphrase tolerant" },
 ];
 
 function SectionHeading({

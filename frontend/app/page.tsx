@@ -31,7 +31,7 @@ export default function Page() {
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
   const [selectedBookIds, setSelectedBookIds] = useState<number[]>([]);
-  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("hybrid");
+  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("hybrid_rerank");
 
   const {
     turns,
