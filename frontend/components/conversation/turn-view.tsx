@@ -9,6 +9,7 @@ import { AnswerInspector } from "@/components/conversation/inspector";
 import { References } from "@/components/conversation/references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { figuresForMarker, resolveMarker } from "@/lib/citations";
 import type { ChatTurn, EvidenceRef } from "@/lib/types";
 
 function CopyButton({ text }: { text: string }) {
@@ -61,7 +62,7 @@ export interface TurnViewProps {
   isLast: boolean;
   canRetry: boolean;
   onRetry: () => void;
-  onOpenReference?: (reference: EvidenceRef) => void;
+  onOpenReference?: (reference: EvidenceRef, page?: number) => void;
 }
 
 export function TurnView({
@@ -98,11 +99,21 @@ export function TurnView({
           />
         )}
 
-        {/* Anything the answer never cited still appears, after the prose. */}
+        {/* Anything no marker claimed still appears, after the prose. */}
         {result && (
           <Figures
             figures={result.figures.filter(
-              (figure) => figure.evidence_rank === null,
+              (figure) =>
+                !result.citations.some((citation) =>
+                  figuresForMarker(
+                    [figure],
+                    resolveMarker(
+                      citation.marker,
+                      result.evidence,
+                      result.citations,
+                    ),
+                  ).length,
+                ),
             )}
           />
         )}

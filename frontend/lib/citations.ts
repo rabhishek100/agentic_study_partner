@@ -1,4 +1,4 @@
-import type { CitationRef, EvidenceRef } from "./types";
+import type { CitationRef, EvidenceRef, FigureRef } from "./types";
 
 /**
  * Citation markers, and how they map onto the reference list.
@@ -129,4 +129,50 @@ export function formatPages(pages: number[]): string {
   const first = pages[0]!;
   const last = pages[pages.length - 1]!;
   return first === last ? `p. ${first}` : `pp. ${first}–${last}`;
+}
+
+/**
+ * The figures belonging to one resolved citation marker.
+ *
+ * The two answer routes ground differently, so a figure attaches by whichever
+ * evidence the marker actually carries:
+ *
+ *   [S1]        retrieval QA — the figure shares the marker's evidence rank
+ *   [N123:P84]  a summary — the figure is that node's, on that page
+ *
+ * Keying only on rank silently excluded every summary figure, because a
+ * summary's evidence has no rank at all: they were all demoted to the
+ * trailing gallery no matter how squarely the answer cited them.
+ */
+export function figuresForMarker(
+  figures: FigureRef[],
+  marker: CitationMarker,
+): FigureRef[] {
+  const { evidence, citation } = marker;
+
+  return figures.filter((figure) => {
+    if (
+      figure.evidence_rank !== null &&
+      evidence?.rank != null &&
+      figure.evidence_rank === evidence.rank
+    ) {
+      return true;
+    }
+    if (citation && figure.node_id === citation.node_id) {
+      return figure.page === citation.page;
+    }
+    // A summary marker the server did not record still names its node, and
+    // the evidence lists the pages that node contributed.
+    return (
+      evidence != null &&
+      figure.node_id === evidence.node_id &&
+      evidence.pages.includes(figure.page)
+    );
+  });
+}
+
+/** The page a marker points at, preferring what the citation itself says. */
+export function markerPage(marker: CitationMarker): number | null {
+  if (marker.citation) return marker.citation.page;
+  return marker.evidence?.pages[0] ?? null;
 }

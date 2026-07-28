@@ -128,7 +128,7 @@ export default function Page() {
   }, [retry, selectedBookIds, retrievalMode]);
 
   const openReference = useCallback(
-    (reference: EvidenceRef) => {
+    (reference: EvidenceRef, page?: number) => {
       if (reference.book_id === null) return;
       setReading({
         bookId: reference.book_id,
@@ -136,8 +136,10 @@ export default function Page() {
           reference.book_title ??
           books.find((book) => book.book_id === reference.book_id)?.title ??
           "This book",
-        // The first cited page is where the passage begins.
-        page: reference.pages[0] ?? 1,
+        // The page the marker itself names, when it names one. A summary's
+        // evidence can span five pages, so opening its first would land the
+        // reader several pages from the sentence they clicked.
+        page: page ?? reference.pages[0] ?? 1,
         excerpt: reference.excerpt,
       });
     },

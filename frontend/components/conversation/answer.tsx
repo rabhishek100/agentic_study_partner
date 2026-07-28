@@ -11,7 +11,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { InlineFigure } from "@/components/conversation/figures";
-import { formatPages, formatPath, splitOnCitations } from "@/lib/citations";
+import {
+  figuresForMarker,
+  formatPages,
+  formatPath,
+  markerPage,
+  resolveMarker,
+  splitOnCitations,
+} from "@/lib/citations";
 import { normalizeMath } from "@/lib/math";
 import type { CitationRef, EvidenceRef, FigureRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -109,24 +116,29 @@ function citationPlugin(evidence: EvidenceRef[], citations: CitationRef[]) {
 function CitationChip({
   index,
   reference,
+  page,
   onOpen,
 }: {
   index: number;
   reference: EvidenceRef | undefined;
-  onOpen?: (reference: EvidenceRef) => void;
+  /** The page this marker names, which can differ from the reference's first. */
+  page?: number | null;
+  onOpen?: (reference: EvidenceRef, page?: number) => void;
 }) {
   const chip = (
     <span
       data-citation=""
       role={reference && onOpen ? "button" : undefined}
       tabIndex={reference && onOpen ? 0 : undefined}
-      onClick={reference && onOpen ? () => onOpen(reference) : undefined}
+      onClick={
+        reference && onOpen ? () => onOpen(reference, page ?? undefined) : undefined
+      }
       onKeyDown={
         reference && onOpen
           ? (event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
-                onOpen(reference);
+                onOpen(reference, page ?? undefined);
               }
             }
           : undefined
@@ -155,7 +167,9 @@ function CitationChip({
       <TooltipContent className="max-w-xs">
         <p className="font-medium">{reference.book_title ?? "This book"}</p>
         <p className="text-xs opacity-80">{parts.join(" › ")}</p>
-        <p className="text-xs opacity-80">{formatPages(reference.pages)}</p>
+        <p className="text-xs opacity-80">
+          {page ? `p. ${page}` : formatPages(reference.pages)}
+        </p>
       </TooltipContent>
     </Tooltip>
   );
@@ -166,7 +180,7 @@ export interface AnswerProps {
   evidence: EvidenceRef[];
   citations: CitationRef[];
   figures?: FigureRef[];
-  onOpenReference?: (reference: EvidenceRef) => void;
+  onOpenReference?: (reference: EvidenceRef, page?: number) => void;
 }
 
 export function Answer({
@@ -185,18 +199,9 @@ export function Answer({
   // A figure is placed after the paragraph that cites it, the way a textbook
   // sets one beside the passage discussing it — rather than collected into a
   // gallery at the end, where the reader has to work out which sentence each
-  // one belongs to.
-  const figuresByRank = useMemo(() => {
-    const grouped = new Map<number, FigureRef[]>();
-    for (const figure of figures) {
-      if (figure.evidence_rank === null) continue;
-      const existing = grouped.get(figure.evidence_rank);
-      if (existing) existing.push(figure);
-      else grouped.set(figure.evidence_rank, [figure]);
-    }
-    return grouped;
-  }, [figures]);
-
+  // one belongs to. Attachment goes through the marker, because the two answer
+  // routes carry different evidence: a retrieval answer has ranks, a summary
+  // has nodes and pages.
   const rendered = new Set<number>();
 
   return (
@@ -210,35 +215,40 @@ export function Answer({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           "citation-ref": ({ node }: any) => {
             const index = Number(node?.properties?.dataIndex ?? 0);
+            const marker = String(node?.properties?.dataMarker ?? "");
+            const resolved = resolveMarker(marker, evidence, citations);
             return (
               <CitationChip
                 index={index}
                 reference={evidence[index - 1]}
+                page={markerPage(resolved)}
                 onOpen={onOpenReference}
               />
             );
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           p: ({ children, node }: any) => {
-            // Which references does this paragraph cite? Its figures follow it.
-            const ranks: number[] = [];
+            // Which markers does this paragraph carry? Their figures follow it.
+            const markers: string[] = [];
             const walk = (element: any) => {
               if (!element) return;
               if (element.tagName === "citation-ref") {
-                const index = Number(element.properties?.dataIndex ?? 0);
-                const reference = evidence[index - 1];
-                if (reference?.rank != null) ranks.push(reference.rank);
+                markers.push(String(element.properties?.dataMarker ?? ""));
               }
               (element.children ?? []).forEach(walk);
             };
             (node?.children ?? []).forEach(walk);
 
-            const attached = ranks
-              .filter((rank) => !rendered.has(rank))
-              .flatMap((rank) => {
-                rendered.add(rank);
-                return figuresByRank.get(rank) ?? [];
-              });
+            const attached: FigureRef[] = [];
+            for (const marker of markers) {
+              const resolved = resolveMarker(marker, evidence, citations);
+              for (const figure of figuresForMarker(figures, resolved)) {
+                // A figure cited twice belongs beside its first mention.
+                if (rendered.has(figure.block_id)) continue;
+                rendered.add(figure.block_id);
+                attached.push(figure);
+              }
+            }
 
             return (
               <>

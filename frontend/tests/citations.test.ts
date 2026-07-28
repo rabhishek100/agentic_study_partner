@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  figuresForMarker,
   formatPages,
   formatPath,
+  markerPage,
   resolveMarker,
   splitOnCitations,
 } from "@/lib/citations";
-import type { CitationRef, EvidenceRef } from "@/lib/types";
+import type { CitationRef, EvidenceRef, FigureRef } from "@/lib/types";
 
 function evidence(overrides: Partial<EvidenceRef> = {}): EvidenceRef {
   return {
@@ -159,5 +161,84 @@ describe("formatting", () => {
     expect(formatPages([12])).toBe("p. 12");
     expect(formatPages([12, 13, 14])).toBe("pp. 12–14");
     expect(formatPages([])).toBe("");
+  });
+});
+
+describe("figuresForMarker", () => {
+  function figure(overrides: Partial<FigureRef> = {}): FigureRef {
+    return {
+      book_id: 530,
+      node_id: 3286,
+      block_id: 1,
+      page: 81,
+      mime_type: "image/png",
+      path: "3 Linear Regression :: 3.1 Simple Linear Regression",
+      caption: "A scatter plot.",
+      evidence_rank: null,
+      ...overrides,
+    };
+  }
+
+  it("attaches a retrieval figure by evidence rank", () => {
+    const refs = [evidence({ node_id: 10, rank: 2 })];
+    const marker = resolveMarker("[S2]", refs, []);
+    const figures = [figure({ node_id: 10, evidence_rank: 2, block_id: 7 })];
+
+    expect(figuresForMarker(figures, marker).map((f) => f.block_id)).toEqual([7]);
+  });
+
+  it("attaches a summary figure by node and page", () => {
+    // The real shape: a summary's evidence has no rank at all, so keying on
+    // rank alone excluded every one of these.
+    const refs = [evidence({ node_id: 3286, pages: [81, 82, 83], rank: null })];
+    const cites = [
+      citation({ marker: "[N3286:P82]", node_id: 3286, page: 82, evidence_rank: null }),
+    ];
+    const marker = resolveMarker("[N3286:P82]", refs, cites);
+    const figures = [
+      figure({ page: 81, block_id: 1 }),
+      figure({ page: 82, block_id: 2 }),
+    ];
+
+    expect(figuresForMarker(figures, marker).map((f) => f.block_id)).toEqual([2]);
+  });
+
+  it("does not attach a figure from a different node", () => {
+    const refs = [evidence({ node_id: 3286, pages: [81], rank: null })];
+    const cites = [
+      citation({ marker: "[N3286:P81]", node_id: 3286, page: 81, evidence_rank: null }),
+    ];
+    const marker = resolveMarker("[N3286:P81]", refs, cites);
+
+    expect(figuresForMarker([figure({ node_id: 999 })], marker)).toEqual([]);
+  });
+
+  it("falls back to the node's evidence pages when the citation is absent", () => {
+    const refs = [evidence({ node_id: 3286, pages: [81, 82], rank: null })];
+    const marker = resolveMarker("[N3286:P82]", refs, []);
+
+    expect(figuresForMarker([figure({ page: 82 })], marker)).toHaveLength(1);
+  });
+});
+
+describe("markerPage", () => {
+  it("prefers the page the marker itself names", () => {
+    // A summary's evidence spans several pages; opening its first would land
+    // the reader well away from the sentence they clicked.
+    const refs = [evidence({ node_id: 3286, pages: [81, 82, 83, 84, 85] })];
+    const cites = [
+      citation({ marker: "[N3286:P84]", node_id: 3286, page: 84, evidence_rank: null }),
+    ];
+
+    expect(markerPage(resolveMarker("[N3286:P84]", refs, cites))).toBe(84);
+  });
+
+  it("falls back to the reference's first page", () => {
+    const refs = [evidence({ node_id: 10, pages: [12, 13], rank: 1 })];
+    expect(markerPage(resolveMarker("[S1]", refs, []))).toBe(12);
+  });
+
+  it("returns null when nothing resolves", () => {
+    expect(markerPage(resolveMarker("[S9]", [], []))).toBeNull();
   });
 });

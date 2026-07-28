@@ -34,7 +34,7 @@ export interface ConversationViewProps {
   onRetry: () => void;
   /** What the next question will search, e.g. "All 3 books". */
   scopeSummary?: string | null;
-  onOpenReference?: (reference: EvidenceRef) => void;
+  onOpenReference?: (reference: EvidenceRef, page?: number) => void;
 }
 
 export function ConversationView({

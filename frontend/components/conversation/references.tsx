@@ -29,7 +29,7 @@ function ReferenceRow({
   index: number | null;
   sharedPath: string[];
   muted?: boolean;
-  onOpen?: (reference: EvidenceRef) => void;
+  onOpen?: (reference: EvidenceRef, page?: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const parts = pathBelow(reference.path, sharedPath);
@@ -125,7 +125,7 @@ function GroupHeading({
 export interface ReferencesProps {
   evidence: EvidenceRef[];
   citations: CitationRef[];
-  onOpenReference?: (reference: EvidenceRef) => void;
+  onOpenReference?: (reference: EvidenceRef, page?: number) => void;
 }
 
 export function References({
