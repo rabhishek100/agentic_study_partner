@@ -6,11 +6,14 @@ import {
   Library,
   RotateCcw,
   Settings2,
-  Trash2,
 } from "lucide-react";
 import { useState } from "react";
 
 import { BookSelector } from "@/components/book-selector";
+import {
+  ConversationHistory,
+  type ConversationHistoryProps,
+} from "@/components/conversation-history";
 import { UploadPanel } from "@/components/upload-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -74,8 +77,8 @@ export interface LibraryRailProps {
   retrievalMode: RetrievalMode;
   onRetrievalModeChange: (mode: RetrievalMode) => void;
   hasConversation: boolean;
-  onClearConversation: () => void;
   onBooksChanged: () => void;
+  history: ConversationHistoryProps;
 }
 
 export function LibraryRail({
@@ -88,8 +91,8 @@ export function LibraryRail({
   retrievalMode,
   onRetrievalModeChange,
   hasConversation,
-  onClearConversation,
   onBooksChanged,
+  history,
 }: LibraryRailProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasBooks = books.length > 0;
@@ -140,6 +143,10 @@ export function LibraryRail({
           </div>
         )}
       </section>
+
+      <Separator />
+
+      <ConversationHistory {...history} />
 
       <Separator />
 
@@ -195,16 +202,6 @@ export function LibraryRail({
         </CollapsibleContent>
       </Collapsible>
 
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-auto"
-        onClick={onClearConversation}
-        disabled={!hasConversation}
-      >
-        <Trash2 aria-hidden />
-        Clear conversation
-      </Button>
     </div>
   );
 }

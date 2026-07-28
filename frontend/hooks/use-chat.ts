@@ -8,6 +8,7 @@ import { accessToken } from "@/lib/supabase";
 import type {
   ChatResponse,
   ChatTurn,
+  ConversationDetail,
   ConversationState,
   RetrievalMode,
 } from "@/lib/types";
@@ -34,6 +35,9 @@ export function useChat() {
   const [conversation, setConversation] = useState<ConversationState | null>(
     null,
   );
+  // The server owns conversation state; this is only the identity the client
+  // sends back to resume. Null means the next turn starts a conversation.
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
 
   const controllerRef = useRef<AbortController | null>(null);
@@ -93,7 +97,7 @@ export function useChat() {
             question: submitted,
             retrieval_mode: retrievalMode,
             book_ids: bookIds,
-            state: conversation,
+            conversation_id: conversationId,
           }),
           signal: controller.signal,
         });
@@ -139,6 +143,10 @@ export function useChat() {
               const data = JSON.parse(payload) as ChatResponse;
               settled = true;
               setConversation(data.state);
+              // The server may have started a new conversation — a changed
+              // book selection does exactly that — so the id always comes
+              // back from the response rather than being assumed.
+              setConversationId(data.state.conversation_id);
               patchTurn(id, {
                 answer: data.result.answer,
                 result: data.result,
@@ -177,7 +185,7 @@ export function useChat() {
         setIsStreaming(false);
       }
     },
-    [conversation, patchTurn],
+    [conversationId, patchTurn],
   );
 
   const stop = useCallback(() => {
@@ -197,13 +205,44 @@ export function useChat() {
     [turns, isStreaming, send],
   );
 
+  /** Start a fresh conversation, leaving whatever is stored untouched. */
   const reset = useCallback(() => {
     controllerRef.current?.abort();
     controllerRef.current = null;
     setTurns([]);
     setConversation(null);
+    setConversationId(null);
     setIsStreaming(false);
   }, []);
 
-  return { turns, conversation, isStreaming, send, stop, retry, reset };
+  /** Replace the visible conversation with one loaded from the server. */
+  const resume = useCallback((detail: ConversationDetail) => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    setIsStreaming(false);
+    setConversationId(detail.conversation_id);
+    setConversation(null);
+    setTurns(
+      detail.turns.map((turn) => ({
+        id: `${detail.conversation_id}-${turn.turn_index}`,
+        question: turn.question,
+        answer: turn.answer,
+        status: "complete" as const,
+        result: turn.result,
+        error: null,
+      })),
+    );
+  }, []);
+
+  return {
+    turns,
+    conversation,
+    conversationId,
+    isStreaming,
+    send,
+    stop,
+    retry,
+    reset,
+    resume,
+  };
 }

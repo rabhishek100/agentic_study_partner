@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChat } from "@/hooks/use-chat";
+import { useConversations } from "@/hooks/use-conversations";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import type { BookListResponse, BookSummary, RetrievalMode } from "@/lib/types";
@@ -32,8 +33,18 @@ export default function Page() {
   const [selectedBookIds, setSelectedBookIds] = useState<number[]>([]);
   const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("hybrid");
 
-  const { turns, conversation, isStreaming, send, stop, retry, reset } =
-    useChat();
+  const {
+    turns,
+    conversation,
+    conversationId,
+    isStreaming,
+    send,
+    stop,
+    retry,
+    reset,
+    resume,
+  } = useChat();
+  const history = useConversations();
 
   const loadBooks = useCallback(async () => {
     setBooksError("");
@@ -61,18 +72,46 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (session) loadBooks();
+    if (session) {
+      loadBooks();
+      history.refresh();
+    }
+    // `history.refresh` is stable; depending on the whole hook object would
+    // re-run this on every list mutation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, loadBooks]);
 
   const hasBooks = books.length > 0;
   const canSend = hasBooks && selectedBookIds.length > 0;
 
   const handleSend = useCallback(
-    (question: string) => {
+    async (question: string) => {
       if (selectedBookIds.length === 0) return;
-      send(question, { bookIds: selectedBookIds, retrievalMode });
+      await send(question, { bookIds: selectedBookIds, retrievalMode });
+      // The turn may have created a conversation or renamed nothing at all;
+      // refreshing afterwards keeps the sidebar honest either way.
+      await history.refresh();
     },
-    [send, selectedBookIds, retrievalMode],
+    [send, selectedBookIds, retrievalMode, history],
+  );
+
+  const handleOpenConversation = useCallback(
+    async (id: string) => {
+      const detail = await history.open(id);
+      resume(detail);
+      setSelectedBookIds(detail.book_ids);
+      setRetrievalMode(detail.retrieval_mode);
+    },
+    [history, resume],
+  );
+
+  const handleDeleteConversation = useCallback(
+    async (id: string) => {
+      await history.remove(id);
+      // Deleting the conversation on screen leaves nothing to continue.
+      if (id === conversationId) reset();
+    },
+    [history, conversationId, reset],
   );
 
   const handleRetry = useCallback(() => {
@@ -166,8 +205,16 @@ export default function Page() {
           retrievalMode={retrievalMode}
           onRetrievalModeChange={setRetrievalMode}
           hasConversation={turns.length > 0}
-          onClearConversation={reset}
           onBooksChanged={loadBooks}
+          history={{
+            conversations: history.conversations,
+            loaded: history.loaded,
+            activeId: conversationId,
+            onOpen: handleOpenConversation,
+            onRename: history.rename,
+            onDelete: handleDeleteConversation,
+            onNew: reset,
+          }}
         />
       }
     >

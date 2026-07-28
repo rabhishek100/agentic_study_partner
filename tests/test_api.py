@@ -12,6 +12,7 @@ from study.query import QueryExecutionError
 
 
 OWNER_ID = UUID("11111111-1111-4111-8111-111111111111")
+CONVERSATION_ID = UUID("22222222-2222-4222-8222-222222222222")
 
 
 @contextmanager
@@ -32,6 +33,33 @@ def owner_scoped_book(book_id: int | None = 1):
             None if book_id is None else {"id": book_id, "status": "ready"}
         )
         yield lookup
+
+
+@contextmanager
+def stubbed_conversation_store(conversation_id: str = str(CONVERSATION_ID)):
+    """Serve conversation persistence without a database.
+
+    The chat endpoints now create or resume a conversation and record the
+    settled turn, so the unit-level API tests stub that boundary. Behaviour
+    against a real database is covered by the Postgres-backed conversation
+    tests instead.
+    """
+
+    created = {
+        "id": conversation_id,
+        "title": "Stub",
+        "book_ids": [1],
+        "retrieval_mode": "hybrid",
+        "state_json": {},
+        "created_at": None,
+        "updated_at": None,
+    }
+    with (
+        patch("api.main.create_conversation", return_value=created) as create,
+        patch("api.main.load_conversation", return_value=None) as load,
+        patch("api.main.append_turn", return_value=0) as append,
+    ):
+        yield {"create": create, "load": load, "append": append}
 
 
 @contextmanager
@@ -180,7 +208,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         state = ConversationState(conversation_id="conversation-1", book_ids=[1])
         execute.return_value = (result, state)
 
-        with owner_scoped_book():
+        with owner_scoped_book(), stubbed_conversation_store() as store:
             response = await self.client.post(
                 "/api/chat",
                 json={
@@ -192,11 +220,14 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["result"]["answer"], result.answer)
+        # The stored conversation is the identity, not whatever id the
+        # workflow happened to mint.
         self.assertEqual(
             response.json()["state"]["conversation_id"],
-            "conversation-1",
+            str(CONVERSATION_ID),
         )
         self.assertEqual(execute.call_args.kwargs["owner_id"], OWNER_ID)
+        store["append"].assert_called_once()
 
     @patch("api.main.execute_conversation_turn")
     async def test_chat_rejects_a_book_the_caller_cannot_use(self, execute):
@@ -313,7 +344,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
         execute.side_effect = fake_execute
 
-        with owner_scoped_book():
+        with owner_scoped_book(), stubbed_conversation_store():
             async with self.client.stream(
                 "POST",
                 "/api/chat/stream",
@@ -333,7 +364,9 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("event: token", events[1])
         self.assertIn("event: final", events[2])
         self.assertIn(result.answer, events[2])
-        self.assertIn("conversation-1", events[2])
+        # The final event carries the stored conversation identity, which
+        # is what the client sends back to resume.
+        self.assertIn(str(CONVERSATION_ID), events[2])
 
     @patch("api.main.execute_conversation_turn")
     async def test_chat_stream_rejects_a_book_the_caller_cannot_use(self, execute):

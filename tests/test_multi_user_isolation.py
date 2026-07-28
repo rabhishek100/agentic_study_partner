@@ -20,6 +20,14 @@ from storage.postgres import (
     ready_book,
     restore_book,
 )
+from storage.conversations import (
+    append_turn,
+    create_conversation,
+    delete_conversation,
+    list_conversations,
+    load_conversation,
+    load_turns,
+)
 from tests.fixtures import sample_book
 
 
@@ -54,6 +62,30 @@ class TwoOwnerFixture:
                     parser_version="test-parser",
                 )
 
+    def provision_conversations(self) -> None:
+        """One conversation with one turn per owner."""
+
+        self.conversations: dict[str, str] = {}
+        with connection(self.database_url) as database:
+            for owner in (self.owner_a, self.owner_b):
+                conversation = create_conversation(
+                    database,
+                    owner_id=owner,
+                    book_ids=[self.books[owner]],
+                    retrieval_mode="hybrid",
+                    title=f"{owner} private title",
+                )
+                self.conversations[owner] = str(conversation["id"])
+                append_turn(
+                    database,
+                    conversation["id"],
+                    owner_id=owner,
+                    question=f"{owner} private question",
+                    answer=f"{owner} private answer",
+                    result={"answer": f"{owner} private answer"},
+                    state={"conversation_id": str(conversation["id"])},
+                )
+
     def discard(self) -> None:
         with connection(self.database_url) as database:
             database.execute(
@@ -65,7 +97,54 @@ class TwoOwnerFixture:
 class ApplicationIsolationTests(unittest.TestCase, TwoOwnerFixture):
     def setUp(self):
         self.provision()
+        self.provision_conversations()
         self.addCleanup(self.discard)
+
+    def test_conversation_listings_never_include_another_owner(self):
+        with connection(self.database_url, readonly=True) as database:
+            listed = list_conversations(database, owner_id=self.owner_a)
+
+        self.assertEqual(
+            [str(row["id"]) for row in listed],
+            [self.conversations[self.owner_a]],
+        )
+
+    def test_loading_another_owners_conversation_returns_nothing(self):
+        with connection(self.database_url, readonly=True) as database:
+            found = load_conversation(
+                database,
+                self.conversations[self.owner_b],
+                owner_id=self.owner_a,
+            )
+
+        # Missing and someone else's are deliberately indistinguishable.
+        self.assertIsNone(found)
+
+    def test_another_owners_turns_are_not_readable(self):
+        with connection(self.database_url, readonly=True) as database:
+            turns = load_turns(
+                database,
+                self.conversations[self.owner_b],
+                owner_id=self.owner_a,
+            )
+
+        self.assertEqual(turns, [])
+
+    def test_deleting_another_owners_conversation_is_refused(self):
+        with connection(self.database_url) as database:
+            removed = delete_conversation(
+                database,
+                self.conversations[self.owner_b],
+                owner_id=self.owner_a,
+            )
+            survivor = load_conversation(
+                database,
+                self.conversations[self.owner_b],
+                owner_id=self.owner_b,
+            )
+
+        self.assertFalse(removed)
+        self.assertIsNotNone(survivor)
 
     def test_book_listings_never_include_another_owner(self):
         with connection(self.database_url) as database:
@@ -140,6 +219,7 @@ class RowLevelSecurityTests(unittest.TestCase, TwoOwnerFixture):
 
     def setUp(self):
         self.provision()
+        self.provision_conversations()
         self.addCleanup(self.discard)
         with connection(self.database_url) as database:
             self.job_b = database.execute(
@@ -169,6 +249,60 @@ class RowLevelSecurityTests(unittest.TestCase, TwoOwnerFixture):
 
         self.assertEqual([row["id"] for row in visible], [self.books[self.owner_a]])
         self.assertEqual(jobs, [])
+
+    def test_authenticated_role_sees_only_its_own_conversations(self):
+        with connection(self.database_url) as database:
+            with database.transaction():
+                self._as_owner(database, self.owner_a)
+                conversations = database.execute(
+                    "select id, title from conversations"
+                ).fetchall()
+                turns = database.execute(
+                    "select question from conversation_turns"
+                ).fetchall()
+
+        self.assertEqual(
+            [str(row["id"]) for row in conversations],
+            [self.conversations[self.owner_a]],
+        )
+        self.assertEqual(
+            [row["question"] for row in turns],
+            [f"{self.owner_a} private question"],
+        )
+
+    def test_authenticated_role_cannot_delete_another_owners_conversation(self):
+        with connection(self.database_url) as database:
+            with database.transaction():
+                self._as_owner(database, self.owner_a)
+                database.execute(
+                    "delete from conversations where id = %s",
+                    (self.conversations[self.owner_b],),
+                )
+            with database.transaction():
+                self._as_owner(database, self.owner_b)
+                survivors = database.execute(
+                    "select id from conversations"
+                ).fetchall()
+
+        # The delete matched no visible row rather than raising, which is how
+        # RLS refuses: the other owner's conversation is simply still there.
+        self.assertEqual(
+            [str(row["id"]) for row in survivors],
+            [self.conversations[self.owner_b]],
+        )
+
+    def test_authenticated_role_cannot_forge_a_conversation_for_another_owner(self):
+        with connection(self.database_url) as database:
+            with self.assertRaises(postgres_errors.InsufficientPrivilege):
+                with database.transaction():
+                    self._as_owner(database, self.owner_a)
+                    database.execute(
+                        """
+                        insert into conversations (owner_id, title, book_ids)
+                        values (%s, 'forged', %s)
+                        """,
+                        (self.owner_b, [self.books[self.owner_b]]),
+                    )
 
     def test_authenticated_role_cannot_read_another_owners_content(self):
         with connection(self.database_url) as database:

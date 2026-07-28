@@ -11,6 +11,7 @@ The active pipeline is:
 | `parsing/` | Extract a PDF into the lossless hierarchical `ParsedBook` contract. |
 | `storage/database.py` | Pool Postgres connections and resolve the temporary server-controlled owner. |
 | `storage/postgres.py` | Validate, ingest, and restore canonical book content transactionally. |
+| `storage/conversations.py` | Owner-scoped conversation and turn persistence. |
 | `retrieval/chunking.py` | Build deterministic citation-aware chunks from canonical blocks. |
 | `retrieval/postgres.py` | Atomically persist chunks and run weighted Postgres full-text/BM25 retrieval. |
 | `retrieval/vector.py` | Synchronize provenance-checked `vector(3072)` rows and run exact cosine search. |
@@ -20,7 +21,7 @@ The active pipeline is:
 | `worker/main.py` | Poll Postgres, claim one job under a lease, run the pipeline, and record the outcome. |
 | `api/auth.py` | Verify Supabase access tokens and derive `owner_id` from the token subject. |
 | `api/ingestions.py` | Owner-scoped upload lifecycle: create, complete, status, list, cancel, retry. |
-| `api/main.py` | Serve health, the ready-book library, synchronous chat, and SSE streaming. |
+| `api/main.py` | Serve health, the ready-book library, conversation CRUD, synchronous chat, and SSE streaming. |
 | `frontend/` | Next.js + TypeScript interface built on Tailwind v4 and shadcn/ui: Supabase sign-in, resumable upload with durable job progress, the ready-book library, and grounded streaming chat. |
 
 ## Database authority
@@ -34,7 +35,10 @@ The active pipeline is:
 
 Canonical tables are `books`, `nodes`, `content_blocks`, `table_blocks`, and
 `image_blocks`. Derived tables are `chunk_builds`, `chunks`, `chunk_sources`,
-and `chunk_embeddings`; their contents are always rebuildable. `ingestion_jobs`
+and `chunk_embeddings`; their contents are always rebuildable. `conversations`
+and `conversation_turns` hold study history: turns are canonical and
+`conversations.state_json` is a derived resume checkpoint, stored rather than
+replayed because rebuilding it every turn is wasted work. `ingestion_jobs`
 and `ingestion_job_events` carry the durable upload lifecycle: the job table is
 the queue, the lease, the checkpoint, and the progress source of truth.
 

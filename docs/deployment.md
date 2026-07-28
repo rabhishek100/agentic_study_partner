@@ -204,6 +204,18 @@ Railway dashboard — Deployments → the last good one → Redeploy. The CLI's
 `railway redeploy` only redeploys the *latest* deployment, which is the broken
 one, and there is no redeploy-by-id.
 
+## Schema changes
+
+Migrations are applied from a laptop, never from a service. `MIGRATION_DATABASE_URL`
+is the direct connection and exists only for this:
+
+```bash
+npx supabase@2.109.1 db push --db-url "$MIGRATION_DATABASE_URL"
+```
+
+Apply the migration **before** deploying an API that depends on it, or every
+request touching the new tables fails until it lands.
+
 ## Post-deploy verification
 
 ```bash

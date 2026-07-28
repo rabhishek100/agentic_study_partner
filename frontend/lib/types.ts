@@ -95,6 +95,38 @@ export interface ChatResponse {
   state: ConversationState;
 }
 
+export interface ConversationSummary {
+  conversation_id: string;
+  title: string;
+  book_ids: number[];
+  retrieval_mode: RetrievalMode;
+  turn_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationListResponse {
+  conversations: ConversationSummary[];
+}
+
+export interface StoredTurn {
+  turn_index: number;
+  question: string;
+  answer: string;
+  result: TurnResult;
+  created_at: string;
+}
+
+export interface ConversationDetail {
+  conversation_id: string;
+  title: string;
+  book_ids: number[];
+  retrieval_mode: RetrievalMode;
+  created_at: string;
+  updated_at: string;
+  turns: StoredTurn[];
+}
+
 export interface BookSummary {
   book_id: number;
   title: string;
