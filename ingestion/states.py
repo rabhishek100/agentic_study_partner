@@ -18,6 +18,7 @@ class Status(StrEnum):
     VALIDATING = "validating"
     PARSING = "parsing"
     PERSISTING = "persisting"
+    CAPTIONING = "captioning"
     CHUNKING = "chunking"
     EMBEDDING = "embedding"
     VERIFYING = "verifying"
@@ -37,6 +38,7 @@ class Stage(StrEnum):
     PREFLIGHT = "preflight"
     PARSE_PAGES = "parse_pages"
     PERSIST_CANONICAL = "persist_canonical"
+    CAPTION_FIGURES = "caption_figures"
     BUILD_CHUNKS = "build_chunks"
     BUILD_EMBEDDINGS = "build_embeddings"
     VERIFY_BOOK = "verify_book"
@@ -53,6 +55,7 @@ PROCESSING_STATUSES = frozenset(
         Status.VALIDATING,
         Status.PARSING,
         Status.PERSISTING,
+        Status.CAPTIONING,
         Status.CHUNKING,
         Status.EMBEDDING,
         Status.VERIFYING,
@@ -70,6 +73,7 @@ PIPELINE: tuple[tuple[Status, Stage], ...] = (
     (Status.VALIDATING, Stage.VERIFY_UPLOAD),
     (Status.PARSING, Stage.PARSE_PAGES),
     (Status.PERSISTING, Stage.PERSIST_CANONICAL),
+    (Status.CAPTIONING, Stage.CAPTION_FIGURES),
     (Status.CHUNKING, Stage.BUILD_CHUNKS),
     (Status.EMBEDDING, Stage.BUILD_EMBEDDINGS),
     (Status.VERIFYING, Stage.VERIFY_BOOK),
@@ -95,14 +99,19 @@ _ALLOWED: dict[Status, frozenset[Status]] = {
     Status.VALIDATING: frozenset({Status.PARSING, Status.READY})
     | (_INTERRUPTIONS - {Status.VALIDATING}),
     Status.PARSING: frozenset({Status.PERSISTING}) | _INTERRUPTIONS,
-    Status.PERSISTING: frozenset({Status.CHUNKING}) | _INTERRUPTIONS,
-    Status.CHUNKING: frozenset({Status.EMBEDDING}) | _INTERRUPTIONS,
-    # Chunks and embeddings are derived data and always rebuildable, so a
-    # resumed attempt may drop back to rebuild them rather than trust partial
+    Status.PERSISTING: frozenset({Status.CAPTIONING}) | _INTERRUPTIONS,
+    # Captions are derived and rebuildable, so a resumed attempt may re-enter
+    # captioning the same way it may re-enter chunking.
+    Status.CAPTIONING: frozenset({Status.CHUNKING}) | _INTERRUPTIONS,
+    # Captions, chunks, and embeddings are all derived and rebuildable, so a
+    # resumed attempt may drop back to any of them rather than trust partial
     # output it cannot verify. Canonical content is never re-entered this way.
-    Status.EMBEDDING: frozenset({Status.VERIFYING, Status.CHUNKING})
+    Status.CHUNKING: frozenset({Status.EMBEDDING, Status.CAPTIONING})
     | _INTERRUPTIONS,
-    Status.VERIFYING: frozenset({Status.READY, Status.CHUNKING}) | _INTERRUPTIONS,
+    Status.EMBEDDING: frozenset({Status.VERIFYING, Status.CHUNKING, Status.CAPTIONING})
+    | _INTERRUPTIONS,
+    Status.VERIFYING: frozenset({Status.READY, Status.CHUNKING, Status.CAPTIONING})
+    | _INTERRUPTIONS,
     # A scheduled retry resumes at whichever stage failed, so it may re-enter
     # any processing status directly.
     Status.RETRY_SCHEDULED: frozenset(PROCESSING_STATUSES)

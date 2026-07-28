@@ -93,12 +93,18 @@ export function TurnView({
             text={turn.answer}
             evidence={result?.evidence ?? []}
             citations={result?.citations ?? []}
+            figures={result?.figures ?? []}
             onOpenReference={onOpenReference}
           />
         )}
 
-        {result && result.figures.length > 0 && (
-          <Figures figures={result.figures} />
+        {/* Anything the answer never cited still appears, after the prose. */}
+        {result && (
+          <Figures
+            figures={result.figures.filter(
+              (figure) => figure.evidence_rank === null,
+            )}
+          />
         )}
 
         {result && result.evidence.length > 0 && (

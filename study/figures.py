@@ -6,12 +6,15 @@ node's evidence actually covers. There is no model call, no ranking, and no
 threshold, which is what makes the rule defensible — "this diagram is on a
 page the answer cites" is a claim anyone can check.
 
-Known limitation, recorded rather than hidden: a figure one page outside the
-cited range is missed, and a decorative image on a cited page is indistinguish-
-able from a substantive diagram. The upgrade path is captioning images with a
-vision model at ingest so figures compete in retrieval on their own merit;
-per AGENTS.md that is justified by a measured failure, so
-`scripts/evaluate_figures.py` measures this rule's precision and recall first.
+Since captioning was added, this is the *fallback* path rather than the main
+one. A captioned figure carries searchable text, so it can be retrieved and
+cited like any other evidence and placed where the answer refers to it. This
+rule still runs so that a figure sitting on a cited page is offered even when
+the model did not cite the figure itself.
+
+Figures the captioner marked decorative — publisher badges, rendered headings —
+are excluded here, because showing them was the worst thing about the first
+version of this gallery.
 """
 
 from collections.abc import Iterable, Sequence
@@ -116,18 +119,30 @@ def select_figures(
             content_blocks.page_number,
             content_blocks.block_index,
             image_blocks.mime_type,
+            image_captions.caption,
+            image_captions.skipped_reason,
             nodes.path_text,
             nodes.toc_index
         from content_blocks
         join image_blocks
           on image_blocks.block_id = content_blocks.id
          and image_blocks.owner_id = content_blocks.owner_id
+        left join image_captions
+          on image_captions.block_id = content_blocks.id
+         and image_captions.owner_id = content_blocks.owner_id
         join nodes
           on nodes.id = content_blocks.node_id
          and nodes.owner_id = content_blocks.owner_id
         where content_blocks.owner_id = %s
           and content_blocks.block_type = 'image'
           and content_blocks.node_id = any(%s)
+          -- Publisher badges and decorative fragments are recorded with a
+          -- reason at ingest; showing them was the single worst thing about
+          -- the first version of this gallery.
+          and (
+              image_captions.skipped_reason is null
+              or image_captions.skipped_reason = 'failed'
+          )
         order by nodes.toc_index, content_blocks.block_index
         """,
         (owner, list(wanted)),
@@ -146,6 +161,7 @@ def select_figures(
                 page=row["page_number"],
                 mime_type=row["mime_type"],
                 path=row["path_text"],
+                caption=row["caption"],
                 evidence_rank=rank_by_node.get(row["node_id"]),
             )
         )

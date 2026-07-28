@@ -10,9 +10,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { InlineFigure } from "@/components/conversation/figures";
 import { formatPages, formatPath, splitOnCitations } from "@/lib/citations";
 import { normalizeMath } from "@/lib/math";
-import type { CitationRef, EvidenceRef } from "@/lib/types";
+import type { CitationRef, EvidenceRef, FigureRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import "katex/dist/katex.min.css";
@@ -164,6 +165,7 @@ export interface AnswerProps {
   text: string;
   evidence: EvidenceRef[];
   citations: CitationRef[];
+  figures?: FigureRef[];
   onOpenReference?: (reference: EvidenceRef) => void;
 }
 
@@ -171,6 +173,7 @@ export function Answer({
   text,
   evidence,
   citations,
+  figures = [],
   onOpenReference,
 }: AnswerProps) {
   const plugin = useMemo(
@@ -178,6 +181,23 @@ export function Answer({
     [evidence, citations],
   );
   const source = useMemo(() => normalizeMath(text), [text]);
+
+  // A figure is placed after the paragraph that cites it, the way a textbook
+  // sets one beside the passage discussing it — rather than collected into a
+  // gallery at the end, where the reader has to work out which sentence each
+  // one belongs to.
+  const figuresByRank = useMemo(() => {
+    const grouped = new Map<number, FigureRef[]>();
+    for (const figure of figures) {
+      if (figure.evidence_rank === null) continue;
+      const existing = grouped.get(figure.evidence_rank);
+      if (existing) existing.push(figure);
+      else grouped.set(figure.evidence_rank, [figure]);
+    }
+    return grouped;
+  }, [figures]);
+
+  const rendered = new Set<number>();
 
   return (
     <div className="answer-prose">
@@ -196,6 +216,37 @@ export function Answer({
                 reference={evidence[index - 1]}
                 onOpen={onOpenReference}
               />
+            );
+          },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          p: ({ children, node }: any) => {
+            // Which references does this paragraph cite? Its figures follow it.
+            const ranks: number[] = [];
+            const walk = (element: any) => {
+              if (!element) return;
+              if (element.tagName === "citation-ref") {
+                const index = Number(element.properties?.dataIndex ?? 0);
+                const reference = evidence[index - 1];
+                if (reference?.rank != null) ranks.push(reference.rank);
+              }
+              (element.children ?? []).forEach(walk);
+            };
+            (node?.children ?? []).forEach(walk);
+
+            const attached = ranks
+              .filter((rank) => !rendered.has(rank))
+              .flatMap((rank) => {
+                rendered.add(rank);
+                return figuresByRank.get(rank) ?? [];
+              });
+
+            return (
+              <>
+                <p>{children}</p>
+                {attached.map((figure) => (
+                  <InlineFigure key={figure.block_id} figure={figure} />
+                ))}
+              </>
             );
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

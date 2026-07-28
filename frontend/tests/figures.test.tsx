@@ -23,6 +23,14 @@ function figure(overrides: Partial<FigureRef> = {}): FigureRef {
 }
 
 describe("figureSource / figureLabel", () => {
+  it("uses the caption as alt text when one exists", () => {
+    // A caption written at ingest says what the figure shows; that is real
+    // alt text rather than a stand-in.
+    expect(
+      figureLabel(figure({ caption: "Residual plot showing non-linearity." })),
+    ).toBe("Residual plot showing non-linearity.");
+  });
+
   it("addresses the owner-scoped image endpoint", () => {
     expect(figureSource(figure())).toBe(
       "/api/books/530/blocks/1234/image",
@@ -64,7 +72,10 @@ describe("Figures", () => {
     render(<Figures figures={[figure()]} />);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(url).toBe("/api/books/530/blocks/1234/image");
     expect((init.headers as Record<string, string>).Authorization).toBe(
       "Bearer test-token",
@@ -103,7 +114,9 @@ describe("Figures", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("labels the section by count", async () => {
+  it("labels the trailing gallery as supplementary", async () => {
+    // Captioned figures are placed inline beside the passage that cites them;
+    // this section is only what was on a cited page but never referred to.
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({
@@ -113,11 +126,11 @@ describe("Figures", () => {
     );
 
     const { rerender } = render(<Figures figures={[figure()]} />);
-    expect(screen.getByText("Figure on a cited page")).toBeInTheDocument();
+    expect(screen.getByText("Also on a cited page")).toBeInTheDocument();
 
     rerender(
       <Figures figures={[figure(), figure({ block_id: 9, page: 80 })]} />,
     );
-    expect(screen.getByText("Figures on cited pages")).toBeInTheDocument();
+    expect(screen.getByText("Also on cited pages")).toBeInTheDocument();
   });
 });

@@ -161,6 +161,7 @@ export type JobStatus =
   | "validating"
   | "parsing"
   | "persisting"
+  | "captioning"
   | "chunking"
   | "embedding"
   | "verifying"

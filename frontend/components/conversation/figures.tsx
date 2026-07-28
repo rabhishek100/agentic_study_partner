@@ -19,17 +19,79 @@ export function figureSource(figure: FigureRef): string {
   return `/api/books/${figure.book_id}/blocks/${figure.block_id}/image`;
 }
 
-/**
- * What a screen reader is told about a figure.
- *
- * Deliberately a location rather than a description: nothing in the pipeline
- * knows what the image depicts. Claiming otherwise would be worse than saying
- * where it came from. Real alt text needs captions, which is the documented
- * upgrade in study/figures.py.
- */
+/** What a screen reader is told about a figure. */
 export function figureLabel(figure: FigureRef): string {
+  // A caption written by the vision model at ingest is real alt text: it says
+  // what the figure shows. Without one, the honest fallback is where it came
+  // from, because nothing else in the pipeline knows.
+  if (figure.caption) return figure.caption;
   const parts = formatPath(figure.path);
   return `Figure from ${parts.at(-1) ?? figure.path}, page ${figure.page}`;
+}
+
+/**
+ * A figure set beside the passage that cites it.
+ *
+ * This is the main path now that captions make figures retrievable: the model
+ * cites the figure where it discusses what it shows, and the figure lands
+ * there rather than in a gallery the reader has to reconcile with the prose.
+ */
+export function InlineFigure({ figure }: { figure: FigureRef }) {
+  const [opened, setOpened] = useState(false);
+  const parts = formatPath(figure.path);
+
+  return (
+    <figure className="my-4 overflow-hidden rounded-lg border border-border bg-card">
+      <button
+        type="button"
+        onClick={() => setOpened(true)}
+        aria-label={`Enlarge: ${figureLabel(figure)}`}
+        className="block w-full"
+      >
+        <FigureImage figure={figure} className="max-h-80" />
+      </button>
+      <figcaption className="border-t border-border px-3 py-2 font-sans text-xs leading-relaxed text-muted-foreground">
+        {figure.caption && (
+          <span className="block text-foreground">{figure.caption}</span>
+        )}
+        <span className="block">
+          {parts.at(-1) ?? figure.path} · p. {figure.page}
+        </span>
+      </figcaption>
+
+      <FigureLightbox
+        figure={opened ? figure : null}
+        onClose={() => setOpened(false)}
+      />
+    </figure>
+  );
+}
+
+function FigureLightbox({
+  figure,
+  onClose,
+}: {
+  figure: FigureRef | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={figure !== null} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-4xl">
+        {figure && (
+          <>
+            <DialogTitle className="text-sm font-medium">
+              {formatPath(figure.path).at(-1) ?? figure.path}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {figure.caption ??
+                `${formatPath(figure.path).join(" › ")} · page ${figure.page}`}
+            </DialogDescription>
+            <FigureImage figure={figure} className="max-h-[70vh] rounded-md" />
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function FigureImage({
@@ -98,8 +160,8 @@ export function Figures({ figures }: FiguresProps) {
       >
         <Images className="size-3.5" aria-hidden />
         {figures.length === 1
-          ? "Figure on a cited page"
-          : "Figures on cited pages"}
+          ? "Also on a cited page"
+          : "Also on cited pages"}
       </h4>
 
       <ul
@@ -117,24 +179,7 @@ export function Figures({ figures }: FiguresProps) {
         ))}
       </ul>
 
-      <Dialog
-        open={opened !== null}
-        onOpenChange={(next) => !next && setOpened(null)}
-      >
-        <DialogContent className="max-w-4xl">
-          {opened && (
-            <>
-              <DialogTitle className="text-sm font-medium">
-                {formatPath(opened.path).at(-1) ?? opened.path}
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                {formatPath(opened.path).join(" › ")} · page {opened.page}
-              </DialogDescription>
-              <FigureImage figure={opened} className="max-h-[70vh] rounded-md" />
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <FigureLightbox figure={opened} onClose={() => setOpened(null)} />
     </section>
   );
 }

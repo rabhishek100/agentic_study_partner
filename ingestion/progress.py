@@ -30,6 +30,10 @@ from .states import Stage, Status, is_terminal
 SECONDS_PER_PAGE: dict[Stage, float] = {
     Stage.PARSE_PAGES: 5.6,
     Stage.PERSIST_CANONICAL: 0.08,
+    # One vision call per figure, and figure density tracks page count.
+    # Measured across the production corpus: ~0.5 figures per page, at a
+    # few seconds each, with repeated images captioned only once.
+    Stage.CAPTION_FIGURES: 1.4,
     Stage.BUILD_CHUNKS: 0.13,
     Stage.BUILD_EMBEDDINGS: 0.05,
     Stage.VERIFY_BOOK: 0.02,
@@ -43,6 +47,7 @@ FIXED_SECONDS: dict[Stage, float] = {
     Stage.PREFLIGHT: 3.0,
     Stage.PARSE_PAGES: 25.0,
     Stage.PERSIST_CANONICAL: 6.0,
+    Stage.CAPTION_FIGURES: 5.0,
     Stage.BUILD_CHUNKS: 4.0,
     Stage.BUILD_EMBEDDINGS: 6.0,
     Stage.VERIFY_BOOK: 3.0,
@@ -57,6 +62,7 @@ STAGE_ORDER: tuple[Stage, ...] = (
     Stage.PREFLIGHT,
     Stage.PARSE_PAGES,
     Stage.PERSIST_CANONICAL,
+    Stage.CAPTION_FIGURES,
     Stage.BUILD_CHUNKS,
     Stage.BUILD_EMBEDDINGS,
     Stage.VERIFY_BOOK,
@@ -68,6 +74,7 @@ STAGE_LABELS: dict[Stage, str] = {
     Stage.PREFLIGHT: "Inspecting the PDF",
     Stage.PARSE_PAGES: "Reading pages",
     Stage.PERSIST_CANONICAL: "Saving the book",
+    Stage.CAPTION_FIGURES: "Describing figures",
     Stage.BUILD_CHUNKS: "Building search data",
     Stage.BUILD_EMBEDDINGS: "Building semantic search",
     Stage.VERIFY_BOOK: "Verifying",
