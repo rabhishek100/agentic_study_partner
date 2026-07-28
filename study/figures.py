@@ -41,18 +41,34 @@ def _cited_pages(
     evidence: Sequence[EvidenceRef],
     citations: Sequence[CitationRef],
 ) -> dict[int, set[int]]:
-    """Map each node the answer drew on to the pages it drew from.
+    """Map each node the answer *cited* to the pages it cited there.
 
-    Both sources are used. Citations are the stronger signal — the model named
-    them — but a summary route records evidence with pages and no per-page
-    citation, and an answer that cites nothing still rests on its evidence.
+    Retrieval returns a fixed number of candidates whether or not the answer
+    uses them, so selecting from all of it surfaced figures from passages the
+    answer never referred to — four figures under an answer citing one source.
+    Citations are therefore authoritative when present: a figure is shown
+    because the answer pointed at its page, not because retrieval happened to
+    return its neighbourhood.
+
+    Evidence is the fallback for turns that record no citation at all — an
+    abstention, or a summary whose markers were stripped — where the answer
+    still rests on everything retrieved.
     """
 
     pages: dict[int, set[int]] = {}
+    if citations:
+        cited_nodes = {citation.node_id for citation in citations}
+        for citation in citations:
+            pages.setdefault(citation.node_id, set()).add(citation.page)
+        # A cited node's evidence pages count too: the model names one page per
+        # marker, but the passage it drew on can span several.
+        for reference in evidence:
+            if reference.node_id in cited_nodes:
+                pages.setdefault(reference.node_id, set()).update(reference.pages)
+        return pages
+
     for reference in evidence:
         pages.setdefault(reference.node_id, set()).update(reference.pages)
-    for citation in citations:
-        pages.setdefault(citation.node_id, set()).add(citation.page)
     return pages
 
 

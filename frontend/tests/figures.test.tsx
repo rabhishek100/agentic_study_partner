@@ -1,0 +1,123 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { Figures, figureLabel, figureSource } from "@/components/conversation/figures";
+import type { FigureRef } from "@/lib/types";
+
+vi.mock("@/lib/supabase", () => ({
+  accessToken: async () => "test-token",
+}));
+
+function figure(overrides: Partial<FigureRef> = {}): FigureRef {
+  return {
+    book_id: 530,
+    node_id: 77,
+    block_id: 1234,
+    page: 78,
+    mime_type: "image/png",
+    path: "3 Linear Regression :: 3.1 Simple Linear Regression",
+    caption: null,
+    evidence_rank: 1,
+    ...overrides,
+  };
+}
+
+describe("figureSource / figureLabel", () => {
+  it("addresses the owner-scoped image endpoint", () => {
+    expect(figureSource(figure())).toBe(
+      "/api/books/530/blocks/1234/image",
+    );
+  });
+
+  it("describes where the figure came from, not what it shows", () => {
+    // Nothing in the pipeline knows what the image depicts; inventing a
+    // description would be worse than stating its location.
+    expect(figureLabel(figure())).toBe(
+      "Figure from 3.1 Simple Linear Regression, page 78",
+    );
+  });
+});
+
+describe("Figures", () => {
+  beforeEach(() => {
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:figure"),
+      revokeObjectURL: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends the bearer token that an <img> tag cannot carry", async () => {
+    // The whole regression: a plain `<img src>` reaches this endpoint with no
+    // Authorization header and is refused.
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Figures figures={[figure()]} />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/books/530/blocks/1234/image");
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      "Bearer test-token",
+    );
+  });
+
+  it("renders the fetched image once it arrives", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        blob: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+      })),
+    );
+
+    render(<Figures figures={[figure()]} />);
+
+    const image = await screen.findByAltText(
+      "Figure from 3.1 Simple Linear Regression, page 78",
+    );
+    expect(image).toHaveAttribute("src", "blob:figure");
+  });
+
+  it("explains a refused figure instead of showing a broken image", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 401 })));
+
+    render(<Figures figures={[figure()]} />);
+
+    expect(
+      await screen.findByText(/Could not load the figure from page 78/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders nothing when there are no figures", () => {
+    const { container } = render(<Figures figures={[]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("labels the section by count", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        blob: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+      })),
+    );
+
+    const { rerender } = render(<Figures figures={[figure()]} />);
+    expect(screen.getByText("Figure on a cited page")).toBeInTheDocument();
+
+    rerender(
+      <Figures figures={[figure(), figure({ block_id: 9, page: 80 })]} />,
+    );
+    expect(screen.getByText("Figures on cited pages")).toBeInTheDocument();
+  });
+});

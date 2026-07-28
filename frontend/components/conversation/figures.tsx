@@ -9,6 +9,8 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthenticatedImage } from "@/hooks/use-authenticated-image";
 import { formatPath } from "@/lib/citations";
 import type { FigureRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -30,42 +32,47 @@ export function figureLabel(figure: FigureRef): string {
   return `Figure from ${parts.at(-1) ?? figure.path}, page ${figure.page}`;
 }
 
-function Figure({
+function FigureImage({
   figure,
-  onOpen,
+  className,
 }: {
   figure: FigureRef;
-  onOpen: () => void;
+  className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const parts = formatPath(figure.path);
+  const image = useAuthenticatedImage(figureSource(figure));
 
-  if (failed) {
+  if (image.status === "loading") {
+    return <Skeleton className={cn("h-40 w-full", className)} />;
+  }
+  if (image.status === "failed") {
     return (
-      <li className="flex items-center gap-2 rounded-lg border border-dashed border-input px-3 py-4 text-xs text-muted-foreground">
+      <span className="flex items-center gap-2 px-3 py-6 text-xs text-muted-foreground">
         <ImageOff className="size-4 shrink-0" aria-hidden />
         Could not load the figure from page {figure.page}.
-      </li>
+      </span>
     );
   }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={image.url}
+      alt={figureLabel(figure)}
+      className={cn("w-full bg-background object-contain", className)}
+    />
+  );
+}
+
+function Figure({ figure, onOpen }: { figure: FigureRef; onOpen: () => void }) {
+  const parts = formatPath(figure.path);
 
   return (
     <li>
       <button
         type="button"
         onClick={onOpen}
-        className={cn(
-          "group/figure block w-full overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-citation",
-        )}
+        className="group/figure block w-full overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-citation"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={figureSource(figure)}
-          alt={figureLabel(figure)}
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="max-h-56 w-full bg-background object-contain"
-        />
+        <FigureImage figure={figure} className="max-h-56" />
         <span className="block border-t border-border px-2.5 py-1.5 text-xs text-muted-foreground">
           <span className="block truncate">{parts.at(-1) ?? figure.path}</span>
           <span className="block">p. {figure.page}</span>
@@ -90,7 +97,9 @@ export function Figures({ figures }: FiguresProps) {
         className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <Images className="size-3.5" aria-hidden />
-        {figures.length === 1 ? "Figure on a cited page" : "Figures on cited pages"}
+        {figures.length === 1
+          ? "Figure on a cited page"
+          : "Figures on cited pages"}
       </h4>
 
       <ul
@@ -121,12 +130,7 @@ export function Figures({ figures }: FiguresProps) {
               <DialogDescription className="text-xs">
                 {formatPath(opened.path).join(" › ")} · page {opened.page}
               </DialogDescription>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={figureSource(opened)}
-                alt={figureLabel(opened)}
-                className="max-h-[70vh] w-full rounded-md bg-background object-contain"
-              />
+              <FigureImage figure={opened} className="max-h-[70vh] rounded-md" />
             </>
           )}
         </DialogContent>

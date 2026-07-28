@@ -45,6 +45,16 @@ would render dozens of images beneath a short answer, so `select_figures`
 returns at most `DEFAULT_FIGURE_LIMIT` (6), preferring the best-ranked
 evidence and then restoring reading order.
 
+## Selection follows citations, not retrieval
+
+A first cut selected from every retrieved chunk, which put four figures under
+an answer that cited one source — from pages the reader was never pointed at.
+Citations are now authoritative when a turn has any: a figure appears because
+the answer pointed at its page. A cited node's full evidence page range still
+counts, since one marker names one page while the passage can span several.
+Evidence remains the fallback only for turns that cite nothing at all, such as
+an abstention.
+
 ## What is still unmeasured
 
 Precision and recall against human labels. The rule can only be scored that way

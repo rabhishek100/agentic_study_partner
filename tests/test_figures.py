@@ -111,6 +111,57 @@ class FigureSelectionTests(PostgresOwnerMixin, unittest.TestCase):
         )
         self.assertEqual(len(figures), 1)
 
+    def test_uncited_evidence_does_not_surface_figures(self):
+        """Retrieval returns candidates the answer never referred to.
+
+        Selecting from all of them put four figures under an answer that
+        cited one source, from pages the reader was never pointed at.
+        """
+
+        other = self.nodes["Chapter 1 :: Core idea"]
+        figures = self.select(
+            [
+                # Cited: a different node, with no figure of its own.
+                self.evidence(other, [2], rank=1),
+                # Merely retrieved: the node that holds the figure.
+                self.evidence(self.diagram_node, [3], rank=2),
+            ],
+            [
+                CitationRef(
+                    marker="[S1]",
+                    node_id=other,
+                    page=2,
+                    book_id=self.book_id,
+                    evidence_rank=1,
+                )
+            ],
+        )
+        self.assertEqual(figures, [])
+
+    def test_a_cited_nodes_full_evidence_pages_still_count(self):
+        """One marker names one page; the passage can span several."""
+
+        figures = self.select(
+            [self.evidence(self.diagram_node, [3, 4, 5], rank=1)],
+            [
+                CitationRef(
+                    marker=f"[S1]",
+                    node_id=self.diagram_node,
+                    page=5,
+                    book_id=self.book_id,
+                    evidence_rank=1,
+                )
+            ],
+        )
+        self.assertEqual(len(figures), 1)
+        self.assertEqual(figures[0].page, 3)
+
+    def test_evidence_is_the_fallback_when_nothing_was_cited(self):
+        """An abstention still rests on everything retrieved."""
+
+        figures = self.select([self.evidence(self.diagram_node, [3])], [])
+        self.assertEqual(len(figures), 1)
+
     def test_no_evidence_means_no_figures(self):
         self.assertEqual(self.select([]), [])
 
