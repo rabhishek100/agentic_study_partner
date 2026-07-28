@@ -1,5 +1,6 @@
 """Execute one conversational turn over summaries and book retrieval."""
 
+from collections.abc import Sequence
 import re
 from uuid import UUID, uuid4
 
@@ -20,25 +21,31 @@ from .streaming import TokenCallback, invoke_with_streaming
 
 def new_conversation_state(
     *,
-    book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
     conversation_id: str | None = None,
 ) -> ConversationState:
     return ConversationState(
         conversation_id=conversation_id or str(uuid4()),
-        book_id=book_id,
+        book_ids=sorted({int(identifier) for identifier in book_ids or ()}),
     )
 
 
 def _select_state(
     state: ConversationState | None,
-    book_id: int | None,
+    book_ids: Sequence[int] | None,
 ) -> ConversationState:
-    if state is None or (
-        book_id is not None and state.book_id is not None and state.book_id != book_id
-    ):
-        return new_conversation_state(book_id=book_id)
+    """Continue the conversation, or start a new one if its scope changed.
+
+    Answers already given were grounded in the previous selection, so a
+    different set of books is a different conversation rather than a filter
+    applied retroactively to one already under way.
+    """
+
+    requested = sorted({int(identifier) for identifier in book_ids or ()})
+    if state is None or (requested and state.book_ids and state.book_ids != requested):
+        return new_conversation_state(book_ids=requested)
     state = state.model_copy(deep=True)
-    state.book_id = state.book_id or book_id
+    state.book_ids = state.book_ids or requested
     return state
 
 
@@ -121,7 +128,7 @@ def execute_decision(
     result = execute_query(
         execution_question,
         database_url=database_url,
-        book_id=state.book_id,
+        book_ids=state.book_ids or None,
         retrieval_mode=retrieval_mode,
         owner_id=owner_id,
         model=model,
@@ -155,8 +162,10 @@ def record_turn(
 ) -> ConversationState:
     state = state.model_copy(deep=True)
     if result.resolved_scope:
+        # The resolved scope is recorded, but the conversation's book
+        # selection is deliberately left alone: answering one turn from one
+        # book must not silently narrow the rest of the conversation to it.
         state.active_scope = result.resolved_scope
-        state.book_id = result.resolved_scope.book_id
     state.pending_clarification = question if result.route == "clarify" else None
 
     turn = sum(message.role == "user" for message in state.messages) + 1
@@ -190,13 +199,19 @@ def execute_conversation_turn(
     owner_id: str | UUID,
     database_url: str | None = None,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     analysis_model: AnalysisModel | None = None,
     generation_model: ChatModel | None = None,
     token_callback: TokenCallback | None = None,
 ) -> tuple[TurnResult, ConversationState]:
     load_dotenv()
-    current = _select_state(state, book_id)
+    # `book_id` remains for the CLI and evaluation entry points, which study
+    # one book at a time.
+    selection = book_ids if book_ids is not None else (
+        [book_id] if book_id is not None else None
+    )
+    current = _select_state(state, selection)
     from .graph import StudyGraphContext, study_turn_graph
 
     output = study_turn_graph.invoke(
@@ -207,7 +222,7 @@ def execute_conversation_turn(
             "metadata": {
                 "thread_id": current.conversation_id,
                 "conversation_id": current.conversation_id,
-                "book_id": current.book_id,
+                "book_ids": current.book_ids,
                 "retrieval_mode": retrieval_mode,
             },
         },

@@ -210,6 +210,25 @@ def delete_orphaned_sources(
             "select storage_path from ingestion_jobs"
         ).fetchall()
     }
+    # A second, independent list keyed off the books themselves. The sweep
+    # reconstructs `{owner}/{job}/original.pdf` from two Storage listings and
+    # deletes anything it cannot match, without recording an event — so a
+    # listing that ever returns a truncated page or a different name format
+    # would delete live sources silently. Nothing suggests it has; this is
+    # defence in depth for the one deletion path that leaves no trace.
+    #
+    # A ready book's source cannot be reconstructed from anything else in the
+    # system: canonical content, chunks, embeddings, and captions all survive
+    # without it, but the reading pane has nothing to open.
+    protected = {
+        row["source_storage_path"]
+        for row in connection.execute(
+            """
+            select source_storage_path from books
+            where source_storage_path is not null
+            """
+        ).fetchall()
+    }
 
     deleted = 0
     failed = 0
@@ -240,12 +259,19 @@ def delete_orphaned_sources(
             )
         for job in jobs:
             path = f"{owner}/{job}/original.pdf"
-            if path in known:
+            if path in known or path in protected:
                 continue
             try:
                 delete_object(limits.source_bucket, path)
                 deleted += 1
-                logger.info("deleted orphaned source object for job %s", job)
+                # Logged individually: this is the one deletion path with no
+                # job row to attach an event to, so the log is the only record
+                # that it happened.
+                logger.warning(
+                    "deleted orphaned source object %s (no job or book "
+                    "references it)",
+                    path,
+                )
             except IngestionError:
                 failed += 1
     return deleted, failed

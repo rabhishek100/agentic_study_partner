@@ -23,10 +23,11 @@ RUN apt-get update \
 COPY api ./api
 COPY ingestion ./ingestion
 COPY parsing ./parsing
-COPY retrieval/__init__.py retrieval/chunking.py retrieval/langchain.py \
-    retrieval/models.py retrieval/postgres.py retrieval/reranker.py \
-    retrieval/search.py retrieval/vector.py ./retrieval/
-COPY storage/__init__.py storage/database.py storage/postgres.py ./storage/
+COPY retrieval ./retrieval
+# The whole package: enumerating individual modules here means a new one is
+# missing from the image until someone remembers to add it, which fails at
+# import time on the deployed service rather than in CI.
+COPY storage ./storage
 COPY study ./study
 COPY worker ./worker
 # Operational commands the runbook refers to, and the parse benchmark, need

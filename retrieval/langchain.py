@@ -49,6 +49,7 @@ class BookRetriever(BaseRetriever):
     owner_id: str
     mode: RetrievalMode = "hybrid"
     book_id: int | None = None
+    book_ids: list[int] | None = None
     k: int = 5
     embedding_model: str = Field(
         default_factory=lambda: (
@@ -77,6 +78,7 @@ class BookRetriever(BaseRetriever):
                 mode=self.mode,
                 owner_id=self.owner_id,
                 book_id=self.book_id,
+                book_ids=self.book_ids,
                 limit=self.k,
                 unique_nodes=True,
                 embedder=embedder,

@@ -33,6 +33,7 @@ from storage.postgres import (
     ready_book_by_hash,
     restore_book,
 )
+from .captions import caption_book_figures
 from .config import IngestionLimits
 from .errors import ErrorCode, IngestionError
 from .jobs import (
@@ -71,6 +72,7 @@ class PipelineDependencies:
     """Injection points, so tests can run the pipeline without paid calls."""
 
     embedder_factory: Callable[[], Any] | None = None
+    captioner_factory: Callable[[], Any] | None = None
     chunking_config: ChunkingConfig = field(default_factory=ChunkingConfig)
 
     def embedder(self) -> Any:
@@ -79,6 +81,13 @@ class PipelineDependencies:
         from retrieval.vector import build_embedder
 
         return build_embedder()
+
+    def captioner(self) -> Any:
+        if self.captioner_factory is not None:
+            return self.captioner_factory()
+        from ingestion.captions import OpenRouterCaptioner
+
+        return OpenRouterCaptioner()
 
 
 @dataclass
@@ -613,6 +622,50 @@ def run_job(
             return ingested
         job, book_id, metrics = ingested
 
+    # Caption figures ---------------------------------------------------
+    # Before chunking, because a caption becomes the chunk text that makes a
+    # figure findable at all. A captioning failure must not sink a book that
+    # is otherwise complete, so the outcome is recorded and the run continues.
+    with _database(database_url) as connection:
+        job = _enter_stage(
+            connection,
+            job,
+            status=Status.CAPTIONING,
+            stage=Stage.CAPTION_FIGURES,
+            book_id=book_id,
+        )
+    try:
+        with _database(database_url) as connection:
+            captions = caption_book_figures(
+                connection,
+                book_id,
+                owner_id=owner_id,
+                captioner=dependencies.captioner(),
+                on_progress=lambda done, total: None,
+            )
+        caption_provenance = {
+            "captioned": captions.captioned,
+            "reused": captions.reused,
+            "skipped_boilerplate": captions.skipped_boilerplate,
+            "skipped_small": captions.skipped_small,
+            "failed": captions.failed,
+        }
+    except Exception:
+        logger.exception("figure captioning failed; continuing without captions")
+        caption_provenance = {"error": "captioning_unavailable"}
+    with _database(database_url) as connection:
+        record_progress(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            completed=caption_provenance.get("captioned", 0)
+            + caption_provenance.get("reused", 0),
+            total=caption_provenance.get("captioned", 0)
+            + caption_provenance.get("reused", 0),
+            unit="figures",
+        )
+    job = _check_cancelled(job, database_url=database_url)
+
     # Chunk -------------------------------------------------------------
     with _database(database_url) as connection:
         job = _enter_stage(
@@ -621,6 +674,7 @@ def run_job(
             status=Status.CHUNKING,
             stage=Stage.BUILD_CHUNKS,
             book_id=book_id,
+            provenance={"captions": caption_provenance},
         )
     with _database(database_url) as connection:
         summary = rebuild_chunks(

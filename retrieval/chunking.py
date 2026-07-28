@@ -13,7 +13,9 @@ from storage.database import parse_owner_id
 from .models import Chunk, ChunkSource, ChunkingConfig
 
 
-CHUNKER_VERSION = "ordered-blocks-v1"
+# v2 makes figure captions searchable text. A figure without a caption is
+# still a zero-length source, exactly as before.
+CHUNKER_VERSION = "ordered-blocks-v2"
 SKIPPED_CATEGORIES = frozenset({"Header", "Footer", "PageBreak"})
 WORD_WITH_SPACE = re.compile(r"\S+\s*")
 SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+|\n{2,}")
@@ -169,9 +171,13 @@ def _read_units(
             content_blocks.category,
             content_blocks.page_number,
             content_blocks.text_content,
-            table_blocks.flat_text
+            table_blocks.flat_text,
+            image_captions.caption
         FROM content_blocks
         LEFT JOIN table_blocks ON table_blocks.block_id = content_blocks.id
+        LEFT JOIN image_captions
+               ON image_captions.block_id = content_blocks.id
+              AND image_captions.owner_id = content_blocks.owner_id
         WHERE content_blocks.node_id = %s
           AND content_blocks.owner_id = %s
         ORDER BY content_blocks.block_index
@@ -187,15 +193,43 @@ def _read_units(
         if category in SKIPPED_CATEGORIES:
             continue
         if block_type == "image":
+            # A captioned figure carries searchable text, so it can be
+            # retrieved on what it shows rather than only being displayed
+            # when its page happens to be cited. An uncaptioned one — or a
+            # figure the captioner judged decorative — stays a zero-length
+            # provenance marker, exactly as before.
+            caption = (row["caption"] or "").strip()
+            if not caption:
+                units.append(
+                    ChunkSource(
+                        source_block_id=row["id"],
+                        block_index=row["block_index"],
+                        page_number=row["page_number"],
+                        block_type=block_type,
+                        category=category,
+                        start_offset=0,
+                        end_offset=0,
+                    )
+                )
+                continue
+            caption_text = f"Figure: {caption}"
             units.append(
-                ChunkSource(
-                    source_block_id=row["id"],
-                    block_index=row["block_index"],
-                    page_number=row["page_number"],
-                    block_type=block_type,
-                    category=category,
-                    start_offset=0,
-                    end_offset=0,
+                _Piece(
+                    text=caption_text,
+                    token_count=len(encoding.encode(caption_text)),
+                    source=ChunkSource(
+                        source_block_id=row["id"],
+                        block_index=row["block_index"],
+                        page_number=row["page_number"],
+                        block_type=block_type,
+                        category=category,
+                        start_offset=0,
+                        # The caption is derived text, not a span of the
+                        # canonical block, so the offsets describe the caption
+                        # itself rather than pointing into bytes that have no
+                        # text to point at.
+                        end_offset=len(caption_text),
+                    ),
                 )
             )
             continue

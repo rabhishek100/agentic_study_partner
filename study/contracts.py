@@ -56,6 +56,13 @@ class EvidenceRef(ContractModel):
     node_id: int
     pages: list[int]
     path: str
+    # Book identity is what makes a reference readable once evidence can span
+    # several books: a page number alone says nothing about which book it is
+    # in. Producers always populate these; they are optional only so that a
+    # conversation state serialized before this field existed still loads.
+    # Stage 3 moves conversation state server-side and can then require them.
+    book_id: int | None = None
+    book_title: str | None = None
     rank: int | None = None
     chunk_id: str | None = None
     chunk_index: int | None = None
@@ -68,12 +75,35 @@ class CitationRef(ContractModel):
     marker: str
     node_id: int
     page: int
+    book_id: int | None = None
+    evidence_rank: int | None = None
+
+
+class FigureRef(ContractModel):
+    """One figure that sits inside the evidence an answer rests on.
+
+    The payload is never inlined: a result carrying base64 images would
+    balloon every response and every persisted turn. The interface fetches
+    bytes from the image endpoint using `book_id` and `block_id`.
+    """
+
+    book_id: int
+    node_id: int
+    block_id: int
+    page: int
+    mime_type: str
+    path: str
+    caption: str | None = None
     evidence_rank: int | None = None
 
 
 class ConversationState(ContractModel):
     conversation_id: str
-    book_id: int | None = None
+    # The books this conversation may search. Empty means every book the owner
+    # has. The last resolved scope's book lives on `active_scope` instead:
+    # resolving one turn to one book must not silently narrow the selection
+    # the reader made for the whole conversation.
+    book_ids: list[int] = Field(default_factory=list)
     messages: list[ConversationMessage] = Field(default_factory=list)
     active_scope: ScopeRef | None = None
     pending_clarification: str | None = None
@@ -121,6 +151,7 @@ class TurnResult(ContractModel):
     resolved_scope: ScopeRef | None = None
     evidence: list[EvidenceRef] = Field(default_factory=list)
     citations: list[CitationRef] = Field(default_factory=list)
+    figures: list[FigureRef] = Field(default_factory=list)
     outline_node_ids: list[int] = Field(default_factory=list)
     outcome: Outcome
     retrieval_mode: str | None = None

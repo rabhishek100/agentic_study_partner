@@ -75,6 +75,26 @@ def storage_client(timeout: float = REQUEST_TIMEOUT_SECONDS) -> Iterator[httpx.C
         yield client
 
 
+def _reports_missing(response: httpx.Response) -> bool:
+    """Whether Storage is saying the object does not exist.
+
+    It answers a missing object with 400 and a `not_found` body rather than a
+    404, so status alone cannot tell "gone" from "broken". Conflating the two
+    makes a permanently missing file look like a transient outage, which the
+    pipeline then retries and the interface then tells the reader to retry.
+    """
+
+    if response.status_code == 404:
+        return True
+    if response.status_code != 400:
+        return False
+    try:
+        body = response.json()
+    except ValueError:
+        return False
+    return str(body.get("statusCode")) == "404" or body.get("error") == "not_found"
+
+
 def object_info(bucket: str, path: str) -> ObjectInfo | None:
     """Return stored object metadata, or None when the object does not exist."""
 
@@ -86,7 +106,7 @@ def object_info(bucket: str, path: str) -> ObjectInfo | None:
                 ErrorCode.STORAGE_UNAVAILABLE, detail=f"object info failed: {error!r}"
             ) from error
 
-    if response.status_code == 404:
+    if _reports_missing(response):
         return None
     if response.status_code >= 500:
         raise IngestionError(
@@ -247,3 +267,73 @@ def delete_object(bucket: str, path: str) -> bool:
             detail=f"delete returned {response.status_code}",
         )
     return True
+
+
+def signed_object_url(bucket: str, path: str, *, expires_in: int = 900) -> str | None:
+    """Return a short-lived read URL for one private object.
+
+    The service key signs the URL and never leaves this module; the browser
+    receives only a time-limited link. Returns None when the object is gone —
+    a ready book whose source was removed by the retention policy is an
+    explainable state, not an error.
+    """
+
+    if expires_in <= 0:
+        raise ValueError("expires_in must be positive")
+
+    with storage_client() as client:
+        response = client.post(
+            # `_base_url()` already ends in /storage/v1, like every other
+            # call in this module.
+            f"/object/sign/{bucket}/{path}",
+            json={"expiresIn": expires_in},
+        )
+    if _reports_missing(response):
+        return None
+    if response.status_code >= 400:
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE,
+            detail=f"signing failed with status {response.status_code}",
+        )
+
+    signed = response.json().get("signedURL") or response.json().get("signedUrl")
+    if not signed:
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE,
+            detail="storage returned no signed URL",
+        )
+    # Storage returns a path already relative to /storage/v1, and
+    # `_base_url()` already ends in it — appending it again produced
+    # `/storage/v1/storage/v1/...`, which 404s.
+    return f"{_base_url()}{signed}" if signed.startswith("/") else signed
+
+
+def upload_object(
+    bucket: str,
+    path: str,
+    payload: bytes,
+    *,
+    content_type: str = "application/pdf",
+    overwrite: bool = False,
+) -> None:
+    """Store one object. Used to restore a source the bucket has lost.
+
+    Uploads are normally resumable and come from the browser; this is the
+    server-side path for putting a known-good file back where a book already
+    expects it.
+    """
+
+    with storage_client() as client:
+        response = client.post(
+            f"/object/{bucket}/{path}",
+            content=payload,
+            headers={
+                "content-type": content_type,
+                "x-upsert": "true" if overwrite else "false",
+            },
+        )
+    if response.status_code >= 400:
+        raise IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE,
+            detail=f"upload returned {response.status_code}: {response.text[:200]}",
+        )

@@ -12,6 +12,7 @@ import httpx
 from psycopg import Connection
 
 from storage.database import parse_owner_id
+from .models import book_scope
 from .postgres import SearchResult, search_result_from_row
 
 
@@ -288,6 +289,7 @@ def vector_search(
     embedder: Embedder,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
 ) -> list[SearchResult]:
@@ -296,6 +298,7 @@ def vector_search(
     if limit <= 0:
         raise ValueError("limit must be positive")
     owner = parse_owner_id(owner_id)
+    scope = book_scope(book_id, book_ids)
     query_vector = embedder.embed_query(query)
     candidate_limit = max(limit * 4, 40) if unique_nodes else limit
     params: list[object] = [
@@ -307,9 +310,9 @@ def vector_search(
         DOCUMENT_FORMAT_VERSION,
     ]
     book_filter = ""
-    if book_id is not None:
-        book_filter = "and chunks.source_book_id = %s"
-        params.append(book_id)
+    if scope is not None:
+        book_filter = "and chunks.source_book_id = any(%s)"
+        params.append(scope)
     params.extend((query_vector, candidate_limit))
     rows = connection.execute(
         f"""

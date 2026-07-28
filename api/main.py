@@ -4,26 +4,31 @@
 # ruff: noqa: E402
 
 import asyncio
+import base64
+import binascii
+import hashlib
 import json
 import logging
 import os
 import queue
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import Field
+from pydantic import Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 load_dotenv()
 
 from api.auth import current_owner
 from api.ingestions import router as ingestion_router
+from ingestion.errors import IngestionError
+from ingestion.storage_objects import signed_object_url
 from retrieval.langchain import warm_models
 from storage.database import (
     book_retrieval_completeness,
@@ -31,10 +36,20 @@ from storage.database import (
     connection as database_connection,
     database_readiness,
 )
+from storage.conversations import (
+    append_turn,
+    create_conversation,
+    delete_conversation,
+    derive_title,
+    list_conversations,
+    load_conversation,
+    load_turns,
+    update_conversation,
+)
 from storage.postgres import list_books, ready_book
 from study.analyze import ConversationDecisionError
 from study.contracts import ContractModel, ConversationState, TurnResult
-from study.conversation import execute_conversation_turn
+from study.conversation import execute_conversation_turn, new_conversation_state
 from study.query import QueryExecutionError
 from study.scope import ScopeResolutionError
 from study.summarize import ContextWindowExceededError
@@ -52,16 +67,71 @@ RetrievalMode = Literal["bm25", "vector", "hybrid", "hybrid_rerank"]
 
 class ChatRequest(ContractModel):
     question: str = Field(min_length=1, max_length=10_000)
-    retrieval_mode: RetrievalMode = "hybrid"
+    # Chosen from the frozen gold-set comparison in
+    # evaluation/retrieval_comparison_artifact.json, where reranking wins
+    # on every metric: Recall@5 1.00 against 0.93 for hybrid alone, and
+    # MRR@5 0.96 against 0.85. This is the product default; the library
+    # functions keep "hybrid" so evaluations state their mode explicitly.
+    retrieval_mode: RetrievalMode = "hybrid_rerank"
     # Required and always verified against the caller's ready books. There is
-    # deliberately no default: a chat turn must never fall back to book 1.
-    book_id: int = Field(gt=0)
-    state: ConversationState | None = None
+    # deliberately no default and an empty list is rejected: a chat turn must
+    # never fall back to book 1, and it must never silently widen to the whole
+    # library either. The client sends the reader's selection explicitly.
+    book_ids: list[int] = Field(min_length=1, max_length=50)
+    # Null starts a new conversation. Conversation state is loaded from and
+    # written to the database by the server; it is deliberately no longer
+    # accepted from the client, which previously held the only copy and could
+    # submit arbitrary state.
+    conversation_id: UUID | None = None
+
+    @field_validator("book_ids")
+    @classmethod
+    def unique_positive_book_ids(cls, value: list[int]) -> list[int]:
+        if any(identifier <= 0 for identifier in value):
+            raise ValueError("book_ids must be positive")
+        return sorted(set(value))
 
 
 class ChatResponse(ContractModel):
     result: TurnResult
     state: ConversationState
+
+
+class ConversationSummary(ContractModel):
+    conversation_id: UUID
+    title: str
+    book_ids: list[int]
+    retrieval_mode: RetrievalMode
+    turn_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationListResponse(ContractModel):
+    conversations: list[ConversationSummary]
+
+
+class ConversationTurn(ContractModel):
+    turn_index: int
+    question: str
+    answer: str
+    result: TurnResult
+    created_at: datetime
+
+
+class ConversationDetail(ContractModel):
+    conversation_id: UUID
+    title: str
+    book_ids: list[int]
+    retrieval_mode: RetrievalMode
+    created_at: datetime
+    updated_at: datetime
+    turns: list[ConversationTurn]
+
+
+class UpdateConversationRequest(ContractModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    retrieval_mode: RetrievalMode | None = None
 
 
 class BookSummary(ContractModel):
@@ -100,16 +170,19 @@ class QueueHealthResponse(ContractModel):
 BOOK_NOT_FOUND = HTTPException(status_code=404, detail="book not found")
 
 
-def _require_ready_book(owner_id: UUID, book_id: int) -> None:
+def _require_ready_books(owner_id: UUID, book_ids: list[int]) -> None:
     """Reject anything that is not this owner's verified, ready book.
 
     Missing, someone else's, and still-processing books all return the same
-    404 so book IDs cannot be probed.
+    404 so book IDs cannot be probed. Every id in a multi-book selection is
+    checked: one unreadable book fails the turn rather than being dropped from
+    the scope, which would answer a narrower question than the one asked.
     """
 
     with database_connection(readonly=True) as connection:
-        if ready_book(connection, book_id, owner_id=owner_id) is None:
-            raise BOOK_NOT_FOUND
+        for book_id in book_ids:
+            if ready_book(connection, book_id, owner_id=owner_id) is None:
+                raise BOOK_NOT_FOUND
 
 
 def _allowed_origins() -> list[str]:
@@ -129,7 +202,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins(),
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
 )
 app.include_router(ingestion_router)
@@ -236,21 +309,111 @@ async def books(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
     return BookListResponse(books=await run_in_threadpool(load))
 
 
+CONVERSATION_NOT_FOUND = HTTPException(
+    status_code=404,
+    detail="conversation not found",
+)
+
+
+def _resume_state(
+    owner_id: UUID,
+    request: ChatRequest,
+) -> tuple[UUID, ConversationState]:
+    """Return the conversation to continue, creating one when needed.
+
+    A selection that differs from the conversation's own starts a new
+    conversation rather than re-scoping an existing one: answers already
+    recorded were grounded in the old selection and the new scope may not be
+    able to reproduce them.
+    """
+
+    with database_connection() as connection:
+        if request.conversation_id is not None:
+            existing = load_conversation(
+                connection,
+                request.conversation_id,
+                owner_id=owner_id,
+            )
+            if existing is None:
+                raise CONVERSATION_NOT_FOUND
+            if list(existing["book_ids"]) == request.book_ids:
+                state = ConversationState.model_validate(existing["state_json"])
+                if existing["retrieval_mode"] != request.retrieval_mode:
+                    update_conversation(
+                        connection,
+                        existing["id"],
+                        owner_id=owner_id,
+                        retrieval_mode=request.retrieval_mode,
+                    )
+                return existing["id"], state
+
+        created = create_conversation(
+            connection,
+            owner_id=owner_id,
+            book_ids=request.book_ids,
+            retrieval_mode=request.retrieval_mode,
+            title=derive_title(request.question),
+        )
+
+    return created["id"], new_conversation_state(
+        book_ids=request.book_ids,
+        conversation_id=str(created["id"]),
+    )
+
+
+def _persist_turn(
+    owner_id: UUID,
+    conversation_id: UUID,
+    question: str,
+    result: TurnResult,
+    state: ConversationState,
+) -> None:
+    with database_connection() as connection:
+        append_turn(
+            connection,
+            conversation_id,
+            owner_id=owner_id,
+            question=question,
+            answer=result.answer,
+            result=result.model_dump(mode="json"),
+            state=state.model_dump(mode="json"),
+        )
+
+
+def _run_turn(
+    owner_id: UUID,
+    request: ChatRequest,
+    token_callback=None,
+) -> ChatResponse:
+    """Load, execute, and persist one turn. Runs on a worker thread."""
+
+    question = request.question.strip()
+    conversation_id, state = _resume_state(owner_id, request)
+    result, updated = execute_conversation_turn(
+        question,
+        state,
+        owner_id=owner_id,
+        retrieval_mode=request.retrieval_mode,
+        book_ids=request.book_ids,
+        token_callback=token_callback,
+    )
+    # The stored conversation is the identity; a fresh state object from the
+    # workflow must not invent a different one.
+    updated = updated.model_copy(update={"conversation_id": str(conversation_id)})
+    _persist_turn(owner_id, conversation_id, question, result, updated)
+    return ChatResponse(result=result, state=updated)
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ChatResponse:
-    await run_in_threadpool(_require_ready_book, owner_id, request.book_id)
+    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
     try:
-        result, updated = await run_in_threadpool(
-            execute_conversation_turn,
-            request.question.strip(),
-            request.state,
-            owner_id=owner_id,
-            retrieval_mode=request.retrieval_mode,
-            book_id=request.book_id,
-        )
+        return await run_in_threadpool(_run_turn, owner_id, request)
+    except HTTPException:
+        raise
     except (
         ContextWindowExceededError,
         QueryExecutionError,
@@ -262,7 +425,6 @@ async def chat(
     except Exception:
         logger.exception("Unhandled error while executing chat turn")
         raise
-    return ChatResponse(result=result, state=updated)
 
 
 _REJECTED_TURN_ERRORS = (
@@ -292,7 +454,7 @@ async def chat_stream(
     `error` event.
     """
 
-    await run_in_threadpool(_require_ready_book, owner_id, request.book_id)
+    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
     loop = asyncio.get_running_loop()
     events: queue.Queue = queue.Queue()
 
@@ -301,20 +463,12 @@ async def chat_stream(
 
     def run() -> None:
         try:
-            result, updated = execute_conversation_turn(
-                request.question.strip(),
-                request.state,
-                owner_id=owner_id,
-                retrieval_mode=request.retrieval_mode,
-                book_id=request.book_id,
-                token_callback=on_token,
-            )
-            events.put(
-                (
-                    "final",
-                    ChatResponse(result=result, state=updated).model_dump_json(),
-                )
-            )
+            response = _run_turn(owner_id, request, token_callback=on_token)
+            events.put(("final", response.model_dump_json()))
+        except HTTPException as error:
+            # A missing conversation is a client error, not a workflow failure.
+            logger.warning("Chat turn rejected: %s", error.detail)
+            events.put(("error", json.dumps({"detail": error.detail})))
         except _REJECTED_TURN_ERRORS as error:
             logger.warning("Chat turn rejected: %s", error)
             events.put(("error", json.dumps({"detail": str(error)})))
@@ -354,3 +508,260 @@ async def chat_stream(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/conversations", response_model=ConversationListResponse)
+async def conversations(
+    owner_id: UUID = Depends(current_owner),
+    limit: int = 50,
+) -> ConversationListResponse:
+    """List the caller's conversations, most recently used first."""
+
+    if not 1 <= limit <= 200:
+        raise HTTPException(status_code=422, detail="limit must be 1..200")
+
+    def load() -> list[ConversationSummary]:
+        with database_connection(readonly=True) as connection:
+            return [
+                ConversationSummary(
+                    conversation_id=row["id"],
+                    title=row["title"],
+                    book_ids=list(row["book_ids"]),
+                    retrieval_mode=row["retrieval_mode"],
+                    turn_count=row["turn_count"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+                for row in list_conversations(
+                    connection, owner_id=owner_id, limit=limit
+                )
+            ]
+
+    return ConversationListResponse(conversations=await run_in_threadpool(load))
+
+
+@app.get(
+    "/api/conversations/{conversation_id}",
+    response_model=ConversationDetail,
+)
+async def conversation_detail(
+    conversation_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> ConversationDetail:
+    """Full turn history, enough to render a resumed conversation intact."""
+
+    def load() -> ConversationDetail:
+        with database_connection(readonly=True) as connection:
+            record = load_conversation(
+                connection, conversation_id, owner_id=owner_id
+            )
+            if record is None:
+                raise CONVERSATION_NOT_FOUND
+            turns = load_turns(connection, conversation_id, owner_id=owner_id)
+        return ConversationDetail(
+            conversation_id=record["id"],
+            title=record["title"],
+            book_ids=list(record["book_ids"]),
+            retrieval_mode=record["retrieval_mode"],
+            created_at=record["created_at"],
+            updated_at=record["updated_at"],
+            turns=[
+                ConversationTurn(
+                    turn_index=turn["turn_index"],
+                    question=turn["question"],
+                    answer=turn["answer"],
+                    result=TurnResult.model_validate(turn["result_json"]),
+                    created_at=turn["created_at"],
+                )
+                for turn in turns
+            ],
+        )
+
+    return await run_in_threadpool(load)
+
+
+@app.patch(
+    "/api/conversations/{conversation_id}",
+    response_model=ConversationSummary,
+)
+async def rename_conversation(
+    conversation_id: UUID,
+    request: UpdateConversationRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ConversationSummary:
+    def apply() -> ConversationSummary:
+        with database_connection() as connection:
+            record = update_conversation(
+                connection,
+                conversation_id,
+                owner_id=owner_id,
+                title=request.title.strip() if request.title else None,
+                retrieval_mode=request.retrieval_mode,
+            )
+            if record is None:
+                raise CONVERSATION_NOT_FOUND
+            turn_count = connection.execute(
+                """
+                select count(*) as turn_count from conversation_turns
+                where conversation_id = %s and owner_id = %s
+                """,
+                (conversation_id, owner_id),
+            ).fetchone()["turn_count"]
+        return ConversationSummary(
+            conversation_id=record["id"],
+            title=record["title"],
+            book_ids=list(record["book_ids"]),
+            retrieval_mode=record["retrieval_mode"],
+            turn_count=turn_count,
+            created_at=record["created_at"],
+            updated_at=record["updated_at"],
+        )
+
+    return await run_in_threadpool(apply)
+
+
+@app.delete("/api/conversations/{conversation_id}", status_code=204)
+async def remove_conversation(
+    conversation_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> Response:
+    def remove() -> bool:
+        with database_connection() as connection:
+            return delete_conversation(
+                connection, conversation_id, owner_id=owner_id
+            )
+
+    if not await run_in_threadpool(remove):
+        raise CONVERSATION_NOT_FOUND
+    return Response(status_code=204)
+
+
+IMAGE_NOT_FOUND = HTTPException(status_code=404, detail="image not found")
+# Canonical content is immutable, so a fetched figure never needs revalidating.
+IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
+MAXIMUM_IMAGE_BYTES = 8 * 1024 * 1024
+
+
+@app.get("/api/books/{book_id}/blocks/{block_id}/image")
+async def block_image(
+    book_id: int,
+    block_id: int,
+    request: Request,
+    owner_id: UUID = Depends(current_owner),
+) -> Response:
+    """Serve one canonical figure.
+
+    Owner-scoped in the query itself: a block belonging to someone else is
+    indistinguishable from one that does not exist.
+    """
+
+    def load() -> tuple[bytes, str]:
+        with database_connection(readonly=True) as connection:
+            row = connection.execute(
+                """
+                select image_blocks.mime_type, image_blocks.base64_content
+                from image_blocks
+                join content_blocks
+                  on content_blocks.id = image_blocks.block_id
+                 and content_blocks.owner_id = image_blocks.owner_id
+                where image_blocks.block_id = %s
+                  and image_blocks.book_id = %s
+                  and image_blocks.owner_id = %s
+                """,
+                (block_id, book_id, owner_id),
+            ).fetchone()
+        if row is None:
+            raise IMAGE_NOT_FOUND
+        try:
+            payload = base64.b64decode(row["base64_content"], validate=True)
+        except (ValueError, binascii.Error) as error:
+            logger.warning("Figure %s has undecodable content", block_id)
+            raise IMAGE_NOT_FOUND from error
+        if len(payload) > MAXIMUM_IMAGE_BYTES:
+            logger.warning("Figure %s exceeds the response ceiling", block_id)
+            raise IMAGE_NOT_FOUND
+        return payload, row["mime_type"]
+
+    payload, mime_type = await run_in_threadpool(load)
+    etag = f'"{hashlib.sha256(payload).hexdigest()[:32]}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(
+            status_code=304,
+            headers={"ETag": etag, "Cache-Control": IMAGE_CACHE_CONTROL},
+        )
+    return Response(
+        content=payload,
+        media_type=mime_type,
+        headers={"ETag": etag, "Cache-Control": IMAGE_CACHE_CONTROL},
+    )
+
+
+class BookSourceResponse(ContractModel):
+    """A time-limited link to one book's original PDF."""
+
+    book_id: int
+    url: str
+    expires_at: datetime
+    page_count: int | None
+
+
+SOURCE_UNAVAILABLE = HTTPException(
+    status_code=404,
+    detail="this book's original file is no longer stored",
+)
+# Long enough to read a chapter, short enough that a leaked link expires.
+SOURCE_URL_TTL_SECONDS = 900
+
+
+@app.get("/api/books/{book_id}/source", response_model=BookSourceResponse)
+async def book_source(
+    book_id: int,
+    owner_id: UUID = Depends(current_owner),
+) -> BookSourceResponse:
+    """Sign a short-lived URL for the caller's own book PDF.
+
+    Ready books keep their source precisely so it can be read alongside an
+    answer. A book whose object the retention policy removed returns 404 with
+    a message the interface can explain, rather than presenting a viewer that
+    silently fails to load.
+    """
+
+    def sign() -> BookSourceResponse:
+        with database_connection(readonly=True) as connection:
+            row = ready_book(connection, book_id, owner_id=owner_id)
+            if row is None:
+                raise BOOK_NOT_FOUND
+            details = connection.execute(
+                """
+                select source_storage_bucket, source_storage_path, page_count
+                from books where id = %s and owner_id = %s
+                """,
+                (book_id, owner_id),
+            ).fetchone()
+
+        bucket = details["source_storage_bucket"]
+        path = details["source_storage_path"]
+        if not bucket or not path:
+            # Books imported by the manual CLI path never had a stored object.
+            raise SOURCE_UNAVAILABLE
+
+        try:
+            url = signed_object_url(bucket, path, expires_in=SOURCE_URL_TTL_SECONDS)
+        except IngestionError as error:
+            logger.warning("signing book %s failed: %s", book_id, error.code)
+            raise HTTPException(
+                status_code=503,
+                detail="the document store is unavailable",
+            ) from error
+        if url is None:
+            raise SOURCE_UNAVAILABLE
+
+        return BookSourceResponse(
+            book_id=book_id,
+            url=url,
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(seconds=SOURCE_URL_TTL_SECONDS),
+            page_count=details["page_count"],
+        )
+
+    return await run_in_threadpool(sign)

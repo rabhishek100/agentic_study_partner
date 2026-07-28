@@ -158,7 +158,7 @@ class BareNumberedBookTests(PostgresOwnerMixin, unittest.TestCase):
     def _candidates(self, question):
         return find_scope_candidates(
             question,
-            ConversationState(conversation_id="c", book_id=self.book_id),
+            ConversationState(conversation_id="c", book_ids=[self.book_id]),
             self.database_url,
             owner_id=self.owner_id,
         )
@@ -211,7 +211,7 @@ class ScopeCandidateTests(PostgresOwnerMixin, unittest.TestCase):
     def state(self, **updates) -> ConversationState:
         values = {
             "conversation_id": "test-conversation",
-            "book_id": self.book_id,
+            "book_ids": [self.book_id],
         }
         values.update(updates)
         return ConversationState(**values)

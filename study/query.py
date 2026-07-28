@@ -1,5 +1,6 @@
 """Shared routing for hierarchy operations and ordinary retrieval questions."""
 
+from collections.abc import Sequence
 import os
 import re
 from typing import Protocol
@@ -8,6 +9,7 @@ from uuid import UUID
 from dotenv import load_dotenv
 
 from retrieval.langchain import BookRetriever
+from retrieval.models import book_scope
 from retrieval.search import RetrievalMode
 from storage.database import connection as database_connection, parse_owner_id
 from .content import load_scope_content
@@ -18,6 +20,7 @@ from .contracts import (
     TurnResult,
 )
 from .context import build_scope_context
+from .figures import select_figures
 from .render import format_chapter_list, format_outline
 from .request import (
     StudyRequest,
@@ -33,7 +36,6 @@ from .streaming import TokenCallback, invoke_with_streaming
 from .summarize import (
     ContextWindowExceededError,
     SummaryConfig,
-    append_references,
     build_summary_messages,
     prompt_budget,
     summarize_scope_with_repair,
@@ -114,6 +116,7 @@ def _resolve_hierarchy_request(
     database_url: str | None,
     owner_id: str | UUID,
     book_id: int | None,
+    book_ids: Sequence[int] | None = None,
 ) -> tuple[StudyRequest, ResolvedScope] | None:
     """Return a resolved study request, or None for ordinary retrieval."""
 
@@ -129,6 +132,7 @@ def _resolve_hierarchy_request(
                 request,
                 owner_id=owner_id,
                 book_id=book_id,
+                book_ids=book_ids,
             )
     except ScopeNotFoundError:
         if request.scope_kind == "named":
@@ -199,26 +203,19 @@ def _answer_hierarchy_request(
             + "; ".join(result.validation.errors)
         )
 
-    summary = append_references(result.text, scope=scope)
-    route = (
-        f"_Scope route: complete {scope.kind} subtree — "
-        f"{scope.display_path} (PDF pp. {scope.start_page}–{scope.end_page})_"
-    )
-    warning_text = "\n".join(
-        f"> **Validation warning:** {warning}" for warning in result.validation.warnings
-    )
-    answer = (
-        f"{route}\n\n{summary}"
-        if not warning_text
-        else f"{route}\n\n{warning_text}\n\n{summary}"
-    )
+    # The answer is the summary and nothing else. The scope, the reference
+    # list, and the validation warnings that used to be concatenated here are
+    # all already first-class fields on TurnResult (`resolved_scope`,
+    # `evidence`/`citations`, `warnings`), and the interface renders them as
+    # structure. Baking them into markdown made them unreadable and forced the
+    # client to parse prose to recover data the server already had.
+    answer = result.text.rstrip()
+    warnings = list(result.validation.warnings)
     if result.attempt_count > 1:
-        warning = (
+        warnings.append(
             "An earlier draft failed deterministic citation validation and "
             "was regenerated with exact validation feedback."
         )
-        warning_text = f"> **Validation repair:** {warning}"
-        answer = f"{route}\n\n{warning_text}\n\n{summary}"
     if token_callback is not None:
         # Summary drafts are buffered until citation validation succeeds. This
         # exposes one stable answer instead of streaming an invalid draft and
@@ -234,6 +231,8 @@ def _answer_hierarchy_request(
                 if candidate_node_id == node_id
             ),
             path=nodes[node_id].path_text,
+            book_id=scope.book_id,
+            book_title=scope.book_title,
         )
         for node_id in sorted(
             context.expected_node_ids,
@@ -252,7 +251,15 @@ def _answer_hierarchy_request(
                 marker=match.group(0),
                 node_id=citation[0],
                 page=citation[1],
+                book_id=scope.book_id,
             )
+        )
+    with database_connection(database_url, readonly=True) as source:
+        figures = select_figures(
+            source,
+            owner_id=owner_id,
+            evidence=evidence,
+            citations=citations,
         )
     return TurnResult(
         question="",
@@ -263,8 +270,9 @@ def _answer_hierarchy_request(
         resolved_scope=_scope_ref(scope),
         evidence=evidence,
         citations=citations,
+        figures=figures,
         outcome="answer",
-        warnings=list(result.validation.warnings),
+        warnings=warnings,
     )
 
 
@@ -274,6 +282,7 @@ def _answer_retrieval_question(
     database_url: str | None,
     owner_id: str | UUID,
     book_id: int | None,
+    book_ids: Sequence[int] | None = None,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
     token_callback: TokenCallback | None = None,
@@ -281,16 +290,17 @@ def _answer_retrieval_question(
     """Answer one ordinary question from top-k retrieval evidence."""
 
     owner = parse_owner_id(owner_id)
+    scope = book_scope(book_id, book_ids)
     with database_connection(database_url, readonly=True) as source:
-        if book_id is None:
+        if scope is None:
             rows = source.execute(
                 "select id, title from books where owner_id = %s",
                 (owner,),
             ).fetchall()
         else:
             rows = source.execute(
-                "select id, title from books where id = %s and owner_id = %s",
-                (book_id, owner),
+                "select id, title from books where owner_id = %s and id = any(%s)",
+                (owner, scope),
             ).fetchall()
         books = {row["id"]: row["title"] for row in rows}
     documents = BookRetriever(
@@ -298,6 +308,7 @@ def _answer_retrieval_question(
         owner_id=str(owner),
         mode=retrieval_mode,
         book_id=book_id,
+        book_ids=book_ids,
         k=5,
     ).invoke(question)
     if not documents:
@@ -328,6 +339,11 @@ def _answer_retrieval_question(
         "sentence. For a 'should every X trigger Y' question, evidence that only "
         "major or meaningful X matters, or that false alerts cause unnecessary Y, "
         "supports answering no. "
+        "Evidence beginning with 'Figure:' is a description of a diagram, chart, "
+        "or plot from the book rather than its prose. Treat it as evidence like "
+        "any other, and cite it at the point where you discuss what it shows, so "
+        "the figure can be placed beside that sentence. Describe it as a figure "
+        "rather than quoting the description as if it were the book's wording. "
         "If the evidence cannot support the requested answer, begin the response "
         f"exactly with {INSUFFICIENT_EVIDENCE_MARKER} and briefly explain what "
         "evidence is missing. Do not answer from general knowledge."
@@ -337,15 +353,6 @@ def _answer_retrieval_question(
         [("system", rules), ("human", f"Question: {question}\n\n{evidence}")],
         token_callback=token_callback,
     )
-    sources = ["### Sources"]
-    for i, document in enumerate(documents, 1):
-        metadata = document.metadata
-        hierarchy = metadata["path"].replace(" :: ", " → ")
-        pages = str(metadata["start_page"])
-        if metadata["end_page"] != metadata["start_page"]:
-            pages += f"–{metadata['end_page']}"
-        book = books.get(metadata["book_id"], f"Book {metadata['book_id']}")
-        sources.append(f"- **[S{i}]** {book} → {hierarchy} — PDF p. {pages}")
     reply_text = str(reply.content).strip()
     insufficient = INSUFFICIENT_EVIDENCE_MARKER in reply_text or bool(
         INSUFFICIENT_EVIDENCE_LANGUAGE.search(reply_text)
@@ -367,7 +374,10 @@ def _answer_retrieval_question(
             INSUFFICIENT_EVIDENCE_MARKER,
             "Insufficient evidence:",
         )
-    answer = f"{reply_text}\n\n_Retrieval: {retrieval_mode}_\n\n" + "\n".join(sources)
+    # The source list and the retrieval-mode line that used to be appended here
+    # are `evidence` and `retrieval_mode` on the result. See the note in
+    # `_answer_hierarchy_request`.
+    answer = reply_text
     evidence_refs = [
         EvidenceRef(
             node_id=document.metadata.get("node_id", 0),
@@ -378,6 +388,8 @@ def _answer_retrieval_question(
                 )
             ),
             path=document.metadata["path"],
+            book_id=document.metadata.get("book_id"),
+            book_title=books.get(document.metadata.get("book_id", 0)),
             rank=rank,
             chunk_id=document.metadata.get("chunk_id"),
             chunk_index=document.metadata.get("chunk_index"),
@@ -401,8 +413,16 @@ def _answer_retrieval_question(
                 marker=marker,
                 node_id=document.metadata.get("node_id", 0),
                 page=document.metadata["start_page"],
+                book_id=document.metadata.get("book_id"),
                 evidence_rank=rank,
             )
+        )
+    with database_connection(database_url, readonly=True) as source:
+        figures = select_figures(
+            source,
+            owner_id=owner,
+            evidence=evidence_refs,
+            citations=citations,
         )
     return TurnResult(
         question=question,
@@ -412,6 +432,7 @@ def _answer_retrieval_question(
         standalone_query=question,
         evidence=evidence_refs,
         citations=citations,
+        figures=figures,
         outcome="abstain" if insufficient else "answer",
         retrieval_mode=retrieval_mode,
     )
@@ -423,6 +444,7 @@ def execute_query(
     book_id: int | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     *,
+    book_ids: Sequence[int] | None = None,
     owner_id: str | UUID,
     model: ChatModel | None = None,
     token_callback: TokenCallback | None = None,
@@ -438,6 +460,7 @@ def execute_query(
             database_url=database_url,
             owner_id=owner_id,
             book_id=book_id,
+            book_ids=book_ids,
         )
     if hierarchy is not None:
         request, scope = hierarchy
@@ -455,6 +478,7 @@ def execute_query(
         database_url=database_url,
         owner_id=owner_id,
         book_id=book_id,
+        book_ids=book_ids,
         retrieval_mode=retrieval_mode,
         model=model,
         token_callback=token_callback,

@@ -189,6 +189,48 @@ class CleanupTests(unittest.TestCase):
         # The live job's object must survive.
         self.assertNotIn(live_path, self.deleted_objects)
 
+    def test_a_ready_books_source_survives_a_sweep_that_cannot_see_its_job(self):
+        """A book referencing an object is enough to keep it.
+
+        The sweep decides what is orphaned by reconstructing paths from two
+        Storage listings and deleting whatever it cannot match, leaving no
+        event behind. A book that points at the object is independent evidence
+        that it is not garbage, and costs one query to consult.
+        """
+
+        from storage.postgres import ingest_book
+        from tests.fixtures import FILE_HASH, sample_book
+
+        stranded_job = uuid4()
+        path = f"{self.owner}/{stranded_job}/original.pdf"
+
+        with connection(self.database_url) as database:
+            book_id = ingest_book(
+                database,
+                sample_book(),
+                owner_id=self.owner,
+                title="Restored Book",
+                author=None,
+                file_hash=FILE_HASH,
+                page_count=5,
+                parser_version="test-v1",
+            )
+            database.execute(
+                """
+                update books
+                set source_storage_bucket = 'book-sources',
+                    source_storage_path = %s
+                where id = %s
+                """,
+                (path, book_id),
+            )
+            # No ingestion_jobs row references it, so the sweep sees an orphan.
+            self.bucket_contains([path])
+            summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+        self.assertEqual(self.deleted_objects, [])
+
     def test_an_unreachable_bucket_does_not_fail_the_pass(self):
         self.list_prefix.side_effect = IngestionError(ErrorCode.STORAGE_UNAVAILABLE)
 

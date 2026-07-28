@@ -121,7 +121,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
     def state(self, **updates):
         values = {
             "conversation_id": "conversation-1",
-            "book_id": self.book_id,
+            "book_ids": [self.book_id],
         }
         values.update(updates)
         return ConversationState(**values)
@@ -150,7 +150,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
     def test_summary_sets_scope_and_records_answer(self):
         result, state = execute_conversation_turn(
             "Summarize Chapter 1.",
-            new_conversation_state(book_id=self.book_id, conversation_id="c1"),
+            new_conversation_state(book_ids=[self.book_id], conversation_id="c1"),
             database_url=self.database_url,
             owner_id=self.owner_id,
             generation_model=CitationSummaryModel(),
@@ -311,14 +311,14 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
         ):
             _, state = execute_conversation_turn(
                 "What is dataflow?",
-                ConversationState(conversation_id="old", book_id=99),
+                ConversationState(conversation_id="old", book_ids=[99]),
                 database_url=self.database_url,
                 owner_id=self.owner_id,
                 book_id=self.book_id,
                 analysis_model=analysis,
             )
         self.assertNotEqual(state.conversation_id, "old")
-        self.assertEqual(state.book_id, self.book_id)
+        self.assertEqual(state.book_ids, [self.book_id])
 
     def test_graph_groups_the_turn_and_steps_under_one_trace(self):
         recorder = TraceRecorder()

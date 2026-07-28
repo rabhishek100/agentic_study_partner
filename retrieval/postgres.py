@@ -1,5 +1,6 @@
 """Persist chunks and search them with Postgres full-text search."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -13,7 +14,7 @@ from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
 from .chunking import CHUNKER_VERSION, build_book_chunks, config_hash, config_json
-from .models import ChunkingConfig
+from .models import ChunkingConfig, book_scope
 
 
 QUERY_TOKEN = re.compile(r"\w+(?:['’]\w+)?", re.UNICODE)
@@ -71,28 +72,19 @@ def rebuild(
 
     with connection.transaction():
         connection.execute("select pg_advisory_xact_lock(%s)", (book_id,))
-        existing = connection.execute(
+        # Every prior build for this book goes, not just one matching this
+        # chunker version and config. Retrieval does not filter by build, so a
+        # superseded build's chunks stay searchable alongside the new ones —
+        # which is exactly what happened when the chunker was bumped to v2 for
+        # figure captions: every book ended up with both, and every query could
+        # match the same passage twice, once without its caption.
+        connection.execute(
             """
-            select id from chunk_builds
-            where owner_id = %s
-              and source_book_id = %s
-              and parser_version = %s
-              and chunker_version = %s
-              and config_hash = %s
+            delete from chunk_builds
+            where owner_id = %s and source_book_id = %s
             """,
-            (
-                owner,
-                book_id,
-                book["parser_version"],
-                CHUNKER_VERSION,
-                configuration_hash,
-            ),
-        ).fetchone()
-        if existing:
-            connection.execute(
-                "delete from chunk_builds where id = %s and owner_id = %s",
-                (existing["id"], owner),
-            )
+            (owner, book_id),
+        )
 
         build_id = int(
             connection.execute(
@@ -261,6 +253,7 @@ def search(
     *,
     owner_id: str | UUID,
     book_id: int | None = None,
+    book_ids: Sequence[int] | None = None,
     limit: int = 5,
     unique_nodes: bool = False,
 ) -> list[SearchResult]:
@@ -269,14 +262,17 @@ def search(
     if limit <= 0:
         raise ValueError("limit must be positive")
     owner = parse_owner_id(owner_id)
+    scope = book_scope(book_id, book_ids)
     search_query = _fts_query(query)
-    predicate = "owner_id = %s and (%s::bigint is null or source_book_id = %s)"
+    predicate = (
+        "owner_id = %s and (%s::bigint[] is null or source_book_id = any(%s))"
+    )
     corpus = connection.execute(
         f"""
         select id, search_vector::text as search_vector_text
         from chunks where {predicate}
         """,
-        (owner, book_id, book_id),
+        (owner, scope, scope),
     ).fetchall()
     if not corpus:
         return []
@@ -294,7 +290,7 @@ def search(
         where {predicate}
           and search_vector @@ websearch_to_tsquery('english', %s)
         """,
-        (owner, book_id, book_id, search_query),
+        (owner, scope, scope, search_query),
     ).fetchall()
     rows.sort(
         key=lambda row: (

@@ -182,11 +182,69 @@ Then per service, from the repository root:
 ```bash
 railway up --service api
 railway up --service worker
-railway up --service web
+railway up ./frontend --path-as-root --service web
 ```
 
-Railway builds the Dockerfile for each service. The web service needs its
-root directory set to `frontend` in service settings first.
+**`railway up` uploads the linked project root, not your shell's working
+directory.** The link lives in `.railway/` at the repository root, so
+`cd frontend && railway up --service web` still uploads the whole repository —
+Railway then finds the root `Dockerfile` (the Python API image) and deploys
+*that* to the web service, which crash-loops on `node server.js`. `--path-as-root`
+is what makes `frontend/` the archive root, so `frontend/railway.json` and
+`frontend/Dockerfile` are the ones used. A bare `railway up ./frontend`
+without the flag treats the path as a filter prefix and fails with
+`prefix not found`.
+
+None of the three services has a root directory set in Railway (verify with
+`railway status --json`); the api and worker are correct only because the
+Dockerfile they want happens to be the one at the repository root.
+
+If a deploy puts the wrong image on a service, the fastest recovery is the
+Railway dashboard — Deployments → the last good one → Redeploy. The CLI's
+`railway redeploy` only redeploys the *latest* deployment, which is the broken
+one, and there is no redeploy-by-id.
+
+## Schema changes
+
+Migrations are applied from a laptop, never from a service. `MIGRATION_DATABASE_URL`
+is the direct connection and exists only for this:
+
+```bash
+npx supabase@2.109.1 db push --db-url "$MIGRATION_DATABASE_URL"
+```
+
+Apply the migration **before** deploying an API that depends on it, or every
+request touching the new tables fails until it lands.
+
+## Source PDFs
+
+A ready book's original PDF is kept so the reading pane can open the page an
+answer cites. Nothing else in the system can reproduce it: canonical content,
+chunks, embeddings, and captions all survive without it, but the viewer cannot.
+
+`delete_orphaned_sources` is the only path that deletes an object without
+recording an event, and it decides what is orphaned by reconstructing paths
+from two Storage listings. It now also refuses to delete anything a book
+references, so a listing that ever returns a truncated page cannot silently
+take a live source with it.
+
+**`SUPABASE_URL` in a local `.env` points at the local Supabase.** Overriding
+only `DATABASE_URL` to run a script against production therefore sends its
+*database* reads to production and its *storage* calls to localhost. Scripts
+that touch both must override both, or they will report confidently on a
+bucket nobody is using.
+
+To put a lost source back — a byte copy, not a re-ingest:
+
+```bash
+uv run python -m scripts.restore_book_source --check sources/books/*.pdf
+uv run python -m scripts.restore_book_source sources/books/*.pdf
+```
+
+Files are matched to books by SHA-256 against `books.file_hash`, never by
+name, so a different edition or a re-exported copy will not match — which is
+the point: only the exact bytes that produced a book's pages can be trusted to
+make page 78 the page 78 its answers cite.
 
 ## Post-deploy verification
 

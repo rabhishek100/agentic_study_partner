@@ -2,6 +2,10 @@ FROM node:24-alpine AS dependencies
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+# `postinstall` copies the pdf.js worker out of pdfjs-dist, so the script has
+# to exist before `npm ci` runs it. Copied separately from the rest of the
+# source to keep the dependency layer cacheable.
+COPY scripts ./scripts
 RUN npm ci
 
 FROM node:24-alpine AS build

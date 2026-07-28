@@ -19,6 +19,7 @@ wheels/
 node_modules/
 frontend/.next/
 frontend/.env.local
+frontend/tsconfig.tsbuildinfo
 .vercel/
 output/
 
@@ -37,3 +38,6 @@ evaluation/runs/
 # Supabase CLI local state
 supabase/.branches/
 supabase/.temp/
+
+# Copied from pdfjs-dist at install time by scripts/copy-pdf-worker.mjs
+frontend/public/pdf.worker.min.mjs

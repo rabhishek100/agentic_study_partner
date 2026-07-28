@@ -60,7 +60,7 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
     def state(self, **updates):
         values = {
             "conversation_id": "conversation-1",
-            "book_id": self.book_id,
+            "book_ids": [self.book_id],
         }
         values.update(updates)
         return ConversationState(**values)

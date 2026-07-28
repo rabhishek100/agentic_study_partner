@@ -29,7 +29,15 @@ day per day).
   black-box agent loop.
 - **LangChain**: models, prompts, tools, retrievers, structured output.
 - **FastAPI**: async execution, streaming.
-- **A small React interface** — functional, not polished.
+- **A React interface that presents the work credibly.** This was originally
+  scoped as "functional, not polished." That was wrong: the portfolio output —
+  the demo, the example chapter summary, the interview session — is delivered
+  *through* the interface, so a provisional-looking one undercuts the
+  retrieval and evaluation work it exists to present. The interface must be
+  accessible (keyboard-operable, WCAG AA contrast, reduced-motion aware) and
+  free of the state bugs that make a demo stall. It must not, however, grow
+  logic of its own: it consumes the grounded API and generates nothing.
+  See [`docs/chat-interface-spec.md`](docs/chat-interface-spec.md).
 - **Evaluation**: a gold set with measured retrieval, citation, and
   hallucination metrics, plus a report on what improved and why.
 - **Observability with LangSmith**: every LangGraph run and LLM call traced
@@ -73,7 +81,7 @@ day per day).
 - A small LangGraph workflow: plan → retrieve → check sufficiency → retry.
 - LangSmith tracing wired into every LangGraph run and LLM call.
 - A gold-set evaluation suite (roughly 30–50 questions).
-- FastAPI, a minimal interface, tests, Docker, CI.
+- FastAPI, an accessible and presentable interface, tests, Docker, CI.
 
 ### Only if evaluation or remaining time justifies it
 
