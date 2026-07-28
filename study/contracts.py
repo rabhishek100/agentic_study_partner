@@ -79,6 +79,24 @@ class CitationRef(ContractModel):
     evidence_rank: int | None = None
 
 
+class FigureRef(ContractModel):
+    """One figure that sits inside the evidence an answer rests on.
+
+    The payload is never inlined: a result carrying base64 images would
+    balloon every response and every persisted turn. The interface fetches
+    bytes from the image endpoint using `book_id` and `block_id`.
+    """
+
+    book_id: int
+    node_id: int
+    block_id: int
+    page: int
+    mime_type: str
+    path: str
+    caption: str | None = None
+    evidence_rank: int | None = None
+
+
 class ConversationState(ContractModel):
     conversation_id: str
     # The books this conversation may search. Empty means every book the owner
@@ -133,6 +151,7 @@ class TurnResult(ContractModel):
     resolved_scope: ScopeRef | None = None
     evidence: list[EvidenceRef] = Field(default_factory=list)
     citations: list[CitationRef] = Field(default_factory=list)
+    figures: list[FigureRef] = Field(default_factory=list)
     outline_node_ids: list[int] = Field(default_factory=list)
     outcome: Outcome
     retrieval_mode: str | None = None

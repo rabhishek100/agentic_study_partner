@@ -4,6 +4,9 @@
 # ruff: noqa: E402
 
 import asyncio
+import base64
+import binascii
+import hashlib
 import json
 import logging
 import os
@@ -14,7 +17,7 @@ from typing import Literal
 from uuid import UUID
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import Field, field_validator
@@ -624,3 +627,63 @@ async def remove_conversation(
     if not await run_in_threadpool(remove):
         raise CONVERSATION_NOT_FOUND
     return Response(status_code=204)
+
+
+IMAGE_NOT_FOUND = HTTPException(status_code=404, detail="image not found")
+# Canonical content is immutable, so a fetched figure never needs revalidating.
+IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
+MAXIMUM_IMAGE_BYTES = 8 * 1024 * 1024
+
+
+@app.get("/api/books/{book_id}/blocks/{block_id}/image")
+async def block_image(
+    book_id: int,
+    block_id: int,
+    request: Request,
+    owner_id: UUID = Depends(current_owner),
+) -> Response:
+    """Serve one canonical figure.
+
+    Owner-scoped in the query itself: a block belonging to someone else is
+    indistinguishable from one that does not exist.
+    """
+
+    def load() -> tuple[bytes, str]:
+        with database_connection(readonly=True) as connection:
+            row = connection.execute(
+                """
+                select image_blocks.mime_type, image_blocks.base64_content
+                from image_blocks
+                join content_blocks
+                  on content_blocks.id = image_blocks.block_id
+                 and content_blocks.owner_id = image_blocks.owner_id
+                where image_blocks.block_id = %s
+                  and image_blocks.book_id = %s
+                  and image_blocks.owner_id = %s
+                """,
+                (block_id, book_id, owner_id),
+            ).fetchone()
+        if row is None:
+            raise IMAGE_NOT_FOUND
+        try:
+            payload = base64.b64decode(row["base64_content"], validate=True)
+        except (ValueError, binascii.Error) as error:
+            logger.warning("Figure %s has undecodable content", block_id)
+            raise IMAGE_NOT_FOUND from error
+        if len(payload) > MAXIMUM_IMAGE_BYTES:
+            logger.warning("Figure %s exceeds the response ceiling", block_id)
+            raise IMAGE_NOT_FOUND
+        return payload, row["mime_type"]
+
+    payload, mime_type = await run_in_threadpool(load)
+    etag = f'"{hashlib.sha256(payload).hexdigest()[:32]}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(
+            status_code=304,
+            headers={"ETag": etag, "Cache-Control": IMAGE_CACHE_CONTROL},
+        )
+    return Response(
+        content=payload,
+        media_type=mime_type,
+        headers={"ETag": etag, "Cache-Control": IMAGE_CACHE_CONTROL},
+    )

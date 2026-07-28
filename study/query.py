@@ -20,6 +20,7 @@ from .contracts import (
     TurnResult,
 )
 from .context import build_scope_context
+from .figures import select_figures
 from .render import format_chapter_list, format_outline
 from .request import (
     StudyRequest,
@@ -253,6 +254,13 @@ def _answer_hierarchy_request(
                 book_id=scope.book_id,
             )
         )
+    with database_connection(database_url, readonly=True) as source:
+        figures = select_figures(
+            source,
+            owner_id=owner_id,
+            evidence=evidence,
+            citations=citations,
+        )
     return TurnResult(
         question="",
         answer=answer,
@@ -262,6 +270,7 @@ def _answer_hierarchy_request(
         resolved_scope=_scope_ref(scope),
         evidence=evidence,
         citations=citations,
+        figures=figures,
         outcome="answer",
         warnings=warnings,
     )
@@ -403,6 +412,13 @@ def _answer_retrieval_question(
                 evidence_rank=rank,
             )
         )
+    with database_connection(database_url, readonly=True) as source:
+        figures = select_figures(
+            source,
+            owner_id=owner,
+            evidence=evidence_refs,
+            citations=citations,
+        )
     return TurnResult(
         question=question,
         answer=answer,
@@ -411,6 +427,7 @@ def _answer_retrieval_question(
         standalone_query=question,
         evidence=evidence_refs,
         citations=citations,
+        figures=figures,
         outcome="abstain" if insufficient else "answer",
         retrieval_mode=retrieval_mode,
     )

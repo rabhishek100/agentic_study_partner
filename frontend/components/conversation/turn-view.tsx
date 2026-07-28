@@ -4,6 +4,7 @@ import { AlertCircle, Check, Copy, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Answer } from "@/components/conversation/answer";
+import { Figures } from "@/components/conversation/figures";
 import { AnswerInspector } from "@/components/conversation/inspector";
 import { References } from "@/components/conversation/references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -94,6 +95,10 @@ export function TurnView({
             citations={result?.citations ?? []}
             onOpenReference={onOpenReference}
           />
+        )}
+
+        {result && result.figures.length > 0 && (
+          <Figures figures={result.figures} />
         )}
 
         {result && result.evidence.length > 0 && (

@@ -56,6 +56,17 @@ export interface CitationRef {
   evidence_rank: number | null;
 }
 
+export interface FigureRef {
+  book_id: number;
+  node_id: number;
+  block_id: number;
+  page: number;
+  mime_type: string;
+  path: string;
+  caption: string | null;
+  evidence_rank: number | null;
+}
+
 export interface ConversationMessage {
   role: "user" | "assistant";
   content: string;
@@ -84,6 +95,7 @@ export interface TurnResult {
   resolved_scope: ScopeRef | null;
   evidence: EvidenceRef[];
   citations: CitationRef[];
+  figures: FigureRef[];
   outline_node_ids: number[];
   outcome: Outcome;
   retrieval_mode: string | null;
