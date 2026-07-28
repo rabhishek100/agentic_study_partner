@@ -114,6 +114,47 @@ describe("Answer", () => {
     expect(onOpen.mock.calls[0]?.[0]).toMatchObject({ node_id: 10 });
   });
 
+  it("renders LaTeX written with \\( \\) delimiters as maths", () => {
+    const { container } = renderAnswer(
+      "typically \\(m \\approx \\sqrt{p}\\) is chosen [S1].",
+      [evidence()],
+    );
+
+    expect(container.querySelector(".katex")).not.toBeNull();
+    // KaTeX keeps the TeX source in a visually-hidden MathML annotation, so
+    // assert against the visible HTML rendering rather than textContent.
+    const rendered = container.querySelector(".katex-html")?.textContent ?? "";
+    expect(rendered).not.toContain("\\approx");
+    expect(rendered).not.toContain("\\sqrt");
+    expect(rendered).toContain("≈");
+  });
+
+  it("renders display maths", () => {
+    const { container } = renderAnswer("\\[ \\hat{y} = X\\beta \\]", [
+      evidence(),
+    ]);
+    expect(container.querySelector(".katex-display")).not.toBeNull();
+  });
+
+  it("keeps citation chips working alongside maths", () => {
+    const { container } = renderAnswer(
+      "Choosing \\(m = \\sqrt{p}\\) decorrelates the trees [S1].",
+      [evidence()],
+    );
+
+    expect(container.querySelector(".katex")).not.toBeNull();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(container.textContent).not.toContain("[S1]");
+  });
+
+  it("does not rewrite markers that appear inside a formula", () => {
+    // Subscripts can look like a marker; the maths must win.
+    const { container } = renderAnswer("\\(x_{[S1]}\\) is not a citation.", [
+      evidence(),
+    ]);
+    expect(container.querySelector(".katex")).not.toBeNull();
+  });
+
   it("makes chips keyboard operable", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

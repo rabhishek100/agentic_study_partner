@@ -81,12 +81,17 @@ export function ConversationView({
       </div>
 
       <div className="relative border-t border-border bg-background">
+        {/*
+          Sits just above the composer's top edge with a fade behind it. The
+          previous `-top-12` floated it over live message content, so it
+          collided with whatever happened to be scrolled to that position.
+        */}
         {!isPinned && !isEmpty && (
-          <div className="pointer-events-none absolute -top-12 left-0 right-0 flex justify-center">
+          <div className="pointer-events-none absolute inset-x-0 -top-10 flex h-10 items-end justify-center bg-gradient-to-t from-background to-transparent pb-1">
             <Button
               variant="outline"
               size="sm"
-              className="pointer-events-auto shadow-sm"
+              className="pointer-events-auto shadow-md"
               onClick={() => scrollToBottom()}
             >
               <ArrowDown aria-hidden />

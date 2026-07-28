@@ -99,6 +99,7 @@ export function TurnView({
         {result && result.evidence.length > 0 && (
           <References
             evidence={result.evidence}
+            citations={result.citations}
             onOpenReference={onOpenReference}
           />
         )}

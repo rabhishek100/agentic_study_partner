@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
 
 import {
   Tooltip,
@@ -9,8 +11,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatPages, formatPath, splitOnCitations } from "@/lib/citations";
+import { normalizeMath } from "@/lib/math";
 import type { CitationRef, EvidenceRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+import "katex/dist/katex.min.css";
 
 /** Minimal hast shapes; enough to rewrite text nodes without a tree library. */
 interface HastText {
@@ -37,13 +42,22 @@ function hasChildren(node: HastNode): node is { type: string; children: HastNode
  * inside a code sample would be wrong, and the answer sometimes quotes them.
  */
 function citationPlugin(evidence: EvidenceRef[], citations: CitationRef[]) {
-  const SKIP = new Set(["code", "pre"]);
+  // KaTeX output is a tree of spans whose text is rendered maths; rewriting
+  // inside it would corrupt the formula.
+  const SKIP = new Set(["code", "pre", "math", "semantics", "annotation"]);
 
   return () => (tree: HastNode) => {
     const walk = (node: HastNode) => {
       if (!hasChildren(node)) return;
-      if (node.type === "element" && SKIP.has((node as HastElement).tagName)) {
-        return;
+      if (node.type === "element") {
+        const element = node as HastElement;
+        if (SKIP.has(element.tagName)) return;
+        // rehype-katex emits `<span class="katex">…</span>` subtrees.
+        const className = element.properties?.className;
+        const names = Array.isArray(className) ? className : [className];
+        if (names.some((name) => String(name ?? "").startsWith("katex"))) {
+          return;
+        }
       }
 
       const rewritten: HastNode[] = [];
@@ -163,11 +177,15 @@ export function Answer({
     () => citationPlugin(evidence, citations),
     [evidence, citations],
   );
+  const source = useMemo(() => normalizeMath(text), [text]);
 
   return (
     <div className="answer-prose">
       <ReactMarkdown
-        rehypePlugins={[plugin]}
+        remarkPlugins={[remarkMath]}
+        // KaTeX runs before the citation pass so that markers are never
+        // rewritten inside a rendered formula.
+        rehypePlugins={[[rehypeKatex, { throwOnError: false }], plugin]}
         components={{
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           "citation-ref": ({ node }: any) => {
@@ -183,7 +201,7 @@ export function Answer({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any}
       >
-        {text}
+        {source}
       </ReactMarkdown>
     </div>
   );

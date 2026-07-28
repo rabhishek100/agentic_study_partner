@@ -1,156 +1,213 @@
 "use client";
 
-import { BookOpen, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { formatPages, formatPath } from "@/lib/citations";
-import type { EvidenceRef } from "@/lib/types";
+import { formatPages } from "@/lib/citations";
+import {
+  groupByBook,
+  partitionByCitation,
+  pathBelow,
+  type ReferenceGroup,
+} from "@/lib/references";
+import type { CitationRef, EvidenceRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-function ReferenceCard({
+function ReferenceRow({
   reference,
   index,
+  sharedPath,
+  muted,
   onOpen,
 }: {
   reference: EvidenceRef;
-  index: number;
+  index: number | null;
+  sharedPath: string[];
+  muted?: boolean;
   onOpen?: (reference: EvidenceRef) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const parts = formatPath(reference.path);
+  const parts = pathBelow(reference.path, sharedPath);
+  const leaf = parts.at(-1) ?? reference.path;
+  const ancestors = parts.slice(0, -1);
 
   return (
-    <li className="rounded-lg border border-border bg-card">
-      <div className="flex gap-3 p-3">
-        <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded bg-citation-muted text-[0.7rem] font-semibold tabular-nums text-citation">
-          {index}
+    <li className="border-b border-border/60 last:border-b-0">
+      <div className="flex items-baseline gap-2 py-1.5">
+        <span
+          className={cn(
+            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded text-[0.65rem] font-semibold tabular-nums",
+            index === null
+              ? "text-muted-foreground"
+              : "bg-citation-muted text-citation",
+          )}
+        >
+          {index ?? "·"}
         </span>
 
-        <div className="min-w-0 flex-1 space-y-1">
-          <nav aria-label="Location in the book" className="flex flex-wrap items-center gap-x-1 text-sm">
-            {parts.map((part, position) => (
-              <span key={`${part}-${position}`} className="flex items-center gap-x-1">
-                {position > 0 && (
-                  <ChevronRight
-                    className="size-3 text-muted-foreground"
-                    aria-hidden
-                  />
-                )}
-                <span
-                  className={cn(
-                    position === parts.length - 1
-                      ? "font-medium text-foreground"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {part}
-                </span>
-              </span>
-            ))}
-          </nav>
-
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>{formatPages(reference.pages)}</span>
-            {reference.retrieval_method && (
-              <Badge variant="outline" className="font-normal">
-                {reference.retrieval_method}
-              </Badge>
-            )}
-            {reference.score != null && (
-              <span className="tabular-nums">
-                score {reference.score.toFixed(3)}
-              </span>
-            )}
-          </p>
-
-          {reference.excerpt && (
-            <Collapsible open={open} onOpenChange={setOpen}>
-              <CollapsibleTrigger className="text-xs font-medium text-citation hover:underline">
-                {open ? "Hide the passage" : "Show the passage"}
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <blockquote className="mt-2 border-l-2 border-citation/40 pl-3 font-serif text-sm leading-relaxed text-muted-foreground">
-                  {reference.excerpt}
-                </blockquote>
-              </CollapsibleContent>
-            </Collapsible>
+        <p className="min-w-0 flex-1 text-sm leading-snug">
+          {ancestors.length > 0 && (
+            <span className="text-muted-foreground">
+              {ancestors.join(" › ")} ›{" "}
+            </span>
           )}
+          <span className={cn(muted ? "text-muted-foreground" : "font-medium")}>
+            {leaf}
+          </span>
+          <span className="ml-2 whitespace-nowrap text-xs text-muted-foreground">
+            {formatPages(reference.pages)}
+          </span>
+        </p>
 
+        <div className="flex shrink-0 items-center gap-2">
+          {reference.excerpt && (
+            <button
+              type="button"
+              onClick={() => setOpen((current) => !current)}
+              aria-expanded={open}
+              className="text-xs text-muted-foreground transition-colors hover:text-citation"
+            >
+              {open ? "Hide" : "Passage"}
+            </button>
+          )}
           {onOpen && (
             <button
               type="button"
               onClick={() => onOpen(reference)}
-              className="text-xs font-medium text-citation hover:underline"
+              className="text-xs text-muted-foreground transition-colors hover:text-citation"
             >
-              Open in the book
+              Open
             </button>
           )}
         </div>
       </div>
+
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleContent>
+          <blockquote className="mb-2 ml-6 border-l-2 border-citation/40 pl-3 font-serif text-[0.85rem] leading-relaxed text-muted-foreground">
+            {reference.excerpt}
+          </blockquote>
+        </CollapsibleContent>
+      </Collapsible>
     </li>
+  );
+}
+
+function GroupHeading({
+  group,
+  showBook,
+}: {
+  group: ReferenceGroup;
+  showBook: boolean;
+}) {
+  if (!showBook && group.sharedPath.length === 0) return null;
+
+  return (
+    <p className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">
+      {showBook && (
+        <span className="font-medium text-foreground">{group.bookTitle}</span>
+      )}
+      {group.sharedPath.length > 0 && (
+        <span className="block w-full truncate" title={group.sharedPath.join(" › ")}>
+          {showBook && "· "}
+          {group.sharedPath.join(" › ")}
+        </span>
+      )}
+    </p>
   );
 }
 
 export interface ReferencesProps {
   evidence: EvidenceRef[];
+  citations: CitationRef[];
   onOpenReference?: (reference: EvidenceRef) => void;
 }
 
-export function References({ evidence, onOpenReference }: ReferencesProps) {
+export function References({
+  evidence,
+  citations,
+  onOpenReference,
+}: ReferencesProps) {
+  const [showUncited, setShowUncited] = useState(false);
   if (evidence.length === 0) return null;
 
-  // Group by book so a cross-book answer says which book each page is in.
-  // With one book the grouping header would be noise, so it is dropped.
-  const books = new Map<string, { title: string; items: EvidenceRef[] }>();
-  for (const reference of evidence) {
-    const key = String(reference.book_id ?? "unknown");
-    const existing = books.get(key);
-    if (existing) existing.items.push(reference);
-    else
-      books.set(key, {
-        title: reference.book_title ?? "This book",
-        items: [reference],
-      });
-  }
-  const grouped = [...books.values()];
-  const showBookHeadings = grouped.length > 1;
+  const { cited, uncited } = partitionByCitation(evidence, citations);
+  // Chip numbers index the full evidence list, so a row's number has to come
+  // from there rather than from its position within a partition.
+  const numberOf = (reference: EvidenceRef) => evidence.indexOf(reference) + 1;
+
+  const citedGroups = groupByBook(cited);
+  const showBookHeadings = new Set(evidence.map((entry) => entry.book_id)).size > 1;
 
   return (
     <section
       aria-labelledby="references-heading"
-      className="space-y-2 border-t border-border pt-4"
+      className="space-y-2 border-t border-border pt-3"
     >
       <h4
         id="references-heading"
         className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <BookOpen className="size-3.5" aria-hidden />
-        {evidence.length} {evidence.length === 1 ? "reference" : "references"}
+        {cited.length} {cited.length === 1 ? "source" : "sources"}
       </h4>
 
-      {grouped.map((group) => (
-        <div key={group.title} className="space-y-2">
-          {showBookHeadings && (
-            <p className="text-xs font-medium text-foreground">{group.title}</p>
-          )}
-          <ul className="space-y-2">
+      {citedGroups.map((group) => (
+        <div key={group.bookId ?? group.bookTitle} className="space-y-0.5">
+          <GroupHeading group={group} showBook={showBookHeadings} />
+          <ul>
             {group.items.map((reference) => (
-              <ReferenceCard
+              <ReferenceRow
                 key={`${reference.node_id}-${reference.rank ?? reference.pages[0]}`}
                 reference={reference}
-                index={evidence.indexOf(reference) + 1}
+                index={numberOf(reference)}
+                sharedPath={group.sharedPath}
                 onOpen={onOpenReference}
               />
             ))}
           </ul>
         </div>
       ))}
+
+      {uncited.length > 0 && (
+        <Collapsible open={showUncited} onOpenChange={setShowUncited}>
+          <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
+            {showUncited ? (
+              <ChevronDown className="size-3" aria-hidden />
+            ) : (
+              <ChevronRight className="size-3" aria-hidden />
+            )}
+            {uncited.length} more retrieved, not cited
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            {groupByBook(uncited).map((group) => (
+              <div
+                key={group.bookId ?? group.bookTitle}
+                className="mt-1 space-y-0.5 opacity-80"
+              >
+                <GroupHeading group={group} showBook={showBookHeadings} />
+                <ul>
+                  {group.items.map((reference) => (
+                    <ReferenceRow
+                      key={`${reference.node_id}-${reference.rank ?? reference.pages[0]}`}
+                      reference={reference}
+                      index={null}
+                      sharedPath={group.sharedPath}
+                      muted
+                      onOpen={onOpenReference}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </section>
   );
 }
