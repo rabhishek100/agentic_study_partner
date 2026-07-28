@@ -190,13 +190,12 @@ class CleanupTests(unittest.TestCase):
         self.assertNotIn(live_path, self.deleted_objects)
 
     def test_a_ready_books_source_survives_a_sweep_that_cannot_see_its_job(self):
-        """The sweep must not be the only thing standing between a book and
-        losing the file its reading pane opens.
+        """A book referencing an object is enough to keep it.
 
-        Every source PDF in production disappeared with no deletion event
-        recorded, and this is the one path that deletes without recording one.
-        Whatever made a live path look orphaned, a book that references the
-        object is independent evidence that it is not garbage.
+        The sweep decides what is orphaned by reconstructing paths from two
+        Storage listings and deleting whatever it cannot match, leaving no
+        event behind. A book that points at the object is independent evidence
+        that it is not garbage, and costs one query to consult.
         """
 
         from storage.postgres import ingest_book

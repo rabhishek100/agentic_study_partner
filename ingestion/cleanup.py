@@ -211,13 +211,15 @@ def delete_orphaned_sources(
         ).fetchall()
     }
     # A second, independent list keyed off the books themselves. The sweep
-    # reconstructs `{owner}/{job}/original.pdf` from two Storage listings, so
-    # any drift in what those listings return — a changed name format, a
-    # truncated page — makes a live path look orphaned. Every source PDF in
-    # production went missing with no deletion event recorded, and this sweep
-    # is the only path that deletes without recording one. Whatever the cause,
-    # a ready book's source is never garbage: it is what the reading pane
-    # opens, and it cannot be recovered from anything else in the system.
+    # reconstructs `{owner}/{job}/original.pdf` from two Storage listings and
+    # deletes anything it cannot match, without recording an event — so a
+    # listing that ever returns a truncated page or a different name format
+    # would delete live sources silently. Nothing suggests it has; this is
+    # defence in depth for the one deletion path that leaves no trace.
+    #
+    # A ready book's source cannot be reconstructed from anything else in the
+    # system: canonical content, chunks, embeddings, and captions all survive
+    # without it, but the reading pane has nothing to open.
     protected = {
         row["source_storage_path"]
         for row in connection.execute(

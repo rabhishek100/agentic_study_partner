@@ -222,15 +222,17 @@ A ready book's original PDF is kept so the reading pane can open the page an
 answer cites. Nothing else in the system can reproduce it: canonical content,
 chunks, embeddings, and captions all survive without it, but the viewer cannot.
 
-Every source object in production went missing at some point before
-2026-07-28, with no `source_deleted` event and no `source_deleted_at`
-provenance marker on any job — so neither the retention sweep nor a manual
-cancel did it, since both record their work. `delete_orphaned_sources` is the
-only path that deletes without recording anything, and it reconstructs paths
-from two Storage listings, so any drift in what those listings return makes a
-live path look orphaned. The cause was never proven. The sweep now refuses to
-delete any object a book references, independently of whether it can find the
-job row.
+`delete_orphaned_sources` is the only path that deletes an object without
+recording an event, and it decides what is orphaned by reconstructing paths
+from two Storage listings. It now also refuses to delete anything a book
+references, so a listing that ever returns a truncated page cannot silently
+take a live source with it.
+
+**`SUPABASE_URL` in a local `.env` points at the local Supabase.** Overriding
+only `DATABASE_URL` to run a script against production therefore sends its
+*database* reads to production and its *storage* calls to localhost. Scripts
+that touch both must override both, or they will report confidently on a
+bucket nobody is using.
 
 To put a lost source back — a byte copy, not a re-ingest:
 
