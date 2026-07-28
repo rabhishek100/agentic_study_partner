@@ -151,7 +151,12 @@ class OpenRouterCaptioner:
                 if not choices:
                     raise ValueError("caption provider returned no choices")
                 text = (choices[0]["message"]["content"] or "").strip()
-                if not text or text.upper().startswith(NOT_A_FIGURE):
+                # Anywhere, not just at the start. Models reach the right
+                # judgement and then explain it first — "This text constitutes
+                # a heading, not a substantive figure. NOT_A_FIGURE" — and a
+                # `startswith` check stored that explanation as a caption and
+                # showed the heading as a figure.
+                if not text or NOT_A_FIGURE in text.upper():
                     return None
                 return text
             except Exception as error:  # noqa: BLE001 - retried, then reported

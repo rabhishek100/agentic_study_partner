@@ -1,7 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Figures, figureLabel, figureSource } from "@/components/conversation/figures";
+import {
+  Figures,
+  InlineFigure,
+  figureLabel,
+  figureSource,
+} from "@/components/conversation/figures";
 import type { FigureRef } from "@/lib/types";
 
 vi.mock("@/lib/supabase", () => ({
@@ -132,5 +137,56 @@ describe("Figures", () => {
       <Figures figures={[figure(), figure({ block_id: 9, page: 80 })]} />,
     );
     expect(screen.getByText("Also on cited pages")).toBeInTheDocument();
+  });
+});
+
+describe("figure captions", () => {
+  beforeEach(() => {
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:figure"),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        blob: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+      })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("renders LaTeX in a caption as maths, not as source", async () => {
+    // 81 of the corpus captions name coefficients; `$\beta_0$` in a caption
+    // is worse than useless.
+    const { container } = render(
+      <InlineFigure
+        figure={figure({
+          caption: "Contours of RSS against $\\beta_0$ and $\\beta_1$.",
+        })}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(container.querySelector(".katex")).not.toBeNull(),
+    );
+    const rendered = container.querySelector(".katex-html")?.textContent ?? "";
+    expect(rendered).not.toContain("\\beta");
+  });
+
+  it("shows a plain caption unchanged", async () => {
+    render(
+      <InlineFigure
+        figure={figure({ caption: "A scatter plot of sales against TV spend." })}
+      />,
+    );
+    expect(
+      await screen.findByText(/A scatter plot of sales against TV spend/),
+    ).toBeInTheDocument();
   });
 });

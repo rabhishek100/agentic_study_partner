@@ -9,6 +9,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CaptionText } from "@/components/conversation/caption-text";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthenticatedImage } from "@/hooks/use-authenticated-image";
 import { formatPath } from "@/lib/citations";
@@ -52,7 +53,9 @@ export function InlineFigure({ figure }: { figure: FigureRef }) {
       </button>
       <figcaption className="border-t border-border px-3 py-2 font-sans text-xs leading-relaxed text-muted-foreground">
         {figure.caption && (
-          <span className="block text-foreground">{figure.caption}</span>
+          <span className="block text-foreground">
+            <CaptionText>{figure.caption}</CaptionText>
+          </span>
         )}
         <span className="block">
           {parts.at(-1) ?? figure.path} · p. {figure.page}
@@ -82,9 +85,14 @@ function FigureLightbox({
             <DialogTitle className="text-sm font-medium">
               {formatPath(figure.path).at(-1) ?? figure.path}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {figure.caption ??
-                `${formatPath(figure.path).join(" › ")} · page ${figure.page}`}
+            <DialogDescription className="text-xs" asChild>
+              <div>
+                {figure.caption ? (
+                  <CaptionText>{figure.caption}</CaptionText>
+                ) : (
+                  `${formatPath(figure.path).join(" › ")} · page ${figure.page}`
+                )}
+              </div>
             </DialogDescription>
             <FigureImage figure={figure} className="max-h-[70vh] rounded-md" />
           </>

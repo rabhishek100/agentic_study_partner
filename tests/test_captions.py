@@ -197,3 +197,48 @@ class CaptionTests(PostgresOwnerMixin, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SentinelDetectionTests(unittest.TestCase):
+    """The model announces a decorative image in its own words first."""
+
+    def responder(self, content: str):
+        import httpx
+
+        from ingestion.captions import OpenRouterCaptioner
+
+        captioner = OpenRouterCaptioner.__new__(OpenRouterCaptioner)
+        captioner.model_name = "test/vision-1"
+        captioner._max_attempts = 1
+        captioner._client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={"choices": [{"message": {"content": content}}]},
+                )
+            )
+        )
+        return captioner
+
+    def test_a_trailing_sentinel_is_detected(self):
+        # The exact production failure: a heading image was captioned and
+        # shown because the sentinel came last.
+        captioner = self.responder(
+            "This text constitutes a heading, not a substantive figure "
+            "for citation. NOT_A_FIGURE"
+        )
+        self.assertIsNone(captioner.describe(b"bytes", "image/png"))
+
+    def test_a_leading_sentinel_is_detected(self):
+        captioner = self.responder("NOT_A_FIGURE")
+        self.assertIsNone(captioner.describe(b"bytes", "image/png"))
+
+    def test_an_ordinary_caption_survives(self):
+        captioner = self.responder("A scatter plot of sales against TV spend.")
+        self.assertEqual(
+            captioner.describe(b"bytes", "image/png"),
+            "A scatter plot of sales against TV spend.",
+        )
+
+    def test_an_empty_response_is_treated_as_no_caption(self):
+        self.assertIsNone(self.responder("   ").describe(b"bytes", "image/png"))
