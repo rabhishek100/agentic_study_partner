@@ -28,6 +28,7 @@ import type {
   BookListResponse,
   BookSummary,
   EvidenceRef,
+  ResponseDepth,
   RetrievalMode,
 } from "@/lib/types";
 
@@ -39,6 +40,8 @@ export default function Page() {
   const [selectedBookIds, setSelectedBookIds] = useState<number[]>([]);
   const [retrievalMode, setRetrievalMode] =
     useState<RetrievalMode>("hybrid_rerank");
+  const [responseDepth, setResponseDepth] =
+    useState<ResponseDepth>("interview");
   const [reading, setReading] = useState<PdfTarget | null>(null);
 
   const {
@@ -95,12 +98,16 @@ export default function Page() {
   const handleSend = useCallback(
     async (question: string) => {
       if (selectedBookIds.length === 0) return;
-      await send(question, { bookIds: selectedBookIds, retrievalMode });
+      await send(question, {
+        bookIds: selectedBookIds,
+        retrievalMode,
+        responseDepth,
+      });
       // The turn may have created a conversation or renamed nothing at all;
       // refreshing afterwards keeps the sidebar honest either way.
       await history.refresh();
     },
-    [send, selectedBookIds, retrievalMode, history],
+    [send, selectedBookIds, retrievalMode, responseDepth, history],
   );
 
   const handleOpenConversation = useCallback(
@@ -124,8 +131,8 @@ export default function Page() {
 
   const handleRetry = useCallback(() => {
     if (selectedBookIds.length === 0) return;
-    retry({ bookIds: selectedBookIds, retrievalMode });
-  }, [retry, selectedBookIds, retrievalMode]);
+    retry({ bookIds: selectedBookIds, retrievalMode, responseDepth });
+  }, [retry, selectedBookIds, retrievalMode, responseDepth]);
 
   const openReference = useCallback(
     (reference: EvidenceRef, page?: number) => {
@@ -259,6 +266,9 @@ export default function Page() {
         onSend={handleSend}
         onStop={stop}
         onRetry={handleRetry}
+        conversationId={conversationId}
+        responseDepth={responseDepth}
+        onResponseDepthChange={setResponseDepth}
         scopeSummary={
           hasBooks ? describeSelection(books, selectedBookIds) : null
         }

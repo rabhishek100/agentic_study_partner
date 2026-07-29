@@ -15,6 +15,26 @@ class ResizeObserverStub {
 
 vi.stubGlobal("ResizeObserver", ResizeObserverStub);
 
+// Radix Select uses pointer capture; jsdom does not implement it.
+Object.defineProperties(HTMLElement.prototype, {
+  hasPointerCapture: {
+    configurable: true,
+    value: () => false,
+  },
+  setPointerCapture: {
+    configurable: true,
+    value: () => {},
+  },
+  releasePointerCapture: {
+    configurable: true,
+    value: () => {},
+  },
+  scrollIntoView: {
+    configurable: true,
+    value: () => {},
+  },
+});
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

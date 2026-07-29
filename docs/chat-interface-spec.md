@@ -37,7 +37,31 @@ holds, in particular *ground every answer*, *deterministic first*, and
 | Conversation state | Server-authoritative, persisted | The client currently owns the only copy of conversation state. Persisting it enables history, survives refresh, and makes turns replayable for evaluation. |
 | Book selection | Multi-select, defaulting to all ready books | Cross-book study is the requested behaviour; scoping down is the exception, not the default. |
 | Retrieval mode and diagnostics | Per-answer inspector | Keeps the *inspectable agentic workflow* claim visible without putting an un-reasonable-about dropdown on the front door. |
+| Prompt customization | Locked grounding layer plus editable interview instructions/templates | Makes the exact model messages inspectable and useful without letting a typo remove citations, abstention, or book-only grounding. |
+| Response depth | Quick answer, Interview answer, Deep dive | Labels map to how a reader practices an interview response; explicit wording in the question overrides the UI default. |
+| Prompt persistence | Owner default plus conversation snapshot | A saved default applies to new conversations, while an existing conversation remains reproducible until the reader explicitly applies a new profile. |
 | Delivery | One reviewable commit per stage | Each stage is independently revertable. |
+
+### Interview prompt studio
+
+The main composer keeps one compact depth selector and a Prompt settings action.
+The settings sheet shows five distinct things rather than presenting one
+unrestricted “system prompt” textarea:
+
+1. Required grounding and citation rules, visible and read-only.
+2. Editable interview-coach instructions.
+3. Editable templates for concept explanations, system-design walkthroughs,
+   and complete chapter/section interview reviews.
+4. An editable user-message template whose allowed placeholders are validated;
+   `{question}` and `{evidence}` are mandatory.
+5. A read-only compiled system/user message preview with server-inserted evidence
+   represented by a placeholder.
+
+The server prepends locked grounding requirements to every editable profile.
+Prompt profiles are owner-scoped, and every conversation stores the profile it
+started with. Turns record the answer archetype, resolved depth, routing reason,
+and prompt-profile version in `TurnResult`, so the inspector and persisted
+history remain explainable.
 
 ## Current state and the gaps this closes
 

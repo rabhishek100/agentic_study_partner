@@ -4,7 +4,15 @@ import { ArrowUp, Square } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { ResponseDepth } from "@/lib/types";
 
 const MAX_TEXTAREA_HEIGHT_PX = 200;
 
@@ -14,6 +22,9 @@ export interface ComposerProps {
   placeholder: string;
   onSubmit: (question: string) => void;
   onStop: () => void;
+  responseDepth?: ResponseDepth;
+  onResponseDepthChange?: (depth: ResponseDepth) => void;
+  settingsControl?: React.ReactNode;
 }
 
 export function Composer({
@@ -22,6 +33,9 @@ export function Composer({
   placeholder,
   onSubmit,
   onStop,
+  responseDepth = "interview",
+  onResponseDepthChange,
+  settingsControl,
 }: ComposerProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -53,6 +67,28 @@ export function Composer({
         submit();
       }}
     >
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <Select
+          value={responseDepth}
+          onValueChange={(value) =>
+            onResponseDepthChange?.(value as ResponseDepth)
+          }
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="Response depth"
+            className="border-0 text-xs text-muted-foreground shadow-none"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectItem value="quick">Quick answer</SelectItem>
+            <SelectItem value="interview">Interview answer</SelectItem>
+            <SelectItem value="deep">Deep dive</SelectItem>
+          </SelectContent>
+        </Select>
+        {settingsControl}
+      </div>
       <label className="sr-only" htmlFor="question">
         Ask about the book
       </label>

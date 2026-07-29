@@ -1,9 +1,9 @@
 """Small typed boundaries for conversation, evidence, and results."""
 
+from string import Formatter
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Route = Literal[
     "hierarchy_summary",
@@ -14,6 +14,13 @@ Route = Literal[
 ]
 HistoryDependency = Literal["independent", "dependent", "ambiguous"]
 Outcome = Literal["answer", "clarify", "abstain", "error"]
+AnswerArchetype = Literal[
+    "concept_explanation",
+    "system_design",
+    "chapter_review",
+    "answer_transform",
+]
+ResponseDepth = Literal["quick", "interview", "deep"]
 
 
 class ContractModel(BaseModel):
@@ -24,6 +31,53 @@ class ConversationMessage(ContractModel):
     role: Literal["user", "assistant"]
     content: str
     turn_id: str | None = None
+
+
+class PromptProfile(ContractModel):
+    """Editable interview behavior layered under locked grounding rules."""
+
+    interview_instructions: str = Field(min_length=20, max_length=12_000)
+    concept_template: str = Field(min_length=20, max_length=8_000)
+    system_design_template: str = Field(min_length=20, max_length=8_000)
+    chapter_review_template: str = Field(min_length=20, max_length=8_000)
+    user_prompt_template: str = Field(min_length=20, max_length=8_000)
+
+    @field_validator(
+        "interview_instructions",
+        "concept_template",
+        "system_design_template",
+        "chapter_review_template",
+        "user_prompt_template",
+    )
+    @classmethod
+    def strip_prompt_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("user_prompt_template")
+    @classmethod
+    def validate_user_template(cls, value: str) -> str:
+        allowed = {
+            "question",
+            "answer_archetype",
+            "response_depth",
+            "evidence",
+            "request_context",
+        }
+        fields = {
+            field_name for _, field_name, _, _ in Formatter().parse(value) if field_name
+        }
+        unsupported = fields.difference(allowed)
+        if unsupported:
+            raise ValueError(
+                "unsupported prompt placeholders: " + ", ".join(sorted(unsupported))
+            )
+        required = {"question", "evidence"}
+        missing = required.difference(fields)
+        if missing:
+            raise ValueError(
+                "user prompt template must include: " + ", ".join(sorted(missing))
+            )
+        return value
 
 
 class ScopeRef(ContractModel):
@@ -131,13 +185,9 @@ class TurnDecision(ContractModel):
             and self.resolved_scope is None
         ):
             raise ValueError("hierarchy routes require a scope")
-        if self.route == "retrieval_qa" and not (
-            self.standalone_query or ""
-        ).strip():
+        if self.route == "retrieval_qa" and not (self.standalone_query or "").strip():
             raise ValueError("retrieval QA requires a standalone query")
-        if self.route == "clarify" and not (
-            self.clarification_question or ""
-        ).strip():
+        if self.route == "clarify" and not (self.clarification_question or "").strip():
             raise ValueError("clarify requires a question")
         return self
 
@@ -156,3 +206,7 @@ class TurnResult(ContractModel):
     outcome: Outcome
     retrieval_mode: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    answer_archetype: AnswerArchetype | None = None
+    response_depth: ResponseDepth | None = None
+    routing_reason: str | None = None
+    prompt_profile_version: str | None = None

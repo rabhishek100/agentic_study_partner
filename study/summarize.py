@@ -1,21 +1,20 @@
 """One-call grounded summarization for a complete resolved scope."""
 
-from dataclasses import dataclass, replace
 import logging
 import re
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 import tiktoken
 
 from .context import DEFAULT_ENCODING, ScopeContext
+from .contracts import PromptProfile, ResponseDepth
+from .prompts import DEFAULT_PROMPT_PROFILE, build_answer_messages
 from .scope import ResolvedScope
 from .streaming import TokenCallback, invoke_with_streaming
 
-
 CITATION = re.compile(r"\[N(\d+):P(\d+)]")
-GROUPED_CITATION = re.compile(
-    r"\[((?:N\d+:P\d+)(?:\s*;\s*N\d+:P\d+)+)]"
-)
+GROUPED_CITATION = re.compile(r"\[((?:N\d+:P\d+)(?:\s*;\s*N\d+:P\d+)+)]")
 OPTIONAL_RECAP_TITLES = frozenset({"summary", "conclusion"})
 logger = logging.getLogger("study_partner.summarize")
 
@@ -46,9 +45,7 @@ class SummaryConfig:
             self.max_output_tokens + self.safety_margin_tokens
             >= self.context_window_tokens
         ):
-            raise ValueError(
-                "output and safety budgets must leave room for input"
-            )
+            raise ValueError("output and safety budgets must leave room for input")
 
 
 @dataclass(frozen=True)
@@ -60,11 +57,7 @@ class PromptBudget:
 
     @property
     def required_tokens(self) -> int:
-        return (
-            self.input_tokens
-            + self.max_output_tokens
-            + self.safety_margin_tokens
-        )
+        return self.input_tokens + self.max_output_tokens + self.safety_margin_tokens
 
     @property
     def fits(self) -> bool:
@@ -108,6 +101,8 @@ def build_summary_messages(
     context: ScopeContext,
     *,
     validation_feedback: tuple[str, ...] = (),
+    profile: PromptProfile | None = None,
+    response_depth: ResponseDepth = "interview",
 ) -> list[tuple[str, str]]:
     """Build the grounded prompt over the complete formatted scope."""
 
@@ -116,25 +111,9 @@ def build_summary_messages(
         allowed_pages_by_node.setdefault(node_id, []).append(page)
     required_sections = "\n".join(
         f"- Node {node.id}: {node.path_text}; allowed citations: "
-        + ", ".join(
-            f"[N{node.id}:P{page}]"
-            for page in allowed_pages_by_node[node.id]
-        )
+        + ", ".join(f"[N{node.id}:P{page}]" for page in allowed_pages_by_node[node.id])
         for node in scope.nodes
         if node.id in context.expected_node_ids
-    )
-    system = (
-        "You summarize technical-book evidence. Use only the supplied "
-        "evidence. Do not use outside knowledge or infer the contents of "
-        "omitted images. Cite every substantive claim using [N<node>:P<page>] "
-        "from the supplied block markers. Copy citations exactly from the "
-        "allowed citations listed for that node; never combine a node ID with "
-        "a page that is not in its allowed list. Preserve uncertainty when "
-        "evidence is incomplete. Complete coverage is more important than detail: "
-        "cite every node in Required coverage at least once, proceed in the "
-        "given order, and keep early sections concise so later sections are "
-        "not omitted. Do not add a references or sources section; the "
-        "application appends exact source metadata after validation."
     )
     correction = ""
     if validation_feedback:
@@ -145,36 +124,40 @@ def build_summary_messages(
             "Use only citation markers present in Required coverage or "
             "Complete evidence; do not guess or combine node IDs and pages.\n"
         )
-    human = f"""
-Summarize this complete {scope.kind} scope:
-
-Book: {scope.book_title}
-Scope: {scope.display_path}
-PDF pages: {scope.start_page}–{scope.end_page}
+    grounding = f"""
+This is a complete-scope interview review, not top-k retrieval. Cite every
+substantive claim with [N<node>:P<page>] copied exactly from the supplied block
+markers; never combine a node ID with a page outside that node's allowed list.
+Complete coverage is mandatory: cite every node in Required coverage at least
+once. Preserve the listed source order internally even when organizing the
+answer by interview usefulness. Do not infer omitted images.
 
 Required coverage:
 {required_sections}
 
-Return Markdown with:
-1. A title matching the scope.
-2. A concise overview.
-3. A concise section-by-section summary covering every required node in the
-   listed order, with at least one valid citation from each node.
-4. Key concepts and definitions.
-5. Important examples, comparisons, and tables.
-6. Main takeaways.
-
-If space becomes limited, shorten items 2, 4, 5, and 6 before omitting any
-required node from item 3.
-
-Use citations such as [N14:P21]. Do not cite the block suffix.
+If space becomes limited, shorten overview, examples, follow-ups, and revision
+cues before omitting a required node. Use citations such as [N14:P21] and do
+not cite block suffixes.
 {correction}
-
-Complete evidence:
-
-{context.text}
 """.strip()
-    return [("system", system), ("human", human)]
+    request_context = (
+        f"Book: {scope.book_title}\n"
+        f"Scope: {scope.display_path}\n"
+        f"PDF pages: {scope.start_page}–{scope.end_page}\n\n"
+        f"Required coverage:\n{required_sections}\n\n"
+        "If space becomes limited, shorten items 2, 4, 5, and 6 before "
+        "omitting any required node."
+        f"{correction}"
+    )
+    return build_answer_messages(
+        profile=profile or DEFAULT_PROMPT_PROFILE,
+        question=f"Prepare {scope.display_path} for a technical interview.",
+        evidence=context.text,
+        archetype="chapter_review",
+        depth=response_depth,
+        request_context=request_context,
+        additional_grounding=grounding,
+    )
 
 
 def prompt_budget(
@@ -185,10 +168,13 @@ def prompt_budget(
     """Estimate the complete request conservatively with explicit reserves."""
 
     encoding = tiktoken.get_encoding(config.encoding_name)
-    input_tokens = sum(
-        len(encoding.encode(role)) + len(encoding.encode(content)) + 4
-        for role, content in messages
-    ) + 4
+    input_tokens = (
+        sum(
+            len(encoding.encode(role)) + len(encoding.encode(content)) + 4
+            for role, content in messages
+        )
+        + 4
+    )
     return PromptBudget(
         input_tokens=input_tokens,
         max_output_tokens=config.max_output_tokens,
@@ -207,27 +193,17 @@ def validate_summary(
 
     errors: list[str] = []
     warnings: list[str] = []
-    citations = [
-        (int(node_id), int(page))
-        for node_id, page in CITATION.findall(text)
-    ]
+    citations = [(int(node_id), int(page)) for node_id, page in CITATION.findall(text)]
     valid_citations = {
-        citation
-        for citation in citations
-        if citation in context.allowed_citations
+        citation for citation in citations if citation in context.allowed_citations
     }
-    invalid_citations = sorted(
-        set(citations).difference(context.allowed_citations)
-    )
+    invalid_citations = sorted(set(citations).difference(context.allowed_citations))
     if not citations:
         errors.append("summary contains no citations")
     if invalid_citations:
         errors.append(
             "summary contains out-of-scope citations: "
-            + ", ".join(
-                f"[N{node_id}:P{page}]"
-                for node_id, page in invalid_citations
-            )
+            + ", ".join(f"[N{node_id}:P{page}]" for node_id, page in invalid_citations)
         )
 
     cited_nodes = frozenset(node_id for node_id, _ in valid_citations)
@@ -269,8 +245,7 @@ def normalize_citation_syntax(text: str) -> str:
 
     return GROUPED_CITATION.sub(
         lambda match: " ".join(
-            f"[{marker.strip()}]"
-            for marker in match.group(1).split(";")
+            f"[{marker.strip()}]" for marker in match.group(1).split(";")
         ),
         text,
     )
@@ -296,8 +271,7 @@ def append_references(text: str, *, scope: ResolvedScope) -> str:
         node = nodes[node_id]
         hierarchy = node.path_text.replace(" :: ", " → ")
         references.append(
-            f"- [N{node_id}:P{page}] {scope.book_title} → "
-            f"{hierarchy} — PDF p. {page}"
+            f"- [N{node_id}:P{page}] {scope.book_title} → {hierarchy} — PDF p. {page}"
         )
     return text.rstrip() + "\n\n" + "\n".join(references)
 
@@ -327,6 +301,8 @@ def summarize_scope(
     config: SummaryConfig | None = None,
     validation_feedback: tuple[str, ...] = (),
     token_callback: TokenCallback | None = None,
+    profile: PromptProfile | None = None,
+    response_depth: ResponseDepth = "interview",
 ) -> SummaryResult:
     """Make one complete-scope call and validate the returned citations."""
 
@@ -335,13 +311,13 @@ def summarize_scope(
         scope,
         context,
         validation_feedback=validation_feedback,
+        profile=profile,
+        response_depth=response_depth,
     )
     budget = prompt_budget(messages, config=config)
     if not budget.fits:
         raise ContextWindowExceededError(budget)
-    response = invoke_with_streaming(
-        model, messages, token_callback=token_callback
-    )
+    response = invoke_with_streaming(model, messages, token_callback=token_callback)
     text = normalize_citation_syntax(_response_text(response))
     return SummaryResult(
         text=text,
@@ -361,6 +337,8 @@ def summarize_scope_with_repair(
     scope: ResolvedScope,
     context: ScopeContext,
     config: SummaryConfig | None = None,
+    profile: PromptProfile | None = None,
+    response_depth: ResponseDepth = "interview",
 ) -> SummaryResult:
     """Use complete provider responses and repair only genuine invalid drafts.
 
@@ -376,6 +354,8 @@ def summarize_scope_with_repair(
         context=context,
         config=config,
         token_callback=None,
+        profile=profile,
+        response_depth=response_depth,
     )
     if first.validation.valid:
         return first
@@ -394,6 +374,8 @@ def summarize_scope_with_repair(
         config=config,
         validation_feedback=first.validation.errors,
         token_callback=None,
+        profile=profile,
+        response_depth=response_depth,
     )
     if repaired.validation.valid:
         logger.info(
@@ -421,6 +403,8 @@ def summarize_scope_with_repair(
         config=config,
         validation_feedback=repaired.validation.errors,
         token_callback=None,
+        profile=profile,
+        response_depth=response_depth,
     )
     if not final.validation.valid:
         logger.warning(

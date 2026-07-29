@@ -8,8 +8,8 @@ from httpx import ASGITransport, AsyncClient
 from api.auth import current_owner
 from api.main import app
 from study.contracts import ConversationState, TurnResult
+from study.prompts import DEFAULT_PROMPT_PROFILE
 from study.query import QueryExecutionError
-
 
 OWNER_ID = UUID("11111111-1111-4111-8111-111111111111")
 CONVERSATION_ID = UUID("22222222-2222-4222-8222-222222222222")
@@ -194,6 +194,65 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         # The listing is scoped by the verified token subject, never by input.
         self.assertEqual(books.call_args.kwargs["owner_id"], OWNER_ID)
 
+    @patch("api.main.load_prompt_profile", return_value=None)
+    @patch("api.main.database_connection")
+    async def test_prompt_settings_expose_locked_and_editable_layers(
+        self,
+        open_connection,
+        load_profile,
+    ):
+        open_connection.return_value.__enter__.return_value = MagicMock()
+
+        response = await self.client.get("/api/prompt-settings")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("Grounding requirements", payload["locked_system_prompt"])
+        self.assertIn(
+            "interview-preparation study partner",
+            payload["profile"]["interview_instructions"],
+        )
+        self.assertIn(
+            "{book_evidence_inserted_by_server}",
+            payload["preview_user_prompt"],
+        )
+        load_profile.assert_called_once()
+
+    @patch("api.main.save_prompt_profile")
+    @patch("api.main.database_connection")
+    async def test_prompt_settings_save_an_owner_scoped_profile(
+        self,
+        open_connection,
+        save_profile,
+    ):
+        profile = DEFAULT_PROMPT_PROFILE.model_dump(mode="json")
+        profile["concept_template"] += "\nPrefer one memorable analogy."
+        save_profile.return_value = profile
+        open_connection.return_value.__enter__.return_value = MagicMock()
+
+        response = await self.client.patch(
+            "/api/prompt-settings",
+            json={"profile": profile},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "memorable analogy",
+            response.json()["profile"]["concept_template"],
+        )
+        self.assertEqual(save_profile.call_args.kwargs["owner_id"], OWNER_ID)
+
+    async def test_prompt_preview_rejects_a_template_without_evidence(self):
+        profile = DEFAULT_PROMPT_PROFILE.model_dump(mode="json")
+        profile["user_prompt_template"] = "Question: {question}"
+
+        response = await self.client.post(
+            "/api/prompt-settings/preview",
+            json={"profile": profile},
+        )
+
+        self.assertEqual(response.status_code, 422)
+
     @patch("api.main.execute_conversation_turn")
     async def test_chat_returns_result_and_updated_state(self, execute):
         result = TurnResult(
@@ -215,6 +274,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
                     "question": "What is training-serving skew?",
                     "retrieval_mode": "hybrid",
                     "book_ids": [1],
+                    "response_depth": "deep",
                 },
             )
 
@@ -227,6 +287,7 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
             str(CONVERSATION_ID),
         )
         self.assertEqual(execute.call_args.kwargs["owner_id"], OWNER_ID)
+        self.assertEqual(execute.call_args.kwargs["response_depth"], "deep")
         store["append"].assert_called_once()
 
     @patch("api.main.execute_conversation_turn")

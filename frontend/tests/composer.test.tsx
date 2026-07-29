@@ -11,6 +11,8 @@ function renderComposer(overrides: Partial<React.ComponentProps<typeof Composer>
     placeholder: "Ask about the book…",
     onSubmit: vi.fn(),
     onStop: vi.fn(),
+    responseDepth: "interview" as const,
+    onResponseDepthChange: vi.fn(),
     ...overrides,
   };
   render(<Composer {...props} />);
@@ -61,6 +63,16 @@ describe("Composer", () => {
     );
 
     expect(onSubmit).toHaveBeenCalledExactlyOnceWith("padded question");
+  });
+
+  it("lets the reader choose a deep-dive response", async () => {
+    const user = userEvent.setup();
+    const { onResponseDepthChange } = renderComposer();
+
+    await user.click(screen.getByLabelText("Response depth"));
+    await user.click(screen.getByRole("option", { name: "Deep dive" }));
+
+    expect(onResponseDepthChange).toHaveBeenCalledExactlyOnceWith("deep");
   });
 
   it("offers stop instead of send while streaming, and does not submit", async () => {

@@ -264,9 +264,24 @@ sidebar, and the book becomes selectable when verification finishes. Run the
 worker (`uv run python -m worker.main`) alongside the API or uploads will
 queue without being processed.
 
+Chat defaults to an interview-preparation profile. Each answer is shaped as a
+concept explanation, system-design walkthrough, or complete-scope interview
+review, while the existing book-only grounding and citation rules remain
+mandatory. The composer offers Quick answer, Interview answer, and Deep dive;
+explicit wording such as “briefly” or “go deeper” overrides that selection for
+the turn.
+
+Prompt settings expose the locked grounding message, editable interview
+instructions, archetype-specific response templates, the editable user-message
+template, and a compiled preview. Owner defaults are stored in Postgres and
+snapshotted when a conversation starts, so changing a default does not silently
+change an existing study history. The answer inspector records the selected
+archetype, resolved depth, routing reason, and prompt-profile version.
+
 The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
-`POST /api/chat/stream`, and the `/api/ingestions` lifecycle. Everything except
-health requires a Supabase bearer token.
+`POST /api/chat/stream`, `GET/PATCH /api/prompt-settings`, prompt preview,
+conversation CRUD, and the `/api/ingestions` lifecycle. Everything except health
+requires a Supabase bearer token.
 
 Health reports infrastructure readiness only: it returns 503 when the canonical
 or retrieval schema is missing, and stays healthy while a book is being

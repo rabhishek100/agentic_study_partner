@@ -3,11 +3,12 @@
 import { ArrowDown } from "lucide-react";
 
 import { Composer } from "@/components/conversation/composer";
+import { PromptSettings } from "@/components/conversation/prompt-settings";
 import { TurnView } from "@/components/conversation/turn-view";
 import { Welcome } from "@/components/conversation/welcome";
 import { Button } from "@/components/ui/button";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
-import type { ChatTurn, EvidenceRef } from "@/lib/types";
+import type { ChatTurn, EvidenceRef, ResponseDepth } from "@/lib/types";
 
 /**
  * Announced to assistive technology when a turn settles.
@@ -32,6 +33,9 @@ export interface ConversationViewProps {
   onSend: (question: string) => void;
   onStop: () => void;
   onRetry: () => void;
+  conversationId: string | null;
+  responseDepth: ResponseDepth;
+  onResponseDepthChange: (depth: ResponseDepth) => void;
   /** What the next question will search, e.g. "All 3 books". */
   scopeSummary?: string | null;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
@@ -45,6 +49,9 @@ export function ConversationView({
   onSend,
   onStop,
   onRetry,
+  conversationId,
+  responseDepth,
+  onResponseDepthChange,
   scopeSummary,
   onOpenReference,
 }: ConversationViewProps) {
@@ -115,6 +122,14 @@ export function ConversationView({
             }
             onSubmit={onSend}
             onStop={onStop}
+            responseDepth={responseDepth}
+            onResponseDepthChange={onResponseDepthChange}
+            settingsControl={
+              <PromptSettings
+                conversationId={conversationId}
+                responseDepth={responseDepth}
+              />
+            }
           />
           <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
             {scopeSummary

@@ -10,6 +10,7 @@ import type {
   ChatTurn,
   ConversationDetail,
   ConversationState,
+  ResponseDepth,
   RetrievalMode,
 } from "@/lib/types";
 
@@ -19,6 +20,7 @@ const STREAM_IDLE_TIMEOUT_MS = 60_000;
 interface SendOptions {
   bookIds: number[];
   retrievalMode: RetrievalMode;
+  responseDepth: ResponseDepth;
 }
 
 /**
@@ -50,7 +52,10 @@ export function useChat() {
   }, []);
 
   const send = useCallback(
-    async (question: string, { bookIds, retrievalMode }: SendOptions) => {
+    async (
+      question: string,
+      { bookIds, retrievalMode, responseDepth }: SendOptions,
+    ) => {
       const submitted = question.trim();
       if (!submitted || controllerRef.current) return;
 
@@ -98,6 +103,7 @@ export function useChat() {
             retrieval_mode: retrievalMode,
             book_ids: bookIds,
             conversation_id: conversationId,
+            response_depth: responseDepth,
           }),
           signal: controller.signal,
         });

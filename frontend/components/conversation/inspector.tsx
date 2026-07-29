@@ -26,6 +26,19 @@ const DEPENDENCY_LABELS: Record<TurnResult["history_dependency"], string> = {
   ambiguous: "Ambiguous without history",
 };
 
+const ARCHETYPE_LABELS = {
+  concept_explanation: "Concept explanation",
+  system_design: "System-design walkthrough",
+  chapter_review: "Interview revision",
+  answer_transform: "Answer transformation",
+} as const;
+
+const DEPTH_LABELS = {
+  quick: "Quick answer",
+  interview: "Interview answer",
+  deep: "Deep dive",
+} as const;
+
 function Row({ term, children }: { term: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-3 border-b border-border py-1.5 last:border-b-0">
@@ -67,6 +80,22 @@ export function AnswerInspector({ result }: { result: TurnResult }) {
           <Row term="Question type">
             {DEPENDENCY_LABELS[result.history_dependency]}
           </Row>
+          {result.answer_archetype && (
+            <Row term="Answer style">
+              {ARCHETYPE_LABELS[result.answer_archetype]}
+            </Row>
+          )}
+          {result.response_depth && (
+            <Row term="Depth">{DEPTH_LABELS[result.response_depth]}</Row>
+          )}
+          {result.routing_reason && (
+            <Row term="Routing reason">{result.routing_reason}</Row>
+          )}
+          {result.prompt_profile_version && (
+            <Row term="Prompt version">
+              <span className="font-mono">{result.prompt_profile_version}</span>
+            </Row>
+          )}
           {result.standalone_query && (
             <Row term="Searched for">
               <span className="font-mono">{result.standalone_query}</span>
