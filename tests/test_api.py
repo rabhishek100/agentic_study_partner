@@ -288,7 +288,52 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(execute.call_args.kwargs["owner_id"], OWNER_ID)
         self.assertEqual(execute.call_args.kwargs["response_depth"], "deep")
+        self.assertIsNone(execute.call_args.kwargs["turn_book_ids"])
         store["append"].assert_called_once()
+
+    @patch("api.main.execute_conversation_turn")
+    async def test_chat_narrows_one_turn_to_mentioned_books(self, execute):
+        result = TurnResult(
+            question="Explain skew in @[Second Book]",
+            answer="A grounded answer [S1].",
+            route="retrieval_qa",
+            history_dependency="independent",
+            standalone_query="Explain skew",
+            outcome="answer",
+        )
+        execute.return_value = (
+            result,
+            ConversationState(conversation_id="c", book_ids=[1, 2]),
+        )
+
+        with owner_scoped_books({1, 2}), stubbed_conversation_store():
+            response = await self.client.post(
+                "/api/chat",
+                json={
+                    "question": "Explain skew in @[Second Book]",
+                    "book_ids": [1, 2],
+                    "mentioned_book_ids": [2],
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(execute.call_args.kwargs["book_ids"], [1, 2])
+        self.assertEqual(execute.call_args.kwargs["turn_book_ids"], [2])
+
+    @patch("api.main.execute_conversation_turn")
+    async def test_chat_rejects_an_unavailable_mentioned_book(self, execute):
+        with owner_scoped_books({1}):
+            response = await self.client.post(
+                "/api/chat",
+                json={
+                    "question": "Explain skew in @[Other Book]",
+                    "book_ids": [1],
+                    "mentioned_book_ids": [4242],
+                },
+            )
+
+        self.assertEqual(response.status_code, 404)
+        execute.assert_not_called()
 
     @patch("api.main.execute_conversation_turn")
     async def test_chat_rejects_a_book_the_caller_cannot_use(self, execute):

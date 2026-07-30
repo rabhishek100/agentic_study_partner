@@ -47,16 +47,24 @@ class StudyGraphContext:
     token_callback: TokenCallback | None = None
     prompt_profile: PromptProfile | None = None
     response_depth: ResponseDepth = "interview"
+    # Optional per-turn narrowing supplied by explicit @book mentions. The
+    # conversation's library selection remains unchanged for later turns.
+    turn_book_ids: tuple[int, ...] | None = None
 
 
 def plan_turn(
     state: StudyGraphState,
     runtime: Runtime[StudyGraphContext],
 ) -> dict:
+    conversation = state["conversation"]
+    if runtime.context.turn_book_ids:
+        conversation = conversation.model_copy(
+            update={"book_ids": list(runtime.context.turn_book_ids)}
+        )
     return {
         "decision": analyze_turn(
             state["question"],
-            state["conversation"],
+            conversation,
             runtime.context.database_url,
             owner_id=runtime.context.owner_id,
             model=runtime.context.analysis_model,
@@ -99,6 +107,7 @@ def execute_route(
             token_callback=runtime.context.token_callback,
             prompt_profile=runtime.context.prompt_profile,
             response_depth=runtime.context.response_depth,
+            turn_book_ids=runtime.context.turn_book_ids,
         )
     }
 

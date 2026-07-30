@@ -96,10 +96,13 @@ export default function Page() {
   const canSend = hasBooks && selectedBookIds.length > 0;
 
   const handleSend = useCallback(
-    async (question: string) => {
-      if (selectedBookIds.length === 0) return;
+    async (question: string, mentionedBookIds: number[] = []) => {
+      const requestBookIds =
+        selectedBookIds.length > 0 ? selectedBookIds : mentionedBookIds;
+      if (requestBookIds.length === 0) return;
       await send(question, {
-        bookIds: selectedBookIds,
+        bookIds: requestBookIds,
+        mentionedBookIds,
         retrievalMode,
         responseDepth,
       });
@@ -130,9 +133,19 @@ export default function Page() {
   );
 
   const handleRetry = useCallback(() => {
-    if (selectedBookIds.length === 0) return;
-    retry({ bookIds: selectedBookIds, retrievalMode, responseDepth });
-  }, [retry, selectedBookIds, retrievalMode, responseDepth]);
+    const retryBookIds =
+      selectedBookIds.length > 0
+        ? selectedBookIds
+        : (conversation?.book_ids ?? []);
+    if (retryBookIds.length === 0) return;
+    retry({ bookIds: retryBookIds, retrievalMode, responseDepth });
+  }, [
+    retry,
+    selectedBookIds,
+    conversation,
+    retrievalMode,
+    responseDepth,
+  ]);
 
   const openReference = useCallback(
     (reference: EvidenceRef, page?: number) => {
@@ -258,6 +271,7 @@ export default function Page() {
       }
     >
       <ConversationView
+        books={books}
         onOpenReference={openReference}
         turns={turns}
         isStreaming={isStreaming}

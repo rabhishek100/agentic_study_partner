@@ -127,6 +127,7 @@ def execute_decision(
     token_callback: TokenCallback | None = None,
     prompt_profile: PromptProfile | None = None,
     response_depth: ResponseDepth = "interview",
+    turn_book_ids: Sequence[int] | None = None,
 ) -> TurnResult:
     profile = prompt_profile or DEFAULT_PROMPT_PROFILE
     resolved_depth = resolve_response_depth(question, response_depth)
@@ -160,7 +161,7 @@ def execute_decision(
     result = execute_query(
         execution_question,
         database_url=database_url,
-        book_ids=state.book_ids or None,
+        book_ids=turn_book_ids or state.book_ids or None,
         retrieval_mode=retrieval_mode,
         owner_id=owner_id,
         model=model,
@@ -236,6 +237,7 @@ def execute_conversation_turn(
     database_url: str | None = None,
     book_id: int | None = None,
     book_ids: Sequence[int] | None = None,
+    turn_book_ids: Sequence[int] | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     analysis_model: AnalysisModel | None = None,
     generation_model: ChatModel | None = None,
@@ -275,6 +277,11 @@ def execute_conversation_turn(
             token_callback=token_callback,
             prompt_profile=prompt_profile or DEFAULT_PROMPT_PROFILE,
             response_depth=response_depth,
+            turn_book_ids=(
+                tuple(sorted({int(identifier) for identifier in turn_book_ids}))
+                if turn_book_ids
+                else None
+            ),
         ),
     )
     return output["result"], output["conversation"]

@@ -3,6 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Composer } from "@/components/conversation/composer";
+import type { BookSummary } from "@/lib/types";
+
+const BOOKS: BookSummary[] = [
+  {
+    book_id: 7,
+    title: "Designing Machine Learning Systems",
+    author: "Chip Huyen",
+    page_count: 300,
+    ready_at: null,
+    chunk_count: 10,
+    embedding_count: 10,
+    retrieval_complete: true,
+  },
+];
 
 function renderComposer(overrides: Partial<React.ComponentProps<typeof Composer>> = {}) {
   const props = {
@@ -91,5 +105,38 @@ describe("Composer", () => {
 
     expect(screen.getByLabelText("Ask about the book")).toBeDisabled();
     expect(screen.getByLabelText("Send question")).toBeDisabled();
+  });
+
+  it("offers matching books after @ and submits the selected tag", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderComposer({ books: BOOKS });
+    const textarea = screen.getByLabelText("Ask about the book");
+
+    await user.type(textarea, "Explain feature stores in @Designing");
+    await user.click(
+      screen.getByRole("option", {
+        name: /Designing Machine Learning Systems/i,
+      }),
+    );
+    await user.type(textarea, "{Enter}");
+
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
+      "Explain feature stores in @[Designing Machine Learning Systems]",
+      [7],
+    );
+  });
+
+  it("requires an @book tag when there is no default selection", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderComposer({
+      books: BOOKS,
+      hasDefaultScope: false,
+    });
+
+    await user.type(screen.getByLabelText("Ask about the book"), "Explain drift");
+
+    expect(screen.getByLabelText("Send question")).toBeDisabled();
+    expect(screen.getByText(/tag a book with @/i)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

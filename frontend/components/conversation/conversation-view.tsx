@@ -8,7 +8,12 @@ import { TurnView } from "@/components/conversation/turn-view";
 import { Welcome } from "@/components/conversation/welcome";
 import { Button } from "@/components/ui/button";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
-import type { ChatTurn, EvidenceRef, ResponseDepth } from "@/lib/types";
+import type {
+  BookSummary,
+  ChatTurn,
+  EvidenceRef,
+  ResponseDepth,
+} from "@/lib/types";
 
 /**
  * Announced to assistive technology when a turn settles.
@@ -30,12 +35,13 @@ export interface ConversationViewProps {
   isStreaming: boolean;
   hasBooks: boolean;
   canSend: boolean;
-  onSend: (question: string) => void;
+  onSend: (question: string, mentionedBookIds?: number[]) => void;
   onStop: () => void;
   onRetry: () => void;
   conversationId: string | null;
   responseDepth: ResponseDepth;
   onResponseDepthChange: (depth: ResponseDepth) => void;
+  books: BookSummary[];
   /** What the next question will search, e.g. "All 3 books". */
   scopeSummary?: string | null;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
@@ -52,6 +58,7 @@ export function ConversationView({
   conversationId,
   responseDepth,
   onResponseDepthChange,
+  books,
   scopeSummary,
   onOpenReference,
 }: ConversationViewProps) {
@@ -77,14 +84,18 @@ export function ConversationView({
           className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6"
         >
           {isEmpty ? (
-            <Welcome hasBooks={hasBooks} onAsk={onSend} />
+            <Welcome
+              hasBooks={hasBooks}
+              canUseStarters={canSend}
+              onAsk={onSend}
+            />
           ) : (
             turns.map((turn, index) => (
               <TurnView
                 key={turn.id}
                 turn={turn}
                 isLast={index === turns.length - 1}
-                canRetry={canSend && !isStreaming}
+                canRetry={hasBooks && !isStreaming}
                 onRetry={onRetry}
                 onOpenReference={onOpenReference}
               />
@@ -115,13 +126,15 @@ export function ConversationView({
 
         <div className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6">
           <Composer
-            disabled={!canSend}
+            disabled={!hasBooks}
             isStreaming={isStreaming}
             placeholder={
               hasBooks ? "Ask about the book…" : "Upload a book first…"
             }
             onSubmit={onSend}
             onStop={onStop}
+            books={books}
+            hasDefaultScope={canSend}
             responseDepth={responseDepth}
             onResponseDepthChange={onResponseDepthChange}
             settingsControl={
@@ -132,7 +145,9 @@ export function ConversationView({
             }
           />
           <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
-            {scopeSummary
+            {!canSend && hasBooks
+              ? "No default scope — type @ to tag a book for this question."
+              : scopeSummary
               ? `Answers are limited to evidence found in ${scopeSummary.toLowerCase()}.`
               : "Answers are limited to the evidence found in your books."}
           </p>

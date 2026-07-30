@@ -280,4 +280,6 @@ export interface ChatTurn {
   /** Present once the turn settles; drives references and the inspector. */
   result: TurnResult | null;
   error: string | null;
+  /** Per-turn @book narrowing, retained so retry repeats the same scope. */
+  mentionedBookIds?: number[];
 }

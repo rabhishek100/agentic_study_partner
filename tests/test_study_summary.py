@@ -112,6 +112,20 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             parse_study_request("what chapters does this book have"),
             StudyRequest("list_chapters", "book", ""),
         )
+        self.assertEqual(
+            parse_study_request(
+                "what are the chapters in the System Design Interview book"
+            ),
+            StudyRequest(
+                "list_chapters",
+                "book",
+                "System Design Interview",
+            ),
+        )
+        self.assertEqual(
+            parse_study_request("show me the chapters from @[Sample Book]"),
+            StudyRequest("list_chapters", "book", "Sample Book"),
+        )
         with self.assertRaises(UnsupportedStudyRequestError):
             parse_study_request("Tell me something interesting")
 

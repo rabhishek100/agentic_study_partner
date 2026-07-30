@@ -11,9 +11,11 @@ const STARTERS = [
 
 export function Welcome({
   hasBooks,
+  canUseStarters = true,
   onAsk,
 }: {
   hasBooks: boolean;
+  canUseStarters?: boolean;
   onAsk: (question: string) => void;
 }) {
   return (
@@ -24,7 +26,9 @@ export function Welcome({
       </h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
         {hasBooks
-          ? "Start with one of these, or ask your own question."
+          ? canUseStarters
+            ? "Start with one of these, or ask your own question."
+            : "Type @ in the question box to choose a book."
           : "Add a PDF from the library panel. It becomes selectable once processing and verification finish."}
       </p>
 
@@ -37,6 +41,7 @@ export function Welcome({
               size="lg"
               className="h-auto justify-start whitespace-normal px-4 py-3 text-left font-normal"
               onClick={() => onAsk(starter)}
+              disabled={!canUseStarters}
             >
               {starter}
             </Button>

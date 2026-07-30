@@ -55,9 +55,6 @@ export function BookSelector({
     const next = new Set(selectedSet);
     if (next.has(bookId)) next.delete(bookId);
     else next.add(bookId);
-    // Never allow an empty selection: the API rejects it, and "no books" is
-    // not a question anyone means to ask.
-    if (next.size === 0) return;
     onChange([...next].sort((a, b) => a - b));
   }
 
@@ -89,10 +86,13 @@ export function BookSelector({
             <Button
               variant="ghost"
               size="xs"
-              disabled={allSelected}
-              onClick={() => onChange(books.map((book) => book.book_id))}
+              onClick={() =>
+                onChange(
+                  allSelected ? [] : books.map((book) => book.book_id),
+                )
+              }
             >
-              Select all
+              {allSelected ? "Deselect all" : "Select all"}
             </Button>
           </div>
           <Separator />

@@ -93,6 +93,9 @@ class ChatRequest(ContractModel):
     # never fall back to book 1, and it must never silently widen to the whole
     # library either. The client sends the reader's selection explicitly.
     book_ids: list[int] = Field(min_length=1, max_length=50)
+    # Book ids explicitly tagged with @ in this turn. These narrow retrieval
+    # for the turn without rewriting the conversation's default selection.
+    mentioned_book_ids: list[int] = Field(default_factory=list, max_length=50)
     # Null starts a new conversation. Conversation state is loaded from and
     # written to the database by the server; it is deliberately no longer
     # accepted from the client, which previously held the only copy and could
@@ -100,7 +103,7 @@ class ChatRequest(ContractModel):
     conversation_id: UUID | None = None
     response_depth: ResponseDepth = "interview"
 
-    @field_validator("book_ids")
+    @field_validator("book_ids", "mentioned_book_ids")
     @classmethod
     def unique_positive_book_ids(cls, value: list[int]) -> list[int]:
         if any(identifier <= 0 for identifier in value):
@@ -450,6 +453,7 @@ def _run_turn(
         owner_id=owner_id,
         retrieval_mode=request.retrieval_mode,
         book_ids=request.book_ids,
+        turn_book_ids=request.mentioned_book_ids or None,
         token_callback=token_callback,
         prompt_profile=prompt_profile,
         response_depth=request.response_depth,
@@ -528,7 +532,11 @@ async def chat(
     request: ChatRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ChatResponse:
-    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
+    await run_in_threadpool(
+        _require_ready_books,
+        owner_id,
+        sorted(set(request.book_ids + request.mentioned_book_ids)),
+    )
     try:
         return await run_in_threadpool(_run_turn, owner_id, request)
     except HTTPException:
@@ -573,7 +581,11 @@ async def chat_stream(
     `error` event.
     """
 
-    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
+    await run_in_threadpool(
+        _require_ready_books,
+        owner_id,
+        sorted(set(request.book_ids + request.mentioned_book_ids)),
+    )
     loop = asyncio.get_running_loop()
     events: queue.Queue = queue.Queue()
 

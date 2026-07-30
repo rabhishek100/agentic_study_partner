@@ -97,6 +97,16 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
             self.state(),
             FailIfCalled(),
         )
+        natural_chapters = self.analyze(
+            "what are the chapters in the Hierarchy Book?",
+            self.state(),
+            FailIfCalled(),
+        )
+        mentioned_chapters = self.analyze(
+            "show me the chapters from @[Hierarchy Book]",
+            self.state(),
+            FailIfCalled(),
+        )
 
         self.assertEqual(summary.route, "hierarchy_summary")
         self.assertEqual(
@@ -107,6 +117,10 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(chapters.route, "hierarchy_list")
         self.assertEqual(chapters.resolved_scope.kind, "book")
         self.assertIsNone(chapters.resolved_scope.node_id)
+        self.assertEqual(natural_chapters.route, "hierarchy_list")
+        self.assertEqual(natural_chapters.resolved_scope.book_id, self.book_id)
+        self.assertEqual(mentioned_chapters.route, "hierarchy_list")
+        self.assertEqual(mentioned_chapters.resolved_scope.book_id, self.book_id)
 
     def test_model_rewrites_followup_and_selects_only_canonical_scope(self):
         active = self.scope("Low-Rank Factorization")
