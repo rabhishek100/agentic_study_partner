@@ -211,7 +211,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
         # The repair is reported as a warning rather than pasted into the
         # answer, so the interface can present it as metadata.
         self.assertTrue(
-            any("regenerated" in warning for warning in result.warnings),
+            any("automatically repaired" in warning for warning in result.warnings),
             result.warnings,
         )
 
@@ -326,9 +326,10 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             },
         )
         for depth, expected_k in (("quick", 5), ("interview", 8), ("deep", 8)):
-            with self.subTest(depth=depth), patch(
-                "study.query.BookRetriever"
-            ) as retriever:
+            with (
+                self.subTest(depth=depth),
+                patch("study.query.BookRetriever") as retriever,
+            ):
                 retriever.return_value.invoke.return_value = [document]
                 execute_query(
                     "Explain the core idea.",

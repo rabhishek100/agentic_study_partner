@@ -396,8 +396,124 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertFalse(validation.errors)
         self.assertEqual(validation.missing_node_ids, frozenset({recap_id}))
         self.assertTrue(
-            any("optional recap nodes" in warning for warning in validation.warnings)
+            any(
+                "optional supporting sections" in warning
+                for warning in validation.warnings
+            )
         )
+
+    def test_interview_review_treats_lab_descendants_as_optional(self) -> None:
+        scope, context = self._chapter_context()
+        lab_id = max(scope.node_ids) + 1
+        lab = ScopeNode(
+            id=lab_id,
+            book_id=scope.book_id,
+            parent_id=scope.root_node_id,
+            toc_index=max(node.toc_index for node in scope.nodes) + 1,
+            level=2,
+            node_type="section",
+            title="5.3 Lab: Cross-Validation",
+            path_text=f"{scope.display_path} :: 5.3 Lab: Cross-Validation",
+            start_page=5,
+            end_page=5,
+        )
+        scope = replace(scope, nodes=(*scope.nodes, lab))
+        context = replace(
+            context,
+            expected_node_ids=context.expected_node_ids.union({lab_id}),
+            allowed_citations=context.allowed_citations.union({(lab_id, 5)}),
+        )
+        citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id in sorted(context.expected_node_ids - {lab_id})
+            for candidate_node, page in sorted(context.allowed_citations)
+            if candidate_node == node_id
+        )
+
+        interview = validate_summary(
+            f"Grounded interview review. {citations}",
+            scope=scope,
+            context=context,
+            response_depth="interview",
+        )
+        deep = validate_summary(
+            f"Grounded deep review. {citations}",
+            scope=scope,
+            context=context,
+            response_depth="deep",
+        )
+
+        self.assertTrue(interview.valid)
+        self.assertEqual(interview.optional_missing_node_ids, frozenset({lab_id}))
+        self.assertFalse(deep.valid)
+        self.assertEqual(deep.required_missing_node_ids, frozenset({lab_id}))
+
+    def test_missing_coverage_gets_a_targeted_addendum(self) -> None:
+        scope, context = self._chapter_context()
+        ordered_ids = [
+            node.id for node in scope.nodes if node.id in context.expected_node_ids
+        ]
+        missing_id = ordered_ids[-1]
+        initial_citations = " ".join(
+            f"[N{node_id}:P{page}]"
+            for node_id in ordered_ids[:-1]
+            for candidate_node, page in sorted(context.allowed_citations)
+            if candidate_node == node_id
+        )
+        missing_page = next(
+            page for node_id, page in context.allowed_citations if node_id == missing_id
+        )
+        model = SequenceSummaryModel(
+            f"Initial safe summary. {initial_citations}",
+            f"Missing interview point. [N{missing_id}:P{missing_page}]",
+        )
+
+        result = summarize_scope_with_repair(
+            model,
+            scope=scope,
+            context=context,
+        )
+
+        self.assertTrue(result.validation.valid)
+        self.assertEqual(result.attempt_count, 2)
+        self.assertIn("## Additional interview points", result.text)
+        repair_system, repair_human = model.messages[1]
+        self.assertIn(
+            "Write only a concise Markdown coverage addendum", repair_system[1]
+        )
+        self.assertIn(f"Node {missing_id}", repair_human[1])
+        for covered_id in ordered_ids[:-1]:
+            self.assertNotIn(f"## Node {covered_id}:", repair_human[1])
+
+    def test_returns_best_citation_safe_draft_when_coverage_repair_stalls(
+        self,
+    ) -> None:
+        scope, context = self._chapter_context()
+        ordered_ids = [
+            node.id for node in scope.nodes if node.id in context.expected_node_ids
+        ]
+        missing_id = ordered_ids[-1]
+        covered_id = ordered_ids[0]
+        covered_page = next(
+            page for node_id, page in context.allowed_citations if node_id == covered_id
+        )
+        safe_but_incomplete = f"Verified point. [N{covered_id}:P{covered_page}]"
+        model = SequenceSummaryModel(
+            safe_but_incomplete,
+            safe_but_incomplete,
+            safe_but_incomplete,
+        )
+
+        result = summarize_scope_with_repair(
+            model,
+            scope=scope,
+            context=context,
+        )
+
+        self.assertTrue(result.validation.citation_safe)
+        self.assertFalse(result.validation.coverage_complete)
+        self.assertIn(missing_id, result.validation.required_missing_node_ids)
+        self.assertEqual(result.attempt_count, 3)
 
     def test_appends_exact_references_for_citations_used(self) -> None:
         scope, _ = self._chapter_context()

@@ -227,16 +227,10 @@ def _answer_hierarchy_request(
         profile=prompt_profile,
         response_depth=response_depth,
     )
-    if not result.validation.valid:
-        finish_reason = (
-            f" (model finish reason: {result.finish_reason})"
-            if result.finish_reason
-            else ""
-        )
+    if not result.validation.citation_safe:
         raise QueryExecutionError(
-            f"summary validation failed after "
-            f"{result.attempt_count} attempt(s){finish_reason}: "
-            + "; ".join(result.validation.errors)
+            "I could not produce a summary with fully verified citations. "
+            "Please try again; no unverified draft was shown."
         )
 
     # The answer is the summary and nothing else. The scope, the reference
@@ -246,18 +240,32 @@ def _answer_hierarchy_request(
     # structure. Baking them into markdown made them unreadable and forced the
     # client to parse prose to recover data the server already had.
     answer = result.text.rstrip()
+    nodes = {node.id: node for node in scope.nodes}
     warnings = list(result.validation.warnings)
+    if result.validation.required_missing_node_ids:
+        missing_paths = [
+            nodes[node_id].path_text
+            for node_id in sorted(
+                result.validation.required_missing_node_ids,
+                key=lambda node_id: nodes[node_id].toc_index,
+            )
+        ]
+        warnings.append(
+            "Some chapter material could not be incorporated without weakening "
+            "citation guarantees: "
+            + "; ".join(missing_paths)
+            + ". The answer contains only verified material."
+        )
     if result.attempt_count > 1:
         warnings.append(
-            "An earlier draft failed deterministic citation validation and "
-            "was regenerated with exact validation feedback."
+            "The answer was automatically repaired to improve source coverage "
+            "and citation accuracy."
         )
     if token_callback is not None:
-        # Summary drafts are buffered until citation validation succeeds. This
-        # exposes one stable answer instead of streaming an invalid draft and
-        # visibly restarting during a repair attempt.
+        # Summary drafts are buffered until citation safety is established.
+        # This exposes one stable answer instead of streaming an invalid draft
+        # and visibly restarting during a repair attempt.
         token_callback("token", answer)
-    nodes = {node.id: node for node in scope.nodes}
     evidence = [
         EvidenceRef(
             node_id=node_id,
