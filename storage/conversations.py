@@ -13,7 +13,6 @@ from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
 
-
 # Long enough to tell two conversations apart in a list, short enough not to
 # wrap in the sidebar.
 TITLE_LIMIT = 60
@@ -42,18 +41,27 @@ def create_conversation(
     book_ids: Sequence[int],
     retrieval_mode: str,
     title: str,
+    prompt_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     scope = sorted({int(identifier) for identifier in book_ids})
     if not scope:
         raise ValueError("a conversation must be scoped to at least one book")
     return connection.execute(
         """
-        insert into conversations (owner_id, title, book_ids, retrieval_mode)
-        values (%s, %s, %s, %s)
-        returning id, title, book_ids, retrieval_mode, state_json,
+        insert into conversations (
+            owner_id, title, book_ids, retrieval_mode, prompt_profile_json
+        )
+        values (%s, %s, %s, %s, %s)
+        returning id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
                   created_at, updated_at
         """,
-        (parse_owner_id(owner_id), title, scope, retrieval_mode),
+        (
+            parse_owner_id(owner_id),
+            title,
+            scope,
+            retrieval_mode,
+            Jsonb(prompt_profile or {}),
+        ),
     ).fetchone()
 
 
@@ -70,7 +78,7 @@ def load_conversation(
 
     return connection.execute(
         """
-        select id, title, book_ids, retrieval_mode, state_json,
+        select id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
                created_at, updated_at
         from conversations
         where id = %s and owner_id = %s
@@ -188,6 +196,7 @@ def update_conversation(
     owner_id: str | UUID,
     title: str | None = None,
     retrieval_mode: str | None = None,
+    prompt_profile: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Rename a conversation or change its retrieval mode.
 
@@ -204,6 +213,9 @@ def update_conversation(
     if retrieval_mode is not None:
         assignments.append("retrieval_mode = %s")
         parameters.append(retrieval_mode)
+    if prompt_profile is not None:
+        assignments.append("prompt_profile_json = %s")
+        parameters.append(Jsonb(prompt_profile))
     if not assignments:
         return load_conversation(connection, conversation_id, owner_id=owner_id)
 
@@ -213,7 +225,7 @@ def update_conversation(
         f"""
         update conversations set {", ".join(assignments)}
         where id = %s and owner_id = %s
-        returning id, title, book_ids, retrieval_mode, state_json,
+        returning id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
                   created_at, updated_at
         """,
         parameters,

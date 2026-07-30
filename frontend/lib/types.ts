@@ -19,6 +19,29 @@ export type HistoryDependency = "independent" | "dependent" | "ambiguous";
 export type Outcome = "answer" | "clarify" | "abstain" | "error";
 
 export type RetrievalMode = "bm25" | "vector" | "hybrid" | "hybrid_rerank";
+export type ResponseDepth = "quick" | "interview" | "deep";
+export type AnswerArchetype =
+  | "concept_explanation"
+  | "system_design"
+  | "chapter_review"
+  | "answer_transform";
+
+export interface PromptProfile {
+  interview_instructions: string;
+  concept_template: string;
+  system_design_template: string;
+  chapter_review_template: string;
+  user_prompt_template: string;
+}
+
+export interface PromptSettingsResponse {
+  profile: PromptProfile;
+  defaults: PromptProfile;
+  locked_system_prompt: string;
+  preview_system_prompt: string;
+  preview_user_prompt: string;
+  profile_version: string;
+}
 
 export interface ScopeRef {
   kind: "book" | "chapter" | "section";
@@ -100,6 +123,10 @@ export interface TurnResult {
   outcome: Outcome;
   retrieval_mode: string | null;
   warnings: string[];
+  answer_archetype: AnswerArchetype | null;
+  response_depth: ResponseDepth | null;
+  routing_reason: string | null;
+  prompt_profile_version: string | null;
 }
 
 export interface ChatResponse {
@@ -141,6 +168,7 @@ export interface ConversationDetail {
   title: string;
   book_ids: number[];
   retrieval_mode: RetrievalMode;
+  prompt_profile: PromptProfile;
   created_at: string;
   updated_at: string;
   turns: StoredTurn[];
@@ -252,4 +280,6 @@ export interface ChatTurn {
   /** Present once the turn settles; drives references and the inspector. */
   result: TurnResult | null;
   error: string | null;
+  /** Per-turn @book narrowing, retained so retry repeats the same scope. */
+  mentionedBookIds?: number[];
 }

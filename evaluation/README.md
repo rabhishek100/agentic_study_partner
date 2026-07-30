@@ -8,6 +8,129 @@ that audit; references to it in frozen provenance describe how the judgments
 were produced, not a runtime dependency. Each dataset records its own review
 provenance; do not assume every artifact is human-verified.
 
+## Interview-answer seed
+
+`interview_answer_seed.json` is a 30-case diagnostic set for the
+interview-preparation prompt profile. It covers:
+
+| Book | Cases |
+|---|---:|
+| An Introduction to Statistical Learning with Applications in Python | 10 |
+| System Design Interview | 10 |
+| AI Engineering | 7 |
+| Designing Machine Learning Systems | 3 |
+
+The cases include concept explanations, comparisons, scenarios, seven
+system-design walkthroughs, three chapter reviews, five contextual follow-ups,
+nine explicit depth overrides, and three deliberately unanswerable requests.
+Each answerable case defines semantic must-cover points, common failure guards,
+likely interviewer probes, scoring dimensions, and candidate page-level
+evidence anchors.
+
+Validate the schema and inspect its coverage:
+
+```bash
+uv run python -m scripts.validate_interview_dataset
+```
+
+Pass `--database-url "$MIGRATION_DATABASE_URL"` to also check every source
+hash, node ID, hierarchy path, and page range against the hosted canonical
+database. This structural check still does not replace semantic human review.
+
+This set is **knowledge-authored and pending human evidence review**. The
+questions and rubrics were created from model knowledge, then matched to the
+production books' canonical hierarchy. Three Designing Machine Learning
+Systems cases reuse topics already reviewed in the existing gold sets; the
+remaining page mappings are candidate anchors. Do not report aggregate answer
+quality from this seed as a human-verified result until each mapping and
+must-cover criterion has been checked against the cited pages.
+
+The next promotion step is to add compact reference answers or evidence
+summaries, record reviewer decisions, and change `review.status` only when
+those checks are complete. Prompt experiments should freeze this version
+rather than editing questions to favor a candidate prompt.
+
+The seed is a development regression set, not a source of production rules.
+Runtime routing and retrieval must not contain its question text, book titles,
+case IDs, node IDs, or topic-specific exceptions. Changes should operate on
+general signals such as requested depth, answer intent, hierarchy structure,
+and retrieval scores, then be checked on held-out uploaded content before a
+release claim about generalization.
+
+### Interview-answer runs
+
+Run the diagnostic smoke set (`int-001`, `int-011`, and `int-030`) before a
+paid complete baseline:
+
+```bash
+uv run python -m scripts.evaluate_interview_answers \
+  --smoke \
+  --database-url "$MIGRATION_DATABASE_URL" \
+  --judge-answers
+```
+
+The runner executes each case through the real stateful coordinator. Follow-up
+cases first replay their setup turn, and every case receives the UI depth
+specified by the dataset. It records:
+
+- route, outcome, answer archetype, and effective-depth accuracy;
+- required candidate-node recall and citation validity;
+- avoidance of the unwanted generic “based on the evidence” answer preface;
+- prompt-profile provenance and end-to-end case latency;
+- optional 0–4 rubric judgments for grounded correctness, interview
+  readiness, coverage, depth adherence, clarity, follow-up quality, and
+  citation quality.
+
+The reader-facing API stores compact evidence previews, but the evaluation
+runner reloads the complete retrieved chunks for the judge. Otherwise a claim
+supported later in an 800-token chunk can be falsely labeled unsupported from
+its 400-character preview. Candidate evidence recall is hierarchy-aware: a
+content-bearing descendant covers a required heading-only parent anchor.
+
+Each run writes `results.json` and a searchable, filterable `report.html`
+under `evaluation/runs/interview/<timestamp>/`. It also rewrites
+`checkpoint.json` after every completed case. Runs are gitignored. The
+optional judge is diagnostic rather than a safety gate; a judge failure is
+recorded separately and does not discard the generated answer.
+
+Run selected cases with repeated `--case int-NNN`, or run the complete frozen
+set only after reviewing the smoke output:
+
+```bash
+uv run python -m scripts.evaluate_interview_answers \
+  --all \
+  --database-url "$MIGRATION_DATABASE_URL" \
+  --judge-answers
+```
+
+`--prompt-profile path/to/profile.json` accepts either a raw `PromptProfile`
+object or the API's prompt-settings response, enabling paired comparisons
+without changing the frozen questions.
+
+Hosted generation and judge requests are bounded to 90 seconds with retries
+disabled for evaluation. A separate 240-second case deadline bounds setup
+turns, summary repairs, answer generation, and judging together, so a provider
+that continues sending a slow response cannot hold the baseline indefinitely.
+Override these with `--request-timeout-seconds` and
+`--case-timeout-seconds`. Resume after an interruption while retaining
+successful cases:
+
+```bash
+uv run python -m scripts.evaluate_interview_answers \
+  --all \
+  --database-url "$MIGRATION_DATABASE_URL" \
+  --judge-answers \
+  --resume evaluation/runs/interview/<timestamp>/checkpoint.json
+```
+
+If the judge rubric changes, rejudge saved generations without repeating the
+more expensive answer calls:
+
+```bash
+uv run python -m scripts.rejudge_interview_results \
+  evaluation/runs/interview/<timestamp>/results.json
+```
+
 ## Multi-turn conversation set
 
 `multiturn_gold.json` is the frozen synthetic seed set for implementing

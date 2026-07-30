@@ -61,9 +61,7 @@ describe("BookSelector", () => {
     expect(onChange).toHaveBeenCalledExactlyOnceWith([2, 3]);
   });
 
-  it("refuses to empty the selection", async () => {
-    // The API rejects an empty book_ids, and "no books" is not a question
-    // anyone means to ask.
+  it("allows the final selected book to be deselected", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
@@ -80,7 +78,25 @@ describe("BookSelector", () => {
       screen.getByLabelText("Designing ML Systems", { exact: false }),
     );
 
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledExactlyOnceWith([]);
+  });
+
+  it("changes select all to deselect all when the library is selected", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <BookSelector
+        books={LIBRARY}
+        selected={[1, 2, 3]}
+        onChange={onChange}
+        hasConversation={false}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Choose which books to search"));
+    await user.click(screen.getByRole("button", { name: "Deselect all" }));
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith([]);
   });
 
   it("warns that changing the selection restarts the conversation", () => {

@@ -10,8 +10,8 @@ from study.contracts import (
     EvidenceRef,
     ScopeRef,
 )
-from tests.test_scope_candidates import FILE_HASH, hierarchy_book
 from tests.postgres import PostgresOwnerMixin
+from tests.test_scope_candidates import FILE_HASH, hierarchy_book
 
 
 class FakeModel:
@@ -97,6 +97,16 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
             self.state(),
             FailIfCalled(),
         )
+        natural_chapters = self.analyze(
+            "what are the chapters in the Hierarchy Book?",
+            self.state(),
+            FailIfCalled(),
+        )
+        mentioned_chapters = self.analyze(
+            "show me the chapters from @[Hierarchy Book]",
+            self.state(),
+            FailIfCalled(),
+        )
 
         self.assertEqual(summary.route, "hierarchy_summary")
         self.assertEqual(
@@ -107,6 +117,10 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(chapters.route, "hierarchy_list")
         self.assertEqual(chapters.resolved_scope.kind, "book")
         self.assertIsNone(chapters.resolved_scope.node_id)
+        self.assertEqual(natural_chapters.route, "hierarchy_list")
+        self.assertEqual(natural_chapters.resolved_scope.book_id, self.book_id)
+        self.assertEqual(mentioned_chapters.route, "hierarchy_list")
+        self.assertEqual(mentioned_chapters.resolved_scope.book_id, self.book_id)
 
     def test_model_rewrites_followup_and_selects_only_canonical_scope(self):
         active = self.scope("Low-Rank Factorization")
@@ -289,6 +303,28 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
             decision.resolved_scope.node_id,
             self.nodes["Low-Rank Factorization"]["id"],
         )
+
+    def test_negated_section_does_not_override_the_selected_chapter(self):
+        chapter = self.nodes["Chapter 7. Model Deployment and Prediction Service"]
+        model = FakeModel(
+            {
+                "route": "hierarchy_summary",
+                "history_dependency": "independent",
+                "scope_node_id": chapter["id"],
+                "reason": "Review the named chapter.",
+            }
+        )
+
+        decision = self.analyze(
+            "Turn the model-deployment chapter into an interview review, "
+            "not a section summary.",
+            self.state(),
+            model,
+        )
+
+        self.assertEqual(decision.route, "hierarchy_summary")
+        self.assertEqual(decision.resolved_scope.kind, "chapter")
+        self.assertEqual(decision.resolved_scope.node_id, chapter["id"])
 
     def test_invalid_retrieval_scope_is_ignored_instead_of_failing_turn(self):
         model = FakeModel(

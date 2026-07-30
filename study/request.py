@@ -1,11 +1,12 @@
 """Parse explicit natural-language study requests into deterministic scopes."""
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-import re
-from psycopg import Connection
 from typing import Literal
 from uuid import UUID
+
+from psycopg import Connection
 
 from .scope import (
     ResolvedScope,
@@ -14,7 +15,6 @@ from .scope import (
     resolve_named_scope,
     resolve_section,
 )
-
 
 StudyIntent = Literal["summarize", "list_chapters", "list_sections"]
 RequestedScopeKind = Literal["book", "chapter", "section", "named"]
@@ -48,22 +48,24 @@ LIST_SECTIONS = (
 LIST_CHAPTERS = (
     re.compile(
         r"^(?:list|show)(?:\s+me)?\s+(?:all\s+)?(?:the\s+)?chapters"
-        r"(?:\s+(?:in|of)\s+(?:this|the)\s+book)?\s*[?.]?$",
+        r"(?:\s+(?:in|of|from)\s+(?P<book_reference>.+?))?\s*[?.]?$",
         re.IGNORECASE,
     ),
     re.compile(
-        r"^(?:what|which)\s+chapters\s+does\s+(?:this|the)\s+book\s+"
+        r"^(?:what|which)\s+chapters\s+does\s+(?P<book_reference>.+?)\s+"
         r"(?:have|contain)\s*[?.]?$",
         re.IGNORECASE,
     ),
     re.compile(
-        r"^(?:what|which)\s+chapters\s+(?:are\s+)?(?:present\s+)?"
-        r"(?:in|of)\s+(?:this|the)\s+book\s*[?.]?$",
+        r"^(?:what|which)\s+(?:are\s+)?(?:all\s+)?(?:the\s+)?chapters"
+        r"(?:\s+are)?(?:\s+(?:present|included|listed))?\s+"
+        r"(?:in|of|from)\s+(?P<book_reference>.+?)\s*[?.]?$",
         re.IGNORECASE,
     ),
     re.compile(
-        r"^what\s+are\s+(?:all\s+)?the\s+chapters\s+"
-        r"(?:in|of)\s+(?:this|the)\s+book\s*[?.]?$",
+        r"^(?:give|show)\s+me\s+(?:the\s+)?(?:chapter\s+list|"
+        r"table\s+of\s+contents)(?:\s+(?:for|of|from)\s+"
+        r"(?P<book_reference>.+?))?\s*[?.]?$",
         re.IGNORECASE,
     ),
 )
@@ -76,6 +78,18 @@ SUMMARIZE_CHAPTER = re.compile(
     r"^summari[sz]e\s+(?:the\s+)?chapter\s+(.+?)\s*[?.]?$",
     re.IGNORECASE,
 )
+INTERVIEW_REVIEW_CHAPTER = (
+    re.compile(
+        r"^(?:turn|convert)\s+(?:the\s+)?(.+?)\s+chapter\s+into\s+"
+        r"(?:an?\s+)?interview(?:[- ](?:prep(?:aration)?|review))?.*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:prepare|review)\s+(?:the\s+)?(.+?)\s+chapter\s+"
+        r"(?:for|as)\s+(?:an?\s+)?interview.*$",
+        re.IGNORECASE,
+    ),
+)
 SUMMARIZE_NAMED = re.compile(
     r"^summari[sz]e\s+(?:the\s+)?(.+?)\s*[?.]?$",
     re.IGNORECASE,
@@ -86,16 +100,48 @@ def _clean_reference(value: str) -> str:
     return value.strip().strip("\"'“”‘’").strip()
 
 
+def _clean_book_reference(value: str | None) -> str:
+    """Turn conversational book labels and UI mentions into a title fragment."""
+
+    if value is None:
+        return ""
+    reference = value.strip()
+    mention = re.fullmatch(r"@\[(.+)]", reference)
+    if mention:
+        # UI mentions carry the canonical display title. Preserve it exactly:
+        # unlike conversational phrasing, a trailing "Book" can be part of
+        # the actual title (for example, "Sample Book").
+        return _clean_reference(mention.group(1))
+    reference = _clean_reference(reference)
+    if re.fullmatch(
+        r"(?:this|the|selected|current)(?:\s+(?:selected|current))?\s+book",
+        reference,
+        re.IGNORECASE,
+    ):
+        return ""
+    # Readers naturally say "the <title> book". Both words are conversational
+    # wrappers rather than reliable parts of the stored title. Partial title
+    # matching in resolve_book still handles books whose real title ends in
+    # "Book".
+    reference = re.sub(r"^the\s+", "", reference, flags=re.IGNORECASE)
+    reference = re.sub(r"\s+book$", "", reference, flags=re.IGNORECASE)
+    return _clean_reference(reference)
+
+
 def parse_study_request(query: str) -> StudyRequest:
     """Parse the supported explicit query forms without a model call."""
 
     query = " ".join(query.split())
-    if any(pattern.fullmatch(query) for pattern in LIST_CHAPTERS):
-        return StudyRequest(
-            intent="list_chapters",
-            scope_kind="book",
-            scope_reference="",
-        )
+    for pattern in LIST_CHAPTERS:
+        match = pattern.fullmatch(query)
+        if match:
+            return StudyRequest(
+                intent="list_chapters",
+                scope_kind="book",
+                scope_reference=_clean_book_reference(
+                    match.groupdict().get("book_reference")
+                ),
+            )
 
     for pattern in LIST_SECTIONS:
         match = pattern.fullmatch(query)
@@ -116,6 +162,15 @@ def parse_study_request(query: str) -> StudyRequest:
                 _clean_reference(match.group(2)) if match.group(2) else None
             ),
         )
+
+    for pattern in INTERVIEW_REVIEW_CHAPTER:
+        match = pattern.fullmatch(query)
+        if match:
+            return StudyRequest(
+                intent="summarize",
+                scope_kind="chapter",
+                scope_reference=_clean_reference(match.group(1)),
+            )
 
     match = SUMMARIZE_CHAPTER.fullmatch(query)
     if match:
@@ -154,6 +209,7 @@ def resolve_study_request(
     if request.scope_kind == "book":
         return resolve_book(
             connection,
+            request.scope_reference or None,
             owner_id=owner_id,
             book_id=book_id,
             book_ids=book_ids,

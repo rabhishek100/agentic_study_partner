@@ -10,6 +10,7 @@ import type {
   ChatTurn,
   ConversationDetail,
   ConversationState,
+  ResponseDepth,
   RetrievalMode,
 } from "@/lib/types";
 
@@ -18,7 +19,9 @@ const STREAM_IDLE_TIMEOUT_MS = 60_000;
 
 interface SendOptions {
   bookIds: number[];
+  mentionedBookIds?: number[];
   retrievalMode: RetrievalMode;
+  responseDepth: ResponseDepth;
 }
 
 /**
@@ -50,7 +53,15 @@ export function useChat() {
   }, []);
 
   const send = useCallback(
-    async (question: string, { bookIds, retrievalMode }: SendOptions) => {
+    async (
+      question: string,
+      {
+        bookIds,
+        mentionedBookIds = [],
+        retrievalMode,
+        responseDepth,
+      }: SendOptions,
+    ) => {
       const submitted = question.trim();
       if (!submitted || controllerRef.current) return;
 
@@ -64,6 +75,7 @@ export function useChat() {
           status: "streaming",
           result: null,
           error: null,
+          mentionedBookIds,
         },
       ]);
       setIsStreaming(true);
@@ -97,7 +109,9 @@ export function useChat() {
             question: submitted,
             retrieval_mode: retrievalMode,
             book_ids: bookIds,
+            mentioned_book_ids: mentionedBookIds,
             conversation_id: conversationId,
+            response_depth: responseDepth,
           }),
           signal: controller.signal,
         });
@@ -200,7 +214,10 @@ export function useChat() {
       const last = turns.at(-1);
       if (!last || isStreaming) return;
       setTurns((current) => current.filter((turn) => turn.id !== last.id));
-      await send(last.question, options);
+      await send(last.question, {
+        ...options,
+        mentionedBookIds: last.mentionedBookIds ?? options.mentionedBookIds,
+      });
     },
     [turns, isStreaming, send],
   );

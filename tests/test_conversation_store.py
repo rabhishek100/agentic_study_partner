@@ -56,7 +56,12 @@ class ConversationStoreTests(PostgresOwnerMixin, unittest.TestCase):
     def tearDown(self) -> None:
         self.tearDownPostgresOwner()
 
-    def create(self, title: str = "First", book_ids=(1,)):
+    def create(
+        self,
+        title: str = "First",
+        book_ids=(1,),
+        prompt_profile: dict | None = None,
+    ):
         with database_connection(self.database_url) as connection:
             return create_conversation(
                 connection,
@@ -64,6 +69,7 @@ class ConversationStoreTests(PostgresOwnerMixin, unittest.TestCase):
                 book_ids=book_ids,
                 retrieval_mode="hybrid",
                 title=title,
+                prompt_profile=prompt_profile,
             )
 
     def test_a_conversation_round_trips(self):
@@ -77,6 +83,28 @@ class ConversationStoreTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(loaded["title"], "Skew")
         self.assertEqual(list(loaded["book_ids"]), [1])
         self.assertEqual(loaded["retrieval_mode"], "hybrid")
+
+    def test_a_conversation_snapshots_and_updates_its_prompt_profile(self):
+        created = self.create(
+            prompt_profile={"interview_instructions": "Initial instructions"}
+        )
+
+        with database_connection(self.database_url) as connection:
+            updated = update_conversation(
+                connection,
+                created["id"],
+                owner_id=self.owner_id,
+                prompt_profile={"interview_instructions": "Updated instructions"},
+            )
+
+        self.assertEqual(
+            created["prompt_profile_json"]["interview_instructions"],
+            "Initial instructions",
+        )
+        self.assertEqual(
+            updated["prompt_profile_json"]["interview_instructions"],
+            "Updated instructions",
+        )
 
     def test_a_conversation_must_be_scoped_to_at_least_one_book(self):
         with database_connection(self.database_url) as connection:

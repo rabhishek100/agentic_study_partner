@@ -1,8 +1,8 @@
 """Shared routing for hierarchy operations and ordinary retrieval questions."""
 
-from collections.abc import Sequence
 import os
 import re
+from collections.abc import Sequence
 from typing import Protocol
 from uuid import UUID
 
@@ -11,16 +11,27 @@ from dotenv import load_dotenv
 from retrieval.langchain import BookRetriever
 from retrieval.models import book_scope
 from retrieval.search import RetrievalMode
-from storage.database import connection as database_connection, parse_owner_id
+from storage.database import connection as database_connection
+from storage.database import parse_owner_id
+
 from .content import load_scope_content
+from .context import build_scope_context
 from .contracts import (
+    AnswerArchetype,
     CitationRef,
     EvidenceRef,
+    PromptProfile,
+    ResponseDepth,
     ScopeRef,
     TurnResult,
 )
-from .context import build_scope_context
 from .figures import select_figures
+from .prompts import (
+    DEFAULT_PROMPT_PROFILE,
+    build_answer_messages,
+    profile_version,
+    resolve_answer_archetype,
+)
 from .render import format_chapter_list, format_outline
 from .request import (
     StudyRequest,
@@ -62,6 +73,17 @@ INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\bcannot\s+recommend\s+(?:a|an|the|any)\b",
     re.IGNORECASE,
 )
+RETRIEVAL_LIMIT_BY_DEPTH: dict[ResponseDepth, int] = {
+    "quick": 5,
+    "interview": 8,
+    "deep": 8,
+}
+
+
+def retrieval_limit(response_depth: ResponseDepth) -> int:
+    """Return a small evaluated evidence budget for the requested answer depth."""
+
+    return RETRIEVAL_LIMIT_BY_DEPTH[response_depth]
 
 
 def _summary_config() -> SummaryConfig:
@@ -88,7 +110,8 @@ def openrouter_model(*, max_tokens: int | None = None) -> ChatModel:
         model=os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        max_retries=2,
+        max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "2")),
+        timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         extra_body={
             "reasoning": {
                 "effort": reasoning_effort,
@@ -148,6 +171,9 @@ def _answer_hierarchy_request(
     database_url: str | None,
     owner_id: str | UUID,
     model: ChatModel | None,
+    prompt_profile: PromptProfile,
+    response_depth: ResponseDepth,
+    routing_reason: str | None,
     token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     """List or summarize one complete canonical hierarchy subtree."""
@@ -172,6 +198,9 @@ def _answer_hierarchy_request(
                 else [node.id for node in scope.nodes[1:]]
             ),
             outcome="answer",
+            response_depth=response_depth,
+            routing_reason=routing_reason,
+            prompt_profile_version=profile_version(prompt_profile),
         )
 
     with database_connection(database_url, readonly=True) as source:
@@ -179,7 +208,12 @@ def _answer_hierarchy_request(
     context = build_scope_context(evidence_bundle)
     config = _summary_config()
     budget = prompt_budget(
-        build_summary_messages(scope, context),
+        build_summary_messages(
+            scope,
+            context,
+            profile=prompt_profile,
+            response_depth=response_depth,
+        ),
         config=config,
     )
     if not budget.fits:
@@ -190,17 +224,13 @@ def _answer_hierarchy_request(
         scope=scope,
         context=context,
         config=config,
+        profile=prompt_profile,
+        response_depth=response_depth,
     )
-    if not result.validation.valid:
-        finish_reason = (
-            f" (model finish reason: {result.finish_reason})"
-            if result.finish_reason
-            else ""
-        )
+    if not result.validation.citation_safe:
         raise QueryExecutionError(
-            f"summary validation failed after "
-            f"{result.attempt_count} attempt(s){finish_reason}: "
-            + "; ".join(result.validation.errors)
+            "I could not produce a summary with fully verified citations. "
+            "Please try again; no unverified draft was shown."
         )
 
     # The answer is the summary and nothing else. The scope, the reference
@@ -210,18 +240,32 @@ def _answer_hierarchy_request(
     # structure. Baking them into markdown made them unreadable and forced the
     # client to parse prose to recover data the server already had.
     answer = result.text.rstrip()
+    nodes = {node.id: node for node in scope.nodes}
     warnings = list(result.validation.warnings)
+    if result.validation.required_missing_node_ids:
+        missing_paths = [
+            nodes[node_id].path_text
+            for node_id in sorted(
+                result.validation.required_missing_node_ids,
+                key=lambda node_id: nodes[node_id].toc_index,
+            )
+        ]
+        warnings.append(
+            "Some chapter material could not be incorporated without weakening "
+            "citation guarantees: "
+            + "; ".join(missing_paths)
+            + ". The answer contains only verified material."
+        )
     if result.attempt_count > 1:
         warnings.append(
-            "An earlier draft failed deterministic citation validation and "
-            "was regenerated with exact validation feedback."
+            "The answer was automatically repaired to improve source coverage "
+            "and citation accuracy."
         )
     if token_callback is not None:
-        # Summary drafts are buffered until citation validation succeeds. This
-        # exposes one stable answer instead of streaming an invalid draft and
-        # visibly restarting during a repair attempt.
+        # Summary drafts are buffered until citation safety is established.
+        # This exposes one stable answer instead of streaming an invalid draft
+        # and visibly restarting during a repair attempt.
         token_callback("token", answer)
-    nodes = {node.id: node for node in scope.nodes}
     evidence = [
         EvidenceRef(
             node_id=node_id,
@@ -273,6 +317,10 @@ def _answer_hierarchy_request(
         figures=figures,
         outcome="answer",
         warnings=warnings,
+        answer_archetype="chapter_review",
+        response_depth=response_depth,
+        routing_reason=routing_reason,
+        prompt_profile_version=profile_version(prompt_profile),
     )
 
 
@@ -285,6 +333,10 @@ def _answer_retrieval_question(
     book_ids: Sequence[int] | None = None,
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
+    prompt_profile: PromptProfile,
+    response_depth: ResponseDepth,
+    routing_reason: str | None,
+    answer_archetype: AnswerArchetype | None = None,
     token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     """Answer one ordinary question from top-k retrieval evidence."""
@@ -303,13 +355,21 @@ def _answer_retrieval_question(
                 (owner, scope),
             ).fetchall()
         books = {row["id"]: row["title"] for row in rows}
+    archetype: AnswerArchetype = answer_archetype or resolve_answer_archetype(
+        question,
+        "retrieval_qa",
+    )
     documents = BookRetriever(
         database_url=database_url or "",
         owner_id=str(owner),
         mode=retrieval_mode,
         book_id=book_id,
         book_ids=book_ids,
-        k=5,
+        k=retrieval_limit(response_depth),
+        # A system-design scope is often represented by one large hierarchy
+        # node containing several chunks. Collapsing to one chunk per node
+        # discards most of that design while admitting unrelated chapters.
+        unique_nodes=archetype != "system_design",
     ).invoke(question)
     if not documents:
         return TurnResult(
@@ -320,6 +380,10 @@ def _answer_retrieval_question(
             standalone_query=question,
             outcome="abstain",
             retrieval_mode=retrieval_mode,
+            answer_archetype=resolve_answer_archetype(question, "retrieval_qa"),
+            response_depth=response_depth,
+            routing_reason=routing_reason,
+            prompt_profile_version=profile_version(prompt_profile),
         )
 
     evidence = "\n\n".join(
@@ -329,7 +393,7 @@ def _answer_retrieval_question(
         for i, document in enumerate(documents, 1)
     )
     model = model or openrouter_model()
-    rules = (
+    grounding = (
         "Answer only from the evidence. Cite claims with [S1], [S2], etc. "
         "Evidence is sufficient when it directly supports the requested claim "
         "or causal explanation; do not demand extra quantification, exact user "
@@ -350,7 +414,14 @@ def _answer_retrieval_question(
     )
     reply = invoke_with_streaming(
         model,
-        [("system", rules), ("human", f"Question: {question}\n\n{evidence}")],
+        build_answer_messages(
+            profile=prompt_profile,
+            question=question,
+            evidence=evidence,
+            archetype=archetype,
+            depth=response_depth,
+            additional_grounding=grounding,
+        ),
         token_callback=token_callback,
     )
     reply_text = str(reply.content).strip()
@@ -435,6 +506,10 @@ def _answer_retrieval_question(
         figures=figures,
         outcome="abstain" if insufficient else "answer",
         retrieval_mode=retrieval_mode,
+        answer_archetype=archetype,
+        response_depth=response_depth,
+        routing_reason=routing_reason,
+        prompt_profile_version=profile_version(prompt_profile),
     )
 
 
@@ -449,10 +524,15 @@ def execute_query(
     model: ChatModel | None = None,
     token_callback: TokenCallback | None = None,
     force_retrieval: bool = False,
+    prompt_profile: PromptProfile | None = None,
+    response_depth: ResponseDepth = "interview",
+    routing_reason: str | None = None,
+    answer_archetype: AnswerArchetype | None = None,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
     load_dotenv()
+    profile = prompt_profile or DEFAULT_PROMPT_PROFILE
     hierarchy = None
     if not force_retrieval:
         hierarchy = _resolve_hierarchy_request(
@@ -470,6 +550,9 @@ def execute_query(
             database_url=database_url,
             owner_id=owner_id,
             model=model,
+            prompt_profile=profile,
+            response_depth=response_depth,
+            routing_reason=routing_reason,
             token_callback=token_callback,
         )
         return result.model_copy(update={"question": question})
@@ -481,6 +564,10 @@ def execute_query(
         book_ids=book_ids,
         retrieval_mode=retrieval_mode,
         model=model,
+        prompt_profile=profile,
+        response_depth=response_depth,
+        routing_reason=routing_reason,
+        answer_archetype=answer_archetype,
         token_callback=token_callback,
     )
 
@@ -493,6 +580,8 @@ def answer_query(
     *,
     owner_id: str | UUID,
     model: ChatModel | None = None,
+    prompt_profile: PromptProfile | None = None,
+    response_depth: ResponseDepth = "interview",
 ) -> str:
     """Compatibility wrapper returning the existing reader-facing Markdown."""
 
@@ -503,4 +592,6 @@ def answer_query(
         retrieval_mode=retrieval_mode,
         owner_id=owner_id,
         model=model,
+        prompt_profile=prompt_profile,
+        response_depth=response_depth,
     ).answer

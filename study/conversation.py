@@ -1,7 +1,7 @@
 """Execute one conversational turn over summaries and book retrieval."""
 
-from collections.abc import Sequence
 import re
+from collections.abc import Sequence
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
@@ -12,8 +12,17 @@ from .analyze import AnalysisModel
 from .contracts import (
     ConversationMessage,
     ConversationState,
+    PromptProfile,
+    ResponseDepth,
     TurnDecision,
     TurnResult,
+)
+from .prompts import (
+    DEFAULT_PROMPT_PROFILE,
+    build_answer_messages,
+    profile_version,
+    resolve_answer_archetype,
+    resolve_response_depth,
 )
 from .query import ChatModel, execute_query, openrouter_model
 from .streaming import TokenCallback, invoke_with_streaming
@@ -68,22 +77,26 @@ def _transform(
     question: str,
     state: ConversationState,
     model: ChatModel | None,
+    prompt_profile: PromptProfile,
+    response_depth: ResponseDepth,
+    routing_reason: str,
     token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     model = model or openrouter_model()
     response = invoke_with_streaming(
         model,
-        [
-            (
-                "system",
+        build_answer_messages(
+            profile=prompt_profile,
+            question=question,
+            evidence=state.previous_answer or "",
+            archetype="answer_transform",
+            depth=response_depth,
+            request_context="Transform the previous answer rather than retrieving again.",
+            additional_grounding=(
                 "Transform the prior answer as requested. Add no facts and "
-                "preserve its citation markers and qualifications.",
+                "preserve every citation marker and qualification."
             ),
-            (
-                "human",
-                f"Request:\n{question}\n\nPrior answer:\n{state.previous_answer}",
-            ),
-        ],
+        ),
         token_callback=token_callback,
     )
     return TurnResult(
@@ -95,6 +108,10 @@ def _transform(
         evidence=list(state.previous_evidence),
         citations=list(state.previous_citations),
         outcome="answer",
+        answer_archetype="answer_transform",
+        response_depth=response_depth,
+        routing_reason=routing_reason,
+        prompt_profile_version=profile_version(prompt_profile),
     )
 
 
@@ -108,7 +125,12 @@ def execute_decision(
     retrieval_mode: RetrievalMode,
     model: ChatModel | None,
     token_callback: TokenCallback | None = None,
+    prompt_profile: PromptProfile | None = None,
+    response_depth: ResponseDepth = "interview",
+    turn_book_ids: Sequence[int] | None = None,
 ) -> TurnResult:
+    profile = prompt_profile or DEFAULT_PROMPT_PROFILE
+    resolved_depth = resolve_response_depth(question, response_depth)
     if decision.route == "clarify":
         return TurnResult(
             question=question,
@@ -116,9 +138,20 @@ def execute_decision(
             route="clarify",
             history_dependency=decision.history_dependency,
             outcome="clarify",
+            response_depth=resolved_depth,
+            routing_reason=decision.reason,
+            prompt_profile_version=profile_version(profile),
         )
     if decision.route == "prior_answer_transform":
-        return _transform(question, state, model, token_callback=token_callback)
+        return _transform(
+            question,
+            state,
+            model,
+            profile,
+            resolved_depth,
+            decision.reason,
+            token_callback=token_callback,
+        )
 
     execution_question = (
         _hierarchy_query(decision)
@@ -128,12 +161,16 @@ def execute_decision(
     result = execute_query(
         execution_question,
         database_url=database_url,
-        book_ids=state.book_ids or None,
+        book_ids=turn_book_ids or state.book_ids or None,
         retrieval_mode=retrieval_mode,
         owner_id=owner_id,
         model=model,
         token_callback=token_callback,
         force_retrieval=decision.route == "retrieval_qa",
+        prompt_profile=profile,
+        response_depth=resolved_depth,
+        routing_reason=decision.reason,
+        answer_archetype=resolve_answer_archetype(question, decision.route),
     )
     updates = {
         "question": question,
@@ -200,16 +237,21 @@ def execute_conversation_turn(
     database_url: str | None = None,
     book_id: int | None = None,
     book_ids: Sequence[int] | None = None,
+    turn_book_ids: Sequence[int] | None = None,
     retrieval_mode: RetrievalMode = "hybrid",
     analysis_model: AnalysisModel | None = None,
     generation_model: ChatModel | None = None,
     token_callback: TokenCallback | None = None,
+    prompt_profile: PromptProfile | None = None,
+    response_depth: ResponseDepth = "interview",
 ) -> tuple[TurnResult, ConversationState]:
     load_dotenv()
     # `book_id` remains for the CLI and evaluation entry points, which study
     # one book at a time.
-    selection = book_ids if book_ids is not None else (
-        [book_id] if book_id is not None else None
+    selection = (
+        book_ids
+        if book_ids is not None
+        else ([book_id] if book_id is not None else None)
     )
     current = _select_state(state, selection)
     from .graph import StudyGraphContext, study_turn_graph
@@ -233,6 +275,13 @@ def execute_conversation_turn(
             analysis_model=analysis_model,
             generation_model=generation_model,
             token_callback=token_callback,
+            prompt_profile=prompt_profile or DEFAULT_PROMPT_PROFILE,
+            response_depth=response_depth,
+            turn_book_ids=(
+                tuple(sorted({int(identifier) for identifier in turn_book_ids}))
+                if turn_book_ids
+                else None
+            ),
         ),
     )
     return output["result"], output["conversation"]

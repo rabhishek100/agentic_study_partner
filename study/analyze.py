@@ -11,7 +11,8 @@ from uuid import UUID
 from dotenv import load_dotenv
 from pydantic import Field, model_validator
 
-from storage.database import connection as database_connection, parse_owner_id
+from storage.database import connection as database_connection
+from storage.database import parse_owner_id
 
 from .contracts import (
     ContractModel,
@@ -51,6 +52,10 @@ ORDINAL_COREFERENCE = re.compile(
 CHOICE_COREFERENCE = re.compile(r"\bwhich one\b", re.IGNORECASE)
 CURRENT_FACT = re.compile(r"\b(?:exact\s+)?current\b", re.IGNORECASE)
 REVISE_SECTION = re.compile(r"\b(?:revise|review|study)\b.*\bsection\b", re.IGNORECASE)
+NEGATED_SECTION = re.compile(
+    r"\b(?:not|rather\s+than|instead\s+of)\s+(?:a\s+|the\s+)?section\b",
+    re.IGNORECASE,
+)
 HISTORY_REFERENCE = re.compile(
     r"\b(?:it|those|that|the\s+other|you\s+just\s+described)\b",
     re.IGNORECASE,
@@ -217,6 +222,7 @@ def _openrouter_model() -> AnalysisModel:
         api_key=key,
         base_url="https://openrouter.ai/api/v1",
         max_retries=0,
+        timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         temperature=0,
         reasoning={
             "effort": os.getenv("OPENROUTER_CONTROL_REASONING", "high"),
@@ -388,7 +394,7 @@ def _clarification_fallback(
                 reason="The active two-way comparison resolves the other mode.",
             )
 
-    if REVISE_SECTION.search(question):
+    if REVISE_SECTION.search(question) and not NEGATED_SECTION.search(question):
         section = next(
             (
                 candidate
@@ -635,7 +641,7 @@ def analyze_turn(
                 time.monotonic() - turn_start,
             )
             return decision
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - retry provider/schema failures
             last_error = error
             logger.warning(
                 "analyze_turn attempt %d/3 failed in %.2fs: %s",

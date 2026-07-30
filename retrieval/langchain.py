@@ -1,13 +1,14 @@
 """Thin LangChain adapter over the project's explicit retrieval layer."""
 
-from functools import lru_cache
 import os
+from functools import lru_cache
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import Field
 
 from storage.database import connection
+
 from .reranker import DEFAULT_RERANKER_MODEL, Reranker, build_reranker
 from .search import RetrievalMode, retrieve
 from .vector import (
@@ -51,6 +52,7 @@ class BookRetriever(BaseRetriever):
     book_id: int | None = None
     book_ids: list[int] | None = None
     k: int = 5
+    unique_nodes: bool = True
     embedding_model: str = Field(
         default_factory=lambda: (
             os.getenv("OPENROUTER_EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL
@@ -80,7 +82,7 @@ class BookRetriever(BaseRetriever):
                 book_id=self.book_id,
                 book_ids=self.book_ids,
                 limit=self.k,
-                unique_nodes=True,
+                unique_nodes=self.unique_nodes,
                 embedder=embedder,
                 reranker=reranker,
             )

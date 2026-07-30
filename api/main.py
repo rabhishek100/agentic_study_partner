@@ -30,12 +30,6 @@ from api.ingestions import router as ingestion_router
 from ingestion.errors import IngestionError
 from ingestion.storage_objects import signed_object_url
 from retrieval.langchain import warm_models
-from storage.database import (
-    book_retrieval_completeness,
-    close_pools,
-    connection as database_connection,
-    database_readiness,
-)
 from storage.conversations import (
     append_turn,
     create_conversation,
@@ -46,14 +40,35 @@ from storage.conversations import (
     load_turns,
     update_conversation,
 )
+from storage.database import (
+    book_retrieval_completeness,
+    close_pools,
+    database_readiness,
+)
+from storage.database import (
+    connection as database_connection,
+)
 from storage.postgres import list_books, ready_book
+from storage.preferences import load_prompt_profile, save_prompt_profile
 from study.analyze import ConversationDecisionError
-from study.contracts import ContractModel, ConversationState, TurnResult
+from study.contracts import (
+    AnswerArchetype,
+    ContractModel,
+    ConversationState,
+    PromptProfile,
+    ResponseDepth,
+    TurnResult,
+)
 from study.conversation import execute_conversation_turn, new_conversation_state
+from study.prompts import (
+    DEFAULT_PROMPT_PROFILE,
+    LOCKED_GROUNDING_PROMPT,
+    profile_version,
+    prompt_preview,
+)
 from study.query import QueryExecutionError
 from study.scope import ScopeResolutionError
 from study.summarize import ContextWindowExceededError
-
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -78,13 +93,17 @@ class ChatRequest(ContractModel):
     # never fall back to book 1, and it must never silently widen to the whole
     # library either. The client sends the reader's selection explicitly.
     book_ids: list[int] = Field(min_length=1, max_length=50)
+    # Book ids explicitly tagged with @ in this turn. These narrow retrieval
+    # for the turn without rewriting the conversation's default selection.
+    mentioned_book_ids: list[int] = Field(default_factory=list, max_length=50)
     # Null starts a new conversation. Conversation state is loaded from and
     # written to the database by the server; it is deliberately no longer
     # accepted from the client, which previously held the only copy and could
     # submit arbitrary state.
     conversation_id: UUID | None = None
+    response_depth: ResponseDepth = "interview"
 
-    @field_validator("book_ids")
+    @field_validator("book_ids", "mentioned_book_ids")
     @classmethod
     def unique_positive_book_ids(cls, value: list[int]) -> list[int]:
         if any(identifier <= 0 for identifier in value):
@@ -126,12 +145,33 @@ class ConversationDetail(ContractModel):
     retrieval_mode: RetrievalMode
     created_at: datetime
     updated_at: datetime
+    prompt_profile: PromptProfile
     turns: list[ConversationTurn]
 
 
 class UpdateConversationRequest(ContractModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     retrieval_mode: RetrievalMode | None = None
+    prompt_profile: PromptProfile | None = None
+
+
+class PromptSettingsResponse(ContractModel):
+    profile: PromptProfile
+    defaults: PromptProfile
+    locked_system_prompt: str
+    preview_system_prompt: str
+    preview_user_prompt: str
+    profile_version: str
+
+
+class UpdatePromptSettingsRequest(ContractModel):
+    profile: PromptProfile
+
+
+class PromptPreviewRequest(ContractModel):
+    profile: PromptProfile
+    answer_archetype: AnswerArchetype = "concept_explanation"
+    response_depth: ResponseDepth = "interview"
 
 
 class BookSummary(ContractModel):
@@ -315,10 +355,16 @@ CONVERSATION_NOT_FOUND = HTTPException(
 )
 
 
+def _stored_profile(value) -> PromptProfile:
+    if value:
+        return PromptProfile.model_validate(value)
+    return DEFAULT_PROMPT_PROFILE
+
+
 def _resume_state(
     owner_id: UUID,
     request: ChatRequest,
-) -> tuple[UUID, ConversationState]:
+) -> tuple[UUID, ConversationState, PromptProfile]:
     """Return the conversation to continue, creating one when needed.
 
     A selection that differs from the conversation's own starts a new
@@ -345,7 +391,14 @@ def _resume_state(
                         owner_id=owner_id,
                         retrieval_mode=request.retrieval_mode,
                     )
-                return existing["id"], state
+                return (
+                    existing["id"],
+                    state,
+                    _stored_profile(existing["prompt_profile_json"]),
+                )
+
+        saved_profile = load_prompt_profile(connection, owner_id=owner_id)
+        prompt_profile = _stored_profile(saved_profile)
 
         created = create_conversation(
             connection,
@@ -353,11 +406,16 @@ def _resume_state(
             book_ids=request.book_ids,
             retrieval_mode=request.retrieval_mode,
             title=derive_title(request.question),
+            prompt_profile=prompt_profile.model_dump(mode="json"),
         )
 
-    return created["id"], new_conversation_state(
-        book_ids=request.book_ids,
-        conversation_id=str(created["id"]),
+    return (
+        created["id"],
+        new_conversation_state(
+            book_ids=request.book_ids,
+            conversation_id=str(created["id"]),
+        ),
+        prompt_profile,
     )
 
 
@@ -388,14 +446,17 @@ def _run_turn(
     """Load, execute, and persist one turn. Runs on a worker thread."""
 
     question = request.question.strip()
-    conversation_id, state = _resume_state(owner_id, request)
+    conversation_id, state, prompt_profile = _resume_state(owner_id, request)
     result, updated = execute_conversation_turn(
         question,
         state,
         owner_id=owner_id,
         retrieval_mode=request.retrieval_mode,
         book_ids=request.book_ids,
+        turn_book_ids=request.mentioned_book_ids or None,
         token_callback=token_callback,
+        prompt_profile=prompt_profile,
+        response_depth=request.response_depth,
     )
     # The stored conversation is the identity; a fresh state object from the
     # workflow must not invent a different one.
@@ -404,12 +465,78 @@ def _run_turn(
     return ChatResponse(result=result, state=updated)
 
 
+def _prompt_settings(profile: PromptProfile) -> PromptSettingsResponse:
+    preview = prompt_preview(profile)
+    return PromptSettingsResponse(
+        profile=profile,
+        defaults=DEFAULT_PROMPT_PROFILE,
+        locked_system_prompt=LOCKED_GROUNDING_PROMPT,
+        preview_system_prompt=preview[0][1],
+        preview_user_prompt=preview[1][1],
+        profile_version=profile_version(profile),
+    )
+
+
+@app.get("/api/prompt-settings", response_model=PromptSettingsResponse)
+async def prompt_settings(
+    owner_id: UUID = Depends(current_owner),
+) -> PromptSettingsResponse:
+    def load() -> PromptSettingsResponse:
+        with database_connection(readonly=True) as connection:
+            stored = load_prompt_profile(connection, owner_id=owner_id)
+        return _prompt_settings(_stored_profile(stored))
+
+    return await run_in_threadpool(load)
+
+
+@app.patch("/api/prompt-settings", response_model=PromptSettingsResponse)
+async def update_prompt_settings(
+    request: UpdatePromptSettingsRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> PromptSettingsResponse:
+    def save() -> PromptSettingsResponse:
+        with database_connection() as connection:
+            stored = save_prompt_profile(
+                connection,
+                owner_id=owner_id,
+                profile=request.profile.model_dump(mode="json"),
+            )
+        return _prompt_settings(PromptProfile.model_validate(stored))
+
+    return await run_in_threadpool(save)
+
+
+@app.post("/api/prompt-settings/preview", response_model=PromptSettingsResponse)
+async def preview_prompt_settings(
+    request: PromptPreviewRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> PromptSettingsResponse:
+    del owner_id
+    preview = prompt_preview(
+        request.profile,
+        archetype=request.answer_archetype,
+        depth=request.response_depth,
+    )
+    return PromptSettingsResponse(
+        profile=request.profile,
+        defaults=DEFAULT_PROMPT_PROFILE,
+        locked_system_prompt=LOCKED_GROUNDING_PROMPT,
+        preview_system_prompt=preview[0][1],
+        preview_user_prompt=preview[1][1],
+        profile_version=profile_version(request.profile),
+    )
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ChatResponse:
-    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
+    await run_in_threadpool(
+        _require_ready_books,
+        owner_id,
+        sorted(set(request.book_ids + request.mentioned_book_ids)),
+    )
     try:
         return await run_in_threadpool(_run_turn, owner_id, request)
     except HTTPException:
@@ -454,7 +581,11 @@ async def chat_stream(
     `error` event.
     """
 
-    await run_in_threadpool(_require_ready_books, owner_id, request.book_ids)
+    await run_in_threadpool(
+        _require_ready_books,
+        owner_id,
+        sorted(set(request.book_ids + request.mentioned_book_ids)),
+    )
     loop = asyncio.get_running_loop()
     events: queue.Queue = queue.Queue()
 
@@ -552,9 +683,7 @@ async def conversation_detail(
 
     def load() -> ConversationDetail:
         with database_connection(readonly=True) as connection:
-            record = load_conversation(
-                connection, conversation_id, owner_id=owner_id
-            )
+            record = load_conversation(connection, conversation_id, owner_id=owner_id)
             if record is None:
                 raise CONVERSATION_NOT_FOUND
             turns = load_turns(connection, conversation_id, owner_id=owner_id)
@@ -565,6 +694,7 @@ async def conversation_detail(
             retrieval_mode=record["retrieval_mode"],
             created_at=record["created_at"],
             updated_at=record["updated_at"],
+            prompt_profile=_stored_profile(record["prompt_profile_json"]),
             turns=[
                 ConversationTurn(
                     turn_index=turn["turn_index"],
@@ -597,6 +727,11 @@ async def rename_conversation(
                 owner_id=owner_id,
                 title=request.title.strip() if request.title else None,
                 retrieval_mode=request.retrieval_mode,
+                prompt_profile=(
+                    request.prompt_profile.model_dump(mode="json")
+                    if request.prompt_profile
+                    else None
+                ),
             )
             if record is None:
                 raise CONVERSATION_NOT_FOUND
@@ -627,9 +762,7 @@ async def remove_conversation(
 ) -> Response:
     def remove() -> bool:
         with database_connection() as connection:
-            return delete_conversation(
-                connection, conversation_id, owner_id=owner_id
-            )
+            return delete_conversation(connection, conversation_id, owner_id=owner_id)
 
     if not await run_in_threadpool(remove):
         raise CONVERSATION_NOT_FOUND

@@ -10,7 +10,13 @@ from langgraph.runtime import Runtime
 from retrieval.search import RetrievalMode
 
 from .analyze import AnalysisModel, analyze_turn
-from .contracts import ConversationState, TurnDecision, TurnResult
+from .contracts import (
+    ConversationState,
+    PromptProfile,
+    ResponseDepth,
+    TurnDecision,
+    TurnResult,
+)
 from .conversation import execute_decision, record_turn
 from .query import ChatModel
 from .streaming import TokenCallback
@@ -39,16 +45,26 @@ class StudyGraphContext:
     analysis_model: AnalysisModel | None = None
     generation_model: ChatModel | None = None
     token_callback: TokenCallback | None = None
+    prompt_profile: PromptProfile | None = None
+    response_depth: ResponseDepth = "interview"
+    # Optional per-turn narrowing supplied by explicit @book mentions. The
+    # conversation's library selection remains unchanged for later turns.
+    turn_book_ids: tuple[int, ...] | None = None
 
 
 def plan_turn(
     state: StudyGraphState,
     runtime: Runtime[StudyGraphContext],
 ) -> dict:
+    conversation = state["conversation"]
+    if runtime.context.turn_book_ids:
+        conversation = conversation.model_copy(
+            update={"book_ids": list(runtime.context.turn_book_ids)}
+        )
     return {
         "decision": analyze_turn(
             state["question"],
-            state["conversation"],
+            conversation,
             runtime.context.database_url,
             owner_id=runtime.context.owner_id,
             model=runtime.context.analysis_model,
@@ -89,6 +105,9 @@ def execute_route(
             retrieval_mode=runtime.context.retrieval_mode,
             model=runtime.context.generation_model,
             token_callback=runtime.context.token_callback,
+            prompt_profile=runtime.context.prompt_profile,
+            response_depth=runtime.context.response_depth,
+            turn_book_ids=runtime.context.turn_book_ids,
         )
     }
 

@@ -14,8 +14,8 @@ from study.conversation import (
     record_turn,
 )
 from study.graph import StudyGraphContext, study_turn_graph
-from tests.test_query_routing import CitationSummaryModel
 from tests.postgres import PostgresOwnerMixin
+from tests.test_query_routing import CitationSummaryModel
 
 
 class FakeModel:
@@ -191,6 +191,61 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(result.history_dependency, "dependent")
         self.assertEqual(result.resolved_scope, scope)
         self.assertTrue(execute.call_args.kwargs["force_retrieval"])
+        self.assertEqual(execute.call_args.kwargs["response_depth"], "interview")
+        self.assertEqual(
+            execute.call_args.kwargs["routing_reason"],
+            "The question refers to the active chapter.",
+        )
+
+    def test_explicit_deep_followup_overrides_the_composer_depth(self):
+        analysis = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "dependent",
+                "standalone_query": "Explain service dataflow in more detail.",
+                "reason": "The user requested a deeper explanation.",
+            }
+        )
+        with patch(
+            "study.conversation.execute_query",
+            return_value=self.retrieval_result("service"),
+        ) as execute:
+            execute_conversation_turn(
+                "Go deeper on service dataflow.",
+                self.state(previous_answer="Service dataflow overview."),
+                database_url=self.database_url,
+                owner_id=self.owner_id,
+                analysis_model=analysis,
+                response_depth="quick",
+            )
+
+        self.assertEqual(execute.call_args.kwargs["response_depth"], "deep")
+
+    def test_answer_archetype_uses_original_question_before_rewrite(self):
+        analysis = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "independent",
+                "standalone_query": "Explain the algorithm and failure trade-offs.",
+                "reason": "Retrieve the relevant design evidence.",
+            }
+        )
+        with patch(
+            "study.conversation.execute_query",
+            return_value=self.retrieval_result("rate limiter"),
+        ) as execute:
+            execute_conversation_turn(
+                "Design a distributed API rate limiter.",
+                self.state(),
+                database_url=self.database_url,
+                owner_id=self.owner_id,
+                analysis_model=analysis,
+            )
+
+        self.assertEqual(
+            execute.call_args.kwargs["answer_archetype"],
+            "system_design",
+        )
 
     def test_ambiguity_clarifies_without_retrieval(self):
         analysis = FakeModel(

@@ -1,0 +1,1820 @@
+{
+  "schema_version": "0.1.0",
+  "dataset_id": "interview-answer-seed-v0.1",
+  "created_on": "2026-07-29",
+  "purpose": "Evaluate whether grounded answers help a reader explain technical material in an interview, adapt to requested depth, and handle follow-up questions without unsupported claims.",
+  "provenance": "Questions, ideal-answer criteria, likely follow-ups, and failure guards were authored from model knowledge. Candidate evidence anchors were matched to the table of contents and page ranges in the four production books. Five Designing Machine Learning Systems anchors reuse topics already judged in the existing retrieval and multi-turn gold sets. All other evidence mappings remain candidate anchors until a human checks the cited pages and promotes the dataset.",
+  "intended_use": [
+    "Compare prompt-profile revisions on a frozen set of interview questions.",
+    "Separate answer-presentation failures from retrieval and grounding failures.",
+    "Check quick, interview, and deep response behavior.",
+    "Exercise concept, system-design, chapter-review, follow-up, and abstention behavior."
+  ],
+  "exclusions": [
+    "This seed is not a final human-verified gold set.",
+    "The must-cover lists are semantic scoring criteria, not text that an answer must reproduce verbatim.",
+    "Candidate evidence anchors do not prove that every listed criterion is supported until page-level human review.",
+    "The set is intentionally balanced for diagnostic coverage and is not a statistical sample of all interview questions."
+  ],
+  "books": [
+    {
+      "key": "islp",
+      "title": "An Introduction to Statistical Learning with Applications in Python",
+      "author": "Gareth James, Daniela Witten, Trevor Hastie, and Robert Tibshirani",
+      "production_book_id_hint": 530,
+      "source_file_sha256": "278d3bdd49a8a480c2ff8e03245822caad8a3a48e81afd6d039c52c8fc13ad60"
+    },
+    {
+      "key": "sdi",
+      "title": "System Design Interview – An Insider's Guide, Second Edition",
+      "author": "Alex Xu",
+      "production_book_id_hint": 523,
+      "source_file_sha256": "d2bafdef03246a64e3c58049c5ae188d8be9d74c6b23f05045637b07ad7167df"
+    },
+    {
+      "key": "aie",
+      "title": "AI Engineering",
+      "author": "Chip Huyen",
+      "production_book_id_hint": 528,
+      "source_file_sha256": "9abebdd89b8af99937dc91d5be8c366b7dce449dfbdcef570277604b01bcbf40"
+    },
+    {
+      "key": "dmls",
+      "title": "Designing Machine Learning Systems",
+      "author": "Chip Huyen",
+      "production_book_id_hint": 526,
+      "source_file_sha256": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2"
+    }
+  ],
+  "score_dimensions": {
+    "grounded_correctness": {
+      "description": "Technical claims agree with the judged source evidence and preserve important qualifications.",
+      "score_0": "Core explanation is wrong, contradicted by the source, or mostly invented.",
+      "score_2": "Main idea is usable but contains a meaningful error or loses important qualifications.",
+      "score_4": "Core and supporting claims are accurate, appropriately qualified, and grounded."
+    },
+    "interview_readiness": {
+      "description": "The answer can be spoken and defended in an interview, including reasoning and trade-offs rather than isolated facts.",
+      "score_0": "Does not answer the interview question or is unusably disorganized.",
+      "score_2": "Answers the question but gives limited reasoning, trade-offs, or defensible structure.",
+      "score_4": "Starts with a strong direct response and develops reasoning, trade-offs, and likely probes naturally."
+    },
+    "coverage": {
+      "description": "The answer includes the case-specific must-cover concepts without padding.",
+      "score_0": "Misses nearly all required concepts.",
+      "score_2": "Covers roughly half the important concepts or treats them superficially.",
+      "score_4": "Covers all required concepts at the requested depth without irrelevant expansion."
+    },
+    "depth_adherence": {
+      "description": "The response follows the effective quick, interview, or deep request, including explicit natural-language overrides.",
+      "score_0": "Strongly violates the requested depth.",
+      "score_2": "Roughly appropriate but noticeably too shallow, repetitive, or long.",
+      "score_4": "Matches the requested depth and prioritizes detail appropriately."
+    },
+    "clarity_memorability": {
+      "description": "The explanation uses clear sequencing, meaningful comparisons, and memorable mental models supported by evidence.",
+      "score_0": "Confusing, fragmented, or dominated by unexplained terminology.",
+      "score_2": "Understandable but difficult to retain or explain aloud.",
+      "score_4": "Clear, economical, and memorable without oversimplifying."
+    },
+    "follow_up_quality": {
+      "description": "Likely interviewer follow-ups are high-value, non-redundant, and paired with useful concise answers when the requested depth permits.",
+      "score_0": "Follow-ups are missing when required, irrelevant, or misleading.",
+      "score_2": "Includes some useful probes but they are generic or weakly answered.",
+      "score_4": "Selects the most diagnostic probes and answers them concisely from evidence."
+    },
+    "citation_quality": {
+      "description": "Important claims carry exact, correctly placed source markers and no marker is attached to an unsupported claim.",
+      "score_0": "Important claims are uncited or citations do not support them.",
+      "score_2": "Most core claims are cited but placement or support is inconsistent.",
+      "score_4": "Important claims are naturally and precisely cited with no citation inflation."
+    }
+  },
+  "cases": [
+    {
+      "id": "int-001",
+      "title": "Logistic regression interview explanation",
+      "prompt": "Explain logistic regression as if I were answering an ML interview question.",
+      "book_key": "islp",
+      "category": "concept",
+      "difficulty": "foundational",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3311,
+          "path": "4 Classification :: 4.3 Logistic Regression",
+          "pages": [147],
+          "role": "required"
+        },
+        {
+          "node_id": 3312,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.1 The Logistic Model",
+          "pages": [148],
+          "role": "required"
+        },
+        {
+          "node_id": 3313,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.2 Estimating the Regression Coefficients",
+          "pages": [149],
+          "role": "required"
+        },
+        {
+          "node_id": 3314,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.3 Making Predictions",
+          "pages": [150],
+          "role": "required"
+        },
+        {
+          "node_id": 3315,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.4 Multiple Logistic Regression",
+          "pages": [151, 152],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "It models a class probability rather than an unrestricted continuous target.",
+        "The logistic or sigmoid form keeps binary probabilities between zero and one.",
+        "Coefficients are naturally interpreted through log-odds or odds changes.",
+        "Parameters are estimated from the observed classes and predictions require a decision rule or threshold."
+      ],
+      "should_cover": [
+        "Multiple and multinomial extensions when relevant.",
+        "A concise contrast with linear regression for classification."
+      ],
+      "must_avoid": [
+        "Claiming logistic regression directly minimizes ordinary least squares in its standard form.",
+        "Treating a probability threshold of 0.5 as universally optimal."
+      ],
+      "expected_follow_ups": [
+        "How do you interpret a coefficient?",
+        "Why not use linear regression for classification?",
+        "How would class imbalance affect the threshold?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["statistics", "classification", "probability", "core-concept"]
+    },
+    {
+      "id": "int-002",
+      "title": "Logistic regression quick answer override",
+      "prompt": "Briefly explain logistic regression in a 30-second interview answer.",
+      "book_key": "islp",
+      "category": "concept",
+      "difficulty": "foundational",
+      "ui_requested_depth": "deep",
+      "expected_depth": "quick",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3312,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.1 The Logistic Model",
+          "pages": [148],
+          "role": "required"
+        },
+        {
+          "node_id": 3314,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.3 Making Predictions",
+          "pages": [150],
+          "role": "supporting"
+        }
+      ],
+      "must_cover": [
+        "Binary-class probability modeling.",
+        "Sigmoid or log-odds relationship.",
+        "A threshold converts probability to a class when classification is required."
+      ],
+      "should_cover": [],
+      "must_avoid": [
+        "Turning a 30-second request into a tutorial or long follow-up bank."
+      ],
+      "expected_follow_ups": [
+        "How do you interpret a coefficient?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "depth_adherence",
+        "clarity_memorability",
+        "citation_quality"
+      ],
+      "tags": ["statistics", "depth-override", "quick-answer"]
+    },
+    {
+      "id": "int-003",
+      "title": "Logistic regression coefficient deep follow-up",
+      "prompt": "Go deeper into exactly how I should interpret one coefficient.",
+      "book_key": "islp",
+      "category": "follow_up",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "quick",
+      "expected_depth": "deep",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3312,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.1 The Logistic Model",
+          "pages": [148],
+          "role": "required"
+        },
+        {
+          "node_id": 3315,
+          "path": "4 Classification :: 4.3 Logistic Regression :: 4.3.4 Multiple Logistic Regression",
+          "pages": [151, 152],
+          "role": "required"
+        }
+      ],
+      "prior_turns": [
+        {
+          "user": "Explain logistic regression as if I were answering an ML interview question.",
+          "answer_summary": "Explained probability modeling with the logistic function, coefficient estimation, and thresholded prediction."
+        }
+      ],
+      "must_cover": [
+        "Holding other predictors fixed in a multiple logistic model.",
+        "A one-unit predictor increase changes log-odds by the coefficient.",
+        "Exponentiating the coefficient gives a multiplicative odds change.",
+        "The same coefficient does not imply a constant additive probability change because the sigmoid is nonlinear."
+      ],
+      "should_cover": [
+        "A numerical odds-ratio example.",
+        "The role of units and feature scaling in interpretation."
+      ],
+      "must_avoid": [
+        "Repeating the entire introductory logistic-regression answer.",
+        "Saying the coefficient is a constant probability increase."
+      ],
+      "expected_follow_ups": [
+        "How does feature scaling change the interpretation?",
+        "What changes when predictors interact?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["statistics", "follow-up", "coefficient-interpretation", "depth-override"]
+    },
+    {
+      "id": "int-004",
+      "title": "Ridge versus lasso",
+      "prompt": "Compare ridge regression and the lasso. When would you choose each in an interview?",
+      "book_key": "islp",
+      "category": "comparison",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3361,
+          "path": "6 Linear Model Selection and Regularization :: 6.2 Shrinkage Methods :: 6.2.1 Ridge Regression",
+          "pages": [248, 249, 250, 251],
+          "role": "required"
+        },
+        {
+          "node_id": 3362,
+          "path": "6 Linear Model Selection and Regularization :: 6.2 Shrinkage Methods :: 6.2.2 The Lasso",
+          "pages": [252, 253, 254, 255, 256, 257, 258, 259],
+          "role": "required"
+        },
+        {
+          "node_id": 3363,
+          "path": "6 Linear Model Selection and Regularization :: 6.2 Shrinkage Methods :: 6.2.3 Selecting the Tuning Parameter",
+          "pages": [260],
+          "role": "supporting"
+        }
+      ],
+      "must_cover": [
+        "Both shrink coefficients to trade some bias for lower variance.",
+        "Ridge uses an L2 penalty and generally retains all predictors.",
+        "The lasso uses an L1 penalty and can set coefficients exactly to zero.",
+        "The tuning parameter should be selected using held-out or cross-validation performance rather than training fit."
+      ],
+      "should_cover": [
+        "Sparse-signal interpretability versus many small distributed effects.",
+        "Standardization before comparing penalized coefficients."
+      ],
+      "must_avoid": [
+        "Claiming the lasso always predicts better than ridge.",
+        "Describing regularization as a guarantee against all overfitting."
+      ],
+      "expected_follow_ups": [
+        "Why can the lasso produce exact zeros?",
+        "Why should features be standardized?",
+        "How do correlated predictors affect the choice?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["regularization", "ridge", "lasso", "comparison"]
+    },
+    {
+      "id": "int-005",
+      "title": "Bias-variance diagnosis",
+      "prompt": "A model has very low training error but unstable and much worse validation error. Diagnose it using the bias-variance trade-off and explain what you would try.",
+      "book_key": "islp",
+      "category": "scenario",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3268,
+          "path": "2 Statistical Learning :: 2.2 Assessing Model Accuracy :: 2.2.2 The Bias-Variance Trade-Off",
+          "pages": [41, 42, 43],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "The observed pattern is consistent with high variance or overfitting.",
+        "Expected test error reflects both bias and variance, so training error alone is not a selection criterion.",
+        "Reasonable responses reduce effective flexibility, improve validation, or increase useful data.",
+        "Interventions must be judged on held-out performance rather than assumed to work."
+      ],
+      "should_cover": [
+        "Regularization, simpler models, feature control, or more representative training data as examples."
+      ],
+      "must_avoid": [
+        "Diagnosing high bias from low training error.",
+        "Promising that more data always fixes the problem."
+      ],
+      "expected_follow_ups": [
+        "What would high bias look like?",
+        "How does regularization move the bias-variance balance?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["bias-variance", "overfitting", "scenario"]
+    },
+    {
+      "id": "int-006",
+      "title": "Validation set, LOOCV, and k-fold comparison",
+      "prompt": "Compare a single validation split, leave-one-out cross-validation, and k-fold cross-validation.",
+      "book_key": "islp",
+      "category": "comparison",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "deep",
+      "expected_depth": "deep",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3342,
+          "path": "5 Resampling Methods :: 5.1 Cross-Validation :: 5.1.1 The Validation Set Approach",
+          "pages": [210, 211],
+          "role": "required"
+        },
+        {
+          "node_id": 3343,
+          "path": "5 Resampling Methods :: 5.1 Cross-Validation :: 5.1.2 Leave-One-Out Cross-Validation",
+          "pages": [212, 213],
+          "role": "required"
+        },
+        {
+          "node_id": 3344,
+          "path": "5 Resampling Methods :: 5.1 Cross-Validation :: 5.1.3 k-Fold Cross-Validation",
+          "pages": [214, 215],
+          "role": "required"
+        },
+        {
+          "node_id": 3345,
+          "path": "5 Resampling Methods :: 5.1 Cross-Validation :: 5.1.4 Bias-Variance Trade-Off for k-Fold Cross-Validation",
+          "pages": [216],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "A single split is cheap but its estimate depends strongly on one partition and trains on less data.",
+        "LOOCV repeatedly trains with one observation held out and is computationally demanding.",
+        "k-fold cross-validation balances compute and statistical behavior.",
+        "The methods differ in bias, variance, and computational cost rather than one universally dominating."
+      ],
+      "should_cover": [
+        "Typical reasoning for choosing a moderate k.",
+        "Classification-aware splitting when class proportions matter."
+      ],
+      "must_avoid": [
+        "Claiming LOOCV necessarily has the lowest-variance estimate.",
+        "Ignoring data dependencies such as time or grouping when discussing random folds."
+      ],
+      "expected_follow_ups": [
+        "Why can LOOCV have high variance?",
+        "How would you cross-validate time-series data?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["cross-validation", "model-selection", "comparison"]
+    },
+    {
+      "id": "int-007",
+      "title": "Random forests versus boosting",
+      "prompt": "How do random forests and boosting differ, and what trade-offs would you mention in an interview?",
+      "book_key": "islp",
+      "category": "comparison",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3412,
+          "path": "8 Tree-Based Methods :: 8.2 Bagging, Random Forests, Boosting, and Bayesian Additive Regression Trees :: 8.2.2 Random Forests",
+          "pages": [353],
+          "role": "required"
+        },
+        {
+          "node_id": 3413,
+          "path": "8 Tree-Based Methods :: 8.2 Bagging, Random Forests, Boosting, and Bayesian Additive Regression Trees :: 8.2.3 Boosting",
+          "pages": [354, 355, 356],
+          "role": "required"
+        },
+        {
+          "node_id": 3415,
+          "path": "8 Tree-Based Methods :: 8.2 Bagging, Random Forests, Boosting, and Bayesian Additive Regression Trees :: 8.2.5 Summary of Tree Ensemble Methods",
+          "pages": [360],
+          "role": "supporting"
+        }
+      ],
+      "must_cover": [
+        "Random forests average decorrelated trees built from resampled data and random feature subsets.",
+        "Boosting builds a sequence of small trees where later stages focus on remaining error.",
+        "Random forests primarily reduce variance through averaging, while boosting can progressively improve fit but needs tuning.",
+        "Comparison should include tuning, robustness, and computational behavior rather than only accuracy."
+      ],
+      "should_cover": [
+        "Tree depth, number of trees, and learning rate as relevant controls."
+      ],
+      "must_avoid": [
+        "Saying random-forest trees are trained sequentially on prior residuals.",
+        "Saying boosting cannot overfit."
+      ],
+      "expected_follow_ups": [
+        "Why does random feature selection help?",
+        "What does the boosting learning rate do?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["trees", "ensemble", "random-forest", "boosting"]
+    },
+    {
+      "id": "int-008",
+      "title": "PCA interview explanation",
+      "prompt": "Explain PCA intuitively, then tell me what variance explained does and does not tell us.",
+      "book_key": "islp",
+      "category": "concept",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3510,
+          "path": "12 Unsupervised Learning :: 12.2 Principal Components Analysis :: 12.2.1 What Are Principal Components?",
+          "pages": [511, 512, 513],
+          "role": "required"
+        },
+        {
+          "node_id": 3512,
+          "path": "12 Unsupervised Learning :: 12.2 Principal Components Analysis :: 12.2.3 The Proportion of Variance Explained",
+          "pages": [516, 517],
+          "role": "required"
+        },
+        {
+          "node_id": 3513,
+          "path": "12 Unsupervised Learning :: 12.2 Principal Components Analysis :: 12.2.4 More on PCA",
+          "pages": [518, 519, 520],
+          "role": "supporting"
+        }
+      ],
+      "must_cover": [
+        "Principal components are orthogonal directions formed from linear combinations of variables.",
+        "The first directions capture the greatest variation in the observed predictors subject to orthogonality.",
+        "Proportion of variance explained quantifies retained predictor variation.",
+        "High explained variance does not by itself guarantee predictive relevance for a downstream target."
+      ],
+      "should_cover": [
+        "Centering and scaling considerations.",
+        "Loadings versus scores."
+      ],
+      "must_avoid": [
+        "Calling PCA a supervised method optimized for label prediction.",
+        "Equating variance explained with causal importance."
+      ],
+      "expected_follow_ups": [
+        "Why should features sometimes be standardized first?",
+        "How do you select the number of components?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["pca", "unsupervised-learning", "dimensionality-reduction"]
+    },
+    {
+      "id": "int-009",
+      "title": "Classification chapter interview review",
+      "prompt": "Turn Chapter 4 on classification into a complete interview-preparation review.",
+      "book_key": "islp",
+      "category": "chapter_review",
+      "difficulty": "advanced",
+      "ui_requested_depth": "deep",
+      "expected_depth": "deep",
+      "expected_archetype": "chapter_review",
+      "expected_route": "hierarchy_summary",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 3308,
+          "path": "4 Classification",
+          "pages": [144],
+          "role": "required"
+        },
+        {
+          "node_id": 3311,
+          "path": "4 Classification :: 4.3 Logistic Regression",
+          "pages": [147],
+          "role": "required"
+        },
+        {
+          "node_id": 3317,
+          "path": "4 Classification :: 4.4 Generative Models for Classification",
+          "pages": [155],
+          "role": "required"
+        },
+        {
+          "node_id": 3322,
+          "path": "4 Classification :: 4.5 A Comparison of Classification Methods",
+          "pages": [170],
+          "role": "required"
+        },
+        {
+          "node_id": 3325,
+          "path": "4 Classification :: 4.6 Generalized Linear Models",
+          "pages": [176],
+          "role": "required"
+        },
+        {
+          "node_id": 3329,
+          "path": "4 Classification :: 4.7 Lab: Logistic Regression, LDA, QDA, and KNN",
+          "pages": [182],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Why classification needs methods that respect class probabilities rather than unrestricted regression outputs.",
+        "Logistic regression mechanics and interpretation.",
+        "Generative classification approaches and their assumptions.",
+        "How logistic regression, LDA, QDA, naive Bayes, and KNN differ.",
+        "Evaluation and model-choice reasoning across classification settings."
+      ],
+      "should_cover": [
+        "A compact comparison table or decision framework.",
+        "Likely conceptual traps and oral follow-up questions."
+      ],
+      "must_avoid": [
+        "Producing a section-by-section paraphrase with no interview synthesis.",
+        "Omitting major model families covered by the chapter."
+      ],
+      "expected_follow_ups": [
+        "When would LDA outperform logistic regression?",
+        "How does QDA differ from LDA?",
+        "What assumptions does naive Bayes make?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["chapter-review", "classification", "complete-scope"]
+    },
+    {
+      "id": "int-010",
+      "title": "Static book cannot answer current library default",
+      "prompt": "What is the default scikit-learn logistic-regression solver in the latest 2026 release, and did it change this month?",
+      "book_key": "islp",
+      "category": "unanswerable",
+      "difficulty": "foundational",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": false,
+      "evidence_status": "not_applicable",
+      "candidate_evidence": [],
+      "must_cover": [],
+      "should_cover": [],
+      "must_avoid": [
+        "Guessing a current library default from model knowledge.",
+        "Citing a static textbook as evidence for a recent release change."
+      ],
+      "expected_follow_ups": [],
+      "scoring_focus": [
+        "grounded_correctness",
+        "depth_adherence",
+        "citation_quality"
+      ],
+      "tags": ["unanswerable", "time-sensitive", "abstention"]
+    },
+    {
+      "id": "int-011",
+      "title": "URL shortener full design",
+      "prompt": "Design a URL shortener in full detail as a system-design interview walkthrough.",
+      "book_key": "sdi",
+      "category": "system_design",
+      "difficulty": "advanced",
+      "ui_requested_depth": "quick",
+      "expected_depth": "deep",
+      "expected_archetype": "system_design",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2538,
+          "path": "CHAPTER 8: DESIGN A URL SHORTENER",
+          "pages": [119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131],
+          "role": "required"
+        },
+        {
+          "node_id": 2532,
+          "path": "CHAPTER 2: BACK-OF-THE-ENVELOPE ESTIMATION",
+          "pages": [34, 35, 36, 37, 38, 39, 40, 41],
+          "role": "supporting"
+        }
+      ],
+      "must_cover": [
+        "Clarifying functional requirements such as shortening and redirecting URLs.",
+        "Non-functional requirements and traffic assumptions before capacity calculations.",
+        "API shape and storage model for short-to-long URL mappings.",
+        "Short-code generation alternatives and collision handling.",
+        "Read-heavy scaling, caching, database partitioning or replication, and failure considerations.",
+        "A coherent end-to-end request flow with explicit trade-offs."
+      ],
+      "should_cover": [
+        "Expiration, custom aliases, abuse, and analytics only when supported.",
+        "A compact closing checklist an interviewee can use."
+      ],
+      "must_avoid": [
+        "Inventing capacity numbers without stating inputs.",
+        "Listing components without explaining request flow or trade-offs.",
+        "Treating hash collisions as impossible."
+      ],
+      "expected_follow_ups": [
+        "How do you generate unique short keys?",
+        "How do you handle a hot URL?",
+        "How would you prevent abuse?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["system-design", "url-shortener", "depth-override", "capacity"]
+    },
+    {
+      "id": "int-012",
+      "title": "URL-key generation deep follow-up",
+      "prompt": "Go deeper on short-key generation. Compare hashing with a unique-ID approach and discuss collisions.",
+      "book_key": "sdi",
+      "category": "follow_up",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "deep",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2538,
+          "path": "CHAPTER 8: DESIGN A URL SHORTENER",
+          "pages": [119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131],
+          "role": "required"
+        },
+        {
+          "node_id": 2537,
+          "path": "CHAPTER 7: DESIGN A UNIQUE ID GENERATOR IN DISTRIBUTED SYSTEMS",
+          "pages": [110, 111, 112, 113, 114, 115, 116, 117, 118],
+          "role": "supporting"
+        }
+      ],
+      "prior_turns": [
+        {
+          "user": "Design a URL shortener in full detail as a system-design interview walkthrough.",
+          "answer_summary": "Covered requirements, estimates, APIs, mapping storage, caching, scaling, and key-generation alternatives."
+        }
+      ],
+      "must_cover": [
+        "Hash-based generation must define truncation and collision detection or retry behavior.",
+        "A unique-ID approach separates uniqueness generation from base encoding.",
+        "The alternatives differ in coordination, predictability, storage checks, and operational complexity.",
+        "The answer should tie key-space size to expected scale rather than choose a length arbitrarily."
+      ],
+      "should_cover": [
+        "Security or enumeration implications if supported.",
+        "Why deterministic mappings and random aliases have different properties."
+      ],
+      "must_avoid": [
+        "Repeating the whole URL-shortener architecture.",
+        "Claiming a truncated hash is collision-free."
+      ],
+      "expected_follow_ups": [
+        "How large should the key space be?",
+        "Would sequential IDs leak information?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["system-design", "follow-up", "hashing", "unique-id"]
+    },
+    {
+      "id": "int-013",
+      "title": "Rate limiter design",
+      "prompt": "Design a distributed API rate limiter and walk through the algorithm and failure trade-offs.",
+      "book_key": "sdi",
+      "category": "system_design",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "system_design",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2534,
+          "path": "CHAPTER 4: DESIGN A RATE LIMITER",
+          "pages": [51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Clarify identity, quota scope, time window, and rejection behavior.",
+        "Compare at least the central algorithm choices and their burst or memory properties.",
+        "Explain where rules and counters live and how distributed updates remain sufficiently consistent.",
+        "Cover response headers or client behavior, failure handling, and monitoring."
+      ],
+      "should_cover": [
+        "Placement at an API gateway or service boundary.",
+        "Race conditions and local-cache trade-offs."
+      ],
+      "must_avoid": [
+        "Naming token bucket without explaining state transitions.",
+        "Assuming perfectly synchronized clocks or atomic global counters for free."
+      ],
+      "expected_follow_ups": [
+        "Token bucket or sliding window—which would you choose?",
+        "What happens if the counter store is unavailable?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["system-design", "rate-limiter", "distributed-state"]
+    },
+    {
+      "id": "int-014",
+      "title": "Consistent hashing explanation",
+      "prompt": "Explain consistent hashing and why it helps when a distributed cache adds or removes nodes.",
+      "book_key": "sdi",
+      "category": "concept",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2535,
+          "path": "CHAPTER 5: DESIGN CONSISTENT HASHING",
+          "pages": [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Keys and servers are mapped into the same hash space or ring.",
+        "A key is assigned by walking to an appropriate server position.",
+        "Adding or removing a server remaps a limited neighboring portion rather than nearly every key.",
+        "Virtual nodes improve balance and account for heterogeneous capacity."
+      ],
+      "should_cover": [
+        "Why modulo hashing causes broad remapping when the node count changes."
+      ],
+      "must_avoid": [
+        "Claiming consistent hashing guarantees perfectly even load.",
+        "Explaining only the ring diagram without the membership-change benefit."
+      ],
+      "expected_follow_ups": [
+        "What problem do virtual nodes solve?",
+        "Can a hot key still overload one server?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["distributed-systems", "consistent-hashing", "cache"]
+    },
+    {
+      "id": "int-015",
+      "title": "Distributed key-value store design",
+      "prompt": "Design a distributed key-value store and explain the consistency, replication, partitioning, and failure trade-offs.",
+      "book_key": "sdi",
+      "category": "system_design",
+      "difficulty": "advanced",
+      "ui_requested_depth": "deep",
+      "expected_depth": "deep",
+      "expected_archetype": "system_design",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2536,
+          "path": "CHAPTER 6: DESIGN A KEY-VALUE STORE",
+          "pages": [87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109],
+          "role": "required"
+        },
+        {
+          "node_id": 2535,
+          "path": "CHAPTER 5: DESIGN CONSISTENT HASHING",
+          "pages": [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86],
+          "role": "supporting"
+        }
+      ],
+      "must_cover": [
+        "Define operations, scale, value size, latency, availability, and consistency goals.",
+        "Partition keys and explain rebalancing.",
+        "Replicate data and state how reads and writes achieve the chosen consistency.",
+        "Address version conflicts, failures, recovery, and membership.",
+        "Connect each mechanism to a stated trade-off rather than presenting one universal design."
+      ],
+      "should_cover": [
+        "Quorum-style reasoning, conflict detection, and repair where supported.",
+        "Hot partitions and uneven access."
+      ],
+      "must_avoid": [
+        "Claiming CAP means a system permanently chooses only two of three properties.",
+        "Using replication without defining write acknowledgement or conflict behavior."
+      ],
+      "expected_follow_ups": [
+        "How do you handle conflicting writes?",
+        "What happens during a network partition?",
+        "How do failed replicas catch up?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["system-design", "key-value-store", "replication", "consistency"]
+    },
+    {
+      "id": "int-016",
+      "title": "News feed design",
+      "prompt": "Design a news feed system and compare fan-out-on-write with fan-out-on-read.",
+      "book_key": "sdi",
+      "category": "system_design",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "system_design",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2541,
+          "path": "CHAPTER 11: DESIGN A NEWS FEED SYSTEM",
+          "pages": [166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Separate feed publishing from feed retrieval.",
+        "Fan-out-on-write shifts work to publication and makes reads cheap.",
+        "Fan-out-on-read computes or assembles more at request time and avoids huge write amplification.",
+        "A hybrid can treat high-fan-out users differently.",
+        "Caching, ranking inputs, and stale or missing updates need an end-to-end explanation."
+      ],
+      "should_cover": [
+        "Celebrity or hot-user handling.",
+        "Pagination and timeline ordering."
+      ],
+      "must_avoid": [
+        "Describing fan-out strategies without identifying where computation and storage move.",
+        "Assuming one strategy is best for every user."
+      ],
+      "expected_follow_ups": [
+        "How do you handle celebrity accounts?",
+        "Where would ranking happen?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["system-design", "news-feed", "fan-out", "ranking"]
+    },
+    {
+      "id": "int-017",
+      "title": "Chat system design",
+      "prompt": "Design a chat system that supports one-to-one and group messaging.",
+      "book_key": "sdi",
+      "category": "system_design",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "system_design",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2542,
+          "path": "CHAPTER 12: DESIGN A CHAT SYSTEM",
+          "pages": [178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Clarify delivery, ordering, presence, device, and group-size requirements.",
+        "Explain persistent client connections and the message send path.",
+        "Persist messages and track delivery or read state appropriately.",
+        "Distinguish one-to-one and group fan-out behavior.",
+        "Handle offline recipients, reconnects, and server failures."
+      ],
+      "should_cover": [
+        "Service discovery and routing a user to the right connection server.",
+        "Message identifiers and synchronization across devices."
+      ],
+      "must_avoid": [
+        "Claiming global total ordering is necessary for all chats.",
+        "Ignoring durable storage because live delivery uses persistent connections."
+      ],
+      "expected_follow_ups": [
+        "How do offline users receive messages?",
+        "How do you preserve ordering?",
+        "How do large groups change the design?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["system-design", "chat", "websocket", "messaging"]
+    },
+    {
+      "id": "int-018",
+      "title": "Chat offline-delivery follow-up",
+      "prompt": "Dig deeper into offline delivery, reconnection, and duplicate messages.",
+      "book_key": "sdi",
+      "category": "follow_up",
+      "difficulty": "advanced",
+      "ui_requested_depth": "quick",
+      "expected_depth": "deep",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2542,
+          "path": "CHAPTER 12: DESIGN A CHAT SYSTEM",
+          "pages": [178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199],
+          "role": "required"
+        }
+      ],
+      "prior_turns": [
+        {
+          "user": "Design a chat system that supports one-to-one and group messaging.",
+          "answer_summary": "Covered persistent connections, routing, message persistence, group delivery, presence, and failure handling."
+        }
+      ],
+      "must_cover": [
+        "Messages must remain durable while a recipient is disconnected.",
+        "Reconnect synchronization needs a cursor, message identifier, or last-seen boundary.",
+        "Retries can cause duplicate delivery, so client or server processing needs idempotent identifiers.",
+        "Delivery, receipt, and read acknowledgement are distinct states."
+      ],
+      "should_cover": [
+        "Ordering scope and gaps during reconnection.",
+        "Multiple devices with independent cursors."
+      ],
+      "must_avoid": [
+        "Repeating the complete chat architecture.",
+        "Promising exactly-once end-to-end delivery without qualification."
+      ],
+      "expected_follow_ups": [
+        "Where is the deduplication state kept?",
+        "How do multiple devices synchronize?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["system-design", "follow-up", "offline-delivery", "idempotency"]
+    },
+    {
+      "id": "int-019",
+      "title": "URL shortener chapter review",
+      "prompt": "Give me a complete interview review of the URL-shortener chapter, including a revision checklist.",
+      "book_key": "sdi",
+      "category": "chapter_review",
+      "difficulty": "advanced",
+      "ui_requested_depth": "deep",
+      "expected_depth": "deep",
+      "expected_archetype": "chapter_review",
+      "expected_route": "hierarchy_summary",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2538,
+          "path": "CHAPTER 8: DESIGN A URL SHORTENER",
+          "pages": [119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Requirements and estimation sequence.",
+        "API and data-model choices.",
+        "Redirect flow and caching.",
+        "Short-code generation alternatives and collision handling.",
+        "Scaling and bottleneck discussion.",
+        "A concise oral checklist and likely interviewer probes."
+      ],
+      "should_cover": [
+        "Connect the chapter's steps into one mental model rather than mirror page order."
+      ],
+      "must_avoid": [
+        "Summarizing each page or section independently.",
+        "Leaving out the reasoning behind key generation."
+      ],
+      "expected_follow_ups": [
+        "How would you handle a hot URL?",
+        "How do you size the key space?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["chapter-review", "system-design", "url-shortener"]
+    },
+    {
+      "id": "int-020",
+      "title": "Static book cannot compare current vendors",
+      "prompt": "Which commercial URL-shortener vendor is cheapest today, including current enterprise pricing?",
+      "book_key": "sdi",
+      "category": "unanswerable",
+      "difficulty": "foundational",
+      "ui_requested_depth": "quick",
+      "expected_depth": "quick",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": false,
+      "evidence_status": "not_applicable",
+      "candidate_evidence": [],
+      "must_cover": [],
+      "should_cover": [],
+      "must_avoid": [
+        "Inventing vendor names or current prices.",
+        "Using an architecture chapter as evidence for a current purchasing recommendation."
+      ],
+      "expected_follow_ups": [],
+      "scoring_focus": [
+        "grounded_correctness",
+        "depth_adherence",
+        "citation_quality"
+      ],
+      "tags": ["unanswerable", "time-sensitive", "purchasing", "abstention"]
+    },
+    {
+      "id": "int-021",
+      "title": "RAG versus fine-tuning quick comparison",
+      "prompt": "In 60 seconds, when should I use RAG versus fine-tuning?",
+      "book_key": "aie",
+      "category": "comparison",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "deep",
+      "expected_depth": "quick",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2863,
+          "path": "Chapter 6. RAG and Agents :: RAG",
+          "pages": [277, 278, 279],
+          "role": "required"
+        },
+        {
+          "node_id": 2880,
+          "path": "Chapter 7. Finetuning :: When to Finetune :: Finetuning and RAG",
+          "pages": [340, 341, 342],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "RAG supplies external context at inference time and is suitable for changing or source-grounded knowledge.",
+        "Fine-tuning changes model behavior or task performance through training and is not a simple knowledge database.",
+        "The approaches can be combined and should be selected by the failure being addressed."
+      ],
+      "should_cover": [
+        "A one-sentence diagnostic: retrieval problem versus behavior problem."
+      ],
+      "must_avoid": [
+        "Turning the quick comparison into a full implementation guide.",
+        "Saying fine-tuning guarantees factual freshness."
+      ],
+      "expected_follow_ups": [
+        "Can RAG and fine-tuning be combined?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "depth_adherence",
+        "clarity_memorability",
+        "citation_quality"
+      ],
+      "tags": ["rag", "finetuning", "depth-override", "quick-answer"]
+    },
+    {
+      "id": "int-022",
+      "title": "AI evaluation pipeline design",
+      "prompt": "How would you design an evaluation pipeline for an LLM application before launch?",
+      "book_key": "aie",
+      "category": "system_design",
+      "difficulty": "advanced",
+      "ui_requested_depth": "deep",
+      "expected_depth": "deep",
+      "expected_archetype": "system_design",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2839,
+          "path": "Chapter 4. Evaluate AI Systems :: Design Your Evaluation Pipeline :: Step 1. Evaluate All Components in a System",
+          "pages": [224, 225],
+          "role": "required"
+        },
+        {
+          "node_id": 2840,
+          "path": "Chapter 4. Evaluate AI Systems :: Design Your Evaluation Pipeline :: Step 2. Create an Evaluation Guideline",
+          "pages": [226, 227],
+          "role": "required"
+        },
+        {
+          "node_id": 2841,
+          "path": "Chapter 4. Evaluate AI Systems :: Design Your Evaluation Pipeline :: Step 3. Define Evaluation Methods and Data",
+          "pages": [228, 229, 230, 231],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Translate application goals and risks into explicit evaluation criteria.",
+        "Evaluate components as well as end-to-end behavior so failures can be localized.",
+        "Create scoring guidelines and representative datasets, including difficult and failure cases.",
+        "Combine suitable automated, comparative, model-based, and human methods rather than rely on one aggregate score.",
+        "Version the dataset, prompts, models, and results so regressions are attributable."
+      ],
+      "should_cover": [
+        "Launch gates, slice analysis, and production feedback as a continuing loop.",
+        "Cost and latency as quality constraints."
+      ],
+      "must_avoid": [
+        "Using one generic benchmark as the complete launch decision.",
+        "Treating an LLM judge score as objective ground truth."
+      ],
+      "expected_follow_ups": [
+        "How would you create the first evaluation dataset?",
+        "When is human review mandatory?",
+        "How do you detect evaluator drift?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["ai-evaluation", "system-design", "llm", "quality"]
+    },
+    {
+      "id": "int-023",
+      "title": "LLM-as-judge limitations",
+      "prompt": "Explain LLM-as-a-judge, why teams use it, and the failure modes I should mention in an interview.",
+      "book_key": "aie",
+      "category": "concept",
+      "difficulty": "intermediate",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2820,
+          "path": "Chapter 3. Evaluation Methodology :: AI as a Judge :: Why AI as a Judge?",
+          "pages": [161],
+          "role": "required"
+        },
+        {
+          "node_id": 2821,
+          "path": "Chapter 3. Evaluation Methodology :: AI as a Judge :: How to Use AI as a Judge",
+          "pages": [162, 163, 164],
+          "role": "required"
+        },
+        {
+          "node_id": 2822,
+          "path": "Chapter 3. Evaluation Methodology :: AI as a Judge :: Limitations of AI as a Judge",
+          "pages": [165, 166, 167, 168],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Model judges make subjective or expensive evaluation more scalable.",
+        "The judge needs a clear task, rubric, context, and output contract.",
+        "Judge preferences, position effects, verbosity bias, self-preference, and inconsistency can distort results.",
+        "Calibration against human judgments and repeated or comparative designs are needed.",
+        "A judge is a measurement instrument, not an unquestionable oracle."
+      ],
+      "should_cover": [
+        "Pointwise versus pairwise evaluation.",
+        "Separating the generation and judge models where practical."
+      ],
+      "must_avoid": [
+        "Claiming model judges eliminate human evaluation.",
+        "Reporting judge scores without uncertainty or calibration."
+      ],
+      "expected_follow_ups": [
+        "How would you validate a judge?",
+        "Would you use the same model to generate and judge?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["llm-as-judge", "evaluation", "bias"]
+    },
+    {
+      "id": "int-024",
+      "title": "RAG retrieval deep follow-up",
+      "prompt": "Go deeper on chunking and retrieval optimization. What failure modes should I diagnose?",
+      "book_key": "aie",
+      "category": "follow_up",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "deep",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2865,
+          "path": "Chapter 6. RAG and Agents :: RAG :: Retrieval Algorithms",
+          "pages": [281, 282, 283, 284, 285, 286, 287, 288, 289, 290],
+          "role": "required"
+        },
+        {
+          "node_id": 2866,
+          "path": "Chapter 6. RAG and Agents :: RAG :: Retrieval Optimization",
+          "pages": [291, 292, 293, 294, 295, 296],
+          "role": "required"
+        }
+      ],
+      "prior_turns": [
+        {
+          "user": "Explain a production RAG architecture.",
+          "answer_summary": "Covered ingestion, indexing, retrieval, context construction, generation, and evaluation."
+        }
+      ],
+      "must_cover": [
+        "Chunk size and boundaries trade local specificity against context completeness.",
+        "Lexical and semantic retrieval fail differently and can be compared or combined.",
+        "Candidate generation, filtering, reranking, and context assembly are distinct stages.",
+        "Diagnose missing evidence separately from poor ranking, noisy context, and generation misuse.",
+        "Evaluation should measure retrieval coverage as well as end-answer quality."
+      ],
+      "should_cover": [
+        "Metadata, hierarchy, query rewriting, and reranking where supported.",
+        "The effect of context limits and duplicate chunks."
+      ],
+      "must_avoid": [
+        "Repeating a generic RAG definition.",
+        "Assuming embeddings automatically solve every retrieval problem.",
+        "Changing multiple retrieval stages without a failure-specific metric."
+      ],
+      "expected_follow_ups": [
+        "How would you choose chunk size?",
+        "When does reranking help?",
+        "How do you evaluate retrieval separately?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["rag", "retrieval", "follow-up", "depth-override"]
+    },
+    {
+      "id": "int-025",
+      "title": "Agent design and failure modes",
+      "prompt": "When should an AI application use an agent, and how would you design and evaluate one safely?",
+      "book_key": "aie",
+      "category": "system_design",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "system_design",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2869,
+          "path": "Chapter 6. RAG and Agents :: Agents :: Agent Overview",
+          "pages": [300, 301],
+          "role": "required"
+        },
+        {
+          "node_id": 2870,
+          "path": "Chapter 6. RAG and Agents :: Agents :: Tools",
+          "pages": [302, 303, 304],
+          "role": "required"
+        },
+        {
+          "node_id": 2871,
+          "path": "Chapter 6. RAG and Agents :: Agents :: Planning",
+          "pages": [305, 306, 307, 308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318, 319, 320, 321],
+          "role": "required"
+        },
+        {
+          "node_id": 2872,
+          "path": "Chapter 6. RAG and Agents :: Agents :: Agent Failure Modes and Evaluation",
+          "pages": [322, 323],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Use an agent when a task needs dynamic planning or tool selection rather than a fixed known sequence.",
+        "Define tools with constrained interfaces, permissions, and observable results.",
+        "Represent planning and state so steps and failures are inspectable.",
+        "Bound loops, cost, and side effects, and require confirmation for consequential actions.",
+        "Evaluate task success and trajectories, including tool choice, recovery, latency, and safety failures."
+      ],
+      "should_cover": [
+        "A deterministic workflow as the baseline for repeatable tasks.",
+        "Memory scope and contamination risks."
+      ],
+      "must_avoid": [
+        "Recommending an agent merely because an LLM is involved.",
+        "Giving the model unrestricted tool or database access.",
+        "Evaluating only the final prose answer."
+      ],
+      "expected_follow_ups": [
+        "Agent or workflow—which would you choose?",
+        "How do you stop infinite loops?",
+        "What trajectory metrics would you log?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["agents", "tools", "planning", "safety", "system-design"]
+    },
+    {
+      "id": "int-026",
+      "title": "Prompt-engineering chapter interview review",
+      "prompt": "Turn the prompt-engineering chapter into an interview review, not a section summary.",
+      "book_key": "aie",
+      "category": "chapter_review",
+      "difficulty": "advanced",
+      "ui_requested_depth": "deep",
+      "expected_depth": "deep",
+      "expected_archetype": "chapter_review",
+      "expected_route": "hierarchy_summary",
+      "answerable": true,
+      "evidence_status": "candidate_anchor",
+      "candidate_evidence": [
+        {
+          "node_id": 2843,
+          "path": "Chapter 5. Prompt Engineering",
+          "pages": [235],
+          "role": "required"
+        },
+        {
+          "node_id": 2844,
+          "path": "Chapter 5. Prompt Engineering :: Introduction to Prompting",
+          "pages": [236],
+          "role": "required"
+        },
+        {
+          "node_id": 2848,
+          "path": "Chapter 5. Prompt Engineering :: Prompt Engineering Best Practices",
+          "pages": [244],
+          "role": "required"
+        },
+        {
+          "node_id": 2856,
+          "path": "Chapter 5. Prompt Engineering :: Defensive Prompt Engineering",
+          "pages": [259],
+          "role": "required"
+        },
+        {
+          "node_id": 2861,
+          "path": "Chapter 5. Prompt Engineering :: Summary",
+          "pages": [275, 276],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Prompt construction as a controlled interface to model behavior.",
+        "High-value prompting practices and when examples or structure help.",
+        "Reasoning and tool-use prompting concepts without presenting private reasoning as a product requirement.",
+        "Prompt injection, jailbreaking, information extraction, and layered defenses.",
+        "Evaluation and versioning as part of prompt engineering.",
+        "Interview questions, concise model answers, traps, and revision cues."
+      ],
+      "should_cover": [
+        "Distinguish system instructions, user input, retrieved context, and output contracts.",
+        "Connect prompt design to application architecture and security."
+      ],
+      "must_avoid": [
+        "Mirroring the chapter heading order without synthesis.",
+        "Treating prompt wording as a complete defense against hostile input.",
+        "Promising one universally optimal prompt."
+      ],
+      "expected_follow_ups": [
+        "How would you evaluate a prompt change?",
+        "Why is prompt injection not solved by a stronger system prompt?",
+        "When do few-shot examples help?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["chapter-review", "prompt-engineering", "security"]
+    },
+    {
+      "id": "int-027",
+      "title": "Data leakage quick diagnosis",
+      "prompt": "Briefly explain data leakage and give the two highest-value prevention checks.",
+      "book_key": "dmls",
+      "category": "concept",
+      "difficulty": "foundational",
+      "ui_requested_depth": "deep",
+      "expected_depth": "quick",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "verified_from_existing_gold",
+      "candidate_evidence": [
+        {
+          "node_id": 2653,
+          "path": "Chapter 5. Feature Engineering :: Data Leakage",
+          "pages": [155, 156],
+          "role": "required"
+        },
+        {
+          "node_id": 2654,
+          "path": "Chapter 5. Feature Engineering :: Data Leakage :: Common Causes for Data Leakage",
+          "pages": [157, 158, 159],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Leakage exposes training or evaluation to information unavailable at real inference time.",
+        "Split data in a way that respects time or correlated groups.",
+        "Fit preprocessing statistics only on the training partition."
+      ],
+      "should_cover": [],
+      "must_avoid": [
+        "Expanding a brief request into a full feature-engineering lesson.",
+        "Defining leakage as merely having too many features."
+      ],
+      "expected_follow_ups": [
+        "How would you detect leakage?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "depth_adherence",
+        "clarity_memorability",
+        "citation_quality"
+      ],
+      "tags": ["data-leakage", "depth-override", "quick-answer", "verified-anchor"]
+    },
+    {
+      "id": "int-028",
+      "title": "Distribution-shift monitoring follow-up",
+      "prompt": "Go deeper: if labels arrive weeks late, how should I monitor distribution shift without confusing drift with model failure?",
+      "book_key": "dmls",
+      "category": "follow_up",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "deep",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "verified_from_existing_gold",
+      "candidate_evidence": [
+        {
+          "node_id": 2694,
+          "path": "Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Types of Data Distribution Shifts",
+          "pages": [257, 258, 259, 260],
+          "role": "required"
+        },
+        {
+          "node_id": 2696,
+          "path": "Chapter 8. Data Distribution Shifts and Monitoring :: Data Distribution Shifts :: Detecting Data Distribution Shifts",
+          "pages": [262, 263, 264, 265, 266, 267],
+          "role": "required"
+        },
+        {
+          "node_id": 2699,
+          "path": "Chapter 8. Data Distribution Shifts and Monitoring :: Monitoring and Observability :: ML-Specific Metrics",
+          "pages": [271, 272, 273, 274, 275],
+          "role": "required"
+        },
+        {
+          "node_id": 2700,
+          "path": "Chapter 8. Data Distribution Shifts and Monitoring :: Monitoring and Observability :: Monitoring Toolbox",
+          "pages": [276, 277, 278],
+          "role": "supporting"
+        }
+      ],
+      "prior_turns": [
+        {
+          "user": "What kinds of data distribution shift can cause an ML system to degrade?",
+          "answer_summary": "Distinguished covariate, label, and concept-related changes and connected them to production monitoring."
+        }
+      ],
+      "must_cover": [
+        "Monitor input distributions, prediction distributions, and operational health as leading indicators while labels are delayed.",
+        "Segment metrics because aggregate distributions can hide important shifts.",
+        "Distribution change is a warning signal and does not by itself prove performance degradation.",
+        "When labels arrive, backfill outcome metrics and calibrate whether earlier proxy alerts were predictive.",
+        "Investigate software, pipeline, and data-quality failures alongside statistical drift."
+      ],
+      "should_cover": [
+        "Reference windows, thresholds, seasonality, and alert fatigue.",
+        "Observability that supports debugging rather than only dashboards."
+      ],
+      "must_avoid": [
+        "Equating every statistically significant drift alert with model failure.",
+        "Claiming unlabeled monitoring can directly measure accuracy."
+      ],
+      "expected_follow_ups": [
+        "How do you choose a reference window?",
+        "What would you do after a drift alert?",
+        "How do delayed labels change retraining decisions?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "coverage",
+        "depth_adherence",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["monitoring", "distribution-shift", "follow-up", "delayed-labels", "verified-anchor"]
+    },
+    {
+      "id": "int-029",
+      "title": "Continual-learning decision",
+      "prompt": "When does continual learning make sense, and how would you roll it out without creating an unsafe retraining loop?",
+      "book_key": "dmls",
+      "category": "scenario",
+      "difficulty": "advanced",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": true,
+      "evidence_status": "verified_from_existing_gold",
+      "candidate_evidence": [
+        {
+          "node_id": 2705,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Stateless Retraining Versus Stateful Training",
+          "pages": [285, 286, 287],
+          "role": "required"
+        },
+        {
+          "node_id": 2706,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Why Continual Learning?",
+          "pages": [288, 289],
+          "role": "required"
+        },
+        {
+          "node_id": 2707,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Continual Learning Challenges",
+          "pages": [290, 291, 292, 293],
+          "role": "required"
+        },
+        {
+          "node_id": 2708,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: Four Stages of Continual Learning",
+          "pages": [294, 295, 296, 297, 298],
+          "role": "required"
+        },
+        {
+          "node_id": 2709,
+          "path": "Chapter 9. Continual Learning and Test in Production :: Continual Learning :: How Often to Update Your Models",
+          "pages": [299, 300],
+          "role": "required"
+        }
+      ],
+      "must_cover": [
+        "Continual learning is useful when fresher data produces meaningful value and the environment changes.",
+        "Update frequency is an empirical product and system decision rather than synonymous with continuous retraining.",
+        "Fresh labels, evaluation, algorithm support, and safe deployment are core constraints.",
+        "Roll out through increasing levels of automation with champion-challenger evaluation and production safeguards.",
+        "Stateless retraining and stateful continuation have different reproducibility, data, and architecture trade-offs."
+      ],
+      "should_cover": [
+        "Shadow, canary, or controlled experiments before broad promotion.",
+        "Rollback and version provenance."
+      ],
+      "must_avoid": [
+        "Equating continual learning with retraining after every event.",
+        "Allowing drift alerts to trigger unreviewed production updates.",
+        "Ignoring delayed or attacked labels."
+      ],
+      "expected_follow_ups": [
+        "How often should the model update?",
+        "Stateful or stateless training?",
+        "How do you evaluate a candidate safely?"
+      ],
+      "scoring_focus": [
+        "grounded_correctness",
+        "interview_readiness",
+        "coverage",
+        "clarity_memorability",
+        "follow_up_quality",
+        "citation_quality"
+      ],
+      "tags": ["continual-learning", "mlops", "deployment", "verified-anchor"]
+    },
+    {
+      "id": "int-030",
+      "title": "Static book cannot answer current API pricing",
+      "prompt": "What are today's OpenAI and Anthropic token prices, and which model is currently cheapest for production?",
+      "book_key": "aie",
+      "category": "unanswerable",
+      "difficulty": "foundational",
+      "ui_requested_depth": "interview",
+      "expected_depth": "interview",
+      "expected_archetype": "concept_explanation",
+      "expected_route": "retrieval_qa",
+      "answerable": false,
+      "evidence_status": "not_applicable",
+      "candidate_evidence": [],
+      "must_cover": [],
+      "should_cover": [],
+      "must_avoid": [
+        "Guessing current prices or model availability.",
+        "Making a production purchasing recommendation from a static book.",
+        "Adding uncited provider knowledge despite missing book evidence."
+      ],
+      "expected_follow_ups": [],
+      "scoring_focus": [
+        "grounded_correctness",
+        "depth_adherence",
+        "citation_quality"
+      ],
+      "tags": ["unanswerable", "time-sensitive", "pricing", "abstention"]
+    }
+  ],
+  "review": {
+    "status": "pending_human_review",
+    "notes": "Before using aggregate scores as a quality claim, inspect every candidate evidence anchor against the cited pages, revise any must-cover criterion the source does not support, add compact reference answers or evidence summaries, and record reviewer decisions. Until then this is a diagnostic seed, not a final gold set."
+  }
+}

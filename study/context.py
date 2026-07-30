@@ -1,10 +1,10 @@
 """Format one complete canonical scope as non-overlapping LLM context."""
 
 from dataclasses import dataclass
+
 import tiktoken
 
 from .content import EvidenceBundle
-
 
 DEFAULT_ENCODING = "cl100k_base"
 SKIPPED_CATEGORIES = frozenset({"Header", "Footer", "PageBreak"})
@@ -61,10 +61,11 @@ def build_scope_context(
                 skipped += 1
                 continue
 
-            marker = (
-                f"[N{block.node_id}:P{block.page_number}:"
-                f"B{block.block_index}]"
-            )
+            # Use the exact marker the answer must emit. Block indexes remain
+            # canonical provenance in storage, but exposing a different
+            # citation shape in evidence made models translate markers instead
+            # of simply copying them and increased citation omissions.
+            marker = f"[N{block.node_id}:P{block.page_number}]"
             node_lines.append(f"{marker}\n{value}")
             included += 1
             expected_nodes.add(block.node_id)
