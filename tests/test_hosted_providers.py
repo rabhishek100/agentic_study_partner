@@ -8,14 +8,14 @@ from retrieval.reranker import (
     OpenRouterReranker,
     build_reranker,
 )
-from study.analyze import DEFAULT_CONTROL_MODEL, _openrouter_model
-from study.query import DEFAULT_GENERATION_MODEL, openrouter_model
 from retrieval.vector import (
     DEFAULT_EMBEDDING_MODEL,
     OpenRouterEmbedder,
     build_embedder,
 )
 from storage.database import DEFAULT_EMBEDDING_MODEL as DATABASE_EMBEDDING_MODEL
+from study.analyze import DEFAULT_CONTROL_MODEL, _openrouter_model
+from study.query import DEFAULT_GENERATION_MODEL, openrouter_model
 
 
 class HostedProviderTests(unittest.TestCase):
@@ -114,6 +114,21 @@ class HostedProviderTests(unittest.TestCase):
             chat_model.call_args.kwargs["model"],
             DEFAULT_GENERATION_MODEL,
         )
+
+    @patch("langchain_openai.ChatOpenAI")
+    def test_generation_timeout_and_retries_are_configurable(self, chat_model) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "OPENROUTER_API_KEY": "test-key",
+                "OPENROUTER_REQUEST_TIMEOUT_SECONDS": "17",
+                "OPENROUTER_GENERATION_MAX_RETRIES": "0",
+            },
+        ):
+            openrouter_model()
+
+        self.assertEqual(chat_model.call_args.kwargs["timeout"], 17.0)
+        self.assertEqual(chat_model.call_args.kwargs["max_retries"], 0)
 
     @patch("langchain_openai.ChatOpenAI")
     def test_empty_control_model_uses_managed_default(self, chat_model) -> None:

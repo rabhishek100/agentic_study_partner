@@ -10,8 +10,8 @@ from study.contracts import (
     EvidenceRef,
     ScopeRef,
 )
-from tests.test_scope_candidates import FILE_HASH, hierarchy_book
 from tests.postgres import PostgresOwnerMixin
+from tests.test_scope_candidates import FILE_HASH, hierarchy_book
 
 
 class FakeModel:
@@ -289,6 +289,28 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
             decision.resolved_scope.node_id,
             self.nodes["Low-Rank Factorization"]["id"],
         )
+
+    def test_negated_section_does_not_override_the_selected_chapter(self):
+        chapter = self.nodes["Chapter 7. Model Deployment and Prediction Service"]
+        model = FakeModel(
+            {
+                "route": "hierarchy_summary",
+                "history_dependency": "independent",
+                "scope_node_id": chapter["id"],
+                "reason": "Review the named chapter.",
+            }
+        )
+
+        decision = self.analyze(
+            "Turn the model-deployment chapter into an interview review, "
+            "not a section summary.",
+            self.state(),
+            model,
+        )
+
+        self.assertEqual(decision.route, "hierarchy_summary")
+        self.assertEqual(decision.resolved_scope.kind, "chapter")
+        self.assertEqual(decision.resolved_scope.node_id, chapter["id"])
 
     def test_invalid_retrieval_scope_is_ignored_instead_of_failing_turn(self):
         model = FakeModel(

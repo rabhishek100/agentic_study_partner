@@ -1,6 +1,6 @@
+import unittest
 from dataclasses import replace
 from types import SimpleNamespace
-import unittest
 
 from scripts.study import format_dry_run, format_outline
 from storage.database import connection as database_connection
@@ -102,6 +102,13 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             StudyRequest("summarize", "named", "Core idea"),
         )
         self.assertEqual(
+            parse_study_request(
+                "Turn the model-deployment chapter into an interview review, "
+                "not a section summary."
+            ),
+            StudyRequest("summarize", "chapter", "model-deployment"),
+        )
+        self.assertEqual(
             parse_study_request("what chapters does this book have"),
             StudyRequest("list_chapters", "book", ""),
         )
@@ -194,6 +201,7 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             "never combine a node ID with a page",
             model.messages[0][1],
         )
+        self.assertNotRegex(context.text, r"\[N\d+:P\d+:B\d+]")
 
     def test_records_model_finish_reason(self) -> None:
         scope, context = self._chapter_context()

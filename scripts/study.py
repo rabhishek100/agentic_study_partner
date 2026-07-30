@@ -2,25 +2,28 @@
 
 import argparse
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from storage.database import (
     connection as database_connection,
+)
+from storage.database import (
     environment_owner_id,
     parse_owner_id,
 )
 from study.content import load_scope_content
 from study.context import ScopeContext, build_scope_context
+from study.query import DEFAULT_GENERATION_MODEL
+from study.render import format_chapter_list, format_outline
 from study.request import (
     StudyRequest,
     UnsupportedStudyRequestError,
     parse_study_request,
     resolve_study_request,
 )
-from study.render import format_chapter_list, format_outline
 from study.scope import ResolvedScope, ScopeResolutionError
 from study.summarize import (
     ContextWindowExceededError,
@@ -30,7 +33,6 @@ from study.summarize import (
     prompt_budget,
     summarize_scope_with_repair,
 )
-from study.query import DEFAULT_GENERATION_MODEL
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -183,6 +185,7 @@ def main() -> None:
             api_key=api_key,
             base_url="https://openrouter.ai/api/v1",
             max_tokens=config.max_output_tokens,
+            timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
             extra_body={
                 "reasoning": {
                     "effort": os.getenv(

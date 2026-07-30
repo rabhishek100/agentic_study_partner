@@ -73,6 +73,17 @@ INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\bcannot\s+recommend\s+(?:a|an|the|any)\b",
     re.IGNORECASE,
 )
+RETRIEVAL_LIMIT_BY_DEPTH: dict[ResponseDepth, int] = {
+    "quick": 5,
+    "interview": 8,
+    "deep": 8,
+}
+
+
+def retrieval_limit(response_depth: ResponseDepth) -> int:
+    """Return a small evaluated evidence budget for the requested answer depth."""
+
+    return RETRIEVAL_LIMIT_BY_DEPTH[response_depth]
 
 
 def _summary_config() -> SummaryConfig:
@@ -99,7 +110,8 @@ def openrouter_model(*, max_tokens: int | None = None) -> ChatModel:
         model=os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        max_retries=2,
+        max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "2")),
+        timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         extra_body={
             "reasoning": {
                 "effort": reasoning_effort,
@@ -316,6 +328,7 @@ def _answer_retrieval_question(
     prompt_profile: PromptProfile,
     response_depth: ResponseDepth,
     routing_reason: str | None,
+    answer_archetype: AnswerArchetype | None = None,
     token_callback: TokenCallback | None = None,
 ) -> TurnResult:
     """Answer one ordinary question from top-k retrieval evidence."""
@@ -334,13 +347,21 @@ def _answer_retrieval_question(
                 (owner, scope),
             ).fetchall()
         books = {row["id"]: row["title"] for row in rows}
+    archetype: AnswerArchetype = answer_archetype or resolve_answer_archetype(
+        question,
+        "retrieval_qa",
+    )
     documents = BookRetriever(
         database_url=database_url or "",
         owner_id=str(owner),
         mode=retrieval_mode,
         book_id=book_id,
         book_ids=book_ids,
-        k=5,
+        k=retrieval_limit(response_depth),
+        # A system-design scope is often represented by one large hierarchy
+        # node containing several chunks. Collapsing to one chunk per node
+        # discards most of that design while admitting unrelated chapters.
+        unique_nodes=archetype != "system_design",
     ).invoke(question)
     if not documents:
         return TurnResult(
@@ -382,10 +403,6 @@ def _answer_retrieval_question(
         "If the evidence cannot support the requested answer, begin the response "
         f"exactly with {INSUFFICIENT_EVIDENCE_MARKER} and briefly explain what "
         "evidence is missing. Do not answer from general knowledge."
-    )
-    archetype: AnswerArchetype = resolve_answer_archetype(
-        question,
-        "retrieval_qa",
     )
     reply = invoke_with_streaming(
         model,
@@ -502,6 +519,7 @@ def execute_query(
     prompt_profile: PromptProfile | None = None,
     response_depth: ResponseDepth = "interview",
     routing_reason: str | None = None,
+    answer_archetype: AnswerArchetype | None = None,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
@@ -541,6 +559,7 @@ def execute_query(
         prompt_profile=profile,
         response_depth=response_depth,
         routing_reason=routing_reason,
+        answer_archetype=answer_archetype,
         token_callback=token_callback,
     )
 

@@ -1,7 +1,7 @@
 import re
+import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-import unittest
 
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
@@ -14,7 +14,8 @@ class CitationSummaryModel:
     """Return a minimal summary citing every evidence-bearing node."""
 
     def invoke(self, messages):
-        markers = re.findall(r"\[N(\d+):P(\d+):B\d+]", messages[-1][1])
+        evidence = messages[-1][1].split("Book evidence:\n", 1)[1]
+        markers = re.findall(r"\[N(\d+):P(\d+)]", evidence)
         citations = " ".join(
             f"[N{node_id}:P{page}]" for node_id, page in dict.fromkeys(markers)
         )
@@ -34,7 +35,8 @@ class RepairingCitationSummaryModel:
                 content="# Chapter 1\n\nBad citation. [N999:P999]",
                 response_metadata={"finish_reason": "stop"},
             )
-        markers = re.findall(r"\[N(\d+):P(\d+):B\d+]", messages[-1][1])
+        evidence = messages[-1][1].split("Book evidence:\n", 1)[1]
+        markers = re.findall(r"\[N(\d+):P(\d+)]", evidence)
         citations = " ".join(
             f"[N{node_id}:P{page}]" for node_id, page in dict.fromkeys(markers)
         )
@@ -311,6 +313,61 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
 
         retriever.assert_called_once()
         self.assertEqual(result.route, "retrieval_qa")
+
+    def test_retrieval_budget_follows_response_depth(self):
+        document = SimpleNamespace(
+            page_content="A supported concept.",
+            metadata={
+                "book_id": self.book_id,
+                "node_id": 1,
+                "path": "Chapter 1 :: Core idea",
+                "start_page": 2,
+                "end_page": 2,
+            },
+        )
+        for depth, expected_k in (("quick", 5), ("interview", 8), ("deep", 8)):
+            with self.subTest(depth=depth), patch(
+                "study.query.BookRetriever"
+            ) as retriever:
+                retriever.return_value.invoke.return_value = [document]
+                execute_query(
+                    "Explain the core idea.",
+                    database_url=self.database_url,
+                    book_id=self.book_id,
+                    owner_id=self.owner_id,
+                    model=StaticAnswerModel(),
+                    force_retrieval=True,
+                    response_depth=depth,
+                )
+
+            self.assertEqual(retriever.call_args.kwargs["k"], expected_k)
+            self.assertTrue(retriever.call_args.kwargs["unique_nodes"])
+
+    def test_system_design_allows_several_chunks_from_one_scope_node(self):
+        document = SimpleNamespace(
+            page_content="A supported architecture.",
+            metadata={
+                "book_id": self.book_id,
+                "node_id": 1,
+                "path": "Chapter 1 :: Core idea",
+                "start_page": 2,
+                "end_page": 2,
+            },
+        )
+        with patch("study.query.BookRetriever") as retriever:
+            retriever.return_value.invoke.return_value = [document]
+            execute_query(
+                "Design an API rate limiter.",
+                database_url=self.database_url,
+                book_id=self.book_id,
+                owner_id=self.owner_id,
+                model=StaticAnswerModel(),
+                force_retrieval=True,
+                response_depth="interview",
+            )
+
+        self.assertEqual(retriever.call_args.kwargs["k"], 8)
+        self.assertFalse(retriever.call_args.kwargs["unique_nodes"])
 
 
 if __name__ == "__main__":

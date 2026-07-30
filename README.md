@@ -40,6 +40,10 @@ The source/derived boundary is unchanged:
   than relying on top-k retrieval.
 - Ordinary questions search chunks and must abstain when evidence is
   insufficient.
+- Ordinary retrieval uses a small depth-aware budget: five chunks for quick
+  answers and eight for interview/deep answers. System-design retrieval may
+  retain several chunks from one hierarchy node because some parsers represent
+  an entire design chapter as one node; concept retrieval keeps node diversity.
 
 Important modules:
 
@@ -227,9 +231,43 @@ and explicit missing-evidence diagnostics. The audited Postgres comparison is:
 | Hybrid | 0.847 | 0.931 | 0.847 |
 | Hybrid + reranker | 0.889 | 1.000 | 0.958 |
 
-The reranker candidate Recall@20 is 1.000. Hybrid remains the interactive
-default until traced latency and cost justify paying for reranking on every
-request.
+The reranker candidate Recall@20 is 1.000. Hybrid plus reranking is the
+interactive default for new conversations; latency and cost remain visible in
+traces so that choice can be revisited with production evidence.
+
+Validate the knowledge-authored interview-answer seed:
+
+```bash
+uv run python -m scripts.validate_interview_dataset
+```
+
+The 30 cases span four production books, all three response depths, concept
+answers, system-design walkthroughs, chapter reviews, follow-ups, and grounded
+abstention. Most page mappings are candidate evidence anchors pending human
+review, so the seed is suitable for diagnostic prompt comparisons but not yet
+for a published quality claim.
+
+To additionally check every book hash, canonical node, path, and page range
+against Postgres:
+
+```bash
+uv run python -m scripts.validate_interview_dataset \
+  --database-url "$MIGRATION_DATABASE_URL"
+```
+
+Run the three-case live smoke evaluation through the real coordinator:
+
+```bash
+uv run python -m scripts.evaluate_interview_answers \
+  --smoke \
+  --database-url "$MIGRATION_DATABASE_URL" \
+  --judge-answers
+```
+
+After inspecting its JSON and HTML outputs under
+`evaluation/runs/interview/`, run the frozen 30-case baseline by replacing
+`--smoke` with `--all`. Generation, control, reranking, and optional judge
+calls use the configured hosted models and therefore incur provider cost.
 
 Validate the synthetic multi-turn fixture and build its offline inspection
 page with:

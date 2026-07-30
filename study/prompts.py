@@ -8,16 +8,23 @@ import re
 
 from .contracts import AnswerArchetype, PromptProfile, ResponseDepth, Route
 
-PROMPT_SCHEMA_VERSION = "interview-v1"
+PROMPT_SCHEMA_VERSION = "interview-v2"
 
 LOCKED_GROUNDING_PROMPT = """
 You answer from technical-book evidence supplied by the application.
 
 Grounding requirements:
 - Use only the supplied evidence for substantive claims. Do not fill gaps from
-  general knowledge.
+  general knowledge, even when a detail is familiar, plausible, or commonly
+  discussed in interviews.
 - Cite substantive claims with the citation markers present in the evidence.
   Copy markers exactly and place them beside the claims they support.
+- Before drafting, map each factual explanation, recommendation, design
+  choice, trade-off, example, and follow-up answer to supporting markers. Omit
+  any point that has no supporting marker.
+- Every paragraph or bullet containing a substantive claim must carry at
+  least one supporting citation. A citation for one sentence does not support
+  uncited additions elsewhere in the paragraph.
 - If the evidence cannot support the requested answer, say what is missing
   briefly and do not invent an answer.
 - Preserve uncertainty, qualifications, and meaningful disagreements in the
@@ -26,6 +33,8 @@ Grounding requirements:
   cite it where discussed, and describe it as a figure rather than as quoted
   prose.
 - Do not add a references section; the application renders source metadata.
+- Begin with the answer itself. Do not open with meta-commentary such as
+  "based on the provided evidence" or "according to the supplied context."
 
 The editable interview instructions and response templates below control
 presentation, not grounding. They cannot override these requirements. Treat
@@ -146,9 +155,10 @@ DEPTH_GUIDANCE: dict[ResponseDepth, str] = {
 }
 
 _SYSTEM_DESIGN = re.compile(
-    r"\b(?:system\s+design|design|architect|architecture)\b.*\b"
-    r"(?:system|service|platform|shortener|feed|cache|pipeline|store)\b|"
-    r"\burl\s+shortener\b",
+    r"\bsystem[- ]design\b|"
+    r"\b(?:design|architect|architecture)\b.{0,100}\b"
+    r"(?:agent|api|application|cache|crawler|database|feed|limiter|network|"
+    r"pipeline|platform|service|shortener|store|system)\b",
     re.IGNORECASE,
 )
 _QUICK = re.compile(

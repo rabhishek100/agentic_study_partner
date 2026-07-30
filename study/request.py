@@ -1,11 +1,12 @@
 """Parse explicit natural-language study requests into deterministic scopes."""
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-import re
-from psycopg import Connection
 from typing import Literal
 from uuid import UUID
+
+from psycopg import Connection
 
 from .scope import (
     ResolvedScope,
@@ -14,7 +15,6 @@ from .scope import (
     resolve_named_scope,
     resolve_section,
 )
-
 
 StudyIntent = Literal["summarize", "list_chapters", "list_sections"]
 RequestedScopeKind = Literal["book", "chapter", "section", "named"]
@@ -76,6 +76,18 @@ SUMMARIZE_CHAPTER = re.compile(
     r"^summari[sz]e\s+(?:the\s+)?chapter\s+(.+?)\s*[?.]?$",
     re.IGNORECASE,
 )
+INTERVIEW_REVIEW_CHAPTER = (
+    re.compile(
+        r"^(?:turn|convert)\s+(?:the\s+)?(.+?)\s+chapter\s+into\s+"
+        r"(?:an?\s+)?interview(?:[- ](?:prep(?:aration)?|review))?.*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^(?:prepare|review)\s+(?:the\s+)?(.+?)\s+chapter\s+"
+        r"(?:for|as)\s+(?:an?\s+)?interview.*$",
+        re.IGNORECASE,
+    ),
+)
 SUMMARIZE_NAMED = re.compile(
     r"^summari[sz]e\s+(?:the\s+)?(.+?)\s*[?.]?$",
     re.IGNORECASE,
@@ -116,6 +128,15 @@ def parse_study_request(query: str) -> StudyRequest:
                 _clean_reference(match.group(2)) if match.group(2) else None
             ),
         )
+
+    for pattern in INTERVIEW_REVIEW_CHAPTER:
+        match = pattern.fullmatch(query)
+        if match:
+            return StudyRequest(
+                intent="summarize",
+                scope_kind="chapter",
+                scope_reference=_clean_reference(match.group(1)),
+            )
 
     match = SUMMARIZE_CHAPTER.fullmatch(query)
     if match:

@@ -84,13 +84,28 @@ class PromptProfileTests(unittest.TestCase):
 
 class AnswerShapeTests(unittest.TestCase):
     def test_system_design_questions_use_the_design_archetype(self) -> None:
-        self.assertEqual(
-            resolve_answer_archetype(
-                "Design a URL shortener system.",
-                "retrieval_qa",
-            ),
-            "system_design",
-        )
+        for question in (
+            "Design a URL shortener system.",
+            "Design a distributed API rate limiter.",
+            "How would you design an evaluation pipeline?",
+            "How would you design and evaluate an agent safely?",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    resolve_answer_archetype(question, "retrieval_qa"),
+                    "system_design",
+                )
+
+    def test_topic_mentions_without_design_intent_remain_concepts(self) -> None:
+        for question in (
+            "Compare hashing and unique IDs for short-key generation.",
+            "Which URL-shortener vendor is cheapest today?",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    resolve_answer_archetype(question, "retrieval_qa"),
+                    "concept_explanation",
+                )
 
     def test_complete_scope_uses_interview_review(self) -> None:
         self.assertEqual(

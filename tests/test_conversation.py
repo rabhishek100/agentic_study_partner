@@ -221,6 +221,32 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertEqual(execute.call_args.kwargs["response_depth"], "deep")
 
+    def test_answer_archetype_uses_original_question_before_rewrite(self):
+        analysis = FakeModel(
+            {
+                "route": "retrieval_qa",
+                "history_dependency": "independent",
+                "standalone_query": "Explain the algorithm and failure trade-offs.",
+                "reason": "Retrieve the relevant design evidence.",
+            }
+        )
+        with patch(
+            "study.conversation.execute_query",
+            return_value=self.retrieval_result("rate limiter"),
+        ) as execute:
+            execute_conversation_turn(
+                "Design a distributed API rate limiter.",
+                self.state(),
+                database_url=self.database_url,
+                owner_id=self.owner_id,
+                analysis_model=analysis,
+            )
+
+        self.assertEqual(
+            execute.call_args.kwargs["answer_archetype"],
+            "system_design",
+        )
+
     def test_ambiguity_clarifies_without_retrieval(self):
         analysis = FakeModel(
             {

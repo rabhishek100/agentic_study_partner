@@ -21,6 +21,7 @@ from .prompts import (
     DEFAULT_PROMPT_PROFILE,
     build_answer_messages,
     profile_version,
+    resolve_answer_archetype,
     resolve_response_depth,
 )
 from .query import ChatModel, execute_query, openrouter_model
@@ -168,6 +169,7 @@ def execute_decision(
         prompt_profile=profile,
         response_depth=resolved_depth,
         routing_reason=decision.reason,
+        answer_archetype=resolve_answer_archetype(question, decision.route),
     )
     updates = {
         "question": question,

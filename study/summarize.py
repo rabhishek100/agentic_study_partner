@@ -126,8 +126,9 @@ def build_summary_messages(
         )
     grounding = f"""
 This is a complete-scope interview review, not top-k retrieval. Cite every
-substantive claim with [N<node>:P<page>] copied exactly from the supplied block
-markers; never combine a node ID with a page outside that node's allowed list.
+substantive claim with [N<node>:P<page>] copied exactly from the supplied
+evidence markers; never combine a node ID with a page outside that node's
+allowed list.
 Complete coverage is mandatory: cite every node in Required coverage at least
 once. Preserve the listed source order internally even when organizing the
 answer by interview usefulness. Do not infer omitted images.
@@ -137,7 +138,9 @@ Required coverage:
 
 If space becomes limited, shorten overview, examples, follow-ups, and revision
 cues before omitting a required node. Use citations such as [N14:P21] and do
-not cite block suffixes.
+copy them directly from the evidence. Before returning the answer, verify that
+every required node appears in at least one citation and every substantive
+paragraph or bullet carries a supporting citation.
 {correction}
 """.strip()
     request_context = (
