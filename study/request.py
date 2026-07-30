@@ -108,7 +108,10 @@ def _clean_book_reference(value: str | None) -> str:
     reference = value.strip()
     mention = re.fullmatch(r"@\[(.+)]", reference)
     if mention:
-        reference = mention.group(1)
+        # UI mentions carry the canonical display title. Preserve it exactly:
+        # unlike conversational phrasing, a trailing "Book" can be part of
+        # the actual title (for example, "Sample Book").
+        return _clean_reference(mention.group(1))
     reference = _clean_reference(reference)
     if re.fullmatch(
         r"(?:this|the|selected|current)(?:\s+(?:selected|current))?\s+book",
