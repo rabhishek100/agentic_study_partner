@@ -27,6 +27,7 @@ from ingestion.jobs import claim_next_job, get_job, list_jobs
 from ingestion.local_source import inspect_local_source, queue_local_source
 from ingestion.pipeline import PipelineDependencies, run_job
 from ingestion.states import Status
+from worker.main import _LeaseRenewal
 from storage.database import (
     connection as database_connection,
     environment_owner_id,
@@ -140,15 +141,26 @@ def main(argv: list[str] | None = None) -> int:
 
     with tempfile.TemporaryDirectory() as scratch:
         work_dir = arguments.work_dir or Path(scratch)
+        # Transcribing a long book takes many minutes, and the lease is five.
+        # Without renewal the job is reclaimed mid-run and every write after
+        # that is refused by the status guards - which is exactly what happened
+        # on the first production attempt, after all 427 pages had been read
+        # and paid for. The checkpoints survived; the job did not.
         try:
-            outcome = run_job(
-                claimed,
+            with _LeaseRenewal(
+                job_id=str(claimed.id),
+                worker_id=WORKER_ID,
                 limits=limits,
-                work_dir=Path(work_dir) / str(claimed.id),
                 database_url=arguments.database_url,
-                dependencies=PipelineDependencies(),
-                local_source=source.path,
-            )
+            ):
+                outcome = run_job(
+                    claimed,
+                    limits=limits,
+                    work_dir=Path(work_dir) / str(claimed.id),
+                    database_url=arguments.database_url,
+                    dependencies=PipelineDependencies(),
+                    local_source=source.path,
+                )
         except IngestionError as error:
             logger.error("ingestion failed: %s", error.safe_message)
             return 5
