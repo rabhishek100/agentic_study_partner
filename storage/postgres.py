@@ -11,6 +11,12 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
+from parsing.outline_roles import (
+    CHAPTER,
+    chapter_level,
+    chapter_number,
+    outline_roles,
+)
 from .database import parse_owner_id
 
 
@@ -90,30 +96,59 @@ def _validate(book: ParsedBook, page_count: int) -> None:
         active_path[section.level - 1 :] = [section.title]
 
 
-def _node_type(section: Section) -> str:
-    """Name a node's structural role from its depth in the outline.
+def _validate_chapters(sections: list[Section], node_types: list[str]) -> None:
+    """Refuse an outline whose chapter numbering contradicts itself.
 
-    Depth is the only signal a PDF outline actually carries. Reading the role
-    off the title instead classified "Chapter 1 Introduction" as a chapter and
-    "1 Introduction" as `other`, and `other` is excluded from scope search, so
-    a book that numbered its chapters without the word lost every one of them:
-    all thirteen chapters of one 613-page book were invisible to the question
-    "what sections are present in Chapter 1?".
+    Only meaningful when a chapter level was actually detected: there the run
+    is consecutive by construction, so this guards against a future change to
+    the classifier rather than against the books. Two nodes both answering to
+    "Chapter 5", or a jump from 3 to 7, means a chapter reference resolves to
+    the wrong pages silently, which is worse than a failed ingestion.
 
-    Front matter is level 1 too, so a preface is now a chapter. That is the
-    lesser error - it is a top-level scope, and treating it as one costs a
-    slightly odd label, where the old rule cost whole books.
+    On the fallback path every top-level entry is a chapter regardless of its
+    title, which claims nothing about numbering and must not be checked as if
+    it did.
     """
 
-    if section.level == 1:
-        if section.title.casefold().startswith("appendix"):
-            return "appendix"
-        return "chapter"
-    if section.level == 2:
-        return "section"
-    if section.level == 3:
-        return "subsection"
-    return "nested_section"
+    detected = chapter_level(
+        [section.level for section in sections],
+        [section.title for section in sections],
+    )
+    if detected is None:
+        return
+
+    numbered = [
+        number
+        for section, node_type in zip(sections, node_types, strict=True)
+        if node_type == CHAPTER
+        and (number := chapter_number(section.title)) is not None
+    ]
+    if not numbered:
+        return
+    duplicates = {n for n in numbered if numbered.count(n) > 1}
+    if duplicates:
+        raise InvalidBookError(
+            f"chapter numbers are not unique: {sorted(duplicates)}"
+        )
+    if sorted(numbered) != list(range(min(numbered), min(numbered) + len(numbered))):
+        raise InvalidBookError(
+            f"chapter numbers are not consecutive: {sorted(numbered)}"
+        )
+
+
+def _node_types(sections: list[Section]) -> list[str]:
+    """Name every section's structural role, judging the outline as a whole.
+
+    Depth alone named the roles until a book with Parts arrived: its chapters
+    sit at level 2, so a depth rule typed Part I as a chapter and Chapter 5 as
+    a section, and nothing typed `section` can answer to a chapter number. See
+    `parsing.outline_roles` for why neither depth nor title works alone.
+    """
+
+    return outline_roles(
+        [section.level for section in sections],
+        [section.title for section in sections],
+    )
 
 
 def ingest_book(
@@ -205,6 +240,8 @@ def ingest_book(
         # written in batches once the node ids are known.
         pending_blocks: list[tuple] = []
         pending_payloads: list[tuple | None] = []
+        node_types = _node_types(book.sections)
+        _validate_chapters(book.sections, node_types)
 
         for toc_index, section in enumerate(book.sections):
             parent_id = parent_by_level.get(section.level - 1)
@@ -224,7 +261,7 @@ def ingest_book(
                         parent_id,
                         toc_index,
                         section.level,
-                        _node_type(section),
+                        node_types[toc_index],
                         section.title,
                         section.label,
                         Jsonb(section.path),

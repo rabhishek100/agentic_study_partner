@@ -8,6 +8,11 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from parsing.outline_roles import (
+    CHAPTER,
+    SEARCHABLE_ROLES,
+    chapter_number,
+)
 from retrieval.models import book_scope
 from storage.database import parse_owner_id
 
@@ -16,6 +21,10 @@ ScopeKind = Literal["book", "chapter", "section"]
 ResolutionKind = Literal["book", "chapter", "section", "scope"]
 CHAPTER_NUMBER = re.compile(r"^\s*chapter\s+(\d+)\b", re.IGNORECASE)
 NON_WORD = re.compile(r"[^\w]+", re.UNICODE)
+# Front matter, parts, and appendices are no longer typed `chapter`, but a
+# reader still asks to summarize the preface by name. Only a *number* is
+# restricted to chapters; a title may name any top-level scope.
+TOP_LEVEL_ROLES = ("chapter", "part", "appendix", "front_matter", "back_matter")
 
 
 @dataclass(frozen=True)
@@ -318,8 +327,17 @@ def _reference_chapter_number(reference: object) -> str | None:
 
 
 def _title_chapter_number(title: str) -> str | None:
-    match = re.match(r"chapter\s+(\d+)\b", _normalize(title))
-    return match.group(1) if match else None
+    """Read the chapter number a title declares, with or without the word.
+
+    Requiring the literal word left one book's thirteen chapters ("1
+    Introduction", "2 Statistical Learning") unable to answer "chapter 2" even
+    though they were correctly typed as chapters. This is safe to loosen only
+    because the caller filters to nodes already typed `chapter`, which are now
+    exactly the consecutively numbered run.
+    """
+
+    number = chapter_number(title)
+    return str(number) if number is not None else None
 
 
 def resolve_chapter(
@@ -347,15 +365,22 @@ def resolve_chapter(
         SELECT nodes.*, books.title AS book_title
         FROM nodes
         JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
-        WHERE nodes.owner_id = %s AND nodes.node_type = 'chapter' {predicate}
+        WHERE nodes.owner_id = %s AND nodes.node_type = any(%s) {predicate}
         ORDER BY nodes.book_id, nodes.toc_index
         """,
-        parameters,
+        (owner, list(TOP_LEVEL_ROLES), *parameters[1:]),
     ).fetchall()
 
     number = _reference_chapter_number(reference)
     if number is not None:
-        matches = [row for row in rows if _title_chapter_number(row["title"]) == number]
+        # A number addresses chapters only. A preface or an appendix may open
+        # with a digit without being chapter 1.
+        matches = [
+            row
+            for row in rows
+            if row["node_type"] == CHAPTER
+            and _title_chapter_number(row["title"]) == number
+        ]
     else:
         target = _normalize(reference)
         if not target:
@@ -472,12 +497,10 @@ def resolve_named_scope(
         FROM nodes
         JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
         WHERE nodes.book_id = %s AND nodes.owner_id = %s
-          AND nodes.node_type IN (
-              'chapter', 'section', 'subsection', 'nested_section'
-          )
+          AND nodes.node_type = any(%s)
         ORDER BY nodes.toc_index
         """,
-        (selected_book_id, owner),
+        (selected_book_id, owner, list(SEARCHABLE_ROLES)),
     ).fetchall()
 
     exact = [

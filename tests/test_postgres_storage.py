@@ -36,38 +36,98 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
         arguments.update(overrides)
         return ingest_book(self.database, book or sample_book(), **arguments)
 
-    def test_a_top_level_entry_is_a_chapter_whatever_it_is_called(self) -> None:
-        """Regression: chapters numbered without the word were lost.
+    def test_chapters_are_stored_from_the_detected_chapter_level(self) -> None:
+        """Regression: a book grouping chapters under Parts stored Part I as a
+        chapter and Chapter 1 as a section, so no chapter answered to a number.
 
-        `_node_type` read the role off the title, so "Chapter 1 Introduction"
-        was a chapter and "1 Introduction" was `other`. Scope search excludes
-        `other`, so a 613-page book whose outline numbered its chapters
-        without the word had all thirteen of them invisible to the question
-        "what sections are present in Chapter 1?".
+        Role naming is a property of the whole outline, not of one entry, so it
+        is asserted here through what actually reaches the nodes table.
+        """
+
+        from parsing.models import ParsedBook, Section
+
+        outline = [
+            (1, "Copyright"),
+            (1, "Part I. Foundations"),
+            (2, "Chapter 1. Reliable Applications"),
+            (3, "Thinking About Data Systems"),
+            (2, "Chapter 2. Data Models"),
+            (2, "Chapter 3. Storage and Retrieval"),
+            (1, "Index"),
+        ]
+        sections = []
+        active_path: list[str] = []
+        for level, title in outline:
+            active_path[level - 1 :] = [title]
+            sections.append(
+                Section(
+                    path=list(active_path),
+                    level=level,
+                    start_page=1,
+                    end_page=1,
+                )
+            )
+        book = ParsedBook(
+            source="sources/books/parts.pdf",
+            toc=[(level, title, 1) for level, title in outline],
+            sections=sections,
+        )
+        book_id = self.ingest(book, page_count=1, file_hash="b" * 64)
+
+        rows = self.database.execute(
+            """
+            select title, node_type from nodes
+            where owner_id = %s and book_id = %s order by toc_index
+            """,
+            (self.owner_id, book_id),
+        ).fetchall()
+        self.assertEqual(
+            [(row["title"], row["node_type"]) for row in rows],
+            [
+                ("Copyright", "front_matter"),
+                ("Part I. Foundations", "part"),
+                ("Chapter 1. Reliable Applications", "chapter"),
+                ("Thinking About Data Systems", "section"),
+                ("Chapter 2. Data Models", "chapter"),
+                ("Chapter 3. Storage and Retrieval", "chapter"),
+                ("Index", "back_matter"),
+            ],
+        )
+
+    def test_contradictory_chapter_numbering_is_refused(self) -> None:
+        """A duplicate chapter number would resolve a reference to the wrong
+        pages, which is worse than refusing the book.
+
+        The classifier cannot produce this today - the run it types is
+        consecutive by construction - so the roles are supplied directly, which
+        is what a regression in the classifier would look like from here.
         """
 
         from parsing.models import Section
-        from storage.postgres import _node_type
+        from storage.postgres import _validate_chapters
 
-        def top_level(title):
-            return Section(path=[title], level=1, start_page=1, end_page=2)
+        titles = [
+            "Chapter 1. One",
+            "Chapter 2. Two",
+            "Chapter 3. Three",
+            "Chapter 3. Three Again",
+        ]
+        sections = [
+            Section(path=[title], level=1, start_page=1, end_page=1)
+            for title in titles
+        ]
+        with self.assertRaises(InvalidBookError) as caught:
+            _validate_chapters(sections, ["chapter"] * 4)
+        self.assertIn("not unique", str(caught.exception))
 
-        for title in ("Chapter 1 Introduction", "1 Introduction", "Preface"):
-            with self.subTest(title=title):
-                self.assertEqual(_node_type(top_level(title)), "chapter")
-
-        self.assertEqual(_node_type(top_level("Appendix A Data")), "appendix")
-
-    def test_depth_names_the_lower_levels(self) -> None:
-        from parsing.models import Section
-        from storage.postgres import _node_type
-
-        for level, expected in ((2, "section"), (3, "subsection"), (4, "nested_section")):
-            with self.subTest(level=level):
-                section = Section(
-                    path=["Chapter"] * level, level=level, start_page=1, end_page=2
-                )
-                self.assertEqual(_node_type(section), expected)
+        gapped = [
+            Section(path=[title], level=1, start_page=1, end_page=1)
+            for title in ["Chapter 1. One", "Chapter 2. Two", "Chapter 3. Three",
+                          "Chapter 9. Nine"]
+        ]
+        with self.assertRaises(InvalidBookError) as caught:
+            _validate_chapters(gapped, ["chapter"] * 4)
+        self.assertIn("not consecutive", str(caught.exception))
 
     def test_lossless_round_trip_and_hierarchy(self) -> None:
         original = sample_book()
