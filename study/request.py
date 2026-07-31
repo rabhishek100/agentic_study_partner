@@ -28,6 +28,10 @@ class StudyRequest:
     scope_kind: RequestedScopeKind
     scope_reference: str
     chapter_reference: str | None = None
+    # "summarize chapter 1 of ddia" names the book inline. Without it the
+    # chapter reference is matched across every book in scope, and "chapter 1"
+    # exists in all of them.
+    book_reference: str | None = None
 
 
 class UnsupportedStudyRequestError(ValueError):
@@ -74,6 +78,20 @@ LIST_CHAPTERS = (
 SUMMARIZE_SECTION = re.compile(
     r"^summari[sz]e\s+(?:the\s+)?section\s+(.+?)"
     r"(?:\s+in\s+chapter\s+(.+?))?\s*[?.]?$",
+    re.IGNORECASE,
+)
+# Only a numbered chapter may carry an inline book reference. A titled chapter
+# ("summarize chapter Storage and Retrieval") can contain "of" itself, and
+# splitting on it would cut the title in half.
+SUMMARIZE_CHAPTER_IN_BOOK = re.compile(
+    r"^summari[sz]e\s+(?:the\s+)?chapter\s+(?P<chapter>\d+)\s+"
+    r"(?:of|in|from)\s+(?P<book_reference>.+?)\s*[?.]?$",
+    re.IGNORECASE,
+)
+LIST_SECTIONS_IN_BOOK = re.compile(
+    r"^(?:list|show)(?:\s+me)?\s+(?:all\s+)?(?:the\s+)?sections\s+"
+    r"(?:in|of|under)\s+chapter\s+(?P<chapter>\d+)\s+"
+    r"(?:of|in|from)\s+(?P<book_reference>.+?)\s*[?.]?$",
     re.IGNORECASE,
 )
 SUMMARIZE_CHAPTER = re.compile(
@@ -145,6 +163,15 @@ def parse_study_request(query: str) -> StudyRequest:
                 ),
             )
 
+    match = LIST_SECTIONS_IN_BOOK.fullmatch(query)
+    if match:
+        return StudyRequest(
+            intent="list_sections",
+            scope_kind="chapter",
+            scope_reference=match.group("chapter"),
+            book_reference=_clean_book_reference(match.group("book_reference")),
+        )
+
     for pattern in LIST_SECTIONS:
         match = pattern.fullmatch(query)
         if match:
@@ -173,6 +200,15 @@ def parse_study_request(query: str) -> StudyRequest:
                 scope_kind="chapter",
                 scope_reference=_clean_reference(match.group(1)),
             )
+
+    match = SUMMARIZE_CHAPTER_IN_BOOK.fullmatch(query)
+    if match:
+        return StudyRequest(
+            intent="summarize",
+            scope_kind="chapter",
+            scope_reference=match.group("chapter"),
+            book_reference=_clean_book_reference(match.group("book_reference")),
+        )
 
     match = SUMMARIZE_CHAPTER.fullmatch(query)
     if match:
@@ -207,6 +243,21 @@ def resolve_study_request(
     book_ids: Sequence[int] | None = None,
 ) -> ResolvedScope:
     """Map a parsed request to one canonical book, chapter, or section."""
+
+    if request.book_reference:
+        # Naming the book inline narrows everything that follows to it, so
+        # "chapter 1 of ddia" cannot collide with chapter 1 of four other
+        # books the reader also has open.
+        book_ids = [
+            resolve_book(
+                connection,
+                request.book_reference,
+                owner_id=owner_id,
+                book_id=book_id,
+                book_ids=book_ids,
+            ).book_id
+        ]
+        book_id = None
 
     if request.scope_kind == "book":
         return resolve_book(

@@ -159,6 +159,33 @@ def _book_rows(
     return rows
 
 
+TITLE_STOPWORDS = frozenset(
+    {"a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on",
+     "or", "the", "to", "with"}
+)
+
+
+def _title_acronyms(title: str) -> set[str]:
+    """Initials a reader would plausibly use for this title.
+
+    Both the full initials and the stopword-stripped ones, since "Designing
+    Data-Intensive Applications" is `ddia` either way but "An Introduction to
+    Statistical Learning" is `aitsl` written out and `isl` spoken.
+
+    Only the leading words count: a subtitle is not part of how anyone
+    abbreviates a book, and including it would make the acronym unusable.
+    """
+
+    words = _normalize(title).split()[:6]
+    if len(words) < 2:
+        return set()
+    significant = [word for word in words if word not in TITLE_STOPWORDS]
+    acronyms = {"".join(word[0] for word in words)}
+    if len(significant) >= 2:
+        acronyms.add("".join(word[0] for word in significant))
+    return {acronym for acronym in acronyms if len(acronym) >= 3}
+
+
 def _book_candidate(row: Any) -> ScopeMatch:
     return ScopeMatch(
         book_id=row["id"],
@@ -256,7 +283,13 @@ def resolve_book(
         if not target:
             raise ScopeNotFoundError("book", reference)
         exact = [row for row in rows if _normalize(row["title"]) == target]
-        rows = exact or [row for row in rows if target in _normalize(row["title"])]
+        rows = (
+            exact
+            or [row for row in rows if target in _normalize(row["title"])]
+            # Readers abbreviate long titles - "ddia", "dmls". Tried last, so
+            # an abbreviation can never take a book a real title match found.
+            or [row for row in rows if target in _title_acronyms(row["title"])]
+        )
         if not rows:
             raise ScopeNotFoundError("book", reference)
     if len(rows) > 1:
@@ -315,6 +348,23 @@ def _chapter_aliases(title: str) -> set[str]:
         remainder = title[match.end() :].lstrip(" .:—–-")
         if remainder:
             aliases.add(_normalize(remainder))
+    return aliases
+
+
+def _node_aliases(row: Any) -> set[str]:
+    """Every name that identifies one node exactly.
+
+    A node's full path is one of them. Chapters used to be matched on their
+    title alone, which broke as soon as a chapter had an ancestor: the turn
+    executor renders a resolved scope back into "Summarize <display path>."
+    and re-resolves it, and for a chapter under a Part that path stopped
+    matching anything - silently downgrading a chapter summary to a retrieval
+    answer.
+    """
+
+    aliases = {_normalize(row["title"]), _normalize(row["path_text"])}
+    if row["node_type"] == CHAPTER:
+        aliases |= _chapter_aliases(row["title"])
     return aliases
 
 
@@ -385,11 +435,11 @@ def resolve_chapter(
         target = _normalize(reference)
         if not target:
             raise ScopeNotFoundError("chapter", reference)
-        exact = [row for row in rows if target in _chapter_aliases(row["title"])]
+        exact = [row for row in rows if target in _node_aliases(row)]
         matches = exact or [
             row
             for row in rows
-            if any(target in alias for alias in _chapter_aliases(row["title"]))
+            if any(target in alias for alias in _node_aliases(row))
         ]
     if not matches:
         raise ScopeNotFoundError("chapter", reference)
@@ -503,15 +553,7 @@ def resolve_named_scope(
         (selected_book_id, owner, list(SEARCHABLE_ROLES)),
     ).fetchall()
 
-    exact = [
-        row
-        for row in rows
-        if (
-            target in _chapter_aliases(row["title"])
-            if row["node_type"] == "chapter"
-            else target in {_normalize(row["title"]), _normalize(row["path_text"])}
-        )
-    ]
+    exact = [row for row in rows if target in _node_aliases(row)]
     matches = exact or [row for row in rows if target in _normalize(row["title"])]
     if not matches:
         raise ScopeNotFoundError("scope", reference)
