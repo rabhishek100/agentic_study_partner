@@ -215,10 +215,19 @@ The worker is 8 vCPU / 8 GB with no GPU, against a Supabase free plan capped at
   low-resolution thumbnail per page is kept for the review interface, on the
   same derived footing as chunks and inside a documented size budget.
 - Two sources exceed the 50 MB upload ceiling (61.3 MB and 55.5 MB). They
-  ingest through an admin path that feeds the worker from disk, and 50 MB is
-  documented in the upload interface as a real product limit. Recompressing
+  ingest through `scripts/ingest_local_book.py`, which points the worker at a
+  file already on the machine and takes Storage out of the loop. Recompressing
   sources already at 110–160 dpi would degrade the input to the stage whose
   entire job is reading them accurately.
+
+  Only acquisition changes: the same preflight, transcription, mandatory
+  outline review, and canonical import follow. It is a way around the upload
+  limit, not around the review gate, and deliberately not an API — 50 MB is a
+  real product constraint that the upload interface states. The bypass is
+  recorded in job provenance, because an operator route around a product limit
+  has to be auditable. The hash check is kept and is the one that matters: it
+  proves the file behind a confirmed outline is still the file that outline was
+  proposed from.
 
 ## Evaluation
 

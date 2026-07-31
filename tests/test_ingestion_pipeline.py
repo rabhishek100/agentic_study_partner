@@ -478,6 +478,60 @@ class StubbedParserTests(PipelineFixture):
             books = list_books(database, owner_id=self.owner)
         self.assertEqual(len(books), 1)
 
+    def test_a_local_source_runs_without_touching_storage(self):
+        """The route for books the 50 MB upload ceiling cannot carry.
+
+        Only acquisition changes. The book still transcribes, still stops at
+        outline review, and still needs a human before it is answerable, so
+        this is a way around the upload limit and not around the review gate.
+        """
+
+        from ingestion.local_source import inspect_local_source, queue_local_source
+
+        self.dependencies = PipelineDependencies(
+            embedder_factory=DeterministicEmbedder,
+            ocr_factory=StubOcrProvider,
+            ocr_reference_factory=lambda: None,
+        )
+        source = inspect_local_source(scanned_pdf(self.directory / "local.pdf"))
+        with connection(self.database_url) as database:
+            queued = queue_local_source(
+                database, owner_id=self.owner, source=source, limits=LIMITS
+            )
+            claimed = claim_next_job(
+                database, worker_id="test-worker", limits=LIMITS
+            )
+
+        self.assertEqual(claimed.id, queued.id)
+        # Nothing was ever uploaded, so a Storage-backed run would fail here.
+        self.assertNotIn(claimed.storage_path, self.uploaded)
+
+        outcome = self.run_claimed(claimed, local_source=source.path)
+
+        self.assertEqual(outcome.job.status, Status.NEEDS_TOC_REVIEW)
+        self.assertEqual(outcome.job.file_hash, source.sha256)
+
+    def test_a_local_source_that_changed_is_refused(self):
+        """The hash is what ties a confirmed outline to the file it came from."""
+
+        from ingestion.local_source import inspect_local_source, queue_local_source
+
+        source = inspect_local_source(scanned_pdf(self.directory / "swap.pdf"))
+        with connection(self.database_url) as database:
+            queue_local_source(
+                database, owner_id=self.owner, source=source, limits=LIMITS
+            )
+            claimed = claim_next_job(
+                database, worker_id="test-worker", limits=LIMITS
+            )
+
+        replacement = structured_pdf(self.directory / "other.pdf")
+
+        with self.assertRaises(IngestionError) as caught:
+            self.run_claimed(claimed, local_source=replacement)
+
+        self.assertEqual(caught.exception.code, ErrorCode.SOURCE_CHANGED)
+
     def test_a_source_deleted_after_queueing_fails_the_job(self):
         job = self.claim(structured_pdf(self.directory / "book.pdf"))
         delete_object(job.storage_bucket, job.storage_path)

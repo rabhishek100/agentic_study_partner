@@ -332,24 +332,22 @@ def _confirmed_outline(job: IngestionJob) -> list[tuple[int, str, int]] | None:
         ) from error
 
 
-def _validate_stage(
+@dataclass(frozen=True)
+class _Acquired:
+    """The measurements a source has to carry before preflight sees it."""
+
+    size_bytes: int
+    sha256: str
+
+
+def _acquire_stored(
     job: IngestionJob,
     *,
     limits: IngestionLimits,
     work_dir: Path,
     database_url: str | None,
-    dependencies: PipelineDependencies,
-) -> (
-    tuple[
-        IngestionJob,
-        Path,
-        str,
-        PreflightReport,
-        list[tuple[int, str, int]],
-    ]
-    | JobOutcome
-):
-    """Verify the upload, hash it, and decide whether this book can be ingested."""
+) -> tuple[Path, _Acquired, IngestionJob]:
+    """Verify and download the source object this job reserved in Storage."""
 
     stored = object_info(job.storage_bucket, job.storage_path)
     if stored is None:
@@ -397,6 +395,72 @@ def _validate_stage(
         raise IngestionError(
             ErrorCode.SOURCE_CHANGED,
             detail="source bytes changed after preflight or outline review",
+        )
+    return source, _Acquired(download.size_bytes, download.sha256), job
+
+
+def _acquire_local(
+    job: IngestionJob,
+    *,
+    local_source: Path,
+    database_url: str | None,
+) -> tuple[Path, _Acquired, IngestionJob]:
+    """Take the source from this machine instead of from Storage.
+
+    The upload ceiling is not applied here: carrying a book the platform's
+    upload path cannot is the whole point. The hash check still is, and it is
+    the one that matters — it is what proves the file behind a confirmed
+    outline is still the file that outline was proposed from.
+    """
+
+    from .local_source import inspect_local_source
+
+    measured = inspect_local_source(local_source)
+    if job.file_hash is not None and measured.sha256 != job.file_hash:
+        raise IngestionError(
+            ErrorCode.SOURCE_CHANGED,
+            detail="local source bytes changed after preflight or outline review",
+        )
+
+    with _database(database_url) as connection:
+        job = set_stage(
+            connection,
+            owner_id=job.owner_id,
+            job_id=job.id,
+            current_status=Status.VALIDATING,
+            stage=Stage.DOWNLOAD_SOURCE,
+            provenance={"source": measured.provenance()},
+        )
+    return measured.path, _Acquired(measured.size_bytes, measured.sha256), job
+
+
+def _validate_stage(
+    job: IngestionJob,
+    *,
+    limits: IngestionLimits,
+    work_dir: Path,
+    database_url: str | None,
+    dependencies: PipelineDependencies,
+    local_source: Path | None = None,
+) -> (
+    tuple[
+        IngestionJob,
+        Path,
+        str,
+        PreflightReport,
+        list[tuple[int, str, int]],
+    ]
+    | JobOutcome
+):
+    """Verify the upload, hash it, and decide whether this book can be ingested."""
+
+    if local_source is not None:
+        source, download, job = _acquire_local(
+            job, local_source=local_source, database_url=database_url
+        )
+    else:
+        source, download, job = _acquire_stored(
+            job, limits=limits, work_dir=work_dir, database_url=database_url
         )
 
     # An owner who uploads a book they already have gets that book back rather
@@ -666,6 +730,7 @@ def _ingest_source(
     work_dir: Path,
     database_url: str | None,
     dependencies: PipelineDependencies,
+    local_source: Path | None = None,
 ) -> tuple[IngestionJob, int, dict[str, int | float]] | JobOutcome:
     """Validate, parse, and canonically import the source.
 
@@ -681,6 +746,7 @@ def _ingest_source(
         work_dir=work_dir,
         database_url=database_url,
         dependencies=dependencies,
+        local_source=local_source,
     )
     if isinstance(validated, JobOutcome):
         return validated
@@ -919,6 +985,7 @@ def run_job(
     work_dir: Path,
     database_url: str | None = None,
     dependencies: PipelineDependencies | None = None,
+    local_source: Path | None = None,
 ) -> JobOutcome:
     """Run one claimed job to a ready book, a duplicate, or an exception.
 
@@ -968,6 +1035,7 @@ def run_job(
             work_dir=work_dir,
             database_url=database_url,
             dependencies=dependencies,
+            local_source=local_source,
         )
         if isinstance(ingested, JobOutcome):
             # Validation resolved the job on its own: a duplicate upload, or a
