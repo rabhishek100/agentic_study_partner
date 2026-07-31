@@ -771,6 +771,43 @@ Use OCRmyPDF and Tesseract to produce a derived searchable PDF:
 OCR output is derived and rebuildable from the original source and recorded
 configuration.
 
+### Structural roles
+
+An outline entry's depth is not its role. Some books put chapters at level 1;
+others group them under Parts and put chapters at level 2. Naming roles by
+depth typed Part I as a chapter and Chapter 5 as a section, and only a node
+typed `chapter` may answer to a chapter number, so every chapter of such a
+book became unaddressable. Naming them by title instead fails the other way:
+a book numbering its chapters "1 Introduction" rather than "Chapter 1" loses
+all of them.
+
+`parsing.outline_roles` uses both signals and classifies the book, not the
+entry. Chapters are a consecutively numbered run of siblings at exactly one
+depth, so the depth whose siblings yield the longest run of 1, 2, 3, ... is
+the chapter level; roles then follow from position relative to it — `part`
+above, `section`/`subsection`/`nested_section` below, `front_matter` and
+`back_matter` beside. A run shorter than three entries is not a numbering
+scheme, and the book falls back to the depth rule rather than inventing
+structure.
+
+Two properties keep this safe:
+
+- **No role is excluded from scope search.** The earlier title rule was
+  destructive because unmatched entries landed in a class search filtered out.
+  An odd label costs a strange word in a listing; an invisible one costs whole
+  books.
+- **Ingestion refuses contradictory numbering.** Duplicate or gapped chapter
+  numbers mean a reference would resolve to the wrong pages silently, which is
+  worse than a failed ingestion.
+
+Roles are assigned at ingestion, not during parsing, so correcting them on an
+already-ingested book needs no re-parse, no OCR, and no rebuild of anything
+derived:
+
+```bash
+uv run python -m scripts.reclassify_outlines --check
+```
+
 ### Hierarchy review
 
 For a missing embedded TOC:
