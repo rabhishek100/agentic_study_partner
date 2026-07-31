@@ -1,0 +1,189 @@
+# OCR ingestion: scanned and OCR-backed books
+
+Status: specified, in implementation
+
+Covers the document classes the first release refuses: pure scans, PDFs whose
+text layer was produced by someone else's OCR, and digital sources whose
+structure lives in typography rather than an embedded outline.
+
+## Why this exists
+
+`ingestion.preflight.require_supported` admits only digital PDFs that carry
+both a text layer and a trustworthy embedded outline. Four books measured
+against that gate fail it in four different ways, and the differences decide
+the design:
+
+| Source | Pages | Text layer | Embedded outline | Failure |
+|---|---|---|---|---|
+| PythonMastery (Beazley) | 550 | native, clean | none | slide deck; structure is in footers and font size |
+| The Hundred-Page Language Models Book | 209 | ABBYY OCR | 113 entries | outline poisoned by OCR'd equations |
+| Generative AI System Design Interview | 351 | none | none | pure scan, no printed contents page |
+| System Design Interview vol. 2 | 427 | none | none | pure scan, clean, printed contents page |
+
+Two of these need OCR. One needs its embedded outline discarded. One needs no
+OCR at all and no model call of any kind.
+
+## Principle
+
+**Transcription and structure are separate stages with different trust
+properties, and only one of them is generative.**
+
+A vision model reads a page into text. Deterministic code reads that text into
+a hierarchy. A human confirms the hierarchy. The model never decides where a
+chapter begins, because a wrong boundary produces a confidently wrong citation
+and there is no downstream check that would catch it.
+
+## Stage A — transcription
+
+Per page, in isolation: page image in, Markdown out. Tables as HTML, formulas
+as LaTeX, figures as placeholder references.
+
+Isolation is deliberate. One page per call with no cross-page context means a
+page can be re-run alone, a bad page cannot poison its neighbours, and the
+model cannot carry an error forward as established fact.
+
+- Primary model: `google/gemini-3-flash-preview` — roughly $3.11 for the 778
+  scanned pages in the corpus.
+- Cheap tier: `qwen/qwen3-vl-32b-instruct` — roughly $0.49 for the same pass,
+  used for development iteration and for escalating flagged pages.
+- Both are configuration. A `-preview` model id will be deprecated, and a
+  hardcoded one turns that into an outage.
+
+Provider access goes through an `OcrProvider` port with an OpenRouter adapter
+and a local Tesseract adapter. A second provider — FriendliAI hosts the
+Qianfan-OCR specialist — is a configuration change, not a rewrite. No OCR
+specialist is reachable through OpenRouter today: `baidu/qianfan-ocr-fast` is
+listed with no live endpoints, and none of DeepSeek-OCR, PaddleOCR-VL,
+dots.ocr or HunyuanOCR appear at all.
+
+### Canonical status
+
+For a pure scan the transcription **is** the canonical text. Nothing more
+faithful exists, and elevating the Tesseract reading instead would make the
+worse transcription authoritative and have citations quote text no reader can
+see on the page.
+
+The honest treatment is provenance, not pretence. Every page records
+`ocr_provider`, `model_id`, `render_dpi`, `prompt_hash`, and `ocr_version`.
+Blocks derive from that text. Re-OCR bumps `ocr_version` and rebuilds
+everything derived, exactly as chunks and embeddings already rebuild.
+
+### Fabrication gate
+
+The failure mode a generative transcription introduces, and a deterministic
+one cannot, is invention: a fluent sentence that is not on the page.
+
+Tesseract runs on every page — it is free, local, and already installed — and
+long spans in the model output with no token support in its reading raise a
+per-page `fabrication_risk`. Flagged pages escalate to a second model, and
+pages that still disagree surface in the review queue.
+
+The gate **flags, it never blocks**. The threshold is a heuristic until the
+gold set exists, and a heuristic that can halt a 400-page book on one noisy
+diagram page trades a small risk for a certain one.
+
+## Stage B — structure
+
+Deterministic, and it reads Stage A's Markdown rather than the image:
+
+- heading levels from Markdown depth plus the existing numbering patterns;
+- printed page number from the footer line, giving the printed-to-PDF offset,
+  computed and validated across sampled pages rather than assumed constant;
+- tables into `TableBlock.html` with a plain-text fallback;
+- figures cropped from the page render at the model's reported region, or
+  referenced whole when it reports none, then captioned by the existing
+  figure-captioning role.
+
+LaTeX is stripped before BM25 indexing and kept for display, so `\frac` never
+becomes a search term in the chapters that are most math-heavy.
+
+Output goes through `assess_outline` and into `needs_toc_review`. Confirmation
+is **mandatory for every OCR-backed book**. For these four sources that is
+about ten minutes each, and it is the whole reason the citations are
+defensible.
+
+### Poisoned embedded outlines
+
+The Hundred-Page book's outline has `derr3 derr3 dd3 dw dd3 dw` and `dd±` as
+level-1 entries — ABBYY promoted OCR'd equations into the hierarchy — while
+the actual chapter headings appear nowhere in it. `outline_roles.chapter_level`
+finds no chapter run in that and falls back to the depth rule, which types
+equation fragments as chapters.
+
+An outline is treated as poisoned when its entries fail `_looks_like_title`,
+when many entries resolve to a single page, or when level 1 is junk. A poisoned
+outline is discarded rather than repaired, and the printed contents page is
+parsed instead — with positional OCR, because plain-text OCR of a two-column
+contents page separates the titles from their page numbers into different
+blocks and loses the pairing.
+
+## Routing
+
+Preflight already measures the document classes; only the routing changes.
+`SCANNED`, `MIXED`, and `ocr_backed` flow into the OCR stage and end in
+`needs_toc_review`. Rejection is reserved for corrupt or genuinely unsupported
+input.
+
+Nothing digital is routed through a model. PythonMastery has a clean native
+text layer, a footer that names its section on every page, and a title at a
+distinct size on all 550 of them; its structure is recovered by plain Python.
+
+## Slides
+
+Slide decks get their own entity rather than sharing the book tables. This
+departs from the `AGENTS.md` line committing PowerPoint ingestion to the same
+canonical content model; the decision anticipates more decks arriving, and
+`AGENTS.md` is updated rather than left to contradict the code.
+
+A slide averages 370 characters. As a retrieval unit that is a bullet fragment
+with no connective prose, so chunking groups consecutive slides within a
+section.
+
+## Operational limits
+
+The worker is 8 vCPU / 8 GB with no GPU, against a Supabase free plan capped at
+50 MB per upload and 1 GB total.
+
+- Eight parallel page calls per job, with retry and backoff. Page-level
+  checkpoints, so a resumed job never re-pays for completed pages.
+- A hard per-job page and token cap. Exceeding either aborts with a named
+  error rather than spending silently; real dollars per book land in job
+  provenance so the evaluation quotes measurements, not estimates.
+- Page renders are not persisted — they are rebuildable from the source. A
+  low-resolution thumbnail per page is kept for the review interface, on the
+  same derived footing as chunks and inside a documented size budget.
+- Two sources exceed the 50 MB upload ceiling (61.3 MB and 55.5 MB). They
+  ingest through an admin path that feeds the worker from disk, and 50 MB is
+  documented in the upload interface as a real product limit. Recompressing
+  sources already at 110–160 dpi would degrade the input to the stage whose
+  entire job is reading them accurately.
+
+## Evaluation
+
+Forty pages, ten per book, spanning clean prose, table-heavy, formula-heavy,
+and pathological pages — bleed-through, the two-column contents page,
+figure-dense layouts.
+
+The reference transcription is **model-adjudicated, not ground truth**, and is
+labelled that way with the adjudicating model id in provenance. The adjudicator
+reads each page and resolves every Tesseract-versus-candidate disagreement by
+zooming the disputed region, which is a stronger annotator than any single
+pass. A human spot-checks five pages so the report can state a measured
+agreement rate instead of asserting correctness.
+
+Measured: CER, WER, table-cell F1, fabricated-span count, heading-match ratio,
+printed-page-offset accuracy — three ways, over Gemini 3 Flash, Qwen3-VL-32B,
+and Tesseract, with real cost per book.
+
+That table is what justifies a generative stage sitting inside the canonical
+layer. Without it, the layer is an assertion.
+
+## Order of work
+
+1. `OcrProvider` port, OpenRouter and Tesseract adapters, fabrication gate.
+2. Preflight routing and the OCR job stage with page checkpointing.
+3. Stage B structured extraction.
+4. Poisoned-outline detector and printed-contents parser.
+5. Slide entity, structure synthesis, slide-run chunking.
+6. `needs_toc_review` interface.
+7. Gold set and the three-way evaluation report.
