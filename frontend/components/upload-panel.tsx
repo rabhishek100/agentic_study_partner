@@ -1,23 +1,28 @@
 "use client";
 
-import { AlertCircle, FileUp, Loader2 } from "lucide-react";
+import { AlertCircle, FileUp, ListTree, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { OutlineReviewEditor } from "@/components/outline-review";
 import { apiFetch } from "@/lib/api";
 import { accessToken, supabaseUrl } from "@/lib/supabase";
 import type {
   CreateIngestionResponse,
   IngestionJob,
   IngestionJobList,
+  IngestionLimitsResponse,
   JobStatus,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const MAXIMUM_BYTES = 52_428_800; // enforced again by the bucket, API, worker
+// Only a starting guess for the first paint. The API serves the real limit,
+// which is what actually gates an upload; hardcoding a second copy here is
+// what let a 91 MiB file past the browser and into a Storage 413.
+const FALLBACK_MAXIMUM_BYTES = 52_428_800;
 // Supabase's resumable endpoint requires exactly 6 MiB chunks (final chunk
 // excepted); other sizes are rejected.
 const TUS_CHUNK_BYTES = 6 * 1024 * 1024;
@@ -32,6 +37,9 @@ const ACTIVE_STATUSES = new Set<JobStatus>([
   "chunking",
   "embedding",
   "verifying",
+  "classifying",
+  "ocr",
+  "needs_toc_review",
   "retry_scheduled",
 ]);
 
@@ -45,11 +53,21 @@ const STATUS_LABELS: Record<JobStatus, string> = {
   chunking: "Building search data",
   embedding: "Building semantic search",
   verifying: "Verifying the book",
+  classifying: "Classifying the PDF",
+  ocr: "Reading scanned pages",
+  needs_toc_review: "Contents need review",
   retry_scheduled: "Retrying shortly",
   ready: "Ready",
   failed: "Failed",
   cancelled: "Cancelled",
 };
+
+function formatMegabytes(bytes: number) {
+  // Storage limits are quoted in MB, not MiB: showing "50 MiB" next to a
+  // ceiling the platform states as 50 MB invites exactly the confusion this
+  // change removes.
+  return Math.round(bytes / 1_000_000);
+}
 
 function statusLabel(status: JobStatus | undefined) {
   return status ? (STATUS_LABELS[status] ?? status) : "";
@@ -59,7 +77,12 @@ function statusVariant(
   status: JobStatus | undefined,
 ): "default" | "secondary" | "destructive" | "outline" {
   if (status === "failed") return "destructive";
-  if (status === "cancelled" || status === "retry_scheduled") return "outline";
+  if (
+    status === "cancelled" ||
+    status === "retry_scheduled" ||
+    status === "needs_toc_review"
+  )
+    return "outline";
   if (status === "ready") return "default";
   return "secondary";
 }
@@ -105,6 +128,7 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
+  const [maximumBytes, setMaximumBytes] = useState(FALLBACK_MAXIMUM_BYTES);
   // Advances once a second so elapsed time moves between the 2.5s polls,
   // instead of the clock visibly freezing and jumping.
   const [now, setNow] = useState(0);
@@ -117,6 +141,28 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
   const jobId = job?.job_id ?? pending?.jobId;
   const jobStatus = job?.status ?? pending?.status;
   const isActive = jobStatus !== undefined && ACTIVE_STATUSES.has(jobStatus);
+  const waitingForReview = jobStatus === "needs_toc_review";
+
+  // The upload ceiling is a deployment setting, not a constant, so it is read
+  // from the API rather than compiled in. On failure the fallback still
+  // rejects oversized files; it just may not name the exact number.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const limits =
+          await apiFetch<IngestionLimitsResponse>("/ingestions/limits");
+        if (!cancelled && limits.maximum_bytes > 0) {
+          setMaximumBytes(limits.maximum_bytes);
+        }
+      } catch {
+        // Keep the fallback; the API rejects an oversized file regardless.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Reattach to a job still running from an earlier visit. The job lives in
   // Postgres, not in this tab, so a reload or a different device should pick
@@ -189,8 +235,11 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
       setError("Only PDF files are supported.");
       return;
     }
-    if (file.size > MAXIMUM_BYTES) {
-      setError("This file is larger than the 50 MiB upload limit.");
+    if (file.size > maximumBytes) {
+      setError(
+        `This file is ${formatMegabytes(file.size)} MB, over the ` +
+          `${formatMegabytes(maximumBytes)} MB upload limit.`,
+      );
       return;
     }
 
@@ -336,14 +385,20 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
             : "hover:border-primary hover:bg-accent",
         )}
       >
-        {busy ? (
+        {waitingForReview ? (
+          <ListTree className="size-4 text-muted-foreground" aria-hidden />
+        ) : busy ? (
           <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />
         ) : (
           <FileUp className="size-4 text-muted-foreground" aria-hidden />
         )}
-        {busy ? "Working on your book…" : "Choose a PDF"}
+        {waitingForReview
+          ? "Finish the contents review"
+          : busy
+            ? "Working on your book…"
+            : "Choose a PDF"}
         <span className="text-xs font-normal text-muted-foreground">
-          Up to 50 MiB
+          Up to {formatMegabytes(maximumBytes)} MB
         </span>
         <input
           ref={fileInputRef}
@@ -386,7 +441,9 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
             <Progress value={uploadPercent} aria-label="Upload progress" />
           )}
 
-          {phase === "processing" && timing && (
+          {phase === "processing" &&
+            timing &&
+            jobStatus !== "needs_toc_review" && (
             <>
               <Progress
                 value={timing.percent}
@@ -456,6 +513,23 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
                 continues and progress is restored when you return.
               </p>
             </>
+          )}
+
+          {jobStatus === "needs_toc_review" && jobId && (
+            <div className="space-y-2 border-t border-border pt-2">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                The embedded contents were incomplete or unsafe. Review the
+                headings inferred from the PDF before parsing continues.
+              </p>
+              <OutlineReviewEditor
+                jobId={jobId}
+                onConfirmed={(confirmed) => {
+                  notifiedRef.current = false;
+                  setJob(confirmed);
+                  setPhase("processing");
+                }}
+              />
+            </div>
           )}
 
           {jobStatus === "failed" && job?.error && (

@@ -97,6 +97,17 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             parse_study_request("What sections are present in Chapter 1?"),
             StudyRequest("list_sections", "chapter", "1"),
         )
+        for question in (
+            "What are the sections under Fine-tuning?",
+            "Which sections are in Fine-tuning?",
+            "List sections of Fine-tuning",
+            "Show me all the sections under Fine-tuning.",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    parse_study_request(question),
+                    StudyRequest("list_sections", "chapter", "Fine-tuning"),
+                )
         self.assertEqual(
             parse_study_request("Summarize Core idea"),
             StudyRequest("summarize", "named", "Core idea"),
@@ -161,19 +172,21 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             "SELECT MIN(id) AS id FROM content_blocks WHERE owner_id = %s",
             (self.owner_id,),
         ).fetchone()["id"]
-        self.connection.execute(
-            """
-            UPDATE content_blocks SET category = 'Header'
-            WHERE id = %s AND owner_id = %s
-            """,
-            (first_block_id, self.owner_id),
-        )
-        scope, context = self._chapter_context()
+        for category in ("Header", "DetectedHeader", "DetectedFooter"):
+            with self.subTest(category=category):
+                self.connection.execute(
+                    """
+                    UPDATE content_blocks SET category = %s
+                    WHERE id = %s AND owner_id = %s
+                    """,
+                    (category, first_block_id, self.owner_id),
+                )
+                scope, context = self._chapter_context()
 
-        self.assertEqual(context.included_block_count, 4)
-        self.assertEqual(context.skipped_block_count, 1)
-        self.assertNotIn(scope.root_node_id, context.expected_node_ids)
-        self.assertNotIn("Chapter introduction", context.text)
+                self.assertEqual(context.included_block_count, 4)
+                self.assertEqual(context.skipped_block_count, 1)
+                self.assertNotIn(scope.root_node_id, context.expected_node_ids)
+                self.assertNotIn("Chapter introduction", context.text)
 
     def test_one_call_summary_passes_complete_context_and_validates(self) -> None:
         scope, context = self._chapter_context()
@@ -264,6 +277,17 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(
             normalized,
             "Two claims. [N81:P153] [N81:P154] Third. [N82:P155]",
+        )
+
+    def test_provider_citation_syntax_is_normalized_for_all_marker_contracts(self):
+        normalized = normalize_citation_syntax(
+            "Claim. \ue200cite\ue202S1\ue202S3\ue201 "
+            "Summary. \ue200cite\ue202N81:P153\ue202N82:P155\ue201"
+        )
+
+        self.assertEqual(
+            normalized,
+            "Claim. [S1] [S3] Summary. [N81:P153] [N82:P155]",
         )
 
     def test_invalid_citation_gets_one_feedback_driven_repair(self) -> None:

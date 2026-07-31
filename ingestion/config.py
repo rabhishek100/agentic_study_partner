@@ -11,7 +11,14 @@ import os
 
 
 DEFAULT_SOURCE_BUCKET = "book-sources"
-DEFAULT_MAX_SOURCE_BYTES = 52_428_800  # 50 MiB
+# Supabase enforces a project-wide upload ceiling that overrides the bucket's
+# own `file_size_limit`, and on the free plan that ceiling is 50 MB. Every
+# layer here previously advertised 100 MiB, so a 91 MiB upload passed the
+# browser check, passed the API, reserved a job, and was then rejected by
+# Storage with a bare 413 after minutes of transfer. This is the real limit;
+# raise it here (and in the Supabase project settings, which is the binding
+# one) if the plan ever allows more.
+DEFAULT_MAX_SOURCE_BYTES = 52_428_800  # 50 MB, the Supabase free-plan ceiling
 # The design target, reachable now that parsing runs as bounded page batches
 # across a process pool: each batch holds a fixed slice of the document, so
 # parse memory no longer grows with book length. docs/parser-performance.md

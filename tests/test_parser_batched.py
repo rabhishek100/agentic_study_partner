@@ -132,6 +132,32 @@ class BatchedExtractionTests(unittest.TestCase):
         # Three batches of two pages, reported as each lands.
         self.assertEqual(sorted(seen), [(1, 3), (2, 3), (3, 3)])
 
+    def test_a_pathological_page_uses_fallback_and_other_pages_stay_hi_res(self):
+        seen_ranges = []
+
+        def record_range(task):
+            seen_ranges.append((task[1], task[2]))
+            return fake_parse_range(task)
+
+        with (
+            patch("parsing.parser.ProcessPoolExecutor", _InlineExecutor),
+            patch("parsing.parser._parse_page_range", side_effect=record_range),
+            patch("parsing.parser.elements_from_json", side_effect=fake_load),
+            patch("parsing.parser._vector_complexity_pages", return_value=[2]),
+            patch(
+                "parsing.parser._extract_vector_fallback_page",
+                return_value=[_Element(3)],
+            ) as fallback,
+        ):
+            elements = extract_batched(self.source, batch_pages=2, workers=3)
+
+        self.assertEqual(seen_ranges, [(0, 1), (3, 4), (5, 5)])
+        fallback.assert_called_once_with(self.source, 2)
+        self.assertEqual(
+            [element.metadata.page_number for element in elements],
+            [1, 2, 3, 4, 5, 6],
+        )
+
     def test_a_single_worker_parses_the_document_whole(self):
         with patch("parsing.parser._partition", return_value=[]) as partition:
             extract_batched(self.source, batch_pages=2, workers=1)

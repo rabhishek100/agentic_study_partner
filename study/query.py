@@ -48,6 +48,7 @@ from .summarize import (
     ContextWindowExceededError,
     SummaryConfig,
     build_summary_messages,
+    normalize_citation_syntax,
     prompt_budget,
     summarize_scope_with_repair,
 )
@@ -64,7 +65,7 @@ class QueryExecutionError(RuntimeError):
 
 
 SOURCE_CITATION = re.compile(r"\[S(\d+)]")
-DEFAULT_GENERATION_MODEL = "deepseek/deepseek-v4-flash"
+DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
 INSUFFICIENT_EVIDENCE_MARKER = "INSUFFICIENT_EVIDENCE:"
 INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\b(?:the\s+)?evidence\s+is\s+insufficient\b|"
@@ -424,7 +425,7 @@ def _answer_retrieval_question(
         ),
         token_callback=token_callback,
     )
-    reply_text = str(reply.content).strip()
+    reply_text = normalize_citation_syntax(str(reply.content).strip())
     insufficient = INSUFFICIENT_EVIDENCE_MARKER in reply_text or bool(
         INSUFFICIENT_EVIDENCE_LANGUAGE.search(reply_text)
     )

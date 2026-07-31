@@ -3,6 +3,7 @@
 import re
 from uuid import UUID
 
+from parsing.outline_roles import SEARCHABLE_ROLES
 from storage.database import connection as database_connection, parse_owner_id
 
 from .contracts import ConversationState, ScopeCandidate
@@ -83,14 +84,18 @@ def _aliases(title):
 def _rows(connection, book_ids, owner_id):
     scope = sorted({int(identifier) for identifier in book_ids or ()}) or None
     predicate = "AND book_id = any(%s)" if scope is not None else ""
-    parameters = (owner_id, scope) if scope is not None else (owner_id,)
+    parameters = (
+        (owner_id, list(SEARCHABLE_ROLES), scope)
+        if scope is not None
+        else (owner_id, list(SEARCHABLE_ROLES))
+    )
     return connection.execute(
         f"""
         SELECT id, book_id, parent_id, toc_index, node_type, title,
                path_text, start_page, end_page
         FROM nodes
         WHERE owner_id = %s
-          AND node_type IN ('chapter','section','subsection','nested_section')
+          AND node_type = any(%s)
         {predicate}
         ORDER BY book_id, toc_index
         """,

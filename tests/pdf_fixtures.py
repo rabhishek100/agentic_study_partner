@@ -54,6 +54,24 @@ def pdf_without_outline(path: Path, *, page_count: int = 4) -> Path:
     return _write(_document(page_count), path)
 
 
+def pdf_with_visual_headings(path: Path) -> Path:
+    """Readable native PDF whose hierarchy exists only in page typography."""
+
+    document = fitz.open()
+    headings = {
+        0: [("1 Introduction", 20), ("1.1 Why Parallelism Matters", 15)],
+        2: [("2 Memory Systems", 20), ("2.1 Locality", 15)],
+    }
+    for number in range(4):
+        page = document.new_page()
+        y = 90
+        for title, size in headings.get(number, []):
+            page.insert_text((72, y), title, fontsize=size, fontname="hebo")
+            y += 40
+        page.insert_text((72, y + 20), BODY_TEXT, fontsize=11)
+    return _write(document, path)
+
+
 def scanned_pdf(path: Path, *, page_count: int = 4) -> Path:
     """Pages with no extractable text, as a scan would produce."""
 
@@ -70,6 +88,22 @@ def mixed_pdf(path: Path, *, page_count: int = 8) -> Path:
         page = document.new_page()
         if number % 2 == 0:
             page.insert_text((72, 96), BODY_TEXT, fontsize=11)
+    document.set_toc([[1, "Chapter 1", 1]])
+    return _write(document, path)
+
+
+def ocr_backed_pdf(path: Path, *, page_count: int = 4) -> Path:
+    """Full-page raster images with a selectable OCR text overlay."""
+
+    document = fitz.open()
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 612, 792), False)
+    pixmap.clear_with(245)
+    image = pixmap.tobytes("png")
+    for number in range(page_count):
+        page = document.new_page(width=612, height=792)
+        page.insert_image(page.rect, stream=image)
+        page.insert_text((72, 96), f"Page {number + 1}", fontsize=11)
+        page.insert_text((72, 130), BODY_TEXT, fontsize=11)
     document.set_toc([[1, "Chapter 1", 1]])
     return _write(document, path)
 

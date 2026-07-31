@@ -13,12 +13,15 @@ from ingestion.jobs import (
     cancel_running_job,
     claim_next_job,
     complete_job,
+    confirm_outline_review,
     create_job,
     fail_job,
     get_job,
     list_events,
     list_jobs,
     mark_upload_complete,
+    outline_review,
+    pause_for_outline_review,
     reclaim_expired_leases,
     record_progress,
     renew_lease,
@@ -143,7 +146,7 @@ class JobQueueTests(unittest.TestCase):
         with connection(self.database_url) as database:
             for content_type, size, code in (
                 ("image/png", 1024, ErrorCode.UNSUPPORTED_CONTENT_TYPE),
-                ("application/pdf", 60_000_000, ErrorCode.SOURCE_TOO_LARGE),
+                ("application/pdf", 110_000_000, ErrorCode.SOURCE_TOO_LARGE),
             ):
                 with self.subTest(content_type=content_type, size=size):
                     with self.assertRaises(IngestionError) as caught:
@@ -208,7 +211,7 @@ class JobQueueTests(unittest.TestCase):
                     database,
                     owner_id=self.owner,
                     job_id=job.id,
-                    verified_size_bytes=60_000_000,
+                    verified_size_bytes=110_000_000,
                     limits=LIMITS,
                 )
             self.assertEqual(caught.exception.code, ErrorCode.SOURCE_TOO_LARGE)
@@ -216,6 +219,106 @@ class JobQueueTests(unittest.TestCase):
                 get_job(database, owner_id=self.owner, job_id=job.id).status,
                 Status.AWAITING_UPLOAD,
             )
+
+    def test_outline_review_is_durable_and_confirmation_requeues_the_job(self):
+        proposal = [
+            (1, "Chapter 1", 1),
+            (2, "First section", 2),
+            (1, "Chapter 2", 4),
+        ]
+        with connection(self.database_url) as database:
+            queued = self.queued(database)
+            database.execute(
+                """
+                update ingestion_jobs
+                set status = 'validating', stage = 'preflight',
+                    file_hash = %s, page_count = 6,
+                    lease_owner = 'test-worker',
+                    lease_expires_at = now() + interval '5 minutes'
+                where id = %s
+                """,
+                ("a" * 64, queued.id),
+            )
+            paused = pause_for_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=queued.id,
+                proposal=proposal,
+                reasons=("invalid_destinations",),
+                outline_source="deterministic_proposal",
+                proposer_version="proposal-test-v1",
+            )
+
+            self.assertEqual(paused.status, Status.NEEDS_TOC_REVIEW)
+            self.assertEqual(paused.stage, Stage.PROPOSE_TOC)
+            self.assertIsNone(paused.lease_owner)
+            self.assertEqual(outline_review(paused)["entries"][1]["title"], "First section")
+
+            confirmed = confirm_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=queued.id,
+                toc=proposal,
+            )
+            repeated = confirm_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=queued.id,
+                toc=proposal,
+            )
+
+        self.assertEqual(confirmed.status, Status.QUEUED)
+        self.assertEqual(confirmed.stage, Stage.PREFLIGHT)
+        self.assertEqual(repeated.status, Status.QUEUED)
+        review = outline_review(confirmed)
+        self.assertEqual(review["state"], "confirmed")
+        self.assertEqual(review["source_sha256"], "a" * 64)
+        self.assertEqual(review["confirmed_entries"], review["entries"])
+
+    def test_outline_confirmation_is_owner_scoped_and_cannot_be_changed(self):
+        proposal = [(1, "Chapter 1", 1)]
+        with connection(self.database_url) as database:
+            queued = self.queued(database)
+            database.execute(
+                """
+                update ingestion_jobs
+                set status = 'validating', stage = 'preflight',
+                    file_hash = %s, page_count = 6
+                where id = %s
+                """,
+                ("b" * 64, queued.id),
+            )
+            pause_for_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=queued.id,
+                proposal=proposal,
+                reasons=("missing_outline",),
+                outline_source="deterministic_proposal",
+                proposer_version="proposal-test-v1",
+            )
+
+            with self.assertRaises(JobNotFoundError):
+                confirm_outline_review(
+                    database,
+                    owner_id=self.other_owner,
+                    job_id=queued.id,
+                    toc=proposal,
+                )
+
+            confirm_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=queued.id,
+                toc=proposal,
+            )
+            with self.assertRaises(JobConflictError):
+                confirm_outline_review(
+                    database,
+                    owner_id=self.owner,
+                    job_id=queued.id,
+                    toc=[(1, "Different chapter", 1)],
+                )
 
     def test_another_owner_cannot_read_or_change_a_job(self):
         with connection(self.database_url) as database:

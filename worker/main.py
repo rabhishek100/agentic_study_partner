@@ -40,7 +40,7 @@ from ingestion.pipeline import (
     PipelineDependencies,
     run_job,
 )
-from ingestion.states import is_terminal
+from ingestion.states import Status, is_terminal
 from storage.database import close_pools, connection as database_connection
 
 
@@ -70,6 +70,7 @@ class JsonFormatter(logging.Formatter):
             "attempt",
             "elapsed_seconds",
             "error_code",
+            "error_detail",
             "pages",
             "chunks",
         ):
@@ -236,14 +237,24 @@ class Worker:
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
         else:
-            logger.info(
-                "job ready",
-                extra={
-                    **context,
-                    "book_id": outcome.book_id,
-                    "elapsed_seconds": round(time.monotonic() - started),
-                },
-            )
+            if outcome.job.status is Status.NEEDS_TOC_REVIEW:
+                logger.info(
+                    "job paused for outline review",
+                    extra={
+                        **context,
+                        "status": str(outcome.job.status),
+                        "elapsed_seconds": round(time.monotonic() - started),
+                    },
+                )
+            else:
+                logger.info(
+                    "job ready",
+                    extra={
+                        **context,
+                        "book_id": outcome.book_id,
+                        "elapsed_seconds": round(time.monotonic() - started),
+                    },
+                )
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
 
@@ -271,6 +282,11 @@ class Worker:
             extra={
                 **context,
                 "error_code": str(decision.code),
+                # `IngestionError.detail` exists for exactly this and was never
+                # recorded, so a failed ingestion showed only its generic safe
+                # message: which page, which headings, and which contract was
+                # violated were all computed and then discarded.
+                "error_detail": getattr(error, "detail", None) or repr(error),
                 "elapsed_seconds": round(time.monotonic() - started),
             },
             exc_info=not isinstance(error, IngestionError),

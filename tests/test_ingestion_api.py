@@ -13,8 +13,8 @@ from httpx import ASGITransport, AsyncClient
 
 from api.auth import current_owner
 from api.main import app
-from ingestion.jobs import get_job
-from ingestion.states import Status
+from ingestion.jobs import get_job, pause_for_outline_review
+from ingestion.states import Stage, Status
 from ingestion.storage_objects import ObjectInfo
 from storage.database import connection, resolve_database_url
 
@@ -100,6 +100,33 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
             await self.client.post(f"/api/ingestions/{job_id}/complete")
         return job_id
 
+    async def create_review_job(self):
+        job_id = await self.create_and_queue()
+        with connection(self.database_url) as database:
+            database.execute(
+                """
+                update ingestion_jobs
+                set status = 'validating', stage = 'preflight',
+                    file_hash = %s, page_count = 6
+                where id = %s
+                """,
+                ("c" * 64, job_id),
+            )
+            pause_for_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=job_id,
+                proposal=[
+                    (1, "Chapter 1", 1),
+                    (2, "First section", 2),
+                    (1, "Chapter 2", 4),
+                ],
+                reasons=("invalid_destinations", "incomplete_coverage"),
+                outline_source="deterministic_proposal",
+                proposer_version="proposal-test-v1",
+            )
+        return job_id
+
     async def test_creating_a_job_reserves_an_owner_scoped_path(self):
         response = await self.create()
 
@@ -142,7 +169,7 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(malformed.status_code, 400)
 
     async def test_declared_metadata_is_rejected_before_any_upload(self):
-        oversize = await self.create(content_length=60_000_000)
+        oversize = await self.create(content_length=110_000_000)
         wrong_type = await self.create(content_type="image/png")
 
         self.assertEqual(oversize.status_code, 413)
@@ -151,6 +178,30 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             wrong_type.json()["detail"]["code"], "unsupported_content_type"
         )
+
+    async def test_a_pdf_up_to_the_limit_can_be_reserved(self):
+        response = await self.create(content_length=52_428_800)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["maximum_bytes"], 52_428_800)
+
+    async def test_a_pdf_over_the_limit_is_refused_before_any_upload(self):
+        """The browser reads this same number, so an oversized file is named
+        as such instead of reaching Storage and coming back as a bare 413."""
+
+        response = await self.create(content_length=52_428_801)
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json()["detail"]["code"], "source_too_large")
+
+    async def test_the_active_limits_are_served_to_the_browser(self):
+        response = await self.client.get("/api/ingestions/limits")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["maximum_bytes"], 52_428_800)
+        self.assertEqual(payload["maximum_pages"], 1000)
+        self.assertEqual(payload["allowed_content_types"], ["application/pdf"])
 
     async def test_the_pending_quota_is_enforced_per_owner(self):
         for _ in range(3):
@@ -174,9 +225,21 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
             ("post", f"/api/ingestions/{job_id}/complete"),
             ("post", f"/api/ingestions/{job_id}/cancel"),
             ("post", f"/api/ingestions/{job_id}/retry"),
+            ("get", f"/api/ingestions/{job_id}/toc-proposal"),
+            ("post", f"/api/ingestions/{job_id}/toc-confirmation"),
         ):
             with self.subTest(path=path, method=method):
-                arguments = {"json": {}} if method == "post" else {}
+                arguments = (
+                    {
+                        "json": {
+                            "entries": [
+                                {"level": 1, "title": "Chapter 1", "page": 1}
+                            ]
+                        }
+                    }
+                    if path.endswith("/toc-confirmation")
+                    else ({"json": {}} if method == "post" else {})
+                )
                 response = await getattr(self.client, method)(path, **arguments)
                 self.assertEqual(response.status_code, 401)
 
@@ -222,7 +285,7 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
         created = await self.create(content_length=2048)
         job_id = created.json()["job_id"]
 
-        with StoredObject(size=60_000_000):
+        with StoredObject(size=110_000_000):
             oversize = await self.client.post(f"/api/ingestions/{job_id}/complete")
         self.assertEqual(oversize.status_code, 413)
 
@@ -285,9 +348,22 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
             ("post", f"/api/ingestions/{job_id}/complete"),
             ("post", f"/api/ingestions/{job_id}/cancel"),
             ("post", f"/api/ingestions/{job_id}/retry"),
+            ("get", f"/api/ingestions/{job_id}/toc-proposal"),
+            ("post", f"/api/ingestions/{job_id}/toc-confirmation"),
         ):
             with self.subTest(path=path):
-                response = await getattr(self.client, method)(path)
+                arguments = (
+                    {
+                        "json": {
+                            "entries": [
+                                {"level": 1, "title": "Chapter 1", "page": 1}
+                            ]
+                        }
+                    }
+                    if path.endswith("/toc-confirmation")
+                    else {}
+                )
+                response = await getattr(self.client, method)(path, **arguments)
                 self.assertEqual(response.status_code, 404)
 
         listed = await self.client.get("/api/ingestions")
@@ -296,6 +372,53 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
         with connection(self.database_url) as database:
             job = get_job(database, owner_id=self.owner, job_id=job_id)
         self.assertEqual(job.status, Status.QUEUED)
+
+    async def test_outline_proposal_can_be_read_and_confirmed(self):
+        job_id = await self.create_review_job()
+
+        proposal = await self.client.get(
+            f"/api/ingestions/{job_id}/toc-proposal"
+        )
+        self.assertEqual(proposal.status_code, 200)
+        payload = proposal.json()
+        self.assertEqual(payload["status"], "needs_toc_review")
+        self.assertEqual(payload["page_count"], 6)
+        self.assertEqual(payload["proposer_version"], "proposal-test-v1")
+        self.assertEqual(
+            payload["reasons"],
+            ["invalid_destinations", "incomplete_coverage"],
+        )
+        self.assertEqual(payload["entries"][1]["title"], "First section")
+
+        confirmed = await self.client.post(
+            f"/api/ingestions/{job_id}/toc-confirmation",
+            json={"entries": payload["entries"]},
+        )
+
+        self.assertEqual(confirmed.status_code, 202)
+        self.assertEqual(confirmed.headers["Location"], f"/api/ingestions/{job_id}")
+        self.assertEqual(confirmed.json()["status"], "queued")
+        self.assertEqual(confirmed.json()["stage"], "preflight")
+
+    async def test_invalid_outline_confirmation_stays_in_review(self):
+        job_id = await self.create_review_job()
+
+        response = await self.client.post(
+            f"/api/ingestions/{job_id}/toc-confirmation",
+            json={
+                "entries": [
+                    {"level": 1, "title": "Chapter 2", "page": 4},
+                    {"level": 2, "title": "Backwards", "page": 2},
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["detail"]["code"], "invalid_hierarchy")
+        with connection(self.database_url) as database:
+            job = get_job(database, owner_id=self.owner, job_id=job_id)
+        self.assertEqual(job.status, Status.NEEDS_TOC_REVIEW)
+        self.assertEqual(job.stage, Stage.PROPOSE_TOC)
 
     async def test_an_unknown_job_is_indistinguishable_from_a_forbidden_one(self):
         response = await self.client.get(f"/api/ingestions/{uuid4()}")

@@ -4,10 +4,11 @@ from dataclasses import dataclass
 
 import tiktoken
 
+from parsing.models import NON_CONTENT_CATEGORIES
 from .content import EvidenceBundle
 
 DEFAULT_ENCODING = "cl100k_base"
-SKIPPED_CATEGORIES = frozenset({"Header", "Footer", "PageBreak"})
+SKIPPED_CATEGORIES = NON_CONTENT_CATEGORIES
 
 
 @dataclass(frozen=True)

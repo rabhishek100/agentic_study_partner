@@ -8,16 +8,19 @@ Classification thresholds are versioned. Changing them changes which
 documents are accepted, so the version is recorded in job provenance.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
+from statistics import median
 
 import fitz
 
 from .config import IngestionLimits
 from .errors import ErrorCode, IngestionError
+from .outlines import OutlineAnalysis, analyze_outline
 
 
 CLASSIFIER_VERSION = "preflight-v1"
+PROFILE_VERSION = "document-profile-v1"
 
 # A page counts as having real text at this many characters. Page numbers and
 # running headers alone should not make a scanned page look digital.
@@ -27,12 +30,121 @@ MINIMUM_PAGE_CHARACTERS = 48
 MAXIMUM_SAMPLED_PAGES = 40
 STRUCTURED_TEXT_COVERAGE = 0.80
 SCANNED_TEXT_COVERAGE = 0.20
+# A raster covering almost the whole page with extractable text drawn over it
+# is the common shape of an OCR-backed scan. Requiring the pattern on most
+# sampled pages avoids mistaking occasional full-page illustrations for scans.
+FULL_PAGE_IMAGE_AREA_RATIO = 0.80
+OCR_BACKED_PAGE_COVERAGE = 0.80
 
 STRUCTURED_DIGITAL = "structured_digital"
 DIGITAL_WITHOUT_TOC = "digital_without_toc"
 SCANNED = "scanned"
 MIXED = "mixed"
 UNSUPPORTED = "unsupported"
+
+PARSE = "parse"
+REVIEW = "review"
+REJECT = "reject"
+
+
+@dataclass(frozen=True)
+class DocumentProfile:
+    """Cheap, deterministic measurements used to route a PDF safely.
+
+    The profile deliberately records evidence instead of deciding whether an
+    outline is trustworthy. Outline quality is a separate concern: a native
+    digital PDF may still have a broken outline, while an OCR-backed PDF may
+    carry a syntactically valid but unusable one.
+    """
+
+    source_size_bytes: int
+    page_count: int
+    sampled_pages: int
+    pages_with_text: int
+    pages_with_images: int
+    pages_with_full_page_images: int
+    pages_with_ocr_overlay: int
+    median_extracted_characters: int
+    sampled_image_pixels: int
+    profile_version: str = PROFILE_VERSION
+
+    @staticmethod
+    def _coverage(count: int, total: int) -> float:
+        return count / total if total else 0.0
+
+    @property
+    def text_coverage(self) -> float:
+        return self._coverage(self.pages_with_text, self.sampled_pages)
+
+    @property
+    def image_page_coverage(self) -> float:
+        return self._coverage(self.pages_with_images, self.sampled_pages)
+
+    @property
+    def full_page_image_coverage(self) -> float:
+        return self._coverage(
+            self.pages_with_full_page_images, self.sampled_pages
+        )
+
+    @property
+    def ocr_overlay_coverage(self) -> float:
+        return self._coverage(self.pages_with_ocr_overlay, self.sampled_pages)
+
+    @property
+    def likely_ocr_backed(self) -> bool:
+        return self.ocr_overlay_coverage >= OCR_BACKED_PAGE_COVERAGE
+
+    @property
+    def estimated_total_image_pixels(self) -> int:
+        """Extrapolate sampled image work across the document.
+
+        This is an observability signal, not a rejection threshold. Keeping it
+        in pixels avoids pretending compressed PDF bytes predict parser memory.
+        """
+
+        if not self.sampled_pages:
+            return 0
+        return round(
+            self.sampled_image_pixels * self.page_count / self.sampled_pages
+        )
+
+    def provenance(self) -> dict[str, object]:
+        return {
+            "profile_version": self.profile_version,
+            "source_size_bytes": self.source_size_bytes,
+            "page_count": self.page_count,
+            "sampled_pages": self.sampled_pages,
+            "pages_with_text": self.pages_with_text,
+            "pages_with_images": self.pages_with_images,
+            "pages_with_full_page_images": self.pages_with_full_page_images,
+            "pages_with_ocr_overlay": self.pages_with_ocr_overlay,
+            "text_coverage": round(self.text_coverage, 4),
+            "image_page_coverage": round(self.image_page_coverage, 4),
+            "full_page_image_coverage": round(
+                self.full_page_image_coverage, 4
+            ),
+            "ocr_overlay_coverage": round(self.ocr_overlay_coverage, 4),
+            "likely_ocr_backed": self.likely_ocr_backed,
+            "median_extracted_characters": self.median_extracted_characters,
+            "sampled_image_pixels": self.sampled_image_pixels,
+            "estimated_total_image_pixels": self.estimated_total_image_pixels,
+        }
+
+
+@dataclass(frozen=True)
+class PreflightDecision:
+    """Parser routing decision derived from measured profile and outline data."""
+
+    action: str
+    reasons: tuple[str, ...]
+    outline_source: str | None
+
+    def provenance(self) -> dict[str, object]:
+        return {
+            "action": self.action,
+            "reasons": list(self.reasons),
+            "outline_source": self.outline_source,
+        }
 
 
 @dataclass(frozen=True)
@@ -45,6 +157,9 @@ class PreflightReport:
     metadata: dict[str, str]
     sampled_pages: int
     pages_with_text: int
+    profile: DocumentProfile
+    outline: OutlineAnalysis
+    decision: PreflightDecision
     classifier_version: str = CLASSIFIER_VERSION
     warnings: list[str] = field(default_factory=list)
 
@@ -56,7 +171,11 @@ class PreflightReport:
 
     @property
     def supported(self) -> bool:
-        return self.document_class == STRUCTURED_DIGITAL
+        return self.decision.action == PARSE
+
+    @property
+    def normalized_toc(self) -> list[tuple[int, str, int]]:
+        return self.outline.normalization.as_toc()
 
     def provenance(self) -> dict[str, object]:
         return {
@@ -66,6 +185,9 @@ class PreflightReport:
             "toc_entries": len(self.toc),
             "text_coverage": round(self.text_coverage, 4),
             "sampled_pages": self.sampled_pages,
+            "profile": self.profile.provenance(),
+            "outline": self.outline.provenance(),
+            "decision": self.decision.provenance(),
         }
 
 
@@ -74,6 +196,39 @@ def _sampled_page_numbers(page_count: int) -> list[int]:
         return list(range(page_count))
     stride = page_count / MAXIMUM_SAMPLED_PAGES
     return sorted({int(index * stride) for index in range(MAXIMUM_SAMPLED_PAGES)})
+
+
+def _image_measurements(page: fitz.Page) -> tuple[bool, bool, int]:
+    """Return image presence, full-page presence, and decoded pixel work."""
+
+    try:
+        images = page.get_image_info()
+    except Exception:
+        # Image metadata is diagnostic. Text extraction and page readability
+        # remain the hard preflight contract, so unusual image objects must not
+        # make an otherwise supported existing book fail.
+        return False, False, 0
+
+    page_area = page.rect.get_area()
+    has_full_page_image = False
+    image_pixels = 0
+    for image in images:
+        width = image.get("width")
+        height = image.get("height")
+        if isinstance(width, int) and isinstance(height, int):
+            image_pixels += max(0, width) * max(0, height)
+
+        bbox = image.get("bbox")
+        if not bbox or page_area <= 0:
+            continue
+        try:
+            covered_area = (fitz.Rect(bbox) & page.rect).get_area()
+        except Exception:
+            continue
+        if covered_area / page_area >= FULL_PAGE_IMAGE_AREA_RATIO:
+            has_full_page_image = True
+
+    return bool(images), has_full_page_image, image_pixels
 
 
 def validate_table_of_contents(
@@ -139,12 +294,54 @@ def classify(
     return STRUCTURED_DIGITAL if has_toc else DIGITAL_WITHOUT_TOC
 
 
-def preflight(source: Path, *, limits: IngestionLimits) -> PreflightReport:
-    """Inspect a source PDF and decide whether this pipeline can ingest it.
+def decide_preflight(
+    *,
+    document_class: str,
+    profile: DocumentProfile,
+    outline: OutlineAnalysis,
+) -> PreflightDecision:
+    """Route measured evidence without invoking a model."""
 
-    Raises for anything permanently unusable. A readable PDF of an unsupported
-    class returns a report instead, so the caller can record the class it
-    detected rather than a bare rejection.
+    if document_class in {SCANNED, MIXED, UNSUPPORTED}:
+        return PreflightDecision(
+            action=REJECT,
+            reasons=(f"unsupported_document_class:{document_class}",),
+            outline_source=None,
+        )
+
+    reasons = list(outline.assessment.reasons)
+    if profile.likely_ocr_backed:
+        reasons.insert(0, "ocr_backed_source")
+    if document_class == DIGITAL_WITHOUT_TOC and "missing_outline" not in reasons:
+        reasons.append("missing_outline")
+
+    if reasons:
+        proposal = outline.proposal
+        if proposal is not None and proposal.entries:
+            source = "deterministic_proposal"
+        elif outline.normalization.entries:
+            source = "normalized_embedded"
+        else:
+            source = None
+        return PreflightDecision(
+            action=REVIEW,
+            reasons=tuple(dict.fromkeys(reasons)),
+            outline_source=source,
+        )
+
+    return PreflightDecision(
+        action=PARSE,
+        reasons=(),
+        outline_source="normalized_embedded",
+    )
+
+
+def inspect_pdf(source: Path, *, limits: IngestionLimits) -> PreflightReport:
+    """Measure a source PDF without applying outline acceptance policy.
+
+    This boundary lets diagnostics and future repair logic inspect readable
+    PDFs whose embedded outline is missing or malformed. File readability,
+    encryption, and bounded page count are still hard safety requirements.
     """
 
     try:
@@ -191,25 +388,62 @@ def preflight(source: Path, *, limits: IngestionLimits) -> PreflightReport:
 
         sampled = _sampled_page_numbers(page_count)
         pages_with_text = 0
+        pages_with_images = 0
+        pages_with_full_page_images = 0
+        pages_with_ocr_overlay = 0
+        extracted_character_counts: list[int] = []
+        sampled_image_pixels = 0
         for number in sampled:
             try:
-                text = document.load_page(number).get_text("text")
+                page = document.load_page(number)
+                text = page.get_text("text")
             except Exception as error:
                 raise IngestionError(
                     ErrorCode.INVALID_PDF,
                     detail=f"page {number} could not be read: {error!r}",
                 ) from error
-            if len(text.strip()) >= MINIMUM_PAGE_CHARACTERS:
+            extracted_characters = len(text.strip())
+            extracted_character_counts.append(extracted_characters)
+            has_text = extracted_characters >= MINIMUM_PAGE_CHARACTERS
+            if has_text:
                 pages_with_text += 1
 
-    coverage = pages_with_text / len(sampled) if sampled else 0.0
-    document_class = classify(has_toc=bool(toc), text_coverage=coverage)
+            has_images, has_full_page_image, image_pixels = _image_measurements(page)
+            sampled_image_pixels += image_pixels
+            if has_images:
+                pages_with_images += 1
+            if has_full_page_image:
+                pages_with_full_page_images += 1
+                if has_text:
+                    pages_with_ocr_overlay += 1
 
-    warnings: list[str] = []
-    if document_class == STRUCTURED_DIGITAL:
-        validate_table_of_contents(toc, page_count)
-        if toc[0][2] > 1:
-            warnings.append("content before the first outline entry is not ingested")
+        coverage = pages_with_text / len(sampled) if sampled else 0.0
+        document_class = classify(has_toc=bool(toc), text_coverage=coverage)
+        profile = DocumentProfile(
+            source_size_bytes=source.stat().st_size,
+            page_count=page_count,
+            sampled_pages=len(sampled),
+            pages_with_text=pages_with_text,
+            pages_with_images=pages_with_images,
+            pages_with_full_page_images=pages_with_full_page_images,
+            pages_with_ocr_overlay=pages_with_ocr_overlay,
+            median_extracted_characters=(
+                round(median(extracted_character_counts))
+                if extracted_character_counts
+                else 0
+            ),
+            sampled_image_pixels=sampled_image_pixels,
+        )
+        outline = analyze_outline(
+            document,
+            toc,
+            likely_ocr_backed=profile.likely_ocr_backed,
+        )
+        decision = decide_preflight(
+            document_class=document_class,
+            profile=profile,
+            outline=outline,
+        )
 
     return PreflightReport(
         page_count=page_count,
@@ -218,8 +452,28 @@ def preflight(source: Path, *, limits: IngestionLimits) -> PreflightReport:
         metadata=metadata,
         sampled_pages=len(sampled),
         pages_with_text=pages_with_text,
-        warnings=warnings,
+        profile=profile,
+        outline=outline,
+        decision=decision,
+        warnings=[],
     )
+
+
+def preflight(source: Path, *, limits: IngestionLimits) -> PreflightReport:
+    """Inspect a source PDF and validate an automatically accepted outline.
+
+    Only harmless normalization may flow through automatically. A review or
+    reject decision remains measurable and is returned so the pipeline can
+    persist its provenance before :func:`require_supported` stops the job.
+    """
+
+    report = inspect_pdf(source, limits=limits)
+    warnings = list(report.warnings)
+    if report.decision.action == PARSE:
+        validate_table_of_contents(report.normalized_toc, report.page_count)
+        if report.normalized_toc[0][2] > 1:
+            warnings.append("content before the first outline entry is not ingested")
+    return replace(report, warnings=warnings)
 
 
 def require_supported(report: PreflightReport) -> None:
@@ -230,12 +484,25 @@ def require_supported(report: PreflightReport) -> None:
     wrong citations in front of a reader.
     """
 
-    if report.supported:
+    if report.decision.action == PARSE:
         return
     if report.document_class == DIGITAL_WITHOUT_TOC:
         raise IngestionError(
             ErrorCode.MISSING_TABLE_OF_CONTENTS,
             detail="digital PDF without an embedded outline",
+        )
+    if report.profile.likely_ocr_backed:
+        raise IngestionError(
+            ErrorCode.UNSUPPORTED_DOCUMENT_CLASS,
+            detail="OCR-backed PDF requires outline review",
+        )
+    if report.decision.action == REVIEW:
+        raise IngestionError(
+            ErrorCode.INVALID_HIERARCHY,
+            detail=(
+                "embedded outline requires review: "
+                + ", ".join(report.decision.reasons)
+            ),
         )
     raise IngestionError(
         ErrorCode.UNSUPPORTED_DOCUMENT_CLASS,

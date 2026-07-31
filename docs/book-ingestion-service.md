@@ -37,7 +37,7 @@ automatic multi-worker scaling are explicitly deferred.
 | Decision | Initial value |
 |---|---|
 | Ownership | Multi-user, one private library per authenticated user |
-| Maximum source size | 50 MiB / 52,428,800 bytes |
+| Maximum source size | 50 MB / 52,428,800 bytes |
 | Maximum pages | 1,000 |
 | Source formats | PDF only |
 | Initial document class | Digital PDF with embedded text and embedded TOC |
@@ -51,9 +51,9 @@ automatic multi-worker scaling are explicitly deferred.
 | Retrieval readiness | Postgres FTS chunks and compatible pgvector embeddings |
 | Application hosting | Railway web, API, and worker services |
 
-The 50 MiB limit must be enforced in the browser, Storage bucket configuration,
+The 50 MB limit must be enforced in the browser, Storage bucket configuration,
 API metadata validation, and worker preflight. The page limit is independent:
-a highly compressed PDF can be below 50 MiB and still be expensive to parse.
+a highly compressed PDF can be below 50 MB and still be expensive to parse.
 
 ## Goals
 
@@ -76,7 +76,7 @@ a highly compressed PDF can be below 50 MiB and still be expensive to parse.
 
 - Anonymous uploads.
 - Shared libraries or collaborative book ownership.
-- PDFs over 50 MiB or 1,000 pages.
+- PDFs over 50 MB or 1,000 pages.
 - Password-protected PDFs.
 - Automatic hierarchy invention for scanned or TOC-less books.
 - PowerPoint, EPUB, HTML, video, or audio ingestion.
@@ -96,7 +96,7 @@ sufficiency checks, and bounded retries are inspectable agent decisions.
 
 1. The user signs in.
 2. The user chooses a PDF.
-3. The browser rejects an obviously invalid type or a file over 50 MiB.
+3. The browser rejects an obviously invalid type or a file over the served limit.
 4. FastAPI creates an owner-scoped ingestion job and immutable Storage path.
 5. The browser uploads directly to private Storage with resumable TUS.
 6. The browser tells FastAPI that the upload completed.
@@ -246,7 +246,7 @@ Initial configurable limits:
 
 | Limit | Value |
 |---|---:|
-| Source object size | 50 MiB |
+| Source object size | 100 MiB |
 | PDF pages | 1,000 |
 | Active ingestion jobs per user | 1 |
 | Queued ingestion jobs per user | 3 |
@@ -296,7 +296,7 @@ Response:
   "status": "awaiting_upload",
   "storage_bucket": "book-sources",
   "storage_path": "<owner-id>/<job-id>/original.pdf",
-  "maximum_bytes": 52428800,
+  "maximum_bytes": 104857600,
   "upload_method": "tus"
 }
 ```
@@ -389,9 +389,7 @@ Authorization: Bearer <token>
 Only owner-scoped `ready` books are returned by default. The chat API requires
 an explicit ready `book_id`; it must not default to book 1.
 
-### Scanned TOC review
-
-Deferred endpoints:
+### Outline review
 
 ```http
 GET  /api/ingestions/{job_id}/toc-proposal
@@ -399,7 +397,10 @@ POST /api/ingestions/{job_id}/toc-confirmation
 ```
 
 Confirmation includes hierarchy levels, titles, source page ranges, and the
-printed-page-to-PDF-page offset.
+PDF destination page. Proposals for native-digital PDFs are deterministic,
+non-canonical evidence. Confirmation is bound to the uploaded source hash,
+strictly revalidated, and re-queues the same job. OCR-backed proposals and
+printed-page alignment remain deferred to the scanned-document workflow.
 
 ## Job state machine
 
@@ -575,7 +576,7 @@ second worker later without changing job semantics.
 
 - Object exists at the exact job path.
 - Object owner matches the job owner.
-- Stored size is at most 52,428,800 bytes.
+- Stored size is at most 104,857,600 bytes.
 - MIME metadata is acceptable but is not trusted as proof of format.
 - Filename is retained only as display metadata.
 
@@ -599,13 +600,29 @@ Use PyMuPDF before Unstructured:
 - reject encryption/password requirement;
 - read page count and enforce 1,000 pages;
 - extract metadata and embedded TOC;
-- validate TOC presence, levels, titles, and page ranges;
+- Unicode-normalize TOC titles, collapse whitespace, and drop empty entries;
+- preserve invalid levels and destinations as review evidence rather than
+  inventing replacements;
+- validate TOC presence, levels, titles, page ranges, ordering, and coverage;
+- compare sampled headings with their destination-page text;
+- count suspicious titles and same-page section collisions;
 - sample embedded text coverage;
+- sample image coverage, full-page rasters, and OCR text overlays;
+- estimate total decoded image pixels as a parser-work diagnostic;
 - classify structured, scanned, mixed, or TOC-less.
 
-In the first release, only `structured_digital` continues. Other supported
-future classes enter a clear pending/unsupported state rather than running an
-unsafe fallback.
+When a native-digital outline is missing or unsafe, a deterministic span
+proposer uses numbering, font size, boldness, and repeated-margin filtering to
+create a review-only hierarchy. It never silently replaces source metadata.
+OCR-backed pages do not receive an automatic proposal because their text and
+equation errors are precisely what require review.
+
+Documents with an automatically approved normalized embedded outline continue
+immediately. Native-digital documents with a deterministic review proposal
+pause in `needs_toc_review`; after confirmation, the parser receives that exact
+confirmed outline rather than re-reading the raw publisher rows. OCR-backed,
+scanned, and mixed documents remain unsupported instead of running an unsafe
+fallback.
 
 ### 4. Page-batched extraction
 
@@ -651,6 +668,13 @@ Record and validate:
 Structural contract failures are fatal. Quality anomalies may produce
 `needs_review` in a later version, but the initial structured contract should
 reject clearly unusable extraction.
+
+When multiple sections start on one page, their ordered extracted heading
+positions divide the page. If all boundaries cannot be resolved, parsing fails
+instead of assigning the whole page to one section. Repeated top- and
+bottom-margin text and page numbers remain in canonical storage with detected
+header/footer categories, while derived retrieval and study contexts omit
+them.
 
 ### 6. Canonical persistence
 
@@ -747,6 +771,43 @@ Use OCRmyPDF and Tesseract to produce a derived searchable PDF:
 OCR output is derived and rebuildable from the original source and recorded
 configuration.
 
+### Structural roles
+
+An outline entry's depth is not its role. Some books put chapters at level 1;
+others group them under Parts and put chapters at level 2. Naming roles by
+depth typed Part I as a chapter and Chapter 5 as a section, and only a node
+typed `chapter` may answer to a chapter number, so every chapter of such a
+book became unaddressable. Naming them by title instead fails the other way:
+a book numbering its chapters "1 Introduction" rather than "Chapter 1" loses
+all of them.
+
+`parsing.outline_roles` uses both signals and classifies the book, not the
+entry. Chapters are a consecutively numbered run of siblings at exactly one
+depth, so the depth whose siblings yield the longest run of 1, 2, 3, ... is
+the chapter level; roles then follow from position relative to it — `part`
+above, `section`/`subsection`/`nested_section` below, `front_matter` and
+`back_matter` beside. A run shorter than three entries is not a numbering
+scheme, and the book falls back to the depth rule rather than inventing
+structure.
+
+Two properties keep this safe:
+
+- **No role is excluded from scope search.** The earlier title rule was
+  destructive because unmatched entries landed in a class search filtered out.
+  An odd label costs a strange word in a listing; an invisible one costs whole
+  books.
+- **Ingestion refuses contradictory numbering.** Duplicate or gapped chapter
+  numbers mean a reference would resolve to the wrong pages silently, which is
+  worse than a failed ingestion.
+
+Roles are assigned at ingestion, not during parsing, so correcting them on an
+already-ingested book needs no re-parse, no OCR, and no rebuild of anything
+derived:
+
+```bash
+uv run python -m scripts.reclassify_outlines --check
+```
+
 ### Hierarchy review
 
 For a missing embedded TOC:
@@ -792,7 +853,7 @@ described as supported.
 
 ### Non-retryable
 
-- Object over 50 MiB.
+- Object over 100 MiB.
 - PDF over 1,000 pages.
 - Invalid, corrupt, or encrypted PDF.
 - Missing TOC in structured-only mode.
@@ -953,7 +1014,7 @@ and both need a documented restore test.
 
 - owner-scoped upload/read/delete;
 - immutable path and no upsert;
-- 50 MiB bucket enforcement;
+- 100 MiB bucket enforcement;
 - forged owner path denial;
 - worker access without leaking service credentials.
 
@@ -1036,7 +1097,7 @@ Do not enable idle/serverless sleep for a worker that polls Postgres.
 
 ### Phase 2: structured ingestion MVP
 
-- Promote the private `book-sources` bucket migration with a 50 MiB limit.
+- Promote the private `book-sources` bucket migration with a 100 MiB limit.
 - Add ingestion job/event schema.
 - Add create, complete, status, cancel, and retry endpoints.
 - Add direct resumable upload UI.
@@ -1079,7 +1140,7 @@ The first feature is done when:
 
 1. Two authenticated users can upload books and cannot access each other's
    jobs, objects, books, or chat scopes.
-2. A valid supported PDF up to 50 MiB and 1,000 pages uploads resumably.
+2. A valid supported PDF up to 100 MiB and 1,000 pages uploads resumably.
 3. Processing continues after the browser disconnects.
 4. A worker crash safely resumes without duplicate canonical data.
 5. The original source remains private and hash-verifiable.

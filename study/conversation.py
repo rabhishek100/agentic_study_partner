@@ -153,15 +153,26 @@ def execute_decision(
             token_callback=token_callback,
         )
 
+    is_hierarchy = decision.route in {"hierarchy_summary", "hierarchy_list"}
     execution_question = (
         _hierarchy_query(decision)
-        if decision.route in {"hierarchy_summary", "hierarchy_list"}
+        if is_hierarchy
         else decision.standalone_query or question
+    )
+    # A hierarchy decision already names one book. `execute_query` re-derives
+    # the scope from the rendered sentence, and that sentence carries no book,
+    # so resolving it against the whole selection made "summarize chapter 1"
+    # ambiguous across every book the reader had open - after the analyser had
+    # already decided which one they meant.
+    execution_book_ids = (
+        (decision.resolved_scope.book_id,)
+        if is_hierarchy and decision.resolved_scope
+        else turn_book_ids or state.book_ids or None
     )
     result = execute_query(
         execution_question,
         database_url=database_url,
-        book_ids=turn_book_ids or state.book_ids or None,
+        book_ids=execution_book_ids,
         retrieval_mode=retrieval_mode,
         owner_id=owner_id,
         model=model,

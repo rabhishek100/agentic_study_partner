@@ -72,6 +72,11 @@ def sample_book() -> ParsedBook:
                 end_page=1,
                 texts=[
                     TextBlock(
+                        text="Repeated publisher header",
+                        category="DetectedHeader",
+                        page=1,
+                    ),
+                    TextBlock(
                         text=(
                             "Serving systems need low latency. "
                             "Batch systems prioritize high throughput. "
@@ -214,6 +219,15 @@ class RetrievalTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertIn("Online prediction low latency", results[0].text)
         self.assertNotIn("[TABLE 0]", results[0].text)
         self.assertNotIn("[IMAGE 0]", results[0].text)
+        self.assertFalse(
+            search(
+                self.database,
+                "Repeated publisher header",
+                owner_id=self.owner_id,
+                book_id=self.book_id,
+                limit=3,
+            )
+        )
 
     def test_chunks_keep_page_block_table_and_image_provenance(self) -> None:
         rebuild(

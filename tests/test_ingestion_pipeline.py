@@ -18,10 +18,12 @@ from ingestion.config import IngestionLimits
 from ingestion.errors import ErrorCode, IngestionError
 from ingestion.jobs import (
     claim_next_job,
+    confirm_outline_review,
     create_job,
     get_job,
     list_events,
     mark_upload_complete,
+    outline_review,
     request_cancellation,
 )
 from ingestion.pipeline import (
@@ -36,7 +38,12 @@ from ingestion.storage_objects import delete_object, storage_client
 from parsing.models import ParsedBook, Section, TextBlock
 from storage.database import DEFAULT_EMBEDDING_MODEL, connection, resolve_database_url
 from storage.postgres import list_books, restore_book
-from tests.pdf_fixtures import encrypted_pdf, scanned_pdf, structured_pdf
+from tests.pdf_fixtures import (
+    encrypted_pdf,
+    pdf_with_visual_headings,
+    scanned_pdf,
+    structured_pdf,
+)
 from tests.postgres import require_empty_ingestion_queue
 
 
@@ -268,6 +275,67 @@ class EndToEndTests(PipelineFixture):
         self.assertEqual(events[:3], ["created", "queued", "claimed"])
         self.assertEqual(events[-2:], ["ready", "verified"])
 
+    def test_a_reviewed_visual_outline_resumes_the_same_job(self):
+        """A deterministic proposal is inert until confirmed, then exact."""
+
+        source = pdf_with_visual_headings(self.directory / "visual.pdf")
+        first_claim = self.claim(source)
+
+        paused = self.run_claimed(first_claim)
+
+        self.assertIsNone(paused.book_id)
+        self.assertEqual(paused.job.status, Status.NEEDS_TOC_REVIEW)
+        review = outline_review(paused.job)
+        proposed_toc = [
+            (entry["level"], entry["title"], entry["page"])
+            for entry in review["entries"]
+        ]
+        self.assertEqual(
+            proposed_toc,
+            [
+                (1, "1 Introduction", 1),
+                (2, "1.1 Why Parallelism Matters", 1),
+                (1, "2 Memory Systems", 3),
+                (2, "2.1 Locality", 3),
+            ],
+        )
+        with connection(self.database_url) as database:
+            self.assertEqual(
+                list_books(database, owner_id=self.owner, ready_only=False),
+                [],
+            )
+            confirm_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=first_claim.id,
+                toc=proposed_toc,
+            )
+            second_claim = claim_next_job(
+                database,
+                worker_id="test-worker",
+                limits=LIMITS,
+            )
+
+        self.assertEqual(second_claim.id, first_claim.id)
+        outcome = self.run_claimed(second_claim)
+
+        self.assertEqual(outcome.job.status, Status.READY)
+        with connection(self.database_url) as database:
+            restored = restore_book(
+                database,
+                outcome.book_id,
+                owner_id=self.owner,
+            )
+            stored = database.execute(
+                "select metadata_json from books where id = %s",
+                (outcome.book_id,),
+            ).fetchone()
+        self.assertEqual(restored.toc, proposed_toc)
+        self.assertEqual(
+            stored["metadata_json"]["outline_review"]["state"],
+            "confirmed",
+        )
+
 
 class StubbedParserTests(PipelineFixture):
     """Failure handling and recovery, without paying for a real parse."""
@@ -490,6 +558,24 @@ class ExtractionQualityTests(unittest.TestCase):
 
         with self.assertRaises(IngestionError) as caught:
             evaluate_extraction(truncated, self.report())
+
+        self.assertEqual(
+            caught.exception.code, ErrorCode.EXTRACTION_CONTRACT_VIOLATION
+        )
+
+    def test_a_different_parser_outline_is_a_contract_violation(self):
+        book = stub_parsed_book()
+        changed = ParsedBook(
+            source=book.source,
+            toc=[
+                (level, "Wrong title" if index == 0 else title, page)
+                for index, (level, title, page) in enumerate(book.toc)
+            ],
+            sections=book.sections,
+        )
+
+        with self.assertRaises(IngestionError) as caught:
+            evaluate_extraction(changed, self.report())
 
         self.assertEqual(
             caught.exception.code, ErrorCode.EXTRACTION_CONTRACT_VIOLATION

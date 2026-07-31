@@ -121,7 +121,7 @@ directly to private Storage, and the worker does the rest outside the request:
 
 ```text
 POST /api/ingestions            reserve {owner_id}/{job_id}/original.pdf
-  -> upload to private Storage  resumable, 50 MiB and application/pdf only
+  -> upload to private Storage  resumable, 50 MB and application/pdf only
 POST /api/ingestions/{id}/complete   verify the stored object, queue the job
 GET  /api/ingestions/{id}       durable status while the worker runs
 GET  /api/books                 the book appears only after verification
@@ -143,16 +143,36 @@ renews while working, and stops at a safe boundary on `SIGTERM`. A crashed
 attempt is reclaimed once its lease expires and resumes from the canonical
 import when one committed. Use `--once` to process a single job and exit.
 
-The first release accepts digital PDFs with embedded text and an embedded
-table of contents. Scanned, mixed, and outline-less PDFs are classified and
-refused with a specific reason rather than guessed at, because OCR alone
-cannot establish trustworthy chapter boundaries.
+Preflight measures text coverage, image coverage, full-page rasters, and OCR
+text overlays before parsing. Embedded outlines are Unicode-normalized,
+checked against their destination pages, and scored for hierarchy, coverage,
+suspicious titles, and same-page collisions. Missing or unsafe native-digital
+outlines receive a deterministic typography-based proposal for human review;
+inferred headings are never accepted automatically.
+
+Inspect one PDF or a directory without ingesting it:
+
+```bash
+uv run python -m scripts.inspect_pdf_outlines path/to/pdf-or-directory
+```
+
+The worker automatically accepts digital PDFs whose embedded outline is safe
+after harmless title normalization. The parser consumes that exact approved
+outline, so blank publisher rows can be discarded without reappearing during
+extraction. A native-digital PDF with a missing or unsafe outline pauses in
+`needs_toc_review`: the interface shows a deterministic typography-based
+proposal whose levels, titles, and PDF pages must be confirmed or corrected
+before the same job resumes. OCR-backed books remain blocked for the separate
+OCR-quality workflow. When several sections begin on one page, ordered
+extracted heading positions divide their content; ingestion fails safely if
+every boundary cannot be resolved. Repeated margin text is retained in
+canonical storage but omitted from retrieval and summary contexts.
 
 Current limits, all configurable:
 
 | Limit | Value |
 |---|---:|
-| Source object size | 50 MiB |
+| Source object size | 50 MB |
 | PDF pages | 1,000 |
 | Pending jobs per user | 3 |
 | Worker concurrency | 1 |

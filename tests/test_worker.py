@@ -86,6 +86,44 @@ class WorkerTests(PipelineFixture):
         self.assertIsNotNone(rescheduled.next_attempt_at)
         self.assertIsNone(rescheduled.lease_owner)
 
+    def test_a_failure_logs_why_even_though_the_reader_is_not_told(self):
+        """`detail` exists for structured logs and was never written to one,
+        so a rejected book showed only its generic safe message and the
+        specific reason - which page, which headings - was discarded.
+        """
+
+        import json
+
+        job = self.queued_job(structured_pdf(self.directory / "book.pdf"))
+        with patch(
+            "ingestion.pipeline.preflight",
+            side_effect=IngestionError(
+                ErrorCode.EXTRACTION_CONTRACT_VIOLATION,
+                detail="could not resolve 2 outline headings sharing page 42",
+            ),
+        ):
+            with self.assertLogs("study_partner.worker", level="WARNING") as logs:
+                self.worker.run_once()
+
+        record = next(
+            record for record in logs.records if record.msg == "job attempt failed"
+        )
+        self.assertEqual(
+            record.error_detail,
+            "could not resolve 2 outline headings sharing page 42",
+        )
+
+        # And it survives the JSON formatter, which drops any field it does
+        # not name explicitly.
+        from worker.main import JsonFormatter
+
+        payload = json.loads(JsonFormatter().format(record))
+        self.assertIn("sharing page 42", payload["error_detail"])
+
+        # The reader still sees only the safe message.
+        failed = self.job_now(job.id)
+        self.assertNotIn("page 42", failed.last_error_message or "")
+
     def test_an_unexpected_error_is_still_recorded_safely(self):
         job = self.queued_job(structured_pdf(self.directory / "book.pdf"))
         with patch(

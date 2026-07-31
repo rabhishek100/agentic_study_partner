@@ -43,10 +43,18 @@ from .jobs import (
     cancel_running_job,
     complete_job,
     get_job,
+    outline_review,
+    pause_for_outline_review,
     record_progress,
     set_stage,
 )
-from .preflight import PreflightReport, preflight, require_supported
+from .preflight import (
+    REVIEW,
+    PreflightReport,
+    preflight,
+    require_supported,
+    validate_table_of_contents,
+)
 from .storage_objects import download_object, object_info
 from .states import Stage, Status
 
@@ -134,6 +142,8 @@ def _check_cancelled(
 def evaluate_extraction(
     book: ParsedBook,
     report: PreflightReport,
+    *,
+    approved_toc: list[tuple[int, str, int]] | None = None,
 ) -> dict[str, int | float]:
     """Measure what the parser produced and reject clearly unusable output.
 
@@ -152,11 +162,18 @@ def evaluate_extraction(
         "images": sum(len(section.images) for section in book.sections),
     }
 
-    if len(book.sections) != len(report.toc):
+    expected_toc = approved_toc or report.normalized_toc
+    if book.toc != expected_toc:
+        raise IngestionError(
+            ErrorCode.EXTRACTION_CONTRACT_VIOLATION,
+            detail="parser hierarchy differs from the preflight-approved outline",
+        )
+    if len(book.sections) != len(expected_toc):
         raise IngestionError(
             ErrorCode.EXTRACTION_CONTRACT_VIOLATION,
             detail=(
-                f"{len(book.sections)} sections for {len(report.toc)} outline entries"
+                f"{len(book.sections)} sections for "
+                f"{len(expected_toc)} approved outline entries"
             ),
         )
     if total_characters < MINIMUM_TOTAL_CHARACTERS:
@@ -261,13 +278,46 @@ def verify_book(
     }
 
 
+def _confirmed_outline(job: IngestionJob) -> list[tuple[int, str, int]] | None:
+    """Read the exact human-confirmed hierarchy from durable provenance."""
+
+    review = outline_review(job)
+    if review is None or review.get("state") != "confirmed":
+        return None
+    raw_entries = review.get("confirmed_entries")
+    if not isinstance(raw_entries, list):
+        raise IngestionError(
+            ErrorCode.INVALID_HIERARCHY,
+            detail="confirmed outline provenance has no entries",
+        )
+    try:
+        return [
+            (int(entry["level"]), str(entry["title"]), int(entry["page"]))
+            for entry in raw_entries
+        ]
+    except (KeyError, TypeError, ValueError) as error:
+        raise IngestionError(
+            ErrorCode.INVALID_HIERARCHY,
+            detail="confirmed outline provenance is malformed",
+        ) from error
+
+
 def _validate_stage(
     job: IngestionJob,
     *,
     limits: IngestionLimits,
     work_dir: Path,
     database_url: str | None,
-) -> tuple[IngestionJob, Path, str, PreflightReport] | JobOutcome:
+) -> (
+    tuple[
+        IngestionJob,
+        Path,
+        str,
+        PreflightReport,
+        list[tuple[int, str, int]],
+    ]
+    | JobOutcome
+):
     """Verify the upload, hash it, and decide whether this book can be ingested."""
 
     stored = object_info(job.storage_bucket, job.storage_path)
@@ -311,6 +361,11 @@ def _validate_stage(
         raise IngestionError(
             ErrorCode.SOURCE_CHANGED,
             detail="object changed while it was being downloaded",
+        )
+    if job.file_hash is not None and download.sha256 != job.file_hash:
+        raise IngestionError(
+            ErrorCode.SOURCE_CHANGED,
+            detail="source bytes changed after preflight or outline review",
         )
 
     # An owner who uploads a book they already have gets that book back rather
@@ -364,8 +419,40 @@ def _validate_stage(
                 stage=Stage.PREFLIGHT,
                 message=warning,
             )
-    require_supported(report)
-    return job, source, download.sha256, report
+    confirmed_toc = _confirmed_outline(job)
+    if confirmed_toc is not None:
+        review = outline_review(job) or {}
+        if review.get("source_sha256") != download.sha256:
+            raise IngestionError(
+                ErrorCode.SOURCE_CHANGED,
+                detail="confirmed outline belongs to a different source hash",
+            )
+        validate_table_of_contents(confirmed_toc, report.page_count)
+        approved_toc = confirmed_toc
+    else:
+        proposal = report.outline.proposal
+        if (
+            report.decision.action == REVIEW
+            and proposal is not None
+            and proposal.entries
+            and not report.profile.likely_ocr_backed
+        ):
+            with _database(database_url) as connection:
+                paused = pause_for_outline_review(
+                    connection,
+                    owner_id=job.owner_id,
+                    job_id=job.id,
+                    proposal=proposal.as_toc(),
+                    reasons=report.decision.reasons,
+                    outline_source=report.decision.outline_source
+                    or "deterministic_proposal",
+                    proposer_version=proposal.proposer_version,
+                    warnings=proposal.warnings,
+                )
+            return JobOutcome(job=paused, book_id=None)
+        require_supported(report)
+        approved_toc = report.normalized_toc
+    return job, source, download.sha256, report, approved_toc
 
 
 POST_PERSIST_STATUSES = (
@@ -428,7 +515,7 @@ def _ingest_source(
     )
     if isinstance(validated, JobOutcome):
         return validated
-    job, source, file_hash, report = validated
+    job, source, file_hash, report, approved_toc = validated
     job = _check_cancelled(job, database_url=database_url)
 
     with _database(database_url) as connection:
@@ -479,6 +566,7 @@ def _ingest_source(
             book_cache=work_dir / PARSED_BOOK_CACHE,
             elements_cache=work_dir / ELEMENTS_CACHE,
             on_batch=report_batch,
+            toc_override=approved_toc,
         )
     except IngestionError:
         raise
@@ -491,7 +579,7 @@ def _ingest_source(
             ErrorCode.EXTRACTION_CONTRACT_VIOLATION, detail=f"parser failed: {error!r}"
         ) from error
 
-    metrics = evaluate_extraction(book, report)
+    metrics = evaluate_extraction(book, report, approved_toc=approved_toc)
     with _database(database_url) as connection:
         record_progress(
             connection,
@@ -807,7 +895,11 @@ def _persist_canonical(
             file_hash=file_hash,
             page_count=report.page_count,
             parser_version=PARSER_VERSION,
-            metadata={"pdf": report.metadata, "preflight": report.provenance()},
+            metadata={
+                "pdf": report.metadata,
+                "preflight": report.provenance(),
+                "outline_review": outline_review(job),
+            },
             source_storage_bucket=job.storage_bucket,
             source_storage_path=job.storage_path,
             ingestion_job_id=job.id,
