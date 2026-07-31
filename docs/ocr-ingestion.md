@@ -42,10 +42,13 @@ Isolation is deliberate. One page per call with no cross-page context means a
 page can be re-run alone, a bad page cannot poison its neighbours, and the
 model cannot carry an error forward as established fact.
 
-- Primary model: `google/gemini-3-flash-preview` — roughly $3.11 for the 778
-  scanned pages in the corpus.
-- Cheap tier: `qwen/qwen3-vl-32b-instruct` — roughly $0.49 for the same pass,
-  used for development iteration and for escalating flagged pages.
+- Primary model: `google/gemini-3-flash-preview`. Measured over four
+  representative pages at 300 dpi: 1,336–1,362 input tokens and 249–510 output
+  tokens per page, $0.0019 per page, which puts the 778 scanned pages of this
+  corpus at **$1.44**. The pre-measurement estimate was $3.11; output runs
+  shorter than a full page of prose because Markdown drops the layout.
+- Cheap tier: `qwen/qwen3-vl-32b-instruct` — roughly a sixth of that, used for
+  development iteration and for escalating flagged pages.
 - Both are configuration. A `-preview` model id will be deprecated, and a
   hardcoded one turns that into an outage.
 
@@ -93,6 +96,13 @@ Deterministic, and it reads Stage A's Markdown rather than the image:
 - figures cropped from the page render at the model's reported region, or
   referenced whole when it reports none, then captioned by the existing
   figure-captioning role.
+
+Stage A marks all of this in its output — `<!-- header: -->`, `<!-- footer: -->`,
+`<figure data-bbox>`, `<table>` — and Stage B reads those markers, never the
+pixels. Measured note on the boxes: the prompt asks for coordinates from 0 to
+1 and Gemini returns them on a 0-to-1000 grid regardless. Checked against a
+real page the values are accurate and merely scaled, so the parser accepts
+both conventions rather than enforcing one.
 
 LaTeX is stripped before BM25 indexing and kept for display, so `\frac` never
 becomes a search term in the chapters that are most math-heavy.
