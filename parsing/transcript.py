@@ -42,9 +42,11 @@ from .models import (
 logger = logging.getLogger("study_partner.parsing.transcript")
 
 __all__ = [
+    "PageAnchor",
     "PrintedNumbering",
     "build_transcribed_book",
     "printed_numbering",
+    "table_to_text",
 ]
 
 TITLE = "Title"
@@ -70,9 +72,31 @@ _WORD = re.compile(r"[^\W_]+", re.UNICODE)
 _ARABIC_PAGE = re.compile(r"\b(\d{1,4})\b")
 _ROMAN_PAGE = re.compile(r"\b([ivxlcdm]{1,7})\b", re.IGNORECASE)
 
-# Two pages must agree before an offset is believed. On a single page every
-# integer in the margin ties, so the winner would be whichever sorted first.
-MINIMUM_OFFSET_VOTES = 2
+# One anchor is a coincidence: any integer in any margin produces one, and a
+# whole book extrapolated from it is how a chapter number becomes a page
+# number. Two that behave like page numbers relative to each other are not.
+MINIMUM_ANCHORS = 2
+
+# How fast a printed page number may move relative to the PDF page. One is the
+# ideal; a scan that skipped pages runs a little above it and one that caught a
+# page twice a little below. The band is deliberately wide, because its job is
+# only to exclude numbers that are not page numbers at all: a chapter number
+# advances by one every thirty pages, a rate of 0.03.
+MINIMUM_RATE = 0.5
+MAXIMUM_RATE = 2.0
+
+
+def _roman_value(token: str) -> int | None:
+    values = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100, "d": 500, "m": 1000}
+    total = 0
+    previous = 0
+    for character in reversed(token.lower()):
+        value = values.get(character)
+        if value is None:
+            return None
+        total += -value if value < previous else value
+        previous = max(previous, value)
+    return total or None
 
 
 class _TableText(HTMLParser):
@@ -357,14 +381,49 @@ def build_transcribed_book(
     return ParsedBook(source=str(source), toc=list(toc), sections=sections)
 
 
+
+
+# --- printed page numbering -------------------------------------------------
+
+@dataclass(frozen=True)
+class PageAnchor:
+    """One page whose printed number was read off its margin."""
+
+    pdf_page: int
+    printed: int
+    roman: bool = False
+
+
 @dataclass(frozen=True)
 class PrintedNumbering:
-    """How a book's printed page numbers line up with its PDF pages."""
+    """How a book's printed page numbers line up with its PDF pages.
 
-    offset: int | None
-    matched_pages: int
-    sampled_pages: int
-    roman_pages: int = 0
+    Not an offset. Measured on a phone-scanned book in this corpus, the offset
+    runs from 8 near the front to 1 at the back: seven printed pages are simply
+    absent from the scan. A single global offset placed that book's last
+    chapter seven pages wrong, and a citation seven pages wrong is worse than
+    no citation, because it looks right.
+
+    So the mapping is a list of anchors — pages whose printed number was
+    actually read — and anything between them is interpolated. Roman front
+    matter is anchored separately, because it restarts at arabic 1 when the
+    body begins.
+    """
+
+    anchors: tuple[PageAnchor, ...] = ()
+    sampled_pages: int = 0
+
+    @property
+    def arabic(self) -> tuple[PageAnchor, ...]:
+        return tuple(anchor for anchor in self.anchors if not anchor.roman)
+
+    @property
+    def roman(self) -> tuple[PageAnchor, ...]:
+        return tuple(anchor for anchor in self.anchors if anchor.roman)
+
+    @property
+    def matched_pages(self) -> int:
+        return len(self.anchors)
 
     @property
     def confidence(self) -> float:
@@ -372,66 +431,149 @@ class PrintedNumbering:
             return 0.0
         return self.matched_pages / self.sampled_pages
 
-    def printed(self, pdf_page: int) -> int | None:
-        """The number printed on a PDF page, if the offset is known."""
+    @property
+    def offset_range(self) -> tuple[int, int] | None:
+        """The span of offsets observed, which is how page loss shows up."""
 
-        if self.offset is None:
-            return None
-        printed = pdf_page - self.offset
-        return printed if printed >= 1 else None
+        offsets = [anchor.pdf_page - anchor.printed for anchor in self.arabic]
+        return (min(offsets), max(offsets)) if offsets else None
+
+    @property
+    def drifts(self) -> bool:
+        span = self.offset_range
+        return span is not None and span[1] > span[0]
+
+    def printed(self, pdf_page: int) -> int | None:
+        """The number printed on a PDF page."""
+
+        return _interpolate(
+            self.arabic,
+            pdf_page,
+            key=lambda anchor: anchor.pdf_page,
+            value=lambda anchor: anchor.printed,
+        )
+
+    def pdf_page(self, printed: int, *, roman: bool = False) -> int | None:
+        """The PDF page a printed number refers to, in its own scheme."""
+
+        anchors = self.roman if roman else self.arabic
+        return _interpolate(
+            anchors,
+            printed,
+            key=lambda anchor: anchor.printed,
+            value=lambda anchor: anchor.pdf_page,
+        )
 
     def provenance(self) -> dict[str, object]:
+        span = self.offset_range
         return {
-            "offset": self.offset,
-            "matched_pages": self.matched_pages,
+            "anchors": self.matched_pages,
+            "arabic_anchors": len(self.arabic),
+            "roman_anchors": len(self.roman),
             "sampled_pages": self.sampled_pages,
-            "roman_pages": self.roman_pages,
             "confidence": round(self.confidence, 4),
+            "offset_range": list(span) if span else None,
+            "drifts": self.drifts,
         }
 
 
-def _roman_value(token: str) -> int | None:
-    values = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100, "d": 500, "m": 1000}
-    total = 0
-    previous = 0
-    for character in reversed(token.lower()):
-        value = values.get(character)
-        if value is None:
-            return None
-        total += -value if value < previous else value
-        previous = max(previous, value)
-    return total or None
+def _interpolate(anchors, target: int, *, key, value) -> int | None:
+    """Read a value between two anchors, or extrapolate past the ends.
+
+    Extrapolation holds the nearest anchor's offset constant. Past the last
+    measured page that is the only defensible assumption available, and it is
+    right whenever no further pages are missing.
+    """
+
+    if not anchors:
+        return None
+    ordered = sorted(anchors, key=key)
+    if target <= key(ordered[0]):
+        result = value(ordered[0]) - (key(ordered[0]) - target)
+    elif target >= key(ordered[-1]):
+        result = value(ordered[-1]) + (target - key(ordered[-1]))
+    else:
+        result = None
+        for lower, upper in zip(ordered, ordered[1:], strict=False):
+            if key(lower) <= target <= key(upper):
+                if target == key(lower):
+                    result = value(lower)
+                elif target == key(upper):
+                    result = value(upper)
+                else:
+                    # Straight-line between the two, which assumes whatever
+                    # pages are missing are missing evenly across the gap.
+                    span = key(upper) - key(lower)
+                    rise = value(upper) - value(lower)
+                    result = value(lower) + round(rise * (target - key(lower)) / span)
+                break
+    return result if result is not None and result >= 1 else None
+
+
+def _longest_consistent_chain(
+    candidates: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """Pick the reading of the margins that behaves like a page number.
+
+    Every integer in a margin is a candidate, and a footer commonly holds two:
+    "308 | Chapter 10" offers both the page and the chapter. They are told
+    apart by how fast they move. A printed page number advances at roughly the
+    rate the PDF page does — a little faster where the scan skipped pages, a
+    little slower where it caught one twice. A chapter number advances by one
+    every thirty pages, and no plausible rate band contains both.
+
+    The rate band is what does the work here, not the direction. An earlier
+    version required a page number never to gain more than one per PDF page,
+    on the reasoning that a scan can omit pages but not invent them. That is
+    backwards: omitting a page makes the printed number advance *faster*, and
+    the rule rejected every genuine anchor in the second half of the book while
+    admitting the chapter numbers, which drift slowly enough to look valid.
+    """
+
+    if not candidates:
+        return []
+    ordered = sorted(set(candidates))
+    best_length = [1] * len(ordered)
+    previous = [-1] * len(ordered)
+
+    for index in range(len(ordered)):
+        pdf, printed = ordered[index]
+        for earlier in range(index):
+            prior_pdf, prior_printed = ordered[earlier]
+            advance = printed - prior_printed
+            span = pdf - prior_pdf
+            if advance <= 0 or span <= 0:
+                continue
+            if not MINIMUM_RATE * span <= advance <= MAXIMUM_RATE * span:
+                continue
+            if best_length[earlier] + 1 > best_length[index]:
+                best_length[index] = best_length[earlier] + 1
+                previous[index] = earlier
+
+    end = max(range(len(ordered)), key=lambda index: best_length[index])
+    chain: list[tuple[int, int]] = []
+    while end != -1:
+        chain.append(ordered[end])
+        end = previous[end]
+    return list(reversed(chain))
 
 
 def printed_numbering(pages: Iterable[tuple[int, str]]) -> PrintedNumbering:
-    """Infer the printed-page offset from the running margins.
+    """Map printed page numbers onto PDF pages, from the running margins.
 
-    A citation names the page a reader sees, not the index of a byte range in a
-    PDF, and for a scan those differ by however much front matter the scanner
-    included. The offset is *measured* across pages and agreed on by a majority
-    rather than assumed from where chapter one lands.
+    A citation names the page a reader sees. For a scan that differs from the
+    PDF index by however much front matter was included *and* by whatever pages
+    the scanner missed, so the relationship is measured page by page rather
+    than assumed to be one number.
 
-    Only arabic numerals vote. Front matter is commonly numbered in roman and
-    restarts at 1 when the body begins, so admitting roman pages would put two
-    incompatible offsets in the same tally. They are counted and reported, so a
-    reviewer can see that the front matter is separately numbered.
-
-    Every integer in the margin proposes an offset, and the offset agreed on by
-    the most pages wins. That is what separates a page number from the other
-    numbers printed beside it: a real page number advances in step with the
-    page, so its offset is constant, while a chapter number stays put and its
-    implied offset drifts by one on every page.
-
-    The offset can be negative. One scan in this corpus was made from a copy
-    with its front matter removed, so its printed numbers run *ahead* of the
-    PDF index — printed 288 on PDF page 280. An earlier version assumed a
-    printed number could never exceed its PDF page, which ruled the true number
-    out and elected the chapter number instead.
+    Roman and arabic numerals are chained separately: front matter restarts at
+    arabic 1 when the body begins, so one sequence containing both is not
+    monotonic and could not be chained at all.
     """
 
-    votes: dict[int, int] = {}
+    arabic: list[tuple[int, int]] = []
+    roman: list[tuple[int, int]] = []
     sampled = 0
-    roman = 0
 
     for page, text in pages:
         markup = parse_page_markup(text)
@@ -440,35 +582,26 @@ def printed_numbering(pages: Iterable[tuple[int, str]]) -> PrintedNumbering:
             continue
         sampled += 1
 
-        candidates = {int(value) for value in _ARABIC_PAGE.findall(margin)}
-        if not candidates:
-            if any(
-                _roman_value(token) is not None
-                for token in _ROMAN_PAGE.findall(margin)
-            ):
-                roman += 1
+        numbers = {int(value) for value in _ARABIC_PAGE.findall(margin)}
+        if numbers:
+            arabic.extend((page, value) for value in numbers if value >= 1)
             continue
-        # One vote per page per distinct offset, so a number repeated in a
-        # margin cannot outweigh a page that names it once.
-        for value in candidates:
-            if value < 1:
-                continue
-            votes[page - value] = votes.get(page - value, 0) + 1
+        for token in _ROMAN_PAGE.findall(margin):
+            value = _roman_value(token)
+            if value is not None:
+                roman.append((page, value))
 
-    # A single page cannot establish an offset: every integer on it ties, and
-    # the winner would be whichever number happened to sort first.
-    agreed = {
-        offset: count for offset, count in votes.items() if count >= MINIMUM_OFFSET_VOTES
-    }
-    if not agreed:
-        return PrintedNumbering(
-            offset=None, matched_pages=0, sampled_pages=sampled, roman_pages=roman
-        )
-
-    offset, matched = max(agreed.items(), key=lambda item: (item[1], -abs(item[0])))
-    return PrintedNumbering(
-        offset=offset,
-        matched_pages=matched,
-        sampled_pages=sampled,
-        roman_pages=roman,
+    anchors = [
+        PageAnchor(pdf_page=pdf, printed=printed)
+        for pdf, printed in _longest_consistent_chain(arabic)
+    ]
+    anchors.extend(
+        PageAnchor(pdf_page=pdf, printed=printed, roman=True)
+        for pdf, printed in _longest_consistent_chain(roman)
     )
+    # A single anchor is a coincidence: any integer in any margin produces one,
+    # and extrapolating a whole book from it is how a chapter number becomes a
+    # page number.
+    if len(anchors) < MINIMUM_ANCHORS:
+        return PrintedNumbering(anchors=(), sampled_pages=sampled)
+    return PrintedNumbering(anchors=tuple(anchors), sampled_pages=sampled)

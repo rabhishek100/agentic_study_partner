@@ -13,7 +13,7 @@ eligible for parsing.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
@@ -42,6 +42,11 @@ from .ocr_store import OcrPageSummary, completed_pages, page_summary, record_pag
 logger = logging.getLogger("study_partner.ingestion.ocr_stage")
 
 OCR_PROPOSER_VERSION = "transcribed-headings-v1"
+CONTENTS_PROPOSER_VERSION = "printed-contents-v1"
+
+# Fewer rows than this is not a contents listing that survived reading; the
+# heading proposer covers more of the book than a two-entry table would.
+MINIMUM_CONTENTS_OUTLINE = 3
 
 # Same ceiling the typography proposer uses: past this, a proposal has stopped
 # being a hierarchy a person can review.
@@ -250,6 +255,69 @@ def propose_outline_from_transcription(
                 return entries
 
     return entries
+
+
+@dataclass(frozen=True)
+class OutlineProposal:
+    """A candidate hierarchy for a transcribed book, and where it came from."""
+
+    entries: tuple[tuple[int, str, int], ...]
+    source: str
+    proposer_version: str
+    warnings: tuple[str, ...] = ()
+    provenance_json: dict[str, object] = field(default_factory=dict)
+
+
+def propose_outline(
+    pages: list[tuple[int, str]], *, page_count: int | None = None
+) -> OutlineProposal:
+    """Prefer the book's own contents page; fall back to its headings.
+
+    A contents listing is the book's own statement of its structure, typeset by
+    the people who wrote it, and it names chapters the body pages never repeat
+    in a recognisable form. Heading detection is what remains when there is no
+    listing — for one scan in this corpus there is none, because the copy it
+    was made from had its front matter removed.
+    """
+
+    from parsing.contents import contents_to_outline, parse_printed_contents
+    from parsing.transcript import printed_numbering
+
+    numbering = printed_numbering(pages)
+    contents = parse_printed_contents(pages)
+    # The book's length, not the last page transcribed: an entry pointing
+    # past the end must be refused, and inferring the bound from the input
+    # makes that check vacuous.
+    last_page = page_count or max((page for page, _ in pages), default=0)
+
+    if contents and numbering.matched_pages:
+        entries, warnings = contents_to_outline(
+            contents, numbering=numbering, page_count=last_page
+        )
+        if len(entries) >= MINIMUM_CONTENTS_OUTLINE:
+            if numbering.drifts:
+                span = numbering.offset_range
+                warnings.append(
+                    f"printed page numbers drift against PDF pages (offset "
+                    f"{span[0]} to {span[1]}), so this scan is missing pages"
+                )
+            return OutlineProposal(
+                entries=tuple(entries),
+                source="printed_contents",
+                proposer_version=CONTENTS_PROPOSER_VERSION,
+                warnings=tuple(warnings),
+                provenance_json={
+                    "contents": contents.provenance(),
+                    "printed_numbering": numbering.provenance(),
+                },
+            )
+
+    return OutlineProposal(
+        entries=tuple(propose_outline_from_transcription(pages)),
+        source="transcribed_headings",
+        proposer_version=OCR_PROPOSER_VERSION,
+        provenance_json={"printed_numbering": numbering.provenance()},
+    )
 
 
 def require_proposable(

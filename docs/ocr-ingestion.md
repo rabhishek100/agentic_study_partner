@@ -90,18 +90,17 @@ diagram page trades a small risk for a certain one.
 Deterministic, and it reads Stage A's Markdown rather than the image:
 
 - heading levels from Markdown depth plus the existing numbering patterns;
-- printed page number from the running margins, giving the printed-to-PDF
-  offset. Every integer in a margin proposes an offset and the one the most
-  pages agree on wins, which is what separates a page number from the other
-  numbers beside it: a page number advances in step with the page, so its
-  offset is constant, while a chapter number stays put and its implied offset
-  drifts by one per page. Two pages must agree before an offset is believed.
-  The offset may be **negative** — the GenAI scan was made from a copy with its
-  front matter removed, so printed 288 lands on PDF page 280. An earlier
-  version assumed a printed number could never exceed its PDF page, which ruled
-  the true number out and elected `Chapter 9` instead. Roman-numbered front
-  matter is counted and reported but never votes, because it restarts at 1 and
-  would put two incompatible offsets in one tally;
+- printed page numbers from the running margins, as a **piecewise map rather
+  than one offset**. Measured on the phone-scanned book, the offset runs from 8
+  at the front to 1 at the back: seven printed pages are simply absent from the
+  scan. A single global offset placed its last chapter seven pages wrong, and a
+  citation seven pages wrong is worse than none, because it looks right. So the
+  mapping is a list of anchors — pages whose number was actually read — with
+  interpolation between them, and the observed offset range is reported so a
+  reviewer sees that pages are missing. Anchors are chosen by how fast a number
+  moves: a page number advances at roughly the rate the PDF page does, while a
+  chapter number advances by one every thirty pages, and no plausible rate band
+  holds both. Roman front matter is anchored separately because it restarts;
 - tables into `TableBlock.html` with a plain-text fallback;
 - figures cropped from the page render at the model's reported region, or
   referenced whole when it reports none, then captioned by the existing
@@ -134,6 +133,22 @@ is **mandatory for every OCR-backed book**. For these four sources that is
 about ten minutes each, and it is the whole reason the citations are
 defensible.
 
+### The printed contents page
+
+`parsing/contents.py` reads the book's own statement of its structure, which
+outranks a heading sweep: it names chapters the body pages never repeat in a
+recognisable form. This is also the single page where transcription pays for
+itself outright — a contents page is two columns, and plain OCR reads it column
+by column, returning thirteen chapter names followed by thirteen page numbers
+with the pairing destroyed. The transcription returns it as a table with the
+rows intact. Both the table form and the dotted-leader form are handled; depth
+comes from the numbering the book prints, because indentation survives neither
+OCR nor a table cell.
+
+Entries whose printed number cannot be placed are named in the warnings rather
+than guessed at, and the heading proposer remains the fallback for a book with
+no listing — such as the GenAI scan, whose copy had its front matter removed.
+
 ### Poisoned embedded outlines
 
 The Hundred-Page book's outline has `derr3 derr3 dd3 dw dd3 dw` and `dd±` as
@@ -142,12 +157,18 @@ the actual chapter headings appear nowhere in it. `outline_roles.chapter_level`
 finds no chapter run in that and falls back to the depth rule, which types
 equation fragments as chapters.
 
-An outline is treated as poisoned when its entries fail `_looks_like_title`,
-when many entries resolve to a single page, or when level 1 is junk. A poisoned
-outline is discarded rather than repaired, and the printed contents page is
-parsed instead — with positional OCR, because plain-text OCR of a two-column
-contents page separates the titles from their page numbers into different
-blocks and loses the pairing.
+An outline is poisoned when **both** signals appear: at least a tenth of its
+entries fail to read as titles, and some page carries a crowd of entries that
+are mostly junk. Measured on that book, 19 of 113 entries fail and page 27
+alone holds ten, while no legitimate page in the corpus holds more than three.
+Both signals are required because either alone false-positives — a clean
+fixture scores 25% junk on a copyright line that ends in a full stop, and a
+chapter opening may legitimately start several subsections on one page.
+
+A poisoned outline is discarded rather than repaired: the actual chapter
+headings are absent from it entirely, so there is nothing to repair towards.
+The book routes to transcription and gets its hierarchy from the printed
+contents page instead.
 
 ## Routing
 

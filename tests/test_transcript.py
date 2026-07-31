@@ -10,7 +10,6 @@ import fitz
 from parsing.models import NON_CONTENT_CATEGORIES
 from retrieval.chunking import searchable_text
 from parsing.transcript import (
-    PrintedNumbering,
     build_transcribed_book,
     printed_numbering,
     table_to_text,
@@ -255,9 +254,9 @@ class SearchableTextTests(unittest.TestCase):
 
 
 class PrintedNumberingTests(unittest.TestCase):
-    def test_the_offset_is_agreed_on_by_a_majority(self) -> None:
-        """Measured across pages, not assumed from where chapter one lands."""
+    """A citation names the page a reader sees, so this must be measured."""
 
+    def test_consecutive_pages_anchor_the_mapping(self) -> None:
         numbering = printed_numbering(
             [
                 (9, "<!-- footer: | 1 -->"),
@@ -266,31 +265,66 @@ class PrintedNumberingTests(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(numbering.offset, 8)
         self.assertEqual(numbering.matched_pages, 3)
         self.assertEqual(numbering.confidence, 1.0)
         self.assertEqual(numbering.printed(11), 3)
+        self.assertEqual(numbering.pdf_page(3), 11)
+        self.assertFalse(numbering.drifts)
 
-    def test_one_misread_footer_does_not_move_the_offset(self) -> None:
+    def test_a_scan_that_skipped_pages_is_mapped_piecewise(self) -> None:
+        """Measured on a phone-scanned book: the offset runs 8 at the front to 1
+        at the back, because seven printed pages are absent from the scan. A
+        single global offset put its last chapter seven pages wrong, and a
+        citation seven pages wrong is worse than none, because it looks right.
+        """
+
         numbering = printed_numbering(
             [
                 (9, "<!-- footer: | 1 -->"),
-                (10, "<!-- footer: | 2 -->"),
-                (11, "<!-- footer: | 7 -->"),
-                (12, "<!-- footer: | 4 -->"),
+                (39, "<!-- footer: Step 4 - Wrap Up | 31 -->"),
+                (99, "<!-- footer: 93 | Chapter 4 -->"),
+                (249, "<!-- footer: 246 | Chapter 8 -->"),
+                (399, "<!-- footer: 398 | Chapter 13 -->"),
             ]
         )
 
-        self.assertEqual(numbering.offset, 8)
-        self.assertEqual(numbering.matched_pages, 3)
-        self.assertLess(numbering.confidence, 1.0)
+        self.assertTrue(numbering.drifts)
+        self.assertEqual(numbering.offset_range, (1, 8))
+        # Anchored pages resolve exactly, whichever end of the book they are on.
+        self.assertEqual(numbering.printed(399), 398)
+        self.assertEqual(numbering.pdf_page(246), 249)
 
-    def test_roman_front_matter_is_counted_but_does_not_vote(self) -> None:
-        """Front matter restarts at 1, so admitting it would tally two offsets.
+    def test_a_chapter_number_in_the_footer_loses_to_the_page_number(self) -> None:
+        """They are told apart by how fast they move, not by position.
 
-        Measured on a real scan: its contents page numbers the foreword iii and
-        the acknowledgements v before chapter 1 begins at arabic 1.
+        A chapter number advances by one every thirty pages; no plausible rate
+        band contains both it and a page number.
         """
+
+        numbering = printed_numbering(
+            [
+                (309, "<!-- footer: 308 | Chapter 10 -->"),
+                (339, "<!-- footer: 338 | Chapter 11 -->"),
+                (369, "<!-- footer: 368 | Chapter 12 -->"),
+            ]
+        )
+
+        self.assertEqual(numbering.printed(309), 308)
+        self.assertEqual([anchor.printed for anchor in numbering.arabic],
+                         [308, 338, 368])
+
+    def test_printed_numbers_may_run_ahead_of_the_pdf_page(self) -> None:
+        """One scan was made from a copy with its front matter removed."""
+
+        numbering = printed_numbering(
+            [(1, "<!-- footer: 9 -->"), (2, "<!-- footer: 10 -->")]
+        )
+
+        self.assertEqual(numbering.printed(1), 9)
+        self.assertEqual(numbering.pdf_page(10), 2)
+
+    def test_roman_front_matter_is_anchored_separately(self) -> None:
+        """It restarts at arabic 1, so one sequence holding both is not monotonic."""
 
         numbering = printed_numbering(
             [
@@ -298,72 +332,42 @@ class PrintedNumberingTests(unittest.TestCase):
                 (7, "<!-- footer: v -->"),
                 (9, "<!-- footer: | 1 -->"),
                 (10, "<!-- footer: | 2 -->"),
-                (11, "<!-- footer: | 3 -->"),
             ]
         )
 
-        self.assertEqual(numbering.offset, 8)
-        self.assertEqual(numbering.roman_pages, 2)
-        self.assertEqual(numbering.sampled_pages, 5)
+        self.assertEqual(len(numbering.roman), 2)
+        self.assertEqual(len(numbering.arabic), 2)
+        self.assertEqual(numbering.pdf_page(3, roman=True), 5)
+        self.assertEqual(numbering.pdf_page(1), 9)
 
-    def test_a_chapter_number_in_the_footer_loses_to_the_page_number(self) -> None:
-        """The page number advances with the page; the chapter number does not.
+    def test_one_anchor_alone_establishes_nothing(self) -> None:
+        """Any integer in any margin produces one; a book cannot rest on it."""
 
-        These are the real footers from one of the scans. A rule that picked
-        the number nearest the page index elected "Chapter 9" on every page.
-        """
+        numbering = printed_numbering([(3, "<!-- footer: 288 | Chapter 9 -->")])
 
-        numbering = printed_numbering(
-            [
-                (280, "<!-- footer: 288 | Chapter 9. Text-to-Image Generation -->"),
-                (281, "<!-- footer: 289 | Chapter 9. Text-to-Image Generation -->"),
-                (282, "<!-- footer: 290 | Chapter 9. Text-to-Image Generation -->"),
-            ]
-        )
+        self.assertEqual(numbering.matched_pages, 0)
+        self.assertIsNone(numbering.printed(3))
 
-        self.assertEqual(numbering.offset, -8)
-        self.assertEqual(numbering.printed(280), 288)
-
-    def test_a_printed_number_may_run_ahead_of_its_pdf_page(self) -> None:
-        """One scan was made from a copy with its front matter removed.
-
-        Its printed numbers therefore exceed the PDF index, so the offset is
-        negative. Assuming otherwise ruled the true number out entirely.
-        """
-
-        numbering = printed_numbering(
-            [(1, "<!-- footer: 9 -->"), (2, "<!-- footer: 10 -->")]
-        )
-
-        self.assertEqual(numbering.offset, -8)
-        self.assertEqual(numbering.printed(1), 9)
-
-    def test_one_page_alone_cannot_establish_an_offset(self) -> None:
-        """Every integer on a single page ties; the winner would be arbitrary."""
-
-        numbering = printed_numbering(
-            [(3, "<!-- footer: 288 | Chapter 9 -->")]
-        )
-
-        self.assertIsNone(numbering.offset)
-        self.assertEqual(numbering.sampled_pages, 1)
-
-    def test_a_book_with_no_margins_reports_no_offset(self) -> None:
+    def test_a_book_with_no_margins_maps_nothing(self) -> None:
         numbering = printed_numbering([(1, "Body only."), (2, "More body.")])
 
-        self.assertIsNone(numbering.offset)
         self.assertEqual(numbering.sampled_pages, 0)
-        self.assertEqual(numbering.confidence, 0.0)
         self.assertIsNone(numbering.printed(1))
+        self.assertIsNone(numbering.pdf_page(1))
 
-    def test_provenance_is_serializable(self) -> None:
-        provenance = PrintedNumbering(
-            offset=8, matched_pages=3, sampled_pages=4, roman_pages=2
-        ).provenance()
+    def test_provenance_reports_the_drift(self) -> None:
+        numbering = printed_numbering(
+            [
+                (9, "<!-- footer: | 1 -->"),
+                (99, "<!-- footer: 93 -->"),
+                (399, "<!-- footer: 398 -->"),
+            ]
+        )
 
-        self.assertEqual(provenance["offset"], 8)
-        self.assertEqual(provenance["roman_pages"], 2)
-        self.assertEqual(provenance["confidence"], 0.75)
+        provenance = numbering.provenance()
+        self.assertTrue(provenance["drifts"])
+        self.assertEqual(provenance["offset_range"], [1, 8])
+        self.assertEqual(provenance["arabic_anchors"], 3)
 
 
 if __name__ == "__main__":

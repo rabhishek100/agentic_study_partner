@@ -48,12 +48,7 @@ from .jobs import (
     record_progress,
     set_stage,
 )
-from .ocr_stage import (
-    OCR_PROPOSER_VERSION,
-    propose_outline_from_transcription,
-    require_proposable,
-    transcribe_book,
-)
+from .ocr_stage import propose_outline, require_proposable, transcribe_book
 from .ocr_store import transcribed_text
 from .preflight import (
     OCR,
@@ -590,10 +585,11 @@ def _transcribe_and_pause(
         )
         pages = transcribed_text(connection, owner_id=owner_id, job_id=job.id)
 
+    proposal = propose_outline(pages, page_count=report.page_count)
     entries = require_proposable(
-        propose_outline_from_transcription(pages), page_count=report.page_count
+        list(proposal.entries), page_count=report.page_count
     )
-    warnings = list(report.warnings)
+    warnings = [*report.warnings, *proposal.warnings]
     if outcome.summary.flagged:
         warnings.append(
             f"{outcome.summary.flagged} pages contain text the reference engine "
@@ -601,14 +597,23 @@ def _transcribe_and_pause(
         )
 
     with _database(database_url) as connection:
+        if proposal.provenance_json:
+            set_stage(
+                connection,
+                owner_id=owner_id,
+                job_id=job.id,
+                current_status=Status.OCR,
+                stage=Stage.PROPOSE_TOC,
+                provenance=proposal.provenance_json,
+            )
         paused = pause_for_outline_review(
             connection,
             owner_id=owner_id,
             job_id=job.id,
             proposal=entries,
             reasons=report.decision.reasons,
-            outline_source="transcribed_headings",
-            proposer_version=OCR_PROPOSER_VERSION,
+            outline_source=proposal.source,
+            proposer_version=proposal.proposer_version,
             warnings=warnings,
         )
     return JobOutcome(job=paused, book_id=None)

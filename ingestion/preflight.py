@@ -320,10 +320,20 @@ def decide_preflight(
     # OCR'd equations. Both go to transcription first, and the hierarchy
     # question is answered afterwards from text this pipeline produced and can
     # account for.
-    if document_class in {SCANNED, MIXED} or profile.likely_ocr_backed:
+    if (
+        document_class in {SCANNED, MIXED}
+        or profile.likely_ocr_backed
+        or outline.poisoned
+    ):
         reasons = [f"document_class:{document_class}"]
         if profile.likely_ocr_backed:
             reasons.append("ocr_backed_source")
+        if outline.poisoned:
+            # The embedded rows are discarded rather than repaired. They were
+            # harvested off the pages by OCR software, so the actual chapter
+            # headings are absent from them entirely and there is nothing in
+            # them to repair towards.
+            reasons.append("poisoned_outline")
         return PreflightDecision(
             action=OCR, reasons=tuple(reasons), outline_source=None
         )
