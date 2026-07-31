@@ -35,6 +35,15 @@ DEFAULT_MAX_ATTEMPTS = 3
 DEFAULT_ABANDONED_UPLOAD_HOURS = 24
 DEFAULT_SOURCE_RETENTION_DAYS = 7
 DEFAULT_CLEANUP_INTERVAL_SECONDS = 3600
+# Transcription calls are network-bound, not CPU-bound, so this is about the
+# provider's tolerance rather than the worker's eight cores.
+DEFAULT_OCR_CONCURRENCY = 8
+DEFAULT_OCR_RENDER_DPI = 300
+# The ceiling a single book may spend on transcription. Measured cost is
+# $0.0019 a page, so a 1000-page book lands near $1.90 and this leaves room for
+# a pricier model without leaving room for a retry loop. Exceeding it aborts
+# the job with a named error instead of discovering the number on a bill.
+DEFAULT_MAX_OCR_COST_USD = 10.0
 
 
 def _int(name: str, fallback: int) -> int:
@@ -45,6 +54,19 @@ def _int(name: str, fallback: int) -> int:
         value = int(raw)
     except ValueError as error:
         raise ValueError(f"{name} must be an integer") from error
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+def _float(name: str, fallback: float) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return fallback
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} must be a number") from error
     if value <= 0:
         raise ValueError(f"{name} must be positive")
     return value
@@ -65,6 +87,9 @@ class IngestionLimits:
     abandoned_upload_hours: int = DEFAULT_ABANDONED_UPLOAD_HOURS
     source_retention_days: int = DEFAULT_SOURCE_RETENTION_DAYS
     cleanup_interval_seconds: int = DEFAULT_CLEANUP_INTERVAL_SECONDS
+    ocr_concurrency: int = DEFAULT_OCR_CONCURRENCY
+    ocr_render_dpi: int = DEFAULT_OCR_RENDER_DPI
+    max_ocr_cost_usd: float = DEFAULT_MAX_OCR_COST_USD
 
     def storage_path(self, owner_id: object, job_id: object) -> str:
         """Return the immutable object path for one job's source PDF."""
@@ -96,4 +121,7 @@ def load_limits() -> IngestionLimits:
         cleanup_interval_seconds=_int(
             "INGESTION_CLEANUP_INTERVAL_SECONDS", DEFAULT_CLEANUP_INTERVAL_SECONDS
         ),
+        ocr_concurrency=_int("INGESTION_OCR_CONCURRENCY", DEFAULT_OCR_CONCURRENCY),
+        ocr_render_dpi=_int("INGESTION_OCR_RENDER_DPI", DEFAULT_OCR_RENDER_DPI),
+        max_ocr_cost_usd=_float("INGESTION_MAX_OCR_COST_USD", DEFAULT_MAX_OCR_COST_USD),
     )

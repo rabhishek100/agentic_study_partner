@@ -155,7 +155,16 @@ The worker is 8 vCPU / 8 GB with no GPU, against a Supabase free plan capped at
 50 MB per upload and 1 GB total.
 
 - Eight parallel page calls per job, with retry and backoff. Page-level
-  checkpoints, so a resumed job never re-pays for completed pages.
+  checkpoints, so a resumed job never re-pays for completed pages. Measured on
+  a 12-page slice: 2.3 s per page cold, and a resume that reuses all twelve in
+  0.04 s at no cost.
+- A checkpoint is keyed on the *reading* — model id and prompt hash — not on
+  the page number. A retry under a changed model or instruction re-reads,
+  because mixing two engines' pages would leave a book carrying one engine's
+  provenance. The first version of this looked up the hash with `getattr` on a
+  provider that kept it private, which silently reduced to "no checkpoints
+  match" and paid for every page twice; both identifiers are now part of the
+  `OcrProvider` contract.
 - A hard per-job page and token cap. Exceeding either aborts with a named
   error rather than spending silently; real dollars per book land in job
   provenance so the evaluation quotes measurements, not estimates.

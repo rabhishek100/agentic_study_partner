@@ -422,9 +422,13 @@ def pause_for_outline_review(
 
     with connection.transaction():
         job = get_job(connection, owner_id=owner, job_id=identifier)
-        if job.status is not Status.VALIDATING:
+        # Two routes reach review. A native-digital book pauses during
+        # validation, where its proposal comes from page typography. A scanned
+        # or OCR-backed book pauses at the end of transcription, because until
+        # its text exists there is nothing to propose a hierarchy from.
+        if job.status not in {Status.VALIDATING, Status.OCR}:
             raise JobConflictError(
-                "only a validating ingestion job can pause for outline review"
+                "only a validating or transcribing job can pause for outline review"
             )
         if not job.file_hash:
             raise JobConflictError(
@@ -446,7 +450,7 @@ def pause_for_outline_review(
             connection,
             owner_id=owner,
             job_id=identifier,
-            expected=Status.VALIDATING,
+            expected=job.status,
             target=Status.NEEDS_TOC_REVIEW,
             assignments=(
                 "stage = %s, stage_started_at = now(), "

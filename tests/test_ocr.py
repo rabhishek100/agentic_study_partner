@@ -1,9 +1,13 @@
 """Transcribing a page, and deciding how far to trust what came back."""
 
+import os
 import unittest
 
 from ingestion.ocr import (
     BBOX_GRID,
+    PAGE_INSTRUCTION,
+    OpenRouterOcrProvider,
+    TesseractOcrProvider,
     DEFAULT_RUN_THRESHOLD,
     FLAGGED,
     MINIMUM_REFERENCE_TOKENS,
@@ -179,6 +183,48 @@ class OcrBudgetTests(unittest.TestCase):
         provenance = budget.provenance()
         self.assertEqual(provenance["pages_done"], 1)
         self.assertAlmostEqual(float(provenance["cost_usd"]), 0.02)
+
+
+class ProviderContractTests(unittest.TestCase):
+    """Every adapter must expose what identifies its reading.
+
+    The checkpoint store reuses a page only when ``model_id`` and
+    ``prompt_hash`` both still match. An adapter that keeps either one private
+    reads as "no checkpoints match", so resumption silently stops working and
+    every page is paid for twice. That happened; these assertions are the guard.
+    """
+
+    def test_the_hosted_adapter_exposes_its_reading(self) -> None:
+        os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-used")
+        provider = OpenRouterOcrProvider(model_id="test/vision-1")
+        self.addCleanup(provider.close)
+
+        self.assertEqual(provider.model_id, "test/vision-1")
+        self.assertTrue(provider.prompt_hash)
+        self.assertEqual(provider.prompt_hash, prompt_hash(PAGE_INSTRUCTION))
+        self.assertTrue(provider.name)
+
+    def test_a_changed_instruction_changes_the_adapter_hash(self) -> None:
+        os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-used")
+        default = OpenRouterOcrProvider(model_id="test/vision-1")
+        self.addCleanup(default.close)
+        altered = OpenRouterOcrProvider(
+            model_id="test/vision-1", instruction="Read the page."
+        )
+        self.addCleanup(altered.close)
+
+        self.assertNotEqual(default.prompt_hash, altered.prompt_hash)
+
+    def test_the_local_adapter_exposes_its_reading(self) -> None:
+        try:
+            provider = TesseractOcrProvider()
+        except ValueError:
+            self.skipTest("tesseract is not installed")
+
+        self.assertTrue(provider.model_id)
+        self.assertTrue(provider.name)
+        # No instruction to identify: the engine is the whole reading.
+        self.assertEqual(provider.prompt_hash, "")
 
 
 class PageMarkupTests(unittest.TestCase):

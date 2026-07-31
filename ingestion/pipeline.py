@@ -48,7 +48,15 @@ from .jobs import (
     record_progress,
     set_stage,
 )
+from .ocr_stage import (
+    OCR_PROPOSER_VERSION,
+    propose_outline_from_transcription,
+    require_proposable,
+    transcribe_book,
+)
+from .ocr_store import transcribed_text
 from .preflight import (
+    OCR,
     REVIEW,
     PreflightReport,
     preflight,
@@ -81,6 +89,8 @@ class PipelineDependencies:
 
     embedder_factory: Callable[[], Any] | None = None
     captioner_factory: Callable[[], Any] | None = None
+    ocr_factory: Callable[[], Any] | None = None
+    ocr_reference_factory: Callable[[], Any] | None = None
     chunking_config: ChunkingConfig = field(default_factory=ChunkingConfig)
 
     def embedder(self) -> Any:
@@ -96,6 +106,31 @@ class PipelineDependencies:
         from ingestion.captions import OpenRouterCaptioner
 
         return OpenRouterCaptioner()
+
+    def ocr(self) -> Any:
+        if self.ocr_factory is not None:
+            return self.ocr_factory()
+        from ingestion.ocr import OpenRouterOcrProvider
+
+        return OpenRouterOcrProvider()
+
+    def ocr_reference(self) -> Any:
+        """The deterministic engine the fabrication gate compares against.
+
+        Optional by design. Its absence leaves pages unassessable, which is
+        recorded as such; it never stops a book, because the gate flags and
+        does not block.
+        """
+
+        if self.ocr_reference_factory is not None:
+            return self.ocr_reference_factory()
+        from ingestion.ocr import TesseractOcrProvider
+
+        try:
+            return TesseractOcrProvider()
+        except ValueError:
+            logger.warning("no local OCR engine; pages will be unassessable")
+            return None
 
 
 @dataclass
@@ -308,6 +343,7 @@ def _validate_stage(
     limits: IngestionLimits,
     work_dir: Path,
     database_url: str | None,
+    dependencies: PipelineDependencies,
 ) -> (
     tuple[
         IngestionJob,
@@ -429,13 +465,21 @@ def _validate_stage(
             )
         validate_table_of_contents(confirmed_toc, report.page_count)
         approved_toc = confirmed_toc
+    elif report.decision.action == OCR:
+        return _transcribe_and_pause(
+            job,
+            source=source,
+            report=report,
+            limits=limits,
+            database_url=database_url,
+            dependencies=dependencies,
+        )
     else:
         proposal = report.outline.proposal
         if (
             report.decision.action == REVIEW
             and proposal is not None
             and proposal.entries
-            and not report.profile.likely_ocr_backed
         ):
             with _database(database_url) as connection:
                 paused = pause_for_outline_review(
@@ -453,6 +497,121 @@ def _validate_stage(
         require_supported(report)
         approved_toc = report.normalized_toc
     return job, source, download.sha256, report, approved_toc
+
+
+def _transcribe_and_pause(
+    job: IngestionJob,
+    *,
+    source: Path,
+    report: PreflightReport,
+    limits: IngestionLimits,
+    database_url: str | None,
+    dependencies: PipelineDependencies,
+) -> JobOutcome:
+    """Transcribe a scanned or OCR-backed source, then hand it to a reviewer.
+
+    The stage produces text and a candidate hierarchy, and stops. Nothing here
+    may become canonical without confirmation: a wrong chapter boundary yields
+    a confidently wrong citation, and no later stage would catch it.
+    """
+
+    owner_id = job.owner_id
+    with _database(database_url) as connection:
+        job = advance_stage(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            current_status=job.status,
+            status=Status.OCR,
+            stage=Stage.OCR_PAGES,
+        )
+        record_progress(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            completed=0,
+            total=report.page_count,
+            unit="pages",
+        )
+
+    def publish(completed: int, total: int) -> None:
+        try:
+            with _database(database_url) as connection:
+                record_progress(
+                    connection,
+                    owner_id=owner_id,
+                    job_id=job.id,
+                    completed=completed,
+                    total=total,
+                    unit="pages",
+                )
+        except Exception:
+            # Progress is a convenience. Losing a tick must not cost a page
+            # that has already been paid for.
+            logger.warning("could not record transcription progress", exc_info=True)
+
+    def cancelled() -> bool:
+        with _database(database_url) as connection:
+            current = get_job(connection, owner_id=owner_id, job_id=job.id)
+        return current.cancellation_requested
+
+    provider = dependencies.ocr()
+    outcome = transcribe_book(
+        source,
+        owner_id=owner_id,
+        job_id=job.id,
+        limits=limits,
+        provider=provider,
+        reference=dependencies.ocr_reference(),
+        open_connection=lambda: _database(database_url),
+        on_progress=publish,
+        should_stop=cancelled,
+    )
+    logger.info("transcribed job %s: %s", job.id, outcome.provenance())
+
+    job = _check_cancelled(job, database_url=database_url)
+
+    with _database(database_url) as connection:
+        job = set_stage(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            current_status=Status.OCR,
+            stage=Stage.PROPOSE_TOC,
+            provenance={
+                "ocr": {
+                    **outcome.provenance(),
+                    "provider": provider.name,
+                    "model_id": provider.model_id,
+                    "prompt_hash": provider.prompt_hash,
+                    "render_dpi": limits.ocr_render_dpi,
+                }
+            },
+        )
+        pages = transcribed_text(connection, owner_id=owner_id, job_id=job.id)
+
+    entries = require_proposable(
+        propose_outline_from_transcription(pages), page_count=report.page_count
+    )
+    warnings = list(report.warnings)
+    if outcome.summary.flagged:
+        warnings.append(
+            f"{outcome.summary.flagged} pages contain text the reference engine "
+            "could not corroborate"
+        )
+
+    with _database(database_url) as connection:
+        paused = pause_for_outline_review(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            proposal=entries,
+            reasons=report.decision.reasons,
+            outline_source="transcribed_headings",
+            proposer_version=OCR_PROPOSER_VERSION,
+            warnings=warnings,
+        )
+    return JobOutcome(job=paused, book_id=None)
 
 
 POST_PERSIST_STATUSES = (
@@ -501,6 +660,7 @@ def _ingest_source(
     limits: IngestionLimits,
     work_dir: Path,
     database_url: str | None,
+    dependencies: PipelineDependencies,
 ) -> tuple[IngestionJob, int, dict[str, int | float]] | JobOutcome:
     """Validate, parse, and canonically import the source.
 
@@ -511,7 +671,11 @@ def _ingest_source(
 
     owner_id = job.owner_id
     validated = _validate_stage(
-        job, limits=limits, work_dir=work_dir, database_url=database_url
+        job,
+        limits=limits,
+        work_dir=work_dir,
+        database_url=database_url,
+        dependencies=dependencies,
     )
     if isinstance(validated, JobOutcome):
         return validated
@@ -704,9 +868,11 @@ def run_job(
             limits=limits,
             work_dir=work_dir,
             database_url=database_url,
+            dependencies=dependencies,
         )
         if isinstance(ingested, JobOutcome):
-            # A duplicate upload was resolved during validation.
+            # Validation resolved the job on its own: a duplicate upload, or a
+            # source that transcribed and is now waiting on outline review.
             return ingested
         job, book_id, metrics = ingested
 

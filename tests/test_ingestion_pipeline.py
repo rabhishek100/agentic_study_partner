@@ -68,6 +68,34 @@ BODY = (
 )
 
 
+class StubOcrProvider:
+    """A local stand-in for the hosted transcription model.
+
+    It emits the heading markup a real transcription carries, so the stage's
+    proposal is exercised rather than bypassed.
+    """
+
+    name = "stub"
+    model_id = "test/vision-1"
+    prompt_hash = "stub-prompt"
+
+    def transcribe(self, image: bytes, mime_type: str, page: int):
+        from ingestion.ocr import PageTranscription
+
+        del image, mime_type
+        return PageTranscription(
+            page=page,
+            text=f"# Chapter {page}\n\nBody text for page {page}.",
+            provider=self.name,
+            model_id=self.model_id,
+            render_dpi=72,
+            prompt_hash=self.prompt_hash,
+            input_tokens=100,
+            output_tokens=40,
+            cost_usd=0.001,
+        )
+
+
 class DeterministicEmbedder:
     """A local stand-in for the hosted embedder.
 
@@ -360,17 +388,36 @@ class StubbedParserTests(PipelineFixture):
         self.assertEqual(caught.exception.code, ErrorCode.ENCRYPTED_PDF)
         self.assertFalse(caught.exception.retryable)
 
-    def test_a_scanned_pdf_is_refused_rather_than_guessed_at(self):
+    def test_a_scanned_pdf_is_transcribed_and_then_waits_for_review(self):
+        """A scan reaches a hierarchy through a person, never on its own.
+
+        Transcription answers the text question; it is not allowed to answer
+        the structure question, because a wrong chapter boundary produces a
+        confidently wrong citation that nothing downstream would catch.
+        """
+
         job = self.claim(scanned_pdf(self.directory / "scan.pdf"))
-
-        with self.assertRaises(IngestionError) as caught:
-            self.run_claimed(job)
-
-        self.assertEqual(
-            caught.exception.code, ErrorCode.UNSUPPORTED_DOCUMENT_CLASS
+        self.dependencies = PipelineDependencies(
+            embedder_factory=DeterministicEmbedder,
+            ocr_factory=StubOcrProvider,
+            ocr_reference_factory=lambda: None,
         )
-        # The class it detected is recorded even though ingestion stopped.
-        self.assertEqual(self.job_now(job.id).document_class, "scanned")
+
+        outcome = self.run_claimed(job)
+
+        self.assertIsNone(outcome.book_id)
+        paused = self.job_now(job.id)
+        self.assertEqual(paused.status, Status.NEEDS_TOC_REVIEW)
+        self.assertEqual(paused.document_class, "scanned")
+        # Every page was read and committed before the pause.
+        ocr = paused.provenance.get("ocr", {})
+        self.assertEqual(ocr["pages"], paused.page_count)
+        self.assertEqual(ocr["model_id"], StubOcrProvider.model_id)
+        # The proposal is evidence a reviewer must confirm, not a hierarchy.
+        review = paused.provenance["outline_review"]
+        self.assertEqual(review["state"], "pending")
+        self.assertEqual(review["outline_source"], "transcribed_headings")
+        self.assertTrue(review["entries"])
 
     def test_a_source_deleted_after_queueing_fails_the_job(self):
         job = self.claim(structured_pdf(self.directory / "book.pdf"))

@@ -118,10 +118,17 @@ class PageTranscription:
 
 
 class OcrProvider(Protocol):
-    """Turns one rendered page into text."""
+    """Turns one rendered page into text.
+
+    ``model_id`` and ``prompt_hash`` are part of the contract, not incidental
+    attributes: together they identify the *reading*, and the checkpoint store
+    reuses a page only when both still match. A provider that hides either one
+    silently defeats resumption and pays for every page twice.
+    """
 
     name: str
     model_id: str
+    prompt_hash: str
 
     def transcribe(self, image: bytes, mime_type: str, page: int) -> PageTranscription:
         ...
@@ -158,7 +165,7 @@ class OpenRouterOcrProvider:
             model_id or os.getenv("OPENROUTER_OCR_MODEL") or DEFAULT_OCR_MODEL
         )
         self._instruction = instruction
-        self._prompt_hash = prompt_hash(instruction)
+        self.prompt_hash = prompt_hash(instruction)
         self._max_attempts = max_attempts
         self._max_output_tokens = max_output_tokens
         self._render_dpi = render_dpi
@@ -215,7 +222,7 @@ class OpenRouterOcrProvider:
                     provider=self.name,
                     model_id=self.model_id,
                     render_dpi=self._render_dpi,
-                    prompt_hash=self._prompt_hash,
+                    prompt_hash=self.prompt_hash,
                     input_tokens=int(usage.get("prompt_tokens") or 0),
                     output_tokens=int(usage.get("completion_tokens") or 0),
                     cost_usd=float(usage.get("cost") or 0.0),
@@ -253,6 +260,8 @@ class TesseractOcrProvider:
             raise ValueError(f"{binary} is not installed")
         self.name = "tesseract"
         self.model_id = _tesseract_version(resolved)
+        # No instruction to identify: the engine is the whole reading.
+        self.prompt_hash = ""
         self._binary = resolved
         self._psm = page_segmentation
         self._language = language
@@ -286,7 +295,7 @@ class TesseractOcrProvider:
             provider=self.name,
             model_id=self.model_id,
             render_dpi=self._render_dpi,
-            prompt_hash="",
+            prompt_hash=self.prompt_hash,
         )
 
 
