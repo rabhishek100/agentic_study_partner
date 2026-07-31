@@ -13,4 +13,7 @@ so the constant lives here and the heavy import stays deferred.
 # marks repeated margin text as derived retrieval boilerplate.
 # v5 isolates pages with pathological vector-path counts from pdfminer,
 # preserving their native text and a rendered page visual instead.
-PARSER_VERSION = "toc-hi-res-v5"
+# v6 keeps a book whose same-page outline headings cannot all be located,
+# leaving those pages at outline-level precision instead of rejecting the
+# book, so its hierarchy may differ from v5 on those pages alone.
+PARSER_VERSION = "toc-hi-res-v6"

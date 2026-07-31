@@ -854,13 +854,22 @@ def _append_element(
         )
 
 
-def assign_elements(elements, sections: list[Section]) -> None:
+def assign_elements(elements, sections: list[Section]) -> list[int]:
     """Assign elements using page ranges and ordered same-page headings.
 
     A page number alone cannot distinguish sibling sections whose headings
-    share that page. All such headings must be found in extracted reading
-    order; otherwise parsing fails instead of silently moving one section's
-    content into another.
+    share that page, so the headings are located in extracted reading order
+    and the page is split between them.
+
+    When they cannot be located the page is not split, and the first section
+    starting on it takes the whole page. That is exactly the precision the
+    outline itself carries, and it is what every book ingested before same-page
+    resolution existed already has. Refusing the book instead cost more than it
+    bought: one unlocatable heading on one page rejected a 279-page book whose
+    other 25 shared pages resolved perfectly.
+
+    Returns the pages that could not be split, for the caller to record. A
+    citation still lands on the right page; only sub-page attribution is lost.
     """
 
     if not sections:
@@ -881,12 +890,12 @@ def assign_elements(elements, sections: list[Section]) -> None:
         for page in set(starts)
         if bisect_right(starts, page) - bisect_left(starts, page) > 1
     }
-    missing_collision_pages = sorted(collision_pages - by_page.keys())
-    if missing_collision_pages:
-        pages = ", ".join(str(page) for page in missing_collision_pages)
-        raise ValueError(
-            "no extracted elements were available for outline collision "
-            f"page(s): {pages}"
+    unsplit_pages = sorted(collision_pages - by_page.keys())
+    if unsplit_pages:
+        logger.warning(
+            "no extracted elements for outline collision page(s) %s; "
+            "those pages keep outline-level precision",
+            ", ".join(str(page) for page in unsplit_pages),
         )
 
     for page in sorted(by_page):
@@ -907,13 +916,17 @@ def assign_elements(elements, sections: list[Section]) -> None:
             located = _heading_boundaries(page_elements, starting)
             if located is None and len(starting) > 1:
                 titles = ", ".join(repr(section.title) for _, section in starting)
-                raise ValueError(
-                    f"could not resolve {len(starting)} outline headings "
-                    f"sharing page {page}: {titles}"
+                logger.warning(
+                    "could not resolve %s outline headings sharing page %s "
+                    "(%s); the page is not split",
+                    len(starting),
+                    page,
+                    titles,
                 )
+                unsplit_pages.append(page)
             if located is None:
-                # A single page boundary remains no less precise than the raw
-                # outline: the whole page starts the new section.
+                # No split: the whole page starts the first section beginning
+                # on it, which is no less precise than the raw outline.
                 current_index = starting[0][0]
                 boundaries = {}
             else:
@@ -953,6 +966,7 @@ def assign_elements(elements, sections: list[Section]) -> None:
                 sections[target_index],
                 category=category,
             )
+    return sorted(set(unsplit_pages))
 
 
 def parse_book(
@@ -991,9 +1005,19 @@ def parse_book(
         return cached
 
     sections = build_sections(selected_toc, page_count)
-    assign_elements(
+    unsplit_pages = assign_elements(
         extract_elements(pdf_path, elements_cache, on_batch=on_batch), sections
     )
+    if unsplit_pages:
+        # Not stored on the book: it is derived from the parse, not part of the
+        # canonical content, and ParsedBook round-trips losslessly out of
+        # Postgres, which has no column for it.
+        logger.warning(
+            "%s of %s outline collision page(s) kept outline-level precision: %s",
+            len(unsplit_pages),
+            len({section.start_page for section in sections}),
+            ", ".join(str(page) for page in unsplit_pages),
+        )
 
     book = ParsedBook(source=str(pdf_path), toc=selected_toc, sections=sections)
     book_cache.parent.mkdir(parents=True, exist_ok=True)

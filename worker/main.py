@@ -70,6 +70,7 @@ class JsonFormatter(logging.Formatter):
             "attempt",
             "elapsed_seconds",
             "error_code",
+            "error_detail",
             "pages",
             "chunks",
         ):
@@ -281,6 +282,11 @@ class Worker:
             extra={
                 **context,
                 "error_code": str(decision.code),
+                # `IngestionError.detail` exists for exactly this and was never
+                # recorded, so a failed ingestion showed only its generic safe
+                # message: which page, which headings, and which contract was
+                # violated were all computed and then discarded.
+                "error_detail": getattr(error, "detail", None) or repr(error),
                 "elapsed_seconds": round(time.monotonic() - started),
             },
             exc_info=not isinstance(error, IngestionError),

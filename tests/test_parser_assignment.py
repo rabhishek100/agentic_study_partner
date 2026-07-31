@@ -86,7 +86,13 @@ class SamePageAssignmentTests(unittest.TestCase):
             ["Second topic", "Second body"],
         )
 
-    def test_an_unresolved_same_page_collision_fails_instead_of_guessing(self):
+    def test_an_unresolved_same_page_collision_keeps_outline_precision(self):
+        """Rejecting the book cost more than it bought: one unlocatable
+        heading on one page threw away a 279-page book. The page is left
+        unsplit instead - the precision the outline itself carries - and the
+        page is reported so the loss is visible rather than silent.
+        """
+
         sections = build_sections(
             [
                 (1, "Chapter 1", 1),
@@ -96,17 +102,23 @@ class SamePageAssignmentTests(unittest.TestCase):
             page_count=3,
         )
 
-        with self.assertRaisesRegex(ValueError, "sharing page 2"):
-            assign_elements(
-                [
-                    element("Chapter 1", 1, category="Title"),
-                    element("First topic", 2, category="Title"),
-                    element("Only the first body", 2),
-                ],
-                sections,
-            )
+        unsplit = assign_elements(
+            [
+                element("Chapter 1", 1, category="Title"),
+                element("First topic", 2, category="Title"),
+                element("Only the first body", 2),
+            ],
+            sections,
+        )
 
-    def test_collision_page_without_extracted_elements_fails(self):
+        self.assertEqual(unsplit, [2])
+        # The whole page goes to the first section starting on it, and every
+        # citation still lands on page 2 for both.
+        self.assertIn("Only the first body", sections[1].full_text)
+        self.assertEqual(sections[1].start_page, 2)
+        self.assertEqual(sections[2].start_page, 2)
+
+    def test_a_collision_page_without_extracted_elements_is_reported(self):
         sections = build_sections(
             [
                 (1, "Chapter 1", 1),
@@ -116,13 +128,37 @@ class SamePageAssignmentTests(unittest.TestCase):
             page_count=3,
         )
 
-        with self.assertRaisesRegex(
-            ValueError, "no extracted elements.*collision page"
-        ):
-            assign_elements(
-                [element("Chapter 1", 1, category="Title")],
-                sections,
-            )
+        unsplit = assign_elements(
+            [element("Chapter 1", 1, category="Title")],
+            sections,
+        )
+
+        self.assertEqual(unsplit, [2])
+
+    def test_a_resolved_collision_reports_nothing(self):
+        sections = build_sections(
+            [
+                (1, "Chapter 1", 1),
+                (2, "First topic", 2),
+                (2, "Second topic", 2),
+            ],
+            page_count=3,
+        )
+
+        unsplit = assign_elements(
+            [
+                element("Chapter 1", 1, category="Title"),
+                element("First topic", 2, category="Title"),
+                element("First body", 2),
+                element("Second topic", 2, category="Title"),
+                element("Second body", 2),
+            ],
+            sections,
+        )
+
+        self.assertEqual(unsplit, [])
+        self.assertIn("First body", sections[1].full_text)
+        self.assertIn("Second body", sections[2].full_text)
 
     def test_wrapped_title_blocks_form_one_heading_boundary(self):
         sections = build_sections(
