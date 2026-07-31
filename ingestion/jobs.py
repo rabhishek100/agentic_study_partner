@@ -47,6 +47,11 @@ COLUMNS = """
 
 MAXIMUM_FILENAME_LENGTH = 255
 
+# Jobs whose source lives on one operator's filesystem rather than in Storage.
+# The shared worker must not see them: it would fail to find the source, burn
+# an attempt, and eventually mark a perfectly good book failed.
+LOCAL_SOURCE_BUCKET = "local"
+
 
 class JobNotFoundError(LookupError):
     """No such job for this owner.
@@ -722,6 +727,7 @@ def claim_next_job(
     *,
     worker_id: str,
     limits: IngestionLimits | None = None,
+    include_local: bool = False,
 ) -> IngestionJob | None:
     """Claim one eligible job, or return None when the queue is empty.
 
@@ -729,6 +735,12 @@ def claim_next_job(
     or provider call, so a crashed worker leaves a leased row rather than an
     open transaction. ``FOR UPDATE SKIP LOCKED`` means a second worker can be
     added later without changing any job semantics.
+
+    A locally-sourced job is invisible by default. Its bytes exist on one
+    operator's filesystem and nowhere else, so any other worker that claimed it
+    would fail to find its source, burn an attempt, and eventually mark a
+    perfectly good book failed. Only the process holding the file passes
+    ``include_local``.
     """
 
     limits = limits or load_limits()
@@ -740,6 +752,7 @@ def claim_next_job(
             where status in ({",".join("%s" for _ in CLAIMABLE_STATUSES)})
               and (next_attempt_at is null or next_attempt_at <= now())
               and cancellation_requested_at is null
+              and (%s or storage_bucket <> %s)
               -- One job per owner may occupy the worker at a time; the same
               -- rule the partial unique index enforces on writes.
               and not exists (
@@ -755,6 +768,8 @@ def claim_next_job(
             """,
             (
                 *(str(status) for status in sorted(CLAIMABLE_STATUSES)),
+                include_local,
+                LOCAL_SOURCE_BUCKET,
                 *(str(status) for status in sorted(PROCESSING_STATUSES)),
             ),
         ).fetchone()

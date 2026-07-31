@@ -499,7 +499,10 @@ class StubbedParserTests(PipelineFixture):
                 database, owner_id=self.owner, source=source, limits=LIMITS
             )
             claimed = claim_next_job(
-                database, worker_id="test-worker", limits=LIMITS
+                database,
+                worker_id="test-worker",
+                limits=LIMITS,
+                include_local=True,
             )
 
         self.assertEqual(claimed.id, queued.id)
@@ -522,7 +525,10 @@ class StubbedParserTests(PipelineFixture):
                 database, owner_id=self.owner, source=source, limits=LIMITS
             )
             claimed = claim_next_job(
-                database, worker_id="test-worker", limits=LIMITS
+                database,
+                worker_id="test-worker",
+                limits=LIMITS,
+                include_local=True,
             )
 
         replacement = structured_pdf(self.directory / "other.pdf")

@@ -28,7 +28,13 @@ from storage.database import parse_owner_id
 
 from .config import IngestionLimits, load_limits
 from .errors import ErrorCode, IngestionError
-from .jobs import IngestionJob, append_event, create_job, get_job
+from .jobs import (
+    LOCAL_SOURCE_BUCKET,
+    IngestionJob,
+    append_event,
+    create_job,
+    get_job,
+)
 from .states import Status
 
 
@@ -36,8 +42,9 @@ __all__ = ["LocalSource", "inspect_local_source", "queue_local_source"]
 
 # Marks a job whose bytes never went through Storage. The columns are NOT NULL
 # and the cleanup sweep deletes by them, so a scheme that cannot name a real
-# object is safer than a plausible-looking path that points at nothing.
-LOCAL_BUCKET = "local"
+# object is safer than a plausible-looking path that points at nothing. It is
+# also what keeps the shared worker from claiming these jobs.
+LOCAL_BUCKET = LOCAL_SOURCE_BUCKET
 
 HASH_CHUNK_BYTES = 1024 * 1024
 

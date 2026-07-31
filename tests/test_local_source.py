@@ -127,6 +127,35 @@ class QueueLocalSourceTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(recorded["sha256"], source.sha256)
         self.assertEqual(recorded["filename"], "scan.pdf")
 
+    def test_the_shared_worker_cannot_claim_a_local_job(self) -> None:
+        """Its bytes exist on one filesystem and nowhere else.
+
+        A worker elsewhere that claimed it would fail to find the source, burn
+        an attempt, and eventually mark a perfectly good book failed. This is
+        the deployed shape: the Railway worker polls the same queue an operator
+        ingests into from a laptop.
+        """
+
+        from ingestion.jobs import claim_next_job
+
+        source = inspect_local_source(scanned_pdf(self.directory / "scan.pdf"))
+        with database_connection(self.database_url) as connection:
+            queued = queue_local_source(
+                connection, owner_id=self.owner_id, source=source
+            )
+
+            shared = claim_next_job(connection, worker_id="railway-worker")
+            self.assertNotEqual(
+                getattr(shared, "id", None),
+                queued.id,
+                "the shared worker must not see a locally-sourced job",
+            )
+
+            operator = claim_next_job(
+                connection, worker_id="local-admin", include_local=True
+            )
+        self.assertEqual(operator.id, queued.id)
+
     def test_a_storage_backed_job_is_not_local(self) -> None:
         from ingestion.jobs import create_job
 

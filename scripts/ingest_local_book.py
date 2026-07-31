@@ -124,7 +124,11 @@ def main(argv: list[str] | None = None) -> int:
             job = get_job(connection, owner_id=owner_id, job_id=existing.id)
             logger.info("resuming job %s from status %s", job.id, job.status)
 
-        claimed = claim_next_job(connection, worker_id=WORKER_ID, limits=limits)
+        # Only this process can serve a local job: the file is on this machine
+        # and nowhere else, which is why the shared worker cannot see it.
+        claimed = claim_next_job(
+            connection, worker_id=WORKER_ID, limits=limits, include_local=True
+        )
 
     if claimed is None or claimed.id != job.id:
         logger.error(
