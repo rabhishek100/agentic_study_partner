@@ -40,7 +40,7 @@ from ingestion.pipeline import (
     PipelineDependencies,
     run_job,
 )
-from ingestion.states import is_terminal
+from ingestion.states import Status, is_terminal
 from storage.database import close_pools, connection as database_connection
 
 
@@ -236,14 +236,24 @@ class Worker:
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
         else:
-            logger.info(
-                "job ready",
-                extra={
-                    **context,
-                    "book_id": outcome.book_id,
-                    "elapsed_seconds": round(time.monotonic() - started),
-                },
-            )
+            if outcome.job.status is Status.NEEDS_TOC_REVIEW:
+                logger.info(
+                    "job paused for outline review",
+                    extra={
+                        **context,
+                        "status": str(outcome.job.status),
+                        "elapsed_seconds": round(time.monotonic() - started),
+                    },
+                )
+            else:
+                logger.info(
+                    "job ready",
+                    extra={
+                        **context,
+                        "book_id": outcome.book_id,
+                        "elapsed_seconds": round(time.monotonic() - started),
+                    },
+                )
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
 

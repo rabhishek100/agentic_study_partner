@@ -12,10 +12,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import fitz
+from unstructured.documents.elements import Image
 
 from parsing.parser import (
+    _extract_vector_fallback_page,
     _restore_page_numbers,
     _subset,
+    _vector_complexity_pages,
     extract_selective,
     pages_needing_layout,
 )
@@ -76,6 +79,41 @@ class PageClassificationTests(unittest.TestCase):
         source = structured_pdf(self.directory / "book.pdf", page_count=6)
         with patch("fitz.Page.get_images", side_effect=RuntimeError("bad page")):
             self.assertEqual(pages_needing_layout(source), [0, 1, 2, 3, 4, 5])
+
+    def test_a_pathological_vector_page_is_identified_by_a_high_threshold(self):
+        def build(document):
+            plain = document.new_page()
+            plain.insert_text((72, 96), BODY_TEXT, fontsize=11)
+            vector = document.new_page()
+            vector.insert_text((72, 96), BODY_TEXT, fontsize=11)
+            for offset in range(6):
+                vector.draw_line(
+                    fitz.Point(72, 120 + offset),
+                    fitz.Point(220, 120 + offset),
+                )
+
+        self.assertEqual(
+            _vector_complexity_pages(self._document(build), maximum=4),
+            [1],
+        )
+
+    def test_vector_fallback_preserves_native_text_and_a_visual_payload(self):
+        def build(document):
+            page = document.new_page()
+            page.insert_text((72, 96), "Native page text", fontsize=11)
+            for offset in range(6):
+                page.draw_line(
+                    fitz.Point(72, 120 + offset),
+                    fitz.Point(220, 120 + offset),
+                )
+
+        elements = _extract_vector_fallback_page(self._document(build), 0)
+
+        self.assertTrue(any("Native page text" in element.text for element in elements))
+        image = next(element for element in elements if isinstance(element, Image))
+        self.assertEqual(image.metadata.page_number, 1)
+        self.assertEqual(image.metadata.image_mime_type, "image/jpeg")
+        self.assertGreater(len(image.metadata.image_base64 or ""), 100)
 
 
 class PageNumberTests(unittest.TestCase):

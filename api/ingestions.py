@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from pydantic import Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
@@ -20,13 +21,17 @@ from ingestion.jobs import (
     IngestionJob,
     JobConflictError,
     JobNotFoundError,
+    confirm_outline_review,
     create_job,
     get_job,
     list_jobs,
     mark_upload_complete,
+    outline_review,
     request_cancellation,
     retry_job,
 )
+from ingestion.outlines import MAXIMUM_PROPOSED_ENTRIES, normalize_title
+from ingestion.preflight import validate_table_of_contents
 from ingestion.progress import estimate
 from ingestion.states import Status
 from ingestion.storage_objects import object_info, object_uploader
@@ -130,6 +135,38 @@ class JobListResponse(ContractModel):
     jobs: list[JobResponse]
 
 
+class OutlineEntryView(ContractModel):
+    level: int = Field(ge=1, le=20)
+    title: str = Field(min_length=1, max_length=500)
+    page: int = Field(ge=1)
+
+    @field_validator("title")
+    @classmethod
+    def clean_title(cls, value: str) -> str:
+        cleaned = normalize_title(value)
+        if not cleaned:
+            raise ValueError("outline title cannot be blank")
+        return cleaned
+
+
+class OutlineReviewResponse(ContractModel):
+    job_id: UUID
+    status: Status
+    page_count: int
+    outline_source: str
+    proposer_version: str
+    reasons: list[str]
+    warnings: list[str]
+    entries: list[OutlineEntryView]
+
+
+class ConfirmOutlineRequest(ContractModel):
+    entries: list[OutlineEntryView] = Field(
+        min_length=1,
+        max_length=MAXIMUM_PROPOSED_ENTRIES,
+    )
+
+
 def _represent(job: IngestionJob) -> JobResponse:
     """Project a job row into its public representation.
 
@@ -216,6 +253,41 @@ def _idempotency_key(value: str | None) -> UUID:
     except ValueError as error:
         raise HTTPException(
             status_code=400, detail="Idempotency-Key must be a UUID"
+        ) from error
+
+
+def _represent_outline_review(job: IngestionJob) -> OutlineReviewResponse:
+    review = outline_review(job)
+    if review is None:
+        raise HTTPException(
+            status_code=409,
+            detail="ingestion job has no outline proposal",
+        )
+    if job.page_count is None:
+        raise HTTPException(
+            status_code=409,
+            detail="outline proposal has no source page count",
+        )
+    try:
+        entries = [
+            OutlineEntryView.model_validate(entry)
+            for entry in review.get("entries", [])
+        ]
+        return OutlineReviewResponse(
+            job_id=job.id,
+            status=job.status,
+            page_count=job.page_count,
+            outline_source=str(review["outline_source"]),
+            proposer_version=str(review["proposer_version"]),
+            reasons=[str(reason) for reason in review.get("reasons", [])],
+            warnings=[str(warning) for warning in review.get("warnings", [])],
+            entries=entries,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        logger.error("outline review provenance is malformed for job %s", job.id)
+        raise HTTPException(
+            status_code=409,
+            detail="outline proposal is unavailable",
         ) from error
 
 
@@ -362,6 +434,65 @@ async def read_ingestion(
         return _represent(await run_in_threadpool(load))
     except JobNotFoundError as error:
         raise JOB_NOT_FOUND from error
+
+
+@router.get("/{job_id}/toc-proposal")
+async def read_toc_proposal(
+    job_id: UUID,
+    owner_id: Annotated[UUID, Depends(current_owner)],
+) -> OutlineReviewResponse:
+    """Return the deterministic, non-canonical hierarchy awaiting review."""
+
+    def load() -> IngestionJob:
+        with database_connection(readonly=True) as connection:
+            return get_job(connection, owner_id=owner_id, job_id=job_id)
+
+    try:
+        return _represent_outline_review(await run_in_threadpool(load))
+    except JobNotFoundError as error:
+        raise JOB_NOT_FOUND from error
+
+
+@router.post(
+    "/{job_id}/toc-confirmation",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def confirm_toc_proposal(
+    job_id: UUID,
+    request: ConfirmOutlineRequest,
+    response: Response,
+    owner_id: Annotated[UUID, Depends(current_owner)],
+) -> JobResponse:
+    """Validate a reviewed hierarchy and re-queue the exact same source."""
+
+    toc = [(entry.level, entry.title, entry.page) for entry in request.entries]
+
+    def confirm() -> IngestionJob:
+        with database_connection() as connection:
+            job = get_job(connection, owner_id=owner_id, job_id=job_id)
+            if job.page_count is None:
+                raise JobConflictError(
+                    "outline review has no source page count"
+                )
+            validate_table_of_contents(toc, job.page_count)
+            return confirm_outline_review(
+                connection,
+                owner_id=owner_id,
+                job_id=job_id,
+                toc=toc,
+            )
+
+    try:
+        job = await run_in_threadpool(confirm)
+    except JobNotFoundError as error:
+        raise JOB_NOT_FOUND from error
+    except IngestionError as error:
+        raise _as_http(error) from error
+    except JobConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+    response.headers["Location"] = f"/api/ingestions/{job_id}"
+    return _represent(job)
 
 
 @router.post("/{job_id}/cancel")

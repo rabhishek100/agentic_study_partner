@@ -9,8 +9,10 @@ from ingestion.errors import ErrorCode, IngestionError
 from ingestion.preflight import (
     DIGITAL_WITHOUT_TOC,
     MIXED,
+    REVIEW,
     SCANNED,
     STRUCTURED_DIGITAL,
+    inspect_pdf,
     preflight,
     require_supported,
     validate_table_of_contents,
@@ -19,6 +21,7 @@ from tests.pdf_fixtures import (
     corrupt_pdf,
     encrypted_pdf,
     mixed_pdf,
+    ocr_backed_pdf,
     outline_pdf,
     pdf_without_outline,
     scanned_pdf,
@@ -57,6 +60,7 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(report.page_count, 6)
         self.assertEqual(len(report.toc), 4)
         self.assertEqual(report.text_coverage, 1.0)
+        self.assertFalse(report.profile.likely_ocr_backed)
         require_supported(report)
 
     def test_the_report_records_reproducible_provenance(self):
@@ -67,6 +71,35 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(provenance["document_class"], STRUCTURED_DIGITAL)
         self.assertEqual(provenance["toc_entries"], 4)
         self.assertEqual(provenance["page_count"], 6)
+        profile = provenance["profile"]
+        self.assertEqual(profile["profile_version"], "document-profile-v1")
+        self.assertEqual(profile["sampled_pages"], 6)
+        self.assertEqual(profile["pages_with_text"], 6)
+        self.assertEqual(profile["ocr_overlay_coverage"], 0.0)
+        self.assertFalse(profile["likely_ocr_backed"])
+
+    def test_an_ocr_text_layer_is_distinguished_from_native_digital_text(self):
+        report = preflight(ocr_backed_pdf(self.path("ocr.pdf")), limits=LIMITS)
+
+        self.assertEqual(report.document_class, STRUCTURED_DIGITAL)
+        self.assertFalse(report.supported)
+        self.assertEqual(report.decision.action, REVIEW)
+        self.assertEqual(report.profile.image_page_coverage, 1.0)
+        self.assertEqual(report.profile.full_page_image_coverage, 1.0)
+        self.assertEqual(report.profile.ocr_overlay_coverage, 1.0)
+        self.assertTrue(report.profile.likely_ocr_backed)
+        self.assertGreater(report.profile.estimated_total_image_pixels, 0)
+        with self.assertRaises(IngestionError) as caught:
+            require_supported(report)
+        self.assertEqual(
+            caught.exception.code, ErrorCode.UNSUPPORTED_DOCUMENT_CLASS
+        )
+
+    def test_an_illustrated_native_pdf_is_not_mistaken_for_an_ocr_scan(self):
+        report = preflight(structured_pdf(self.path("book.pdf")), limits=LIMITS)
+
+        self.assertEqual(report.profile.ocr_overlay_coverage, 0.0)
+        self.assertFalse(report.profile.likely_ocr_backed)
 
     def test_a_corrupt_pdf_is_rejected(self):
         self.assert_rejects(corrupt_pdf(self.path("broken.pdf")), ErrorCode.INVALID_PDF)
@@ -138,7 +171,23 @@ class PreflightTests(unittest.TestCase):
         for name, toc in cases.items():
             with self.subTest(case=name):
                 source = outline_pdf(self.path(f"{name}.pdf".replace(" ", "-")), toc)
-                self.assert_rejects(source, ErrorCode.INVALID_HIERARCHY)
+                report = preflight(source, limits=LIMITS)
+                self.assertEqual(report.decision.action, REVIEW)
+                with self.assertRaises(IngestionError) as caught:
+                    require_supported(report)
+                self.assertEqual(caught.exception.code, ErrorCode.INVALID_HIERARCHY)
+
+    def test_a_malformed_outline_can_still_be_profiled_for_repair(self):
+        source = outline_pdf(
+            self.path("broken-outline.pdf"),
+            [[1, "Chapter 1", 1], [1, "   ", 2]],
+        )
+
+        report = inspect_pdf(source, limits=LIMITS)
+
+        self.assertEqual(report.document_class, STRUCTURED_DIGITAL)
+        self.assertEqual(report.profile.text_coverage, 1.0)
+        self.assertEqual(len(report.toc), 2)
 
 
 class OutlineValidationTests(unittest.TestCase):

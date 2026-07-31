@@ -96,7 +96,9 @@ _INTERRUPTIONS = frozenset(
 _ALLOWED: dict[Status, frozenset[Status]] = {
     Status.AWAITING_UPLOAD: frozenset({Status.QUEUED, Status.CANCELLED, Status.FAILED}),
     Status.QUEUED: frozenset({Status.VALIDATING, Status.CANCELLED, Status.FAILED}),
-    Status.VALIDATING: frozenset({Status.PARSING, Status.READY})
+    Status.VALIDATING: frozenset(
+        {Status.PARSING, Status.NEEDS_TOC_REVIEW, Status.READY}
+    )
     | (_INTERRUPTIONS - {Status.VALIDATING}),
     Status.PARSING: frozenset({Status.PERSISTING}) | _INTERRUPTIONS,
     Status.PERSISTING: frozenset({Status.CAPTIONING}) | _INTERRUPTIONS,
@@ -126,7 +128,12 @@ _ALLOWED: dict[Status, frozenset[Status]] = {
     Status.CLASSIFYING: frozenset({Status.OCR, Status.NEEDS_TOC_REVIEW, Status.PARSING})
     | _INTERRUPTIONS,
     Status.OCR: frozenset({Status.NEEDS_TOC_REVIEW, Status.PARSING}) | _INTERRUPTIONS,
-    Status.NEEDS_TOC_REVIEW: frozenset({Status.PARSING, Status.CANCELLED, Status.FAILED}),
+    # Confirmation is an API write, not parser work. It re-queues the same
+    # source so a leased worker re-verifies the hash and consumes the exact
+    # confirmed outline.
+    Status.NEEDS_TOC_REVIEW: frozenset(
+        {Status.QUEUED, Status.CANCELLED, Status.FAILED}
+    ),
 }
 
 # ``validating`` may go straight to ``ready`` for a duplicate upload: the owner

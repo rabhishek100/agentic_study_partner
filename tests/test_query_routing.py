@@ -52,6 +52,14 @@ class StaticAnswerModel:
         return SimpleNamespace(content="A grounded retrieval answer. [S1]")
 
 
+class ProviderCitationAnswerModel:
+    def invoke(self, messages):
+        del messages
+        return SimpleNamespace(
+            content="A grounded retrieval answer. \ue200cite\ue202S1\ue201"
+        )
+
+
 class InsufficientAnswerModel:
     def invoke(self, messages):
         del messages
@@ -84,7 +92,7 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
     def test_section_listing_uses_canonical_hierarchy_without_retrieval(self):
         with patch("study.query.BookRetriever") as retriever:
             answer = answer_query(
-                "What sections are present in Chapter 1?",
+                "What are the sections under Chapter 1?",
                 database_url=self.database_url,
                 book_id=self.book_id,
                 owner_id=self.owner_id,
@@ -262,6 +270,30 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             [(reference.book_title, reference.path) for reference in result.evidence],
             [("Sample Book", "Chapter 1 :: Core idea")],
         )
+
+    def test_retrieval_normalizes_provider_citation_syntax(self):
+        document = SimpleNamespace(
+            page_content="Reservoir sampling keeps a uniform stream sample.",
+            metadata={
+                "book_id": self.book_id,
+                "node_id": 1,
+                "path": "Chapter 1 :: Core idea",
+                "start_page": 2,
+                "end_page": 2,
+            },
+        )
+        with patch("study.query.BookRetriever") as retriever:
+            retriever.return_value.invoke.return_value = [document]
+            result = execute_query(
+                "Summarize reservoir sampling",
+                database_url=self.database_url,
+                book_id=self.book_id,
+                owner_id=self.owner_id,
+                model=ProviderCitationAnswerModel(),
+            )
+
+        self.assertIn("A grounded retrieval answer. [S1]", result.answer)
+        self.assertEqual([citation.marker for citation in result.citations], ["[S1]"])
 
     def test_model_can_mark_retrieved_evidence_insufficient(self):
         document = SimpleNamespace(

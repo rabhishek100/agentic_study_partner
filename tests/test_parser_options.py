@@ -6,11 +6,19 @@ holding, and how long a parse takes. The measured cost of each is recorded in
 silent change to any of them changes every book ingested afterwards.
 """
 
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from parsing.parser import BLOCK_OCR, FULL_PAGE_OCR, _partition, ocr_mode
+from parsing.parser import (
+    BLOCK_OCR,
+    FULL_PAGE_OCR,
+    _partition,
+    ocr_mode,
+    parse_book,
+)
+from tests.pdf_fixtures import outline_pdf
 
 
 class PartitionOptionTests(unittest.TestCase):
@@ -51,6 +59,47 @@ class OcrModeTests(unittest.TestCase):
             with self.subTest(value=value):
                 with patch.dict("os.environ", {"PARSER_FULL_PAGE_OCR": value}):
                     self.assertEqual(ocr_mode(), BLOCK_OCR)
+
+
+class ApprovedOutlineTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = Path(tempfile.mkdtemp(prefix="approved-outline-test-"))
+        self.addCleanup(self._remove)
+
+    def _remove(self):
+        for path in self.directory.glob("*"):
+            path.unlink()
+        self.directory.rmdir()
+
+    def test_the_parser_uses_the_approved_outline_not_raw_publisher_rows(self):
+        source = outline_pdf(
+            self.directory / "book.pdf",
+            [
+                [1, "Chapter 1", 1],
+                [1, "   ", 2],
+                [1, "Chapter 2", 3],
+            ],
+            page_count=4,
+        )
+        approved = [(1, "Chapter 1", 1), (1, "Chapter 2", 3)]
+
+        with patch("parsing.parser.extract_elements", return_value=[]):
+            book = parse_book(
+                source,
+                force=True,
+                book_cache=self.directory / "book.json",
+                elements_cache=self.directory / "elements.json",
+                toc_override=approved,
+            )
+
+        self.assertEqual(book.toc, approved)
+        self.assertEqual(
+            [
+                (section.title, section.start_page, section.end_page)
+                for section in book.sections
+            ],
+            [("Chapter 1", 1, 2), ("Chapter 2", 3, 4)],
+        )
 
 
 if __name__ == "__main__":

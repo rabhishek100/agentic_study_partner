@@ -213,6 +213,37 @@ uv run python -m scripts.compare_ocr_mode sources/books/<book>.pdf
 
 `PARSER_VERSION` moved to `toc-hi-res-v2`, so a book half-committed under the
 old mode is rebuilt rather than resumed against output it no longer matches.
+It later moved to `toc-hi-res-v3` when the parser began consuming the exact
+preflight-approved normalized outline, then `toc-hi-res-v4` when same-page
+heading boundaries and repeated margin boilerplate became deterministic.
+`toc-hi-res-v5` adds the bounded vector-page fallback below. Each
+canonical-output change receives the same resume protection.
+
+## Pathological vector pages
+
+One reviewed source exposed a different performance failure: PDF page 134
+contained 200,054 vector drawings. pdfminer traversed every path even under
+its `fast` strategy, leaving the containing batch CPU-bound for more than 20
+minutes. Every other inspected page contained at most 1,429 drawings, so
+shrinking the batch merely moved the same stall into a smaller range.
+
+The parser now counts vector drawings before scheduling batches. Ordinary
+pages still use the same `hi_res` path. A page above 20,000 drawings is
+isolated and represented by:
+
+- native text blocks and coordinates read directly by PyMuPDF; and
+- a JPEG render of the vector-content bounds.
+
+This preserves searchable text and the non-text visual without asking
+pdfminer to interpret hundreds of thousands of drawing operators. It is not
+the broad selective-layout mode described below: no ordinary page changes
+parser strategy. `PARSER_MAX_VECTOR_DRAWINGS` can override the conservative
+ceiling if a measured corpus requires it.
+
+On `2019BurkovTheHundred-pageMachineLearning.pdf`, the fallback selected only
+PDF page 134. The reviewed 126-entry outline then completed all eight work
+units and passed the extraction gate with 126/126 sections containing text,
+276,115 characters, 4 tables, and 65 images.
 
 ## Page limit
 

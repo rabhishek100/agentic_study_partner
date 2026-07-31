@@ -200,6 +200,9 @@ export type JobStatus =
   | "chunking"
   | "embedding"
   | "verifying"
+  | "classifying"
+  | "ocr"
+  | "needs_toc_review"
   | "retry_scheduled"
   | "ready"
   | "failed"
@@ -268,6 +271,23 @@ export interface CreateIngestionResponse {
   storage_path: string;
   maximum_bytes: number;
   upload_method: "tus";
+}
+
+export interface OutlineEntry {
+  level: number;
+  title: string;
+  page: number;
+}
+
+export interface OutlineReview {
+  job_id: string;
+  status: JobStatus;
+  page_count: number;
+  outline_source: string;
+  proposer_version: string;
+  reasons: string[];
+  warnings: string[];
+  entries: OutlineEntry[];
 }
 
 /** A chat turn as the interface holds it, before conversations are persisted. */

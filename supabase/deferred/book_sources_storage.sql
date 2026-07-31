@@ -4,7 +4,7 @@ values (
     'book-sources',
     'book-sources',
     false,
-    52428800,
+    104857600,
     array['application/pdf']
 )
 on conflict (id) do update set

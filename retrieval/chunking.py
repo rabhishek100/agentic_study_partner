@@ -9,6 +9,7 @@ from uuid import UUID
 
 import tiktoken
 
+from parsing.models import NON_CONTENT_CATEGORIES
 from storage.database import parse_owner_id
 from .models import Chunk, ChunkSource, ChunkingConfig
 
@@ -16,7 +17,7 @@ from .models import Chunk, ChunkSource, ChunkingConfig
 # v2 makes figure captions searchable text. A figure without a caption is
 # still a zero-length source, exactly as before.
 CHUNKER_VERSION = "ordered-blocks-v2"
-SKIPPED_CATEGORIES = frozenset({"Header", "Footer", "PageBreak"})
+SKIPPED_CATEGORIES = NON_CONTENT_CATEGORIES
 WORD_WITH_SPACE = re.compile(r"\S+\s*")
 SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+|\n{2,}")
 

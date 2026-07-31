@@ -19,6 +19,8 @@ from .streaming import TokenCallback, invoke_with_streaming
 
 CITATION = re.compile(r"\[N(\d+):P(\d+)]")
 GROUPED_CITATION = re.compile(r"\[((?:N\d+:P\d+)(?:\s*;\s*N\d+:P\d+)+)]")
+OPENAI_CITATION = re.compile(r"\ue200cite((?:\ue202[^\ue200-\ue203]+)+)\ue201")
+OPENAI_CITATION_TARGET = re.compile(r"\ue202((?:S\d+)|(?:N\d+:P\d+))")
 OPTIONAL_RECAP_TITLES = frozenset({"summary", "conclusion"})
 OPTIONAL_INTERVIEW_SECTION = re.compile(
     r"^(?:\d+(?:\.\d+)*\s+)?(?:lab\b|exercises?\b)",
@@ -315,13 +317,20 @@ def validate_summary(
 
 
 def normalize_citation_syntax(text: str) -> str:
-    """Split grouped valid marker syntax without changing citation values."""
+    """Normalize provider-rendered and grouped markers to the app contract."""
 
+    provider_normalized = OPENAI_CITATION.sub(
+        lambda match: " ".join(
+            f"[{target}]"
+            for target in OPENAI_CITATION_TARGET.findall(match.group(1))
+        ),
+        text,
+    )
     return GROUPED_CITATION.sub(
         lambda match: " ".join(
             f"[{marker.strip()}]" for marker in match.group(1).split(";")
         ),
-        text,
+        provider_normalized,
     )
 
 

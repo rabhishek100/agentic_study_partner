@@ -36,12 +36,14 @@ class UnsupportedStudyRequestError(ValueError):
 
 LIST_SECTIONS = (
     re.compile(
-        r"^list\s+(?:the\s+)?sections\s+(?:in|of)\s+chapter\s+(.+?)\s*[?.]?$",
+        r"^(?:list|show)(?:\s+me)?\s+(?:all\s+)?(?:the\s+)?sections\s+"
+        r"(?:in|of|under)\s+(?:chapter\s+)?(.+?)\s*[?.]?$",
         re.IGNORECASE,
     ),
     re.compile(
-        r"^(?:what|which)\s+sections\s+(?:are\s+)?"
-        r"(?:present\s+)?in\s+chapter\s+(.+?)\s*[?.]?$",
+        r"^(?:what|which)\s+(?:are\s+)?(?:all\s+)?(?:the\s+)?sections"
+        r"(?:\s+are)?\s+(?:present\s+)?(?:in|of|under)\s+"
+        r"(?:chapter\s+)?(.+?)\s*[?.]?$",
         re.IGNORECASE,
     ),
 )
@@ -192,7 +194,7 @@ def parse_study_request(query: str) -> StudyRequest:
         "supported forms are: 'summarize chapter N', "
         "'summarize section TITLE in chapter N', "
         "'summarize TITLE', 'list chapters', and "
-        "'list sections in chapter N'"
+        "'list sections in/under chapter N or TITLE'"
     )
 
 

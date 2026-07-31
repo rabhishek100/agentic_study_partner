@@ -280,7 +280,10 @@ def create_job(
             """
             select count(*) as pending from ingestion_jobs
             where owner_id = %s
-              and status in ('awaiting_upload', 'queued', 'retry_scheduled')
+              and status in (
+                  'awaiting_upload', 'queued', 'retry_scheduled',
+                  'needs_toc_review'
+              )
             """,
             (owner,),
         ).fetchone()["pending"]
@@ -354,6 +357,13 @@ def list_jobs(
     return [IngestionJob.from_row(row) for row in rows]
 
 
+def outline_review(job: IngestionJob) -> dict[str, Any] | None:
+    """Return the durable outline-review payload, if this job has one."""
+
+    value = job.provenance.get("outline_review")
+    return value if isinstance(value, dict) else None
+
+
 def _transition(
     connection: Connection,
     *,
@@ -386,6 +396,151 @@ def _transition(
             f"ingestion job {job_id} was not in status {expected}"
         )
     return IngestionJob.from_row(row)
+
+
+def pause_for_outline_review(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    job_id: str | UUID,
+    proposal: list[tuple[int, str, int]],
+    reasons: list[str] | tuple[str, ...],
+    outline_source: str,
+    proposer_version: str,
+    warnings: list[str] | tuple[str, ...] = (),
+) -> IngestionJob:
+    """Persist a deterministic proposal and release the worker lease.
+
+    Proposal rows are evidence, not canonical hierarchy. Only
+    :func:`confirm_outline_review` can make an edited copy eligible for parsing.
+    """
+
+    owner = parse_owner_id(owner_id)
+    identifier = UUID(str(job_id))
+    if not proposal:
+        raise ValueError("outline review requires at least one proposed entry")
+
+    with connection.transaction():
+        job = get_job(connection, owner_id=owner, job_id=identifier)
+        if job.status is not Status.VALIDATING:
+            raise JobConflictError(
+                "only a validating ingestion job can pause for outline review"
+            )
+        if not job.file_hash:
+            raise JobConflictError(
+                "outline review cannot start before the source hash is recorded"
+            )
+        review = {
+            "state": "pending",
+            "source_sha256": job.file_hash,
+            "outline_source": outline_source,
+            "proposer_version": proposer_version,
+            "reasons": list(reasons),
+            "warnings": list(warnings),
+            "entries": [
+                {"level": level, "title": title, "page": page}
+                for level, title, page in proposal
+            ],
+        }
+        paused = _transition(
+            connection,
+            owner_id=owner,
+            job_id=identifier,
+            expected=Status.VALIDATING,
+            target=Status.NEEDS_TOC_REVIEW,
+            assignments=(
+                "stage = %s, stage_started_at = now(), "
+                "progress_completed = 0, progress_total = %s, "
+                "progress_unit = 'headings', "
+                "lease_owner = null, lease_expires_at = null, "
+                "heartbeat_at = now(), "
+                "provenance_json = provenance_json || %s"
+            ),
+            parameters=(
+                str(Stage.PROPOSE_TOC),
+                len(proposal),
+                Jsonb({"outline_review": review}),
+            ),
+        )
+        append_event(
+            connection,
+            owner_id=owner,
+            job_id=identifier,
+            event_type="outline_review_requested",
+            status=Status.NEEDS_TOC_REVIEW,
+            stage=Stage.PROPOSE_TOC,
+            metadata={
+                "entry_count": len(proposal),
+                "outline_source": outline_source,
+                "reasons": list(reasons),
+            },
+        )
+    return paused
+
+
+def confirm_outline_review(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    job_id: str | UUID,
+    toc: list[tuple[int, str, int]],
+) -> IngestionJob:
+    """Persist a reviewed hierarchy and re-queue the source idempotently."""
+
+    owner = parse_owner_id(owner_id)
+    identifier = UUID(str(job_id))
+    entries = [
+        {"level": level, "title": title, "page": page}
+        for level, title, page in toc
+    ]
+    with connection.transaction():
+        job = get_job(connection, owner_id=owner, job_id=identifier)
+        review = outline_review(job)
+        if review is None:
+            raise JobConflictError("ingestion job has no outline proposal")
+
+        if review.get("state") == "confirmed":
+            if review.get("confirmed_entries") == entries:
+                return job
+            raise JobConflictError("outline review was already confirmed")
+        if job.status is not Status.NEEDS_TOC_REVIEW:
+            raise JobConflictError("ingestion job is not awaiting outline review")
+        if review.get("source_sha256") != job.file_hash:
+            raise JobConflictError("outline proposal does not match the source PDF")
+
+        confirmed_review = {
+            **review,
+            "state": "confirmed",
+            "confirmed_entries": entries,
+        }
+        queued = _transition(
+            connection,
+            owner_id=owner,
+            job_id=identifier,
+            expected=Status.NEEDS_TOC_REVIEW,
+            target=Status.QUEUED,
+            assignments=(
+                "stage = %s, stage_started_at = now(), "
+                "progress_completed = 0, progress_total = null, "
+                "progress_unit = null, next_attempt_at = now(), "
+                "lease_owner = null, lease_expires_at = null, "
+                "provenance_json = provenance_json || %s"
+            ),
+            parameters=(
+                str(Stage.PREFLIGHT),
+                Jsonb({"outline_review": confirmed_review}),
+            ),
+        )
+        append_event(
+            connection,
+            owner_id=owner,
+            job_id=identifier,
+            event_type="outline_review_confirmed",
+            status=Status.QUEUED,
+            stage=Stage.PREFLIGHT,
+            metadata={"entry_count": len(entries)},
+        )
+    return queued
 
 
 def mark_upload_complete(

@@ -11,7 +11,7 @@ import os
 
 
 DEFAULT_SOURCE_BUCKET = "book-sources"
-DEFAULT_MAX_SOURCE_BYTES = 52_428_800  # 50 MiB
+DEFAULT_MAX_SOURCE_BYTES = 104_857_600  # 100 MiB
 # The design target, reachable now that parsing runs as bounded page batches
 # across a process pool: each batch holds a fixed slice of the document, so
 # parse memory no longer grows with book length. docs/parser-performance.md

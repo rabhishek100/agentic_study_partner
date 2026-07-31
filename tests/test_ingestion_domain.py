@@ -101,6 +101,17 @@ class StateMachineTests(unittest.TestCase):
                 expected = status is Status.VALIDATING
                 self.assertEqual(can_transition(status, Status.READY), expected)
 
+    def test_outline_review_pauses_validation_and_requeues_after_confirmation(self):
+        self.assertTrue(
+            can_transition(Status.VALIDATING, Status.NEEDS_TOC_REVIEW)
+        )
+        self.assertTrue(
+            can_transition(Status.NEEDS_TOC_REVIEW, Status.QUEUED)
+        )
+        self.assertFalse(
+            can_transition(Status.NEEDS_TOC_REVIEW, Status.PARSING)
+        )
+
     def test_every_processing_status_can_be_interrupted(self):
         for status in PROCESSING_STATUSES:
             with self.subTest(status=status):
@@ -294,7 +305,7 @@ class LimitTests(unittest.TestCase):
 
         limits = IngestionLimits()
 
-        self.assertEqual(limits.max_source_bytes, 52_428_800)
+        self.assertEqual(limits.max_source_bytes, 104_857_600)
         self.assertEqual(limits.max_pages, 1000)
         self.assertEqual(limits.allowed_content_types, ("application/pdf",))
 

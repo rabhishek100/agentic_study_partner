@@ -3,6 +3,19 @@
 from pydantic import BaseModel, Field
 
 
+DETECTED_HEADER_CATEGORY = "DetectedHeader"
+DETECTED_FOOTER_CATEGORY = "DetectedFooter"
+NON_CONTENT_CATEGORIES = frozenset(
+    {
+        "Header",
+        "Footer",
+        "PageBreak",
+        DETECTED_HEADER_CATEGORY,
+        DETECTED_FOOTER_CATEGORY,
+    }
+)
+
+
 class TextBlock(BaseModel):
     text: str
     category: str
