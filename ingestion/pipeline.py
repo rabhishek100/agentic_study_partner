@@ -700,6 +700,24 @@ def _ingest_source(
             unit="pages",
         )
 
+    with _database(database_url) as connection:
+        transcription = transcribed_text(
+            connection, owner_id=owner_id, job_id=job.id
+        )
+    if transcription:
+        # A transcribed book already carries its text. Running the PDF parser
+        # over it would read the same pixels a second time with a weaker
+        # engine, and on a pure scan would find nothing at all.
+        return _persist_transcribed(
+            job,
+            source=source,
+            file_hash=file_hash,
+            report=report,
+            approved_toc=approved_toc,
+            transcription=transcription,
+            database_url=database_url,
+        )
+
     # Deferred: importing the parser pulls in Unstructured and Torch, about
     # half a gigabyte of resident memory that an idle worker should not hold.
     from parsing.parser import parse_book
@@ -764,6 +782,82 @@ def _ingest_source(
             status=Status.PERSISTING,
             stage=Stage.PERSIST_CANONICAL,
             provenance={"parser": {"version": PARSER_VERSION, **metrics}},
+        )
+        book_id = _persist_canonical(
+            connection,
+            job=job,
+            book=book,
+            report=report,
+            file_hash=file_hash,
+        )
+    return job, book_id, metrics
+
+
+def _persist_transcribed(
+    job: IngestionJob,
+    *,
+    source: Path,
+    file_hash: str,
+    report: PreflightReport,
+    approved_toc: list[tuple[int, str, int]],
+    transcription: list[tuple[int, str]],
+    database_url: str | None,
+) -> tuple[IngestionJob, int, dict[str, int | float]]:
+    """Build and import a book from its transcription and confirmed outline.
+
+    The outline is the reviewer's, unaltered. Structure extraction reads the
+    transcription markup and never the pixels, so every decision it makes is
+    deterministic and reproducible from data already stored.
+    """
+
+    from parsing.transcript import build_transcribed_book, printed_numbering
+
+    owner_id = job.owner_id
+    try:
+        book = build_transcribed_book(
+            source,
+            toc=approved_toc,
+            pages=transcription,
+            page_count=report.page_count,
+        )
+    except ValueError as error:
+        raise IngestionError(
+            ErrorCode.EXTRACTION_CONTRACT_VIOLATION,
+            detail=f"transcription rejected: {error}",
+        ) from error
+
+    numbering = printed_numbering(transcription)
+    metrics = evaluate_extraction(book, report, approved_toc=approved_toc)
+    logger.info(
+        "built transcribed book for job %s: %s", job.id, numbering.provenance()
+    )
+
+    with _database(database_url) as connection:
+        record_progress(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            completed=report.page_count,
+            total=report.page_count,
+            unit="pages",
+        )
+    job = _check_cancelled(job, database_url=database_url)
+
+    with _database(database_url) as connection:
+        job = advance_stage(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            current_status=job.status,
+            status=Status.PERSISTING,
+            stage=Stage.PERSIST_CANONICAL,
+            provenance={
+                "parser": {
+                    "version": f"transcript-{PARSER_VERSION}",
+                    **metrics,
+                },
+                "printed_numbering": numbering.provenance(),
+            },
         )
         book_id = _persist_canonical(
             connection,

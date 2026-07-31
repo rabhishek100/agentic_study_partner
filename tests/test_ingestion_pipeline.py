@@ -79,13 +79,24 @@ class StubOcrProvider:
     model_id = "test/vision-1"
     prompt_hash = "stub-prompt"
 
+    # A page of real prose, so the extraction-quality gate sees a plausible
+    # book rather than a stub too thin to be worth importing.
+    BODY = (
+        "A proximity service discovers nearby places such as restaurants and "
+        "theaters, and powers features like finding the best restaurants near "
+        "a location. The design begins by narrowing scope: whether the user "
+        "may specify a search radius, and whether the system expands that "
+        "radius when too few businesses fall inside it."
+    )
+
     def transcribe(self, image: bytes, mime_type: str, page: int):
         from ingestion.ocr import PageTranscription
 
         del image, mime_type
         return PageTranscription(
             page=page,
-            text=f"# Chapter {page}\n\nBody text for page {page}.",
+            text=f"# Chapter {page}\n\n{self.BODY}\n\n"
+            f"<!-- footer: | {page} -->",
             provider=self.name,
             model_id=self.model_id,
             render_dpi=72,
@@ -418,6 +429,54 @@ class StubbedParserTests(PipelineFixture):
         self.assertEqual(review["state"], "pending")
         self.assertEqual(review["outline_source"], "transcribed_headings")
         self.assertTrue(review["entries"])
+
+    def test_a_transcribed_scan_becomes_a_ready_book_after_review(self):
+        """The whole scanned path: transcribe, review, build, ingest.
+
+        The second pass must not run the PDF parser. On a pure scan it would
+        read the same pixels with a weaker engine and find nothing at all, so
+        the book is built from the transcription already stored.
+        """
+
+        self.dependencies = PipelineDependencies(
+            embedder_factory=DeterministicEmbedder,
+            ocr_factory=StubOcrProvider,
+            ocr_reference_factory=lambda: None,
+        )
+        first_claim = self.claim(scanned_pdf(self.directory / "scan.pdf"))
+
+        paused = self.run_claimed(first_claim)
+        self.assertEqual(paused.job.status, Status.NEEDS_TOC_REVIEW)
+
+        review = outline_review(paused.job)
+        confirmed = [
+            (entry["level"], entry["title"], entry["page"])
+            for entry in review["entries"]
+        ]
+        with connection(self.database_url) as database:
+            confirm_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=first_claim.id,
+                toc=confirmed,
+            )
+            second_claim = claim_next_job(
+                database, worker_id="test-worker", limits=LIMITS
+            )
+
+        outcome = self.run_claimed(second_claim)
+
+        self.assertEqual(outcome.job.status, Status.READY)
+        self.assertIsNotNone(outcome.book_id)
+        # Built from the transcription, and recorded as such: a reader asking
+        # where this text came from gets the transcription, not a parse that
+        # never happened.
+        provenance = outcome.job.provenance
+        self.assertTrue(provenance["parser"]["version"].startswith("transcript-"))
+        self.assertIn("printed_numbering", provenance)
+        with connection(self.database_url) as database:
+            books = list_books(database, owner_id=self.owner)
+        self.assertEqual(len(books), 1)
 
     def test_a_source_deleted_after_queueing_fails_the_job(self):
         job = self.claim(structured_pdf(self.directory / "book.pdf"))

@@ -90,8 +90,18 @@ diagram page trades a small risk for a certain one.
 Deterministic, and it reads Stage A's Markdown rather than the image:
 
 - heading levels from Markdown depth plus the existing numbering patterns;
-- printed page number from the footer line, giving the printed-to-PDF offset,
-  computed and validated across sampled pages rather than assumed constant;
+- printed page number from the running margins, giving the printed-to-PDF
+  offset. Every integer in a margin proposes an offset and the one the most
+  pages agree on wins, which is what separates a page number from the other
+  numbers beside it: a page number advances in step with the page, so its
+  offset is constant, while a chapter number stays put and its implied offset
+  drifts by one per page. Two pages must agree before an offset is believed.
+  The offset may be **negative** — the GenAI scan was made from a copy with its
+  front matter removed, so printed 288 lands on PDF page 280. An earlier
+  version assumed a printed number could never exceed its PDF page, which ruled
+  the true number out and elected `Chapter 9` instead. Roman-numbered front
+  matter is counted and reported but never votes, because it restarts at 1 and
+  would put two incompatible offsets in one tally;
 - tables into `TableBlock.html` with a plain-text fallback;
 - figures cropped from the page render at the model's reported region, or
   referenced whole when it reports none, then captioned by the existing
@@ -105,7 +115,19 @@ real page the values are accurate and merely scaled, so the parser accepts
 both conventions rather than enforcing one.
 
 LaTeX is stripped before BM25 indexing and kept for display, so `\frac` never
-becomes a search term in the chapters that are most math-heavy.
+becomes a search term in the chapters that are most math-heavy. `chunks` gained
+a `search_text` column holding the indexable rendering when it differs and null
+when it does not, which is every chunk of every natively digital book. Only the
+markup is removed; the words and numbers inside the mathematics stay, so
+"64 x 64 pixels" still finds the page that prints `$64 \times 64$`.
+
+Sectioning is where transcription pays off. The PDF parser has to *locate* a
+heading among positioned elements to split a page between two sections and
+sometimes cannot — one unlocatable heading once cost a 279-page book its
+sub-page attribution. In a transcription the heading is marked as a heading, so
+the split is a string comparison, matched on words rather than characters
+because an outline entry and its printed heading routinely disagree about
+punctuation and whether the number is joined to the title.
 
 Output goes through `assess_outline` and into `needs_toc_review`. Confirmation
 is **mandatory for every OCR-backed book**. For these four sources that is

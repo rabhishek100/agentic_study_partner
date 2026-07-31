@@ -25,6 +25,8 @@ import fitz
 
 from .config import IngestionLimits
 from .errors import ErrorCode, IngestionError
+from parsing.markup import parse_page_markup
+
 from .ocr import (
     FabricationAssessment,
     OcrBudget,
@@ -32,7 +34,6 @@ from .ocr import (
     OcrProvider,
     PageTranscription,
     assess_fabrication,
-    parse_page_markup,
     render_page,
 )
 from .ocr_store import OcrPageSummary, completed_pages, page_summary, record_page
