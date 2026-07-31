@@ -72,6 +72,19 @@ class CreateIngestionResponse(ContractModel):
     upload_method: Literal["tus"] = "tus"
 
 
+class IngestionLimitsResponse(ContractModel):
+    """What the browser must know before it offers to upload anything.
+
+    Served rather than compiled in, so the limit lives in one place. The
+    browser previously hardcoded its own copy, which drifted from the real
+    ceiling and let a too-large file reach Storage before anything said no.
+    """
+
+    maximum_bytes: int
+    maximum_pages: int
+    allowed_content_types: list[str]
+
+
 class JobProgress(ContractModel):
     completed: int
     total: int | None
@@ -416,6 +429,19 @@ async def list_ingestions(
 
     return JobListResponse(
         jobs=[_represent(job) for job in await run_in_threadpool(load)]
+    )
+
+
+@router.get("/limits")
+async def read_limits() -> IngestionLimitsResponse:
+    """The active upload limits. Declared before `/{job_id}` so the literal
+    path is not read as a job identifier."""
+
+    limits = load_limits()
+    return IngestionLimitsResponse(
+        maximum_bytes=limits.max_source_bytes,
+        maximum_pages=limits.max_pages,
+        allowed_content_types=list(limits.allowed_content_types),
     )
 
 

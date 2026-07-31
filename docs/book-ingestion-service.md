@@ -37,7 +37,7 @@ automatic multi-worker scaling are explicitly deferred.
 | Decision | Initial value |
 |---|---|
 | Ownership | Multi-user, one private library per authenticated user |
-| Maximum source size | 100 MiB / 104,857,600 bytes |
+| Maximum source size | 50 MB / 52,428,800 bytes |
 | Maximum pages | 1,000 |
 | Source formats | PDF only |
 | Initial document class | Digital PDF with embedded text and embedded TOC |
@@ -51,9 +51,9 @@ automatic multi-worker scaling are explicitly deferred.
 | Retrieval readiness | Postgres FTS chunks and compatible pgvector embeddings |
 | Application hosting | Railway web, API, and worker services |
 
-The 100 MiB limit must be enforced in the browser, Storage bucket configuration,
+The 50 MB limit must be enforced in the browser, Storage bucket configuration,
 API metadata validation, and worker preflight. The page limit is independent:
-a highly compressed PDF can be below 100 MiB and still be expensive to parse.
+a highly compressed PDF can be below 50 MB and still be expensive to parse.
 
 ## Goals
 
@@ -76,7 +76,7 @@ a highly compressed PDF can be below 100 MiB and still be expensive to parse.
 
 - Anonymous uploads.
 - Shared libraries or collaborative book ownership.
-- PDFs over 100 MiB or 1,000 pages.
+- PDFs over 50 MB or 1,000 pages.
 - Password-protected PDFs.
 - Automatic hierarchy invention for scanned or TOC-less books.
 - PowerPoint, EPUB, HTML, video, or audio ingestion.
@@ -96,7 +96,7 @@ sufficiency checks, and bounded retries are inspectable agent decisions.
 
 1. The user signs in.
 2. The user chooses a PDF.
-3. The browser rejects an obviously invalid type or a file over 100 MiB.
+3. The browser rejects an obviously invalid type or a file over the served limit.
 4. FastAPI creates an owner-scoped ingestion job and immutable Storage path.
 5. The browser uploads directly to private Storage with resumable TUS.
 6. The browser tells FastAPI that the upload completed.

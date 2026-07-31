@@ -14,11 +14,15 @@ import type {
   CreateIngestionResponse,
   IngestionJob,
   IngestionJobList,
+  IngestionLimitsResponse,
   JobStatus,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const MAXIMUM_BYTES = 104_857_600; // enforced again by the bucket, API, worker
+// Only a starting guess for the first paint. The API serves the real limit,
+// which is what actually gates an upload; hardcoding a second copy here is
+// what let a 91 MiB file past the browser and into a Storage 413.
+const FALLBACK_MAXIMUM_BYTES = 52_428_800;
 // Supabase's resumable endpoint requires exactly 6 MiB chunks (final chunk
 // excepted); other sizes are rejected.
 const TUS_CHUNK_BYTES = 6 * 1024 * 1024;
@@ -57,6 +61,13 @@ const STATUS_LABELS: Record<JobStatus, string> = {
   failed: "Failed",
   cancelled: "Cancelled",
 };
+
+function formatMegabytes(bytes: number) {
+  // Storage limits are quoted in MB, not MiB: showing "50 MiB" next to a
+  // ceiling the platform states as 50 MB invites exactly the confusion this
+  // change removes.
+  return Math.round(bytes / 1_000_000);
+}
 
 function statusLabel(status: JobStatus | undefined) {
   return status ? (STATUS_LABELS[status] ?? status) : "";
@@ -117,6 +128,7 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
+  const [maximumBytes, setMaximumBytes] = useState(FALLBACK_MAXIMUM_BYTES);
   // Advances once a second so elapsed time moves between the 2.5s polls,
   // instead of the clock visibly freezing and jumping.
   const [now, setNow] = useState(0);
@@ -130,6 +142,27 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
   const jobStatus = job?.status ?? pending?.status;
   const isActive = jobStatus !== undefined && ACTIVE_STATUSES.has(jobStatus);
   const waitingForReview = jobStatus === "needs_toc_review";
+
+  // The upload ceiling is a deployment setting, not a constant, so it is read
+  // from the API rather than compiled in. On failure the fallback still
+  // rejects oversized files; it just may not name the exact number.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const limits =
+          await apiFetch<IngestionLimitsResponse>("/ingestions/limits");
+        if (!cancelled && limits.maximum_bytes > 0) {
+          setMaximumBytes(limits.maximum_bytes);
+        }
+      } catch {
+        // Keep the fallback; the API rejects an oversized file regardless.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Reattach to a job still running from an earlier visit. The job lives in
   // Postgres, not in this tab, so a reload or a different device should pick
@@ -202,8 +235,11 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
       setError("Only PDF files are supported.");
       return;
     }
-    if (file.size > MAXIMUM_BYTES) {
-      setError("This file is larger than the 100 MiB upload limit.");
+    if (file.size > maximumBytes) {
+      setError(
+        `This file is ${formatMegabytes(file.size)} MB, over the ` +
+          `${formatMegabytes(maximumBytes)} MB upload limit.`,
+      );
       return;
     }
 
@@ -362,7 +398,7 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
             ? "Working on your book…"
             : "Choose a PDF"}
         <span className="text-xs font-normal text-muted-foreground">
-          Up to 100 MiB
+          Up to {formatMegabytes(maximumBytes)} MB
         </span>
         <input
           ref={fileInputRef}

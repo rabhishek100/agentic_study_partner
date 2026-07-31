@@ -305,7 +305,7 @@ class LimitTests(unittest.TestCase):
 
         limits = IngestionLimits()
 
-        self.assertEqual(limits.max_source_bytes, 104_857_600)
+        self.assertEqual(limits.max_source_bytes, 52_428_800)
         self.assertEqual(limits.max_pages, 1000)
         self.assertEqual(limits.allowed_content_types, ("application/pdf",))
 

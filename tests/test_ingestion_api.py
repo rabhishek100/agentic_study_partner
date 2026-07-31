@@ -138,7 +138,7 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
             payload["storage_path"],
             f"{self.owner}/{payload['job_id']}/original.pdf",
         )
-        self.assertEqual(payload["maximum_bytes"], 104_857_600)
+        self.assertEqual(payload["maximum_bytes"], 52_428_800)
         self.assertEqual(payload["upload_method"], "tus")
 
     async def test_replaying_an_idempotency_key_returns_the_same_job(self):
@@ -179,11 +179,29 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
             wrong_type.json()["detail"]["code"], "unsupported_content_type"
         )
 
-    async def test_a_pdf_up_to_100_mib_can_be_reserved(self):
-        response = await self.create(content_length=104_857_600)
+    async def test_a_pdf_up_to_the_limit_can_be_reserved(self):
+        response = await self.create(content_length=52_428_800)
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()["maximum_bytes"], 104_857_600)
+        self.assertEqual(response.json()["maximum_bytes"], 52_428_800)
+
+    async def test_a_pdf_over_the_limit_is_refused_before_any_upload(self):
+        """The browser reads this same number, so an oversized file is named
+        as such instead of reaching Storage and coming back as a bare 413."""
+
+        response = await self.create(content_length=52_428_801)
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json()["detail"]["code"], "source_too_large")
+
+    async def test_the_active_limits_are_served_to_the_browser(self):
+        response = await self.client.get("/api/ingestions/limits")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["maximum_bytes"], 52_428_800)
+        self.assertEqual(payload["maximum_pages"], 1000)
+        self.assertEqual(payload["allowed_content_types"], ["application/pdf"])
 
     async def test_the_pending_quota_is_enforced_per_owner(self):
         for _ in range(3):

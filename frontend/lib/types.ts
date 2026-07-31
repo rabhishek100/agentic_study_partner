@@ -273,6 +273,12 @@ export interface CreateIngestionResponse {
   upload_method: "tus";
 }
 
+export interface IngestionLimitsResponse {
+  maximum_bytes: number;
+  maximum_pages: number;
+  allowed_content_types: string[];
+}
+
 export interface OutlineEntry {
   level: number;
   title: string;

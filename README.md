@@ -121,7 +121,7 @@ directly to private Storage, and the worker does the rest outside the request:
 
 ```text
 POST /api/ingestions            reserve {owner_id}/{job_id}/original.pdf
-  -> upload to private Storage  resumable, 100 MiB and application/pdf only
+  -> upload to private Storage  resumable, 50 MB and application/pdf only
 POST /api/ingestions/{id}/complete   verify the stored object, queue the job
 GET  /api/ingestions/{id}       durable status while the worker runs
 GET  /api/books                 the book appears only after verification
@@ -172,7 +172,7 @@ Current limits, all configurable:
 
 | Limit | Value |
 |---|---:|
-| Source object size | 100 MiB |
+| Source object size | 50 MB |
 | PDF pages | 1,000 |
 | Pending jobs per user | 3 |
 | Worker concurrency | 1 |
