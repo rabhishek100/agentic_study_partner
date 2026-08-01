@@ -866,14 +866,20 @@ async def book_source(
                 raise BOOK_NOT_FOUND
             details = connection.execute(
                 """
-                select source_storage_bucket, source_storage_path, page_count
+                select source_storage_bucket, source_storage_path,
+                       viewer_storage_bucket, viewer_storage_path, page_count
                 from books where id = %s and owner_id = %s
                 """,
                 (book_id, owner_id),
             ).fetchone()
 
-        bucket = details["source_storage_bucket"]
-        path = details["source_storage_path"]
+        # A viewer copy wins when there is one. It exists only for books whose
+        # own bytes could not be stored - a scan above the upload ceiling - and
+        # it is a rendering of the same pages, so a citation still lands where
+        # it should. The source stays the hash-identified original everywhere
+        # else in the system.
+        bucket = details["viewer_storage_bucket"] or details["source_storage_bucket"]
+        path = details["viewer_storage_path"] or details["source_storage_path"]
         if not bucket or not path:
             # Books imported by the manual CLI path never had a stored object.
             raise SOURCE_UNAVAILABLE
