@@ -58,6 +58,18 @@ MAXIMUM_PROPOSED_ENTRIES = 500
 # as a heading is the usual case.
 MINIMUM_TITLE_CHARACTERS = 3
 
+# Many books print the current section in a running footer. On a chapter's
+# opening page there is no section yet, so that footer carries the page number
+# alone. Measured against the published chapter list of one scanned book, this
+# separated its eleven real chapters from four sections promoted beside them
+# with no mistakes in either direction.
+#
+# It is only believed when the book demonstrably uses the convention, and it
+# only ever demotes. Promoting on a missing footer would turn every page the
+# transcription read badly into a chapter.
+MINIMUM_SECTION_FOOTER_RATIO = 0.5
+_FOOTER_WORD = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
+
 _TITLE_WORD = re.compile(r"[^\W_]+", re.UNICODE)
 
 
@@ -248,8 +260,11 @@ def propose_outline_from_transcription(
 
     counts: Counter[str] = Counter()
     headings: list[tuple[int, int, str]] = []
+    footers: dict[int, str] = {}
     for page, text in pages:
-        for line in parse_page_markup(text).body.splitlines():
+        markup = parse_page_markup(text)
+        footers[page] = markup.footer
+        for line in markup.body.splitlines():
             match = _HEADING.match(line.strip())
             if match is None:
                 continue
@@ -259,6 +274,11 @@ def propose_outline_from_transcription(
                 continue
             headings.append((page, len(match.group("hashes")), title))
             counts[comparable] += 1
+
+    named_footers = sum(1 for text in footers.values() if _FOOTER_WORD.search(text))
+    section_footers = bool(footers) and (
+        named_footers / len(footers) >= MINIMUM_SECTION_FOOTER_RATIO
+    )
 
     entries: list[tuple[int, str, int]] = []
     # Observed heading depths in order of first appearance. Markdown depth is
@@ -282,6 +302,11 @@ def propose_outline_from_transcription(
         if counts[comparable] > 1:
             # It appears elsewhere in the book, so it names a part of something
             # rather than the whole of one.
+            level = max(level, 2)
+
+        if section_footers and _FOOTER_WORD.search(footers.get(page, "")):
+            # This page's running footer names the section it sits inside, so
+            # the page is not opening a chapter.
             level = max(level, 2)
 
         # Clamp to one deeper than the last entry actually emitted; the depth

@@ -197,6 +197,48 @@ class OutlineProposalTests(unittest.TestCase):
 
         self.assertEqual([title for _, title, _ in entries], ["Sampling", "Ranking"])
 
+    def test_a_page_whose_footer_names_a_section_is_not_a_chapter(self) -> None:
+        """Many books print the current section in a running footer.
+
+        On a chapter's opening page there is no section yet, so that footer
+        carries the page number alone. Checked against the published chapter
+        list of a real scanned book, this separated its eleven chapters from
+        four sections promoted beside them with no mistakes either way — and
+        those four had been stealing the chapters' page ranges, so "summarize
+        chapter 2" saw five pages instead of sixty.
+        """
+
+        pages = [
+            (1, "<!-- footer: | 1 -->\n# Gmail Smart Compose"),
+            (2, "<!-- footer: Data Preparation | 3 -->\n# Text cleaning"),
+            (3, "<!-- footer: Evaluation | 4 -->\n# CIDEr"),
+            (4, "<!-- footer: | 5 -->\n# Google Translate"),
+        ]
+
+        entries = propose_outline_from_transcription(pages)
+
+        chapters = [title for level, title, _ in entries if level == 1]
+        self.assertEqual(chapters, ["Gmail Smart Compose", "Google Translate"])
+
+    def test_the_footer_rule_is_ignored_by_a_book_that_lacks_the_convention(
+        self,
+    ) -> None:
+        """Promoting on a missing footer would make every badly-read page a chapter.
+
+        So the rule is only believed when the book demonstrably uses it, and it
+        only ever demotes.
+        """
+
+        pages = [
+            (1, "<!-- footer: | 1 -->\n# Chapter One"),
+            (2, "<!-- footer: | 2 -->\n# Chapter Two"),
+            (3, "<!-- footer: | 3 -->\n# Chapter Three"),
+        ]
+
+        entries = propose_outline_from_transcription(pages)
+
+        self.assertEqual([level for level, _, _ in entries], [1, 1, 1])
+
     def test_an_oversized_proposal_loses_depth_not_its_tail(self) -> None:
         """Cutting the tail leaves the end of the book unaddressable.
 
