@@ -38,7 +38,7 @@ def _books(connection, owner, book_id):
 def _nodes(connection, owner, book_id):
     return connection.execute(
         """
-        select id, toc_index, toc_level, title, node_type
+        select id, toc_index, toc_level, title, node_type, start_page
         from nodes where owner_id = %s and book_id = %s
         order by toc_index
         """,
@@ -74,8 +74,12 @@ def main() -> None:
 
             levels = [row["toc_level"] for row in rows]
             titles = [row["title"] for row in rows]
-            detected = chapter_level(levels, titles)
-            roles = outline_roles(levels, titles)
+            # Pages distinguish a book's chapter sequence from a numbered list
+            # inside one of its pages; omitting them is what let four
+            # diffusion-model steps become a 351-page book's chapters.
+            pages = [row["start_page"] for row in rows]
+            detected = chapter_level(levels, titles, pages)
+            roles = outline_roles(levels, titles, pages)
 
             changes = [
                 (row["id"], row["node_type"], role)

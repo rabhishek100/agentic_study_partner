@@ -10,6 +10,7 @@ from ingestion.errors import ErrorCode, IngestionError
 from ingestion.jobs import create_job
 from ingestion.ocr import FabricationAssessment, PageTranscription
 from ingestion.ocr_stage import (
+    MAXIMUM_PROPOSED_ENTRIES,
     propose_outline_from_transcription,
     require_proposable,
     transcribe_book,
@@ -150,6 +151,70 @@ class OutlineProposalTests(unittest.TestCase):
         levels = [level for level, _, _ in entries]
         for index in range(1, len(levels)):
             self.assertLessEqual(levels[index], levels[index - 1] + 1)
+
+    def test_a_recurring_heading_is_never_a_chapter(self) -> None:
+        """A chapter title is unique to its chapter; a template step is not.
+
+        Measured on a book of case studies: eleven chapters each contain "Data
+        Preparation", "Model Development" and "Evaluation". Taking heading
+        depth at face value put those beside the real chapters, so `list the
+        chapters` answered with 31 entries of which half were template steps.
+        """
+
+        pages = [
+            (1, "# Gmail Smart Compose"),
+            (2, "# Data Preparation"),
+            (3, "# Model Development"),
+            (40, "# Google Translate"),
+            (41, "# Data Preparation"),
+            (42, "# Model Development"),
+        ]
+
+        entries = propose_outline_from_transcription(pages)
+
+        chapters = [title for level, title, _ in entries if level == 1]
+        self.assertEqual(chapters, ["Gmail Smart Compose", "Google Translate"])
+
+    def test_a_recurring_heading_is_kept_under_every_chapter(self) -> None:
+        """Demoting it must not merge eleven real sections into one."""
+
+        pages = [
+            (1, "# Gmail Smart Compose"),
+            (2, "# Data Preparation"),
+            (40, "# Google Translate"),
+            (41, "# Data Preparation"),
+        ]
+
+        entries = propose_outline_from_transcription(pages)
+
+        preparations = [(l, p) for l, title, p in entries if title == "Data Preparation"]
+        self.assertEqual(preparations, [(2, 2), (2, 41)])
+
+    def test_the_same_heading_continuing_across_a_page_break_is_one_entry(self) -> None:
+        entries = propose_outline_from_transcription(
+            [(1, "# Sampling"), (2, "# Sampling"), (3, "# Ranking")]
+        )
+
+        self.assertEqual([title for _, title, _ in entries], ["Sampling", "Ranking"])
+
+    def test_an_oversized_proposal_loses_depth_not_its_tail(self) -> None:
+        """Cutting the tail leaves the end of the book unaddressable.
+
+        Dropping the deepest level costs granularity evenly and keeps every
+        chapter, which is the property that matters for citation.
+        """
+
+        pages = [(1, "# Opening")]
+        for index in range(2, MAXIMUM_PROPOSED_ENTRIES + 200):
+            pages.append((index, f"### Deep topic {index}"))
+        pages.append((MAXIMUM_PROPOSED_ENTRIES + 400, "# Closing"))
+
+        entries = propose_outline_from_transcription(pages)
+
+        self.assertLessEqual(len(entries), MAXIMUM_PROPOSED_ENTRIES)
+        titles = [title for _, title, _ in entries]
+        self.assertIn("Opening", titles)
+        self.assertIn("Closing", titles)
 
     def test_a_book_with_no_headings_fails_instead_of_parking_for_review(self) -> None:
         """An empty review queue entry wastes a reviewer's time and hides a bug."""

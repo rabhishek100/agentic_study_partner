@@ -12,12 +12,14 @@ handing them to a human. The proposal is evidence; only confirmation makes it
 eligible for parsing.
 """
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
 import threading
+import unicodedata
 from pathlib import Path
 from uuid import UUID
 
@@ -51,6 +53,19 @@ MINIMUM_CONTENTS_OUTLINE = 3
 # Same ceiling the typography proposer uses: past this, a proposal has stopped
 # being a hierarchy a person can review.
 MAXIMUM_PROPOSED_ENTRIES = 500
+
+# A title shorter than this carries no word worth indexing; a stray digit read
+# as a heading is the usual case.
+MINIMUM_TITLE_CHARACTERS = 3
+
+_TITLE_WORD = re.compile(r"[^\W_]+", re.UNICODE)
+
+
+def _comparable_title(title: str) -> str:
+    """Normalize a heading so the same section reads the same everywhere."""
+
+    return " ".join(_TITLE_WORD.findall(unicodedata.normalize("NFKD", title).casefold()))
+
 
 # A Markdown heading, which is how the transcription marks a visual heading.
 _HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<title>\S.*?)\s*$")
@@ -211,12 +226,39 @@ def propose_outline_from_transcription(
 ) -> list[tuple[int, str, int]]:
     """Read a candidate hierarchy off the transcription's heading markup.
 
-    Deliberately shallow. It exists so a transcribed book can reach a reviewer
-    at all, and it is superseded by the printed-contents parser for books that
-    have one. What it must not do is look more certain than it is: a reviewer
-    correcting a visibly rough list is safe, and a reviewer rubber-stamping a
-    confident wrong one is not.
+    Two properties of transcribed headings shape this, and neither applies to a
+    publisher's outline.
+
+    *Heading depth is not globally consistent.* Pages are transcribed in
+    isolation — deliberately, so one bad page cannot poison its neighbours —
+    so nothing makes page 40 agree with page 200 about whether a given heading
+    is `#` or `##`. Measured on one book: "Clarifying Requirements" appears at
+    both depths, "Training" at three.
+
+    *A recurring heading is a section, not a chapter.* A chapter title is
+    unique to its chapter. In that same book eleven chapters each contain
+    "Data Preparation", "Model Development" and "Evaluation", because every
+    case study follows one template. Taking depth at face value put those at
+    the top level beside the real chapters, so `list the chapters` answered
+    with 31 entries of which half were template steps.
+
+    Counting titles first fixes both: anything that recurs is refused the top
+    level, which leaves the chapters to the titles that are actually unique.
     """
+
+    counts: Counter[str] = Counter()
+    headings: list[tuple[int, int, str]] = []
+    for page, text in pages:
+        for line in parse_page_markup(text).body.splitlines():
+            match = _HEADING.match(line.strip())
+            if match is None:
+                continue
+            title = " ".join(match.group("title").split())
+            comparable = _comparable_title(title)
+            if len(comparable) < MINIMUM_TITLE_CHARACTERS:
+                continue
+            headings.append((page, len(match.group("hashes")), title))
+            counts[comparable] += 1
 
     entries: list[tuple[int, str, int]] = []
     # Observed heading depths in order of first appearance. Markdown depth is
@@ -224,49 +266,68 @@ def propose_outline_from_transcription(
     # level-1 root, and one that skips from # to ### must not leave an entry
     # with no parent to attach to.
     depths: list[int] = []
-    previous_page = 0
     emitted_level = 0
-    seen: set[tuple[str, int]] = set()
+    previous_page = 0
 
-    for page, text in pages:
+    for page, depth, title in headings:
         page = max(page, previous_page)
-        for line in parse_page_markup(text).body.splitlines():
-            match = _HEADING.match(line.strip())
-            if match is None:
-                continue
-            title = " ".join(match.group("title").split())
-            if not title:
-                continue
-            depth = len(match.group("hashes"))
+        comparable = _comparable_title(title)
 
-            while depths and depths[-1] > depth:
-                depths.pop()
-            if not depths or depths[-1] < depth:
-                depths.append(depth)
-            level = depths.index(depth) + 1
+        while depths and depths[-1] > depth:
+            depths.pop()
+        if not depths or depths[-1] < depth:
+            depths.append(depth)
+        level = depths.index(depth) + 1
 
-            if (title, level) in seen:
-                # A running heading repeated across pages is furniture, not a
-                # new section.
-                continue
-            seen.add((title, level))
+        if counts[comparable] > 1:
+            # It appears elsewhere in the book, so it names a part of something
+            # rather than the whole of one.
+            level = max(level, 2)
 
-            # Clamp to one deeper than the last entry actually emitted. The
-            # depth stack tracks every heading seen, including the repeats
-            # skipped above, so it can advance while nothing is emitted and
-            # leave the next entry two levels below its predecessor. The
-            # hierarchy validator refuses that, which turned a confirmed
-            # 394-entry outline into a failed job. One book in this corpus
-            # repeats 31 of its headings, because every chapter follows the
-            # same interview template.
-            level = min(level, emitted_level + 1)
-            emitted_level = level
-            entries.append((level, title, page))
-            previous_page = page
-            if len(entries) >= MAXIMUM_PROPOSED_ENTRIES:
-                return entries
+        # Clamp to one deeper than the last entry actually emitted; the depth
+        # stack tracks headings that were skipped, so it can advance while
+        # nothing is emitted and orphan the next entry.
+        level = min(level, emitted_level + 1)
 
-    return entries
+        if entries and _comparable_title(entries[-1][1]) == comparable:
+            # The same heading continuing across a page break, not a new
+            # section. Only an immediate repeat: the same title under a
+            # different chapter is a different section and is kept.
+            continue
+
+        emitted_level = level
+        previous_page = page
+        entries.append((level, title, page))
+
+    return _within_review_budget(entries)
+
+
+def _within_review_budget(
+    entries: list[tuple[int, str, int]],
+) -> list[tuple[int, str, int]]:
+    """Trim the deepest levels until a reviewer can work through the list.
+
+    Trimming by depth rather than by position matters. Cutting the tail leaves
+    the end of the book with no entries at all and therefore unaddressable,
+    while dropping the deepest level costs granularity evenly and keeps every
+    chapter.
+    """
+
+    if len(entries) <= MAXIMUM_PROPOSED_ENTRIES:
+        return entries
+
+    trimmed = list(entries)
+    while len(trimmed) > MAXIMUM_PROPOSED_ENTRIES:
+        deepest = max(level for level, _, _ in trimmed)
+        if deepest <= 1:
+            break
+        logger.info(
+            "proposal has %s entries; dropping level %s to fit the review budget",
+            len(trimmed),
+            deepest,
+        )
+        trimmed = [entry for entry in trimmed if entry[0] < deepest]
+    return trimmed[:MAXIMUM_PROPOSED_ENTRIES]
 
 
 @dataclass(frozen=True)
