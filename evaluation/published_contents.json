@@ -1,0 +1,64 @@
+{
+  "purpose": "Published chapter lists, for checking an extracted outline against the book itself rather than against the pipeline that produced it.",
+  "why": "Every internal check an outline can be given - does each title appear on its page, do the levels nest, do the pages ascend - passed on an outline containing four sections promoted to chapters. Those four stole 56 pages from one real chapter and 6 from another, so summarizing chapter 2 retrieved five pages of sixty and looked complete doing it. Only comparison with the published contents caught it.",
+  "authored": "2026-08-02, from publisher and retailer listings; each entry records where it came from.",
+  "books": [
+    {
+      "title": "System Design Interview - An Insider's Guide: Volume 2",
+      "authors": "Alex Xu, Sahn Lam",
+      "isbn": "9781736049112",
+      "source": "https://www.amazon.com/System-Design-Interview-Insiders-Guide/dp/1736049119",
+      "match_on": "pdfcoffee.com_system-design-interview",
+      "chapters": [
+        "Proximity Service",
+        "Nearby Friends",
+        "Google Maps",
+        "Distributed Message Queue",
+        "Metrics Monitoring and Alerting System",
+        "Ad Click Event Aggregation",
+        "Hotel Reservation System",
+        "Distributed Email Service",
+        "S3-like Object Storage",
+        "Real-time Gaming Leaderboard",
+        "Payment System",
+        "Digital Wallet",
+        "Stock Exchange"
+      ]
+    },
+    {
+      "title": "The Hundred-Page Language Models Book: hands-on with PyTorch",
+      "authors": "Andriy Burkov",
+      "isbn": "9781778042720",
+      "source": "https://thelmbook.com/",
+      "match_on": "Hundred-Page Language Models",
+      "chapters": [
+        "Machine Learning Basics",
+        "Language Modeling Basics",
+        "Recurrent Neural Network",
+        "Transformer",
+        "Large Language Model",
+        "Further Reading"
+      ]
+    },
+    {
+      "title": "Generative AI System Design Interview",
+      "authors": "Ali Aminian, Hao Sheng",
+      "isbn": "9781736049143",
+      "source": "https://www.amazon.com/Generative-AI-System-Design-Interview/dp/1736049143",
+      "match_on": "generative-ai-system-design",
+      "chapters": [
+        "Introduction and Overview",
+        "Gmail Smart Compose",
+        "Google Translate",
+        "ChatGPT: Personal Assistant Chatbot",
+        "Image Captioning",
+        "Retrieval-Augmented Generation",
+        "Realistic Face Generation",
+        "High-Resolution Image Synthesis",
+        "Text-to-Image Generation",
+        "Personalized Headshot Generation",
+        "Text-to-Video Generation"
+      ]
+    }
+  ]
+}

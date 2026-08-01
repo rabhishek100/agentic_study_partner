@@ -2,6 +2,7 @@
 
 import unittest
 
+from scripts.evaluate_outlines import _matches
 from evals.transcription import (
     FORMULA,
     PATHOLOGICAL,
@@ -174,6 +175,50 @@ class ScorePageTests(unittest.TestCase):
         self.assertIn("cer", provenance)
         self.assertIn("fabricated_spans", provenance)
 
+
+
+
+class PublishedChapterMatchTests(unittest.TestCase):
+    """Comparing an extracted chapter to the one a publisher lists.
+
+    The rule has to be loose enough to accept real disagreement between a
+    retailer's listing and the book's own heading, and tight enough that a
+    section promoted to a chapter is still counted as spurious. Too loose and
+    the check reports success on the outline it was written to catch.
+    """
+
+    def test_a_printed_chapter_number_does_not_prevent_a_match(self) -> None:
+        self.assertTrue(_matches("1 Proximity Service", "Proximity Service"))
+        self.assertTrue(_matches("Chapter 4. Transformer", "Transformer"))
+
+    def test_a_trailing_clause_does_not_prevent_a_match(self) -> None:
+        """"Metrics Monitoring" against "Metrics Monitoring and Alerting System"."""
+
+        self.assertTrue(
+            _matches("5 Metrics Monitoring and Alerting System", "Metrics Monitoring")
+        )
+
+    def test_punctuation_and_case_do_not_prevent_a_match(self) -> None:
+        self.assertTrue(
+            _matches("ChatGPT: Personal Assistant Chatbot", "chatgpt personal assistant chatbot")
+        )
+
+    def test_a_section_promoted_to_a_chapter_is_still_spurious(self) -> None:
+        """The four that stole 62 pages between them must not slip through."""
+
+        for promoted in (
+            "Text cleaning and normalization",
+            "CIDEr",
+            "A framework for ML system design interviews",
+            "Framing the problem as an ML task",
+        ):
+            for real in ("Gmail Smart Compose", "Image Captioning", "Introduction and Overview"):
+                with self.subTest(promoted=promoted, real=real):
+                    self.assertFalse(_matches(promoted, real))
+
+    def test_an_empty_title_never_matches(self) -> None:
+        self.assertFalse(_matches("", "Transformer"))
+        self.assertFalse(_matches("42", "Transformer"))
 
 if __name__ == "__main__":
     unittest.main()
