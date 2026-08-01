@@ -28,6 +28,7 @@ from ingestion.jobs import (
 )
 from ingestion.pipeline import (
     CancellationRequested,
+    _book_title,
     PipelineDependencies,
     evaluate_extraction,
     run_job,
@@ -774,3 +775,40 @@ class ExtractionQualityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BookTitleTests(unittest.TestCase):
+    """Choosing between the embedded title and the uploaded filename.
+
+    A PDF's metadata title is frequently a placeholder its author never
+    changed. One deck in this corpus carries "TestDoc", which became the name
+    of a 550-slide course in the library.
+    """
+
+    def test_a_placeholder_loses_to_the_filename(self) -> None:
+        self.assertEqual(
+            _book_title("TestDoc", "PythonMastery (1).pdf"), "PythonMastery (1)"
+        )
+        self.assertEqual(
+            _book_title("untitled", "Head First Design Patterns.pdf"),
+            "Head First Design Patterns",
+        )
+
+    def test_a_real_title_beats_an_abbreviated_filename(self) -> None:
+        """Which is the case the metadata is there for."""
+
+        self.assertEqual(
+            _book_title("Designing Machine Learning Systems", "dmls.pdf"),
+            "Designing Machine Learning Systems",
+        )
+
+    def test_a_tool_export_name_is_not_a_title(self) -> None:
+        self.assertEqual(
+            _book_title("Microsoft Word - ch3.docx", "Chapter Three.pdf"),
+            "Chapter Three",
+        )
+
+    def test_a_missing_or_tiny_title_falls_back(self) -> None:
+        self.assertEqual(_book_title(None, "AI Engineering.pdf"), "AI Engineering")
+        self.assertEqual(_book_title("", "AI Engineering.pdf"), "AI Engineering")
+        self.assertEqual(_book_title("ab", "AI Engineering.pdf"), "AI Engineering")

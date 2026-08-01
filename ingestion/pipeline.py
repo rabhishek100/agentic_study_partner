@@ -11,6 +11,7 @@ making decisions. LangGraph stays where inspectable choices actually happen.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
+import re
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -1146,8 +1147,12 @@ def run_job(
             connection,
             owner_id=owner_id,
             job_id=job.id,
-            completed=vectors.total_count,
-            total=vectors.total_count,
+            # This book's chunks, not the library's. `total_count` counts
+            # every embedding the owner has, so a 76-chunk deck reported 3,993
+            # and a reader watching the bar saw a number with no relation to
+            # the book they uploaded.
+            completed=vectors.embedded_count + vectors.unchanged_count,
+            total=vectors.embedded_count + vectors.unchanged_count,
             unit="chunks",
         )
     job = _check_cancelled(job, database_url=database_url)
@@ -1195,6 +1200,42 @@ def run_job(
     return JobOutcome(job=job, book_id=book_id)
 
 
+# Metadata titles are frequently a placeholder the author never changed.
+# One deck in this corpus carries "TestDoc", which would have been the name of
+# a 550-slide course in the library. The uploaded filename is a worse title in
+# principle and a better one in practice whenever the metadata reads like this.
+_PLACEHOLDER_TITLES = frozenset(
+    {
+        "testdoc",
+        "untitled",
+        "document",
+        "presentation",
+        "book",
+        "pdf",
+        "new document",
+        "microsoft word",
+    }
+)
+_FILENAME_TITLE = re.compile(r"\.(?:docx?|pptx?|indd|pages|pdf|tex)$", re.IGNORECASE)
+MINIMUM_TITLE_CHARACTERS = 4
+
+
+def _book_title(metadata_title: str | None, filename: str) -> str:
+    """Choose the better of the embedded title and the uploaded filename."""
+
+    stem = Path(filename).stem
+    candidate = (metadata_title or "").strip()
+    if len(candidate) < MINIMUM_TITLE_CHARACTERS:
+        return stem
+    folded = candidate.casefold()
+    if folded in _PLACEHOLDER_TITLES:
+        return stem
+    # "Microsoft Word - chapter3.docx" and friends: a tool's export name.
+    if _FILENAME_TITLE.search(candidate) or folded.startswith("microsoft word"):
+        return stem
+    return candidate
+
+
 def _persist_canonical(
     connection,
     *,
@@ -1225,7 +1266,7 @@ def _persist_canonical(
             return int(existing["id"])
         delete_book(connection, existing["id"], owner_id=job.owner_id)
 
-    title = report.metadata.get("title") or Path(job.original_filename).stem
+    title = _book_title(report.metadata.get("title"), job.original_filename)
     author = report.metadata.get("author")
     try:
         return ingest_book(
