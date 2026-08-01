@@ -49,6 +49,7 @@ from .jobs import (
     set_stage,
 )
 from .ocr_stage import propose_outline, require_proposable, transcribe_book
+from .outlines import SLIDE_PROPOSER_VERSION
 from .ocr_store import transcribed_text
 from .preflight import (
     OCR,
@@ -547,8 +548,16 @@ def _validate_stage(
                     job_id=job.id,
                     proposal=proposal.as_toc(),
                     reasons=report.decision.reasons,
-                    outline_source=report.decision.outline_source
-                    or "deterministic_proposal",
+                    # Name the proposer that actually ran, not the routing
+                    # decision. A reviewer told "inferred from typography"
+                    # reviews a deck's footer-derived sections more suspiciously
+                    # than they need to.
+                    outline_source=(
+                        "slide_sections"
+                        if proposal.proposer_version == SLIDE_PROPOSER_VERSION
+                        else report.decision.outline_source
+                        or "deterministic_proposal"
+                    ),
                     proposer_version=proposal.proposer_version,
                     warnings=proposal.warnings,
                 )

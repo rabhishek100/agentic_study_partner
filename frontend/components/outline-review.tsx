@@ -31,6 +31,7 @@ const PROPOSAL_ORIGIN: Record<string, string> = {
   transcribed_headings: "These headings were found in the transcribed text",
   deterministic_proposal: "These headings were inferred from typography",
   normalized_embedded: "These headings came from the PDF's embedded outline",
+  slide_sections: "These sections were read from the deck's own footers",
 };
 
 export function OutlineReviewEditor({

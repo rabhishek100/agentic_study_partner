@@ -22,6 +22,7 @@ import fitz
 
 OUTLINE_ANALYZER_VERSION = "outline-analysis-v1"
 OUTLINE_PROPOSER_VERSION = "span-headings-v1"
+SLIDE_PROPOSER_VERSION = "slide-sections-v1"
 MAXIMUM_ASSESSED_HEADINGS = 40
 MAXIMUM_PROPOSED_ENTRIES = 500
 MINIMUM_HEADING_MATCH_RATIO = 0.45
@@ -709,6 +710,27 @@ def propose_outline(document: fitz.Document) -> OutlineProposal:
     return OutlineProposal(entries=tuple(entries), warnings=tuple(warnings))
 
 
+def _slide_proposal(document: fitz.Document) -> OutlineProposal | None:
+    """A deck's sections, when the document is a deck."""
+
+    from parsing.slides import synthesize_slide_outline
+
+    sections = synthesize_slide_outline(document)
+    if not sections:
+        return None
+    return OutlineProposal(
+        entries=tuple(
+            OutlineEntry(level=level, title=title, page=page, source_index=index)
+            for index, (level, title, page) in enumerate(sections)
+        ),
+        proposer_version=SLIDE_PROPOSER_VERSION,
+        warnings=(
+            "sections were read from the deck's own footers; slides inside a "
+            "section are retrieved as content rather than listed here",
+        ),
+    )
+
+
 def analyze_outline(
     document: fitz.Document,
     toc: list[tuple[int, str, int]],
@@ -722,7 +744,12 @@ def analyze_outline(
     poisoning = detect_poisoning(normalization.as_toc())
     proposal = None
     if assessment.needs_review and not likely_ocr_backed:
-        proposal = propose_outline(document)
+        # A deck is asked about first. The span proposer reads every enlarged
+        # line as a heading, which on a 550-slide course produced 500 flat
+        # entries - bullet fragments included - and hit its cap 141 slides
+        # before the end. `synthesize_slide_outline` returns None for anything
+        # that is not a deck, so a book is unaffected.
+        proposal = _slide_proposal(document) or propose_outline(document)
     return OutlineAnalysis(
         normalization=normalization,
         assessment=assessment,

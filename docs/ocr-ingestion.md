@@ -183,14 +183,34 @@ distinct size on all 550 of them; its structure is recovered by plain Python.
 
 ## Slides
 
-Slide decks get their own entity rather than sharing the book tables. This
-departs from the `AGENTS.md` line committing PowerPoint ingestion to the same
-canonical content model; the decision anticipates more decks arriving, and
-`AGENTS.md` is updated rather than left to contradict the code.
+A deck is a book-shaped thing the outline machinery handles badly. PythonMastery
+has no embedded outline, so it fell to the span-heading proposer, which reads
+every enlarged line as a heading: 500 flat entries including bullet fragments
+like "• Performance tradeoffs", truncated at its cap 141 slides before the end.
+Technically ingestible, practically useless.
 
-A slide averages 370 characters. As a retrieval unit that is a bullet fragment
-with no connective prose, so chunking groups consecutive slides within a
-section.
+Its structure is nevertheless completely determined by plain typography. The
+deck is landscape, carries 381 characters a page against a book's 1,554, prints
+a section number in every footer, and sets exactly one line per slide at 61pt
+against a 17.5pt body. `parsing/slides.py` measures those signals and returns
+the deck's nine sections, or **None** for anything that is not a deck — both
+real books in the corpus are correctly refused, which is the mistake that would
+actually cost something. A deck without footer numbering is refused too: a rough
+deck structure is harder to review than an honestly generic one.
+
+What comes out is *sections*, not slides. One entry per slide would mean 550
+review rows and a citation unit of 370 characters, and sections are what a
+course is organised by. Chunking needed no change — the token-based chunker
+already packs six or seven slides into a chunk without being told they are
+slides.
+
+An earlier decision here was to give decks their own entity, separate from the
+book tables. That was reversed once the two halves proved separable: deck-aware
+*structure* is what makes a deck ingestible, while a separate storage entity
+forks retrieval, citations, review and evaluation for a benefit no book in this
+corpus needs yet. Structure was built; the fork was deferred until several decks
+exist to justify it. `AGENTS.md` therefore stands unamended — its commitment to
+one canonical content model still holds.
 
 ## Operational limits
 
