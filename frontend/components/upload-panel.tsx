@@ -415,8 +415,9 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
       </label>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Digital PDFs with a table of contents. Scanned books are not supported
-        yet.
+        Digital PDFs and scanned books. A scan is transcribed page by page,
+        which takes a few minutes and needs its contents confirmed before it
+        can be read.
       </p>
 
       {showProgress && jobStatus && (

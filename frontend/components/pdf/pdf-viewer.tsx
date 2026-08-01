@@ -1,7 +1,13 @@
 "use client";
 
 import { AlertCircle, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -62,7 +68,11 @@ export function PdfViewer({
   const [pageCount, setPageCount] = useState(0);
   const [page, setPage] = useState(target.page);
   const [exactMatch, setExactMatch] = useState<boolean | null>(null);
-  const [width, setWidth] = useState(640);
+  // Zero until the pane is measured. A guessed starting width is drawn once
+  // at that size before any correction arrives, and on a narrow pane that is a
+  // page rendered several times too large with only its top-left corner in
+  // view. Rendering nothing for one frame is the honest alternative.
+  const [width, setWidth] = useState(0);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -98,11 +108,23 @@ export function PdfViewer({
   useEffect(() => setPage(target.page), [target.page, target.excerpt]);
 
   // Render at the pane's width so the page fills it without horizontal scroll.
-  useEffect(() => {
+  //
+  // Measured synchronously before paint as well as observed, because the
+  // observer's first callback arrives after a frame has already been drawn.
+  // The floor is the pane's own width rather than a constant: a 280px minimum
+  // on a 170px pane is how a page ends up wider than the box holding it.
+  useLayoutEffect(() => {
     const element = containerRef.current;
     if (!element) return;
+
+    const measure = (available: number) => {
+      const usable = available - 32;
+      if (usable > 0) setWidth(Math.round(usable));
+    };
+
+    measure(element.clientWidth);
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) setWidth(Math.max(280, entry.contentRect.width - 32));
+      if (entry) measure(entry.contentRect.width);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -190,14 +212,22 @@ export function PdfViewer({
             loading={<Skeleton className="h-96 w-full" />}
             className={cn("flex justify-center")}
           >
-            <Page
-              pageNumber={page}
-              width={width}
-              renderAnnotationLayer={false}
-              onRenderTextLayerSuccess={onPageRendered}
-              loading={<Skeleton className="h-96 w-full" />}
-              className="shadow-sm"
-            />
+            {width > 0 && (
+              <Page
+                pageNumber={page}
+                width={width}
+                renderAnnotationLayer={false}
+                onRenderTextLayerSuccess={onPageRendered}
+                // Without this a failed page render is silent: no message, no
+                // log, just an empty box that reads as a hung viewer.
+                onRenderError={(cause) => {
+                  console.error("PDF page render failed", cause);
+                  setError("This page could not be rendered.");
+                }}
+                loading={<Skeleton className="h-96 w-full" />}
+                className="shadow-sm"
+              />
+            )}
           </Document>
         )}
       </div>
