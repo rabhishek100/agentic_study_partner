@@ -225,6 +225,7 @@ def propose_outline_from_transcription(
     # with no parent to attach to.
     depths: list[int] = []
     previous_page = 0
+    emitted_level = 0
     seen: set[tuple[str, int]] = set()
 
     for page, text in pages:
@@ -249,6 +250,17 @@ def propose_outline_from_transcription(
                 # new section.
                 continue
             seen.add((title, level))
+
+            # Clamp to one deeper than the last entry actually emitted. The
+            # depth stack tracks every heading seen, including the repeats
+            # skipped above, so it can advance while nothing is emitted and
+            # leave the next entry two levels below its predecessor. The
+            # hierarchy validator refuses that, which turned a confirmed
+            # 394-entry outline into a failed job. One book in this corpus
+            # repeats 31 of its headings, because every chapter follows the
+            # same interview template.
+            level = min(level, emitted_level + 1)
+            emitted_level = level
             entries.append((level, title, page))
             previous_page = page
             if len(entries) >= MAXIMUM_PROPOSED_ENTRIES:

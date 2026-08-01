@@ -123,6 +123,34 @@ class OutlineProposalTests(unittest.TestCase):
 
         self.assertEqual([title for _, title, _ in entries], ["Real Heading"])
 
+    def test_a_repeated_heading_cannot_orphan_the_entry_after_it(self) -> None:
+        """The skipped repeat must not advance the level it was skipped from.
+
+        The depth stack tracks every heading seen, including repeats that are
+        deliberately not emitted, so it can advance while nothing is emitted
+        and leave the next entry two levels below its predecessor. The
+        hierarchy validator refuses that. Measured on a real book whose every
+        chapter follows the same interview template: 31 repeated headings
+        produced six such jumps, which would have failed the job *after* a
+        reviewer confirmed all 394 entries.
+        """
+
+        entries = propose_outline_from_transcription(
+            [
+                (1, "# Chapter One"),
+                (2, "## Clarifying Requirements"),
+                (3, "### Functional requirements"),
+                (4, "# Chapter Two"),
+                (5, "## Clarifying Requirements"),
+                (6, "### Non-functional requirements"),
+            ]
+        )
+
+        validate_table_of_contents(entries, page_count=10)
+        levels = [level for level, _, _ in entries]
+        for index in range(1, len(levels)):
+            self.assertLessEqual(levels[index], levels[index - 1] + 1)
+
     def test_a_book_with_no_headings_fails_instead_of_parking_for_review(self) -> None:
         """An empty review queue entry wastes a reviewer's time and hides a bug."""
 
