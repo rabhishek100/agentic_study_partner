@@ -6,6 +6,7 @@ import unittest
 from ingestion.ocr import (
     BBOX_GRID,
     PAGE_INSTRUCTION,
+    collapse_degenerate_runs,
     OpenRouterOcrProvider,
     TesseractOcrProvider,
     DEFAULT_RUN_THRESHOLD,
@@ -225,6 +226,50 @@ class ProviderContractTests(unittest.TestCase):
         self.assertTrue(provider.name)
         # No instruction to identify: the engine is the whole reading.
         self.assertEqual(provider.prompt_hash, "")
+
+
+class DegenerateRunTests(unittest.TestCase):
+    """A model that loops is inventing text of a different shape."""
+
+    def test_an_absurd_repetition_is_collapsed(self) -> None:
+        """Measured on a real page: 59,648 hyphens in a row.
+
+        It consumed the entire 4,096-token output budget, so the rest of that
+        page was never transcribed, and it took the whole ingestion down at the
+        chunking stage long after the content had been committed.
+        """
+
+        text = f"Real content.{'-' * 59648} More content."
+        collapsed, removed = collapse_degenerate_runs(text)
+
+        self.assertGreater(removed, 59_000)
+        self.assertIn("Real content.", collapsed)
+        self.assertIn("More content.", collapsed)
+        self.assertLess(len(collapsed), 100)
+
+    def test_a_printed_rule_is_left_alone(self) -> None:
+        """Pages do print short rules; only absurd runs are the model looping."""
+
+        text = "Above\n-----\nBelow"
+        collapsed, removed = collapse_degenerate_runs(text)
+
+        self.assertEqual(removed, 0)
+        self.assertEqual(collapsed, text)
+
+    def test_the_gate_flags_repetition_it_would_otherwise_miss(self) -> None:
+        """A page of hyphens contributes no comparable word tokens at all.
+
+        The word-level comparison therefore scored the real 59,648-character
+        page "supported" while it carried text the page does not have.
+        """
+
+        reference = " ".join(f"word{index:03d}" for index in range(60))
+        candidate = f"{reference}{'-' * 59648}"
+
+        assessment = assess_fabrication(candidate, reference)
+
+        self.assertEqual(assessment.verdict, FLAGGED)
+        self.assertIn("repeated output", assessment.sample)
 
 
 class PageMarkupTests(unittest.TestCase):

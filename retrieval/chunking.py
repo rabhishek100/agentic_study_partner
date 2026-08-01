@@ -130,6 +130,31 @@ def _split_text(
     return final
 
 
+def _split_oversized(
+    value: str,
+    start: int,
+    *,
+    max_tokens: int,
+    encoding,
+) -> list[tuple[str, int, int, int]]:
+    """Divide a span with no word boundary into pieces that fit."""
+
+    pieces: list[tuple[str, int, int, int]] = []
+    # Characters per token varies, so step conservatively and measure each
+    # piece rather than trusting the ratio.
+    step = max(1, max_tokens * 2)
+    offset = 0
+    while offset < len(value):
+        piece = value[offset : offset + step]
+        while len(encoding.encode(piece)) > max_tokens and len(piece) > 1:
+            piece = piece[: len(piece) // 2]
+        pieces.append(
+            (piece, start + offset, start + offset + len(piece), len(encoding.encode(piece)))
+        )
+        offset += len(piece)
+    return pieces
+
+
 def _split_words(
     text: str,
     *,
@@ -142,7 +167,10 @@ def _split_words(
 
     spans = list(WORD_WITH_SPACE.finditer(text, start, end))
     if not spans:
-        raise ValueError("cannot split an oversized block without word boundaries")
+        # No whitespace anywhere in the span.
+        return _split_oversized(
+            text[start:end], start, max_tokens=max_tokens, encoding=encoding
+        )
 
     pieces: list[tuple[str, int, int, int]] = []
     piece_start = spans[0].start()
@@ -154,15 +182,23 @@ def _split_words(
             value = text[piece_start:piece_end].rstrip()
             value_tokens = len(encoding.encode(value))
             if value_tokens > max_tokens:
-                raise ValueError("a single unbroken token span exceeds max_tokens")
-            pieces.append(
-                (
-                    value,
-                    piece_start,
-                    piece_start + len(value),
-                    value_tokens,
+                pieces.extend(
+                    _split_oversized(
+                        value,
+                        piece_start,
+                        max_tokens=max_tokens,
+                        encoding=encoding,
+                    )
                 )
-            )
+            else:
+                pieces.append(
+                    (
+                        value,
+                        piece_start,
+                        piece_start + len(value),
+                        value_tokens,
+                    )
+                )
             piece_start = span.start()
         piece_end = span.end()
 
@@ -170,7 +206,14 @@ def _split_words(
     if value:
         token_count = len(encoding.encode(value))
         if token_count > max_tokens:
-            raise ValueError("a single unbroken token span exceeds max_tokens")
+            # Nothing in this span is a word boundary, so there is no good
+            # place to divide it. Dividing it badly still beats refusing the
+            # book: one page of a scan produced a single 59,648-character run
+            # and took the whole ingestion down with it at the chunking stage,
+            # long after the canonical content had been committed.
+            return _split_oversized(
+                value, piece_start, max_tokens=max_tokens, encoding=encoding
+            )
         pieces.append(
             (
                 value,

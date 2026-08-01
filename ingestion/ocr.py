@@ -241,6 +241,15 @@ class OpenRouterOcrProvider:
                 text = (choices[0]["message"].get("content") or "").strip()
                 if not text:
                     raise OcrError("OCR provider returned empty text")
+                text, removed = collapse_degenerate_runs(text)
+                if removed:
+                    logger.warning(
+                        "page %s: collapsed %s characters of repetition; the "
+                        "page may be truncated where the loop consumed the "
+                        "output budget",
+                        page,
+                        removed,
+                    )
                 usage = body.get("usage") or {}
                 return PageTranscription(
                     page=page,
@@ -344,6 +353,26 @@ def _tesseract_version(binary: str) -> str:
 
 _OUTER_FENCE = re.compile(r"\A```[a-zA-Z]*\n(?P<body>.*)\n```\s*\Z", re.DOTALL)
 
+# A run of one character repeated this many times is not something a page
+# prints; it is the model looping. Measured: one page produced 59,648 hyphens
+# in a row, consumed its entire 4,096-token output budget doing it, and left
+# the rest of the page untranscribed.
+DEGENERATE_RUN = 24
+_DEGENERATE = re.compile(r"(\S)\1{" + str(DEGENERATE_RUN) + r",}")
+
+
+def collapse_degenerate_runs(text: str) -> tuple[str, int]:
+    """Shorten absurd character repetitions, and say how much was removed.
+
+    A rule printed on a page is a handful of characters; tens of thousands is a
+    generation failure. Collapsing is not a loss of content - the run carries
+    none - but it is a *change* to the canonical text, so the caller records
+    that it happened rather than letting it pass silently.
+    """
+
+    collapsed = _DEGENERATE.sub(lambda match: match.group(1) * 3, text)
+    return collapsed, len(text) - len(collapsed)
+
 
 def _strip_outer_fence(text: str) -> str:
     """Unwrap a whole page the model fenced despite being asked not to.
@@ -429,6 +458,20 @@ def assess_fabrication(
     dozen words in a row that only one of them saw is a different claim
     entirely.
     """
+
+    # Repetition is invention of a different shape, and the word-level
+    # comparison below is blind to it: a page of hyphens contributes no
+    # comparable tokens at all, so it scored "supported" while carrying 59,648
+    # characters the page does not have.
+    _, repeated = collapse_degenerate_runs(candidate)
+    if repeated:
+        return FabricationAssessment(
+            verdict=FLAGGED,
+            longest_unsupported_run=repeated,
+            unsupported_ratio=repeated / max(len(candidate), 1),
+            comparable_tokens=0,
+            sample=f"{repeated} characters of repeated output",
+        )
 
     reference_tokens = set(_comparable_tokens(reference))
     candidate_tokens = _comparable_tokens(candidate)
