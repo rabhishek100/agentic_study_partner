@@ -113,6 +113,7 @@ def _validate_chapters(sections: list[Section], node_types: list[str]) -> None:
     detected = chapter_level(
         [section.level for section in sections],
         [section.title for section in sections],
+        [section.start_page for section in sections],
     )
     if detected is None:
         return
@@ -148,6 +149,9 @@ def _node_types(sections: list[Section]) -> list[str]:
     return outline_roles(
         [section.level for section in sections],
         [section.title for section in sections],
+        # Pages are what distinguish a book's chapter sequence from a numbered
+        # list inside one of its pages. See `parsing.outline_roles`.
+        [section.start_page for section in sections],
     )
 
 

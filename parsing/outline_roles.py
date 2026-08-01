@@ -58,6 +58,17 @@ SEARCHABLE_ROLES = (
 # consecutive entries keeps them from being mistaken for a chapter sequence.
 MINIMUM_CHAPTER_RUN = 3
 
+# A book's chapters run through the book. Anything numbered 1, 2, 3, ... inside
+# a few pages is a list, not a chapter sequence.
+#
+# One scanned book made the difference concrete. Its chapters are unnumbered
+# titles, so no depth carried a chapter run - except a numbered list of four
+# diffusion-model steps on pages 288 to 291, which formed a perfect 1..4. That
+# depth was elected, its four list items became the book's chapters, and all
+# 302 entries preceding them became front matter. Requiring the run to cover
+# a real share of the book rejects it: three pages of 351 is 0.9%.
+MINIMUM_CHAPTER_SPAN = 0.5
+
 _CHAPTER_WORD = re.compile(r"^\s*(?:chapter|ch\.?)\s+(\d+)\b", re.IGNORECASE)
 # A bare leading integer, as in "5 Resampling Methods". The negative lookahead
 # rejects "5.1 Cross-Validation": dotted numbering marks a subsection, and
@@ -115,25 +126,47 @@ def _longest_run(numbers: list[int | None]) -> tuple[int, int]:
     return best_start, best_length
 
 
-def chapter_level(levels: list[int], titles: list[str]) -> int | None:
+def chapter_level(
+    levels: list[int],
+    titles: list[str],
+    pages: list[int] | None = None,
+) -> int | None:
     """Return the outline depth that holds this book's chapters.
 
     None means no depth carried a credible numbered run, which is a real
     answer: the caller falls back to naming roles by depth alone.
+
+    ``pages`` is optional but strongly recommended. Without it a numbered list
+    buried anywhere in the book can be elected as the chapter sequence, because
+    length alone cannot tell "chapters 1 through 4 of this book" from "steps 1
+    through 4 of this procedure". With it, a run confined to a handful of pages
+    is refused.
     """
 
     if len(levels) != len(titles):
         raise ValueError("levels and titles must describe the same entries")
+    if pages is not None and len(pages) != len(levels):
+        raise ValueError("pages must describe the same entries as levels")
+
+    total_span = (max(pages) - min(pages)) if pages else 0
 
     best_level: int | None = None
     best_length = 0
     for level in sorted(set(levels)):
-        numbers = [
-            chapter_number(title)
-            for depth, title in zip(levels, titles, strict=True)
+        at_depth = [
+            (index, title)
+            for index, (depth, title) in enumerate(zip(levels, titles, strict=True))
             if depth == level
         ]
-        _, length = _longest_run(numbers)
+        numbers = [chapter_number(title) for _, title in at_depth]
+        start, length = _longest_run(numbers)
+        if length < MINIMUM_CHAPTER_RUN:
+            continue
+        if pages is not None and total_span > 0:
+            run_indices = [index for index, _ in at_depth[start : start + length]]
+            covered = pages[run_indices[-1]] - pages[run_indices[0]]
+            if covered < MINIMUM_CHAPTER_SPAN * total_span:
+                continue
         # Ties go to the shallower depth, which is already sorted first: a
         # book numbering both chapters and their sections 1..N is describing
         # chapters at the higher level.
@@ -151,7 +184,11 @@ def _depth_role(level: int, chapter_depth: int) -> str:
     return NESTED_SECTION
 
 
-def outline_roles(levels: list[int], titles: list[str]) -> list[str]:
+def outline_roles(
+    levels: list[int],
+    titles: list[str],
+    pages: list[int] | None = None,
+) -> list[str]:
     """Name each entry's role, using the whole outline to judge any one entry.
 
     Entries below the chapter level are named by their distance from it, so a
@@ -164,7 +201,7 @@ def outline_roles(levels: list[int], titles: list[str]) -> list[str]:
     if not levels:
         return []
 
-    depth = chapter_level(levels, titles)
+    depth = chapter_level(levels, titles, pages)
     if depth is None:
         return [fallback_role(level, title) for level, title in zip(levels, titles)]
 

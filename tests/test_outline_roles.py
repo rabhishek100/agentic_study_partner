@@ -227,3 +227,58 @@ class OutlineRoleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChapterRunMustSpanTheBookTests(unittest.TestCase):
+    """A numbered list inside a page is not a chapter sequence.
+
+    One scanned book's chapters are unnumbered titles, so no depth carried a
+    chapter run — except a numbered list of four diffusion-model steps on pages
+    288 to 291, which formed a perfect 1..4. That depth was elected, those four
+    list items became the book's chapters, and all 302 entries before them
+    became front matter. `list the chapters` answered with four sub-steps.
+    """
+
+    def _book(self):
+        levels = [1] * 31 + [3, 3, 3, 3]
+        titles = [f"Topic {index}" for index in range(31)] + [
+            "1. Noise addition",
+            "2. Preparation of conditioning signals",
+            "3. Noise prediction",
+            "4. ML objective and loss calculation",
+        ]
+        pages = list(range(1, 312, 10))[:31] + [288, 289, 289, 290]
+        return levels, titles, pages
+
+    def test_a_run_confined_to_a_few_pages_is_refused(self) -> None:
+        levels, titles, pages = self._book()
+
+        self.assertIsNone(chapter_level(levels, titles, pages))
+
+    def test_without_pages_the_same_run_is_wrongly_elected(self) -> None:
+        """Why passing pages matters, stated as a test rather than a comment."""
+
+        levels, titles, _ = self._book()
+
+        self.assertEqual(chapter_level(levels, titles), 3)
+
+    def test_refusing_it_returns_the_book_to_the_depth_rule(self) -> None:
+        levels, titles, pages = self._book()
+
+        roles = outline_roles(levels, titles, pages)
+
+        self.assertEqual(roles[:31], ["chapter"] * 31)
+        self.assertNotIn("front_matter", roles[:31])
+
+    def test_a_real_chapter_sequence_still_wins(self) -> None:
+        """Chapters spread across the book, which is the whole distinction."""
+
+        levels = [1] * 6
+        titles = [f"Chapter {number}. Something" for number in range(1, 7)]
+        pages = [10, 60, 110, 160, 210, 260]
+
+        self.assertEqual(chapter_level(levels, titles, pages), 1)
+
+    def test_pages_must_describe_the_same_entries(self) -> None:
+        with self.assertRaises(ValueError):
+            chapter_level([1, 1], ["Chapter 1", "Chapter 2"], [1])
