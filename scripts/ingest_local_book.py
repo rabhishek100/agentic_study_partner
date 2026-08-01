@@ -24,7 +24,11 @@ from pathlib import Path
 from ingestion.config import load_limits
 from ingestion.errors import IngestionError
 from ingestion.jobs import claim_next_job, get_job, list_jobs
-from ingestion.local_source import inspect_local_source, queue_local_source
+from ingestion.local_source import (
+    LOCAL_BUCKET,
+    inspect_local_source,
+    queue_local_source,
+)
 from ingestion.pipeline import PipelineDependencies, run_job
 from ingestion.states import Status
 from worker.main import _LeaseRenewal
@@ -74,6 +78,72 @@ def _existing_job(connection, *, owner_id, file_hash: str):
         if summary.file_hash == file_hash:
             return summary
     return None
+
+
+def _ensure_readable(
+    book_id: int,
+    *,
+    source,
+    owner_id,
+    limits,
+    database_url: str | None,
+) -> None:
+    """Give the finished book something the reading pane can open.
+
+    A book ingested this way never uploaded its bytes, so the pane has nothing
+    to show unless one is stored deliberately. Doing it here rather than as a
+    step an operator has to remember: forgetting it produces a finished,
+    answerable book whose every citation is unopenable, and the failure is
+    silent until somebody clicks.
+    """
+
+    from ingestion.storage_objects import upload_object
+    from ingestion.viewer_copy import build_viewer_copy, needs_viewer_copy
+    from storage.database import connection as database_connection
+
+    with database_connection(database_url) as connection:
+        stored = connection.execute(
+            """
+            select viewer_storage_path, source_storage_bucket
+            from books where id = %s and owner_id = %s
+            """,
+            (book_id, owner_id),
+        ).fetchone()
+    if stored is None or stored["viewer_storage_path"]:
+        return
+    if stored["source_storage_bucket"] != LOCAL_BUCKET:
+        return
+
+    with tempfile.TemporaryDirectory() as scratch:
+        destination = Path(scratch) / "viewer.pdf"
+        if needs_viewer_copy(source.size_bytes, ceiling_bytes=limits.max_source_bytes):
+            logger.info("rendering a readable copy for the reading pane")
+            copy = build_viewer_copy(
+                source.path, destination, ceiling_bytes=limits.max_source_bytes
+            )
+            if copy is None:
+                logger.warning("no readable copy fits; the reading pane stays empty")
+                return
+            payload = copy.path.read_bytes()
+        else:
+            payload = source.path.read_bytes()
+
+        path = f"{owner_id}/book-{book_id}/viewer.pdf"
+        try:
+            upload_object(limits.source_bucket, path, payload, overwrite=True)
+        except IngestionError as error:
+            logger.warning("could not store the readable copy: %s", error.safe_message)
+            return
+
+    with database_connection(database_url) as connection:
+        connection.execute(
+            """
+            update books set viewer_storage_bucket = %s, viewer_storage_path = %s
+            where id = %s and owner_id = %s
+            """,
+            (limits.source_bucket, path, book_id, owner_id),
+        )
+    logger.info("book %s can be opened in the reading pane", book_id)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -166,6 +236,15 @@ def main(argv: list[str] | None = None) -> int:
             return 5
 
     final = outcome.job
+    if final.status is Status.READY and outcome.book_id is not None:
+        _ensure_readable(
+            outcome.book_id,
+            source=source,
+            owner_id=owner_id,
+            limits=limits,
+            database_url=arguments.database_url,
+        )
+
     if final.status is Status.NEEDS_TOC_REVIEW:
         logger.info(
             "job %s is waiting on outline review. Confirm the hierarchy in the "
