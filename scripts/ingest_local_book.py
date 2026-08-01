@@ -71,6 +71,32 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _why_unclaimable(job) -> str:
+    """Say what is actually stopping the claim, not what usually would.
+
+    The first version guessed - "another worker may hold it, or it is waiting
+    on outline review" - and the real reason was a sixteen-second retry
+    backoff, which the job itself records. A plausible cause reads exactly like
+    a measured one and sends the reader somewhere else entirely.
+    """
+
+    from datetime import datetime, timezone
+
+    if job.status is Status.NEEDS_TOC_REVIEW:
+        return "it is waiting for its outline to be confirmed"
+    if job.lease_owner:
+        return f"another worker holds it ({job.lease_owner})"
+    if job.cancellation_requested:
+        return "cancellation was requested"
+    if job.next_attempt_at is not None:
+        remaining = (job.next_attempt_at - datetime.now(timezone.utc)).total_seconds()
+        if remaining > 0:
+            return f"a retry backoff has {remaining:.0f}s left; run again after it"
+    if job.status is Status.READY:
+        return "it is already finished"
+    return f"it is in status {job.status} with nothing scheduled"
+
+
 def _existing_job(connection, *, owner_id, file_hash: str):
     """The job already carrying this file's bytes, if there is one."""
 
@@ -202,11 +228,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if claimed is None or claimed.id != job.id:
-        logger.error(
-            "could not claim job %s; another worker may hold it, or it is "
-            "waiting on outline review",
-            job.id,
-        )
+        logger.error("could not claim job %s: %s", job.id, _why_unclaimable(job))
         return 4
 
     with tempfile.TemporaryDirectory() as scratch:

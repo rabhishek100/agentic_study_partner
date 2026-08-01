@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 load_dotenv()
 
 from api.auth import current_owner
+from api.version import build_revision, build_time
 from api.ingestions import router as ingestion_router
 from ingestion.errors import IngestionError
 from ingestion.storage_objects import signed_object_url
@@ -193,6 +194,11 @@ class HealthResponse(ContractModel):
     status: Literal["ok", "unavailable"]
     canonical_database_ready: bool
     retrieval_database_ready: bool
+    # What code is actually answering. Deployment drift is otherwise invisible:
+    # the worker once ran five commits behind for hours, and finding out meant
+    # comparing a deployment timestamp against a git log by eye.
+    build_revision: str
+    build_time: str
 
 
 class QueueHealthResponse(ContractModel):
@@ -269,6 +275,8 @@ async def health(response: Response) -> HealthResponse:
         status=("ok" if canonical_ready and retrieval_ready else "unavailable"),
         canonical_database_ready=canonical_ready,
         retrieval_database_ready=retrieval_ready,
+        build_revision=build_revision(),
+        build_time=build_time(),
     )
 
 

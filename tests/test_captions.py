@@ -242,3 +242,59 @@ class SentinelDetectionTests(unittest.TestCase):
 
     def test_an_empty_response_is_treated_as_no_caption(self):
         self.assertIsNone(self.responder("   ").describe(b"bytes", "image/png"))
+
+
+class CaptionCheckpointTests(PostgresOwnerMixin, unittest.TestCase):
+    """Captioning commits as it goes, for the reason the OCR stage does.
+
+    A whole pass held in one transaction is a pass a dropped connection
+    discards entirely. This book's 288 figures were captioned and lost twice in
+    one evening to a network fault, each time costing 288 vision calls to redo,
+    while the transcription stage beside it lost nothing to the same fault.
+    """
+
+    def setUp(self) -> None:
+        self.setUpPostgresOwner()
+        self.addCleanup(self.tearDownPostgresOwner)
+        with database_connection(self.database_url) as connection:
+            self.book_id = ingest_book(
+                connection,
+                sample_book(),
+                owner_id=self.owner_id,
+                title="Captioned",
+                author=None,
+                file_hash=FILE_HASH,
+                page_count=6,
+                parser_version="test",
+            )
+
+    def test_work_survives_a_failure_partway_through(self) -> None:
+        class FailsPartway:
+            model_name = "test/vision-1"
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def describe(self, payload: bytes, mime_type: str) -> str | None:
+                del payload, mime_type
+                self.calls += 1
+                if self.calls > 1:
+                    raise RuntimeError("the connection dropped")
+                return "A scatter plot of horsepower against weight."
+
+        with database_connection(self.database_url) as connection:
+            caption_book_figures(
+                connection,
+                self.book_id,
+                owner_id=self.owner_id,
+                captioner=FailsPartway(),
+            )
+
+        # A fresh connection sees the caption written before the failure, which
+        # is the whole point: the next attempt reuses it rather than paying again.
+        with database_connection(self.database_url) as connection:
+            stored = connection.execute(
+                "select count(*) as n from image_captions where book_id = %s",
+                (self.book_id,),
+            ).fetchone()
+        self.assertGreater(stored["n"], 0)

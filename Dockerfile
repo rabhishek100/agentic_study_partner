@@ -37,6 +37,19 @@ COPY scripts/__init__.py scripts/benchmark_parse.py scripts/compare_extraction.p
 
 ENV PATH="/app/.venv/bin:$PATH"
 
+# What this image was built from, reported by /api/health and logged by the
+# worker at startup. Deployment drift is invisible without it: the worker once
+# ran five commits behind the repository for hours, and the only way to notice
+# was comparing a deployment timestamp against a git log by eye.
+#
+# Railway does not inject these, so a deploy that wants them must pass them:
+#   railway up --service worker  (leaves them unknown, which is honest)
+#   docker build --build-arg BUILD_REVISION=$(git rev-parse --short HEAD) ...
+ARG BUILD_REVISION=unknown
+ARG BUILD_TIME=unknown
+ENV BUILD_REVISION=$BUILD_REVISION \
+    BUILD_TIME=$BUILD_TIME
+
 # The API and the worker share one image and differ only by command. Splitting
 # them into a slim API image and a parser/OCR worker image is deferred; the
 # worker's extra toolchain is the only difference in content.
