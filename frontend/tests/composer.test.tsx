@@ -16,6 +16,26 @@ const BOOKS: BookSummary[] = [
     embedding_count: 10,
     retrieval_complete: true,
   },
+  {
+    book_id: 8,
+    title: "Python Mastery",
+    author: "David Beazley",
+    page_count: 250,
+    ready_at: null,
+    chunk_count: 10,
+    embedding_count: 10,
+    retrieval_complete: true,
+  },
+  {
+    book_id: 9,
+    title: "The Hundred-Page Machine Learning Book",
+    author: "Andriy Burkov",
+    page_count: 160,
+    ready_at: null,
+    chunk_count: 10,
+    embedding_count: 10,
+    retrieval_complete: true,
+  },
 ];
 
 function renderComposer(overrides: Partial<React.ComponentProps<typeof Composer>> = {}) {
@@ -124,6 +144,43 @@ describe("Composer", () => {
       "Explain feature stores in @[Designing Machine Learning Systems]",
       [7],
     );
+  });
+
+  it("navigates and selects @book suggestions with the keyboard", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderComposer({ books: BOOKS });
+    const textarea = screen.getByLabelText("Ask about the book");
+
+    await user.type(textarea, "Explain @");
+    const options = screen.getAllByRole("option");
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+
+    await user.keyboard("{ArrowDown}");
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+
+    await user.keyboard("{Enter}");
+    expect(textarea).toHaveValue("Explain @[Python Mastery] ");
+    expect(screen.queryByRole("listbox", { name: "Tag a book" })).not.toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.keyboard("{Enter}");
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith(
+      "Explain @[Python Mastery]",
+      [8],
+    );
+  });
+
+  it("closes @book suggestions with Escape without changing the question", async () => {
+    const user = userEvent.setup();
+    renderComposer({ books: BOOKS });
+    const textarea = screen.getByLabelText("Ask about the book");
+
+    await user.type(textarea, "Explain @");
+    expect(screen.getByRole("listbox", { name: "Tag a book" })).toBeVisible();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox", { name: "Tag a book" })).not.toBeInTheDocument();
+    expect(textarea).toHaveValue("Explain @");
   });
 
   it("requires an @book tag when there is no default selection", async () => {

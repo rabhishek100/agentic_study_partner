@@ -114,6 +114,23 @@ afterEach(() => {
 });
 
 describe("PdfViewer", () => {
+  it("shows an explicit loading status while the document source is fetched", async () => {
+    let resolveSource: ((value: { url: string }) => void) | undefined;
+    apiFetch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSource = resolve;
+      }),
+    );
+
+    render(<PdfViewer target={target} {...viewerProps} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading document…");
+    await act(async () => {
+      resolveSource?.({ url: "https://example.test/book.pdf" });
+    });
+    expect(await screen.findByTestId("pdf-page")).toBeVisible();
+  });
+
   it("centres a cited passage inside only the PDF scroller", async () => {
     render(<PdfViewer target={target} {...viewerProps} />);
     await screen.findByTestId("pdf-page");

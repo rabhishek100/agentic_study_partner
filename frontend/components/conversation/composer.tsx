@@ -2,6 +2,8 @@
 
 import { ArrowUp, Square } from "lucide-react";
 import {
+  useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -18,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { BookSummary, ResponseDepth } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const MAX_TEXTAREA_HEIGHT_PX = 200;
 
@@ -48,8 +51,13 @@ export function Composer({
 }: ComposerProps) {
   const [value, setValue] = useState("");
   const [caret, setCaret] = useState(0);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const [mentionDismissed, setMentionDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const mention = useMemo(() => {
+  const mentionListRef = useRef<HTMLDivElement | null>(null);
+  const mentionOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const mentionListId = useId();
+  const mentionCandidate = useMemo(() => {
     const beforeCaret = value.slice(0, caret);
     const match = /(?:^|\s)@([^@[\]\n]*)$/.exec(beforeCaret);
     if (!match) return null;
@@ -63,6 +71,7 @@ export function Composer({
         .slice(0, 6),
     };
   }, [books, caret, value]);
+  const mention = mentionDismissed ? null : mentionCandidate;
   const mentionedBookIds = useMemo(
     () =>
       books
@@ -71,6 +80,22 @@ export function Composer({
     [books, value],
   );
   const hasScope = hasDefaultScope || mentionedBookIds.length > 0;
+
+  useEffect(() => {
+    setActiveMentionIndex(0);
+  }, [mentionCandidate?.query, mentionCandidate?.start]);
+
+  useEffect(() => {
+    const list = mentionListRef.current;
+    const option = mentionOptionRefs.current[activeMentionIndex];
+    if (!mention || !list || !option) return;
+    const optionTop = option.offsetTop;
+    const optionBottom = optionTop + option.offsetHeight;
+    if (optionTop < list.scrollTop) list.scrollTop = optionTop;
+    else if (optionBottom > list.scrollTop + list.clientHeight) {
+      list.scrollTop = optionBottom - list.clientHeight;
+    }
+  }, [activeMentionIndex, mention]);
 
   // Grow with the question up to a bound, then scroll inside the field. A
   // fixed two-row box hides the end of anything longer than a sentence.
@@ -91,6 +116,7 @@ export function Composer({
     else onSubmit(question);
     setValue("");
     setCaret(0);
+    setMentionDismissed(false);
   }
 
   function insertMention(book: BookSummary) {
@@ -100,6 +126,7 @@ export function Composer({
     const nextCaret = mention.start + token.length + 1;
     setValue(next);
     setCaret(nextCaret);
+    setMentionDismissed(false);
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(nextCaret, nextCaret);
@@ -147,15 +174,57 @@ export function Composer({
         onChange={(event) => {
           setValue(event.target.value);
           setCaret(event.target.selectionStart);
+          setMentionDismissed(false);
         }}
-        onClick={(event) => setCaret(event.currentTarget.selectionStart)}
+        onClick={(event) => {
+          setCaret(event.currentTarget.selectionStart);
+          setMentionDismissed(false);
+        }}
         onKeyUp={(event) => setCaret(event.currentTarget.selectionStart)}
         onKeyDown={(event) => {
+          if (mention && mention.matches.length > 0) {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setActiveMentionIndex(
+                (current) => (current + 1) % mention.matches.length,
+              );
+              return;
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setActiveMentionIndex(
+                (current) =>
+                  (current - 1 + mention.matches.length) % mention.matches.length,
+              );
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setMentionDismissed(true);
+              return;
+            }
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              const selectedBook =
+                mention.matches[activeMentionIndex] ?? mention.matches[0];
+              if (selectedBook) insertMention(selectedBook);
+              return;
+            }
+          }
           if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             submit();
           }
         }}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={Boolean(mention && mention.matches.length > 0)}
+        aria-controls={mention ? mentionListId : undefined}
+        aria-activedescendant={
+          mention && mention.matches.length > 0
+            ? `${mentionListId}-option-${activeMentionIndex}`
+            : undefined
+        }
         placeholder={placeholder}
         disabled={disabled}
         className="max-h-[200px] resize-none rounded-xl bg-card py-3 pl-3.5 pr-13 text-[0.95rem] shadow-sm"
@@ -163,18 +232,28 @@ export function Composer({
 
       {mention && mention.matches.length > 0 && (
         <div
+          ref={mentionListRef}
+          id={mentionListId}
           role="listbox"
           aria-label="Tag a book"
           className="absolute bottom-[calc(100%-2.25rem)] left-0 z-20 max-h-56 w-full overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md sm:w-96"
         >
-          {mention.matches.map((book) => (
+          {mention.matches.map((book, index) => (
             <button
+              ref={(element) => {
+                mentionOptionRefs.current[index] = element;
+              }}
+              id={`${mentionListId}-option-${index}`}
               key={book.book_id}
               type="button"
               role="option"
-              aria-selected={false}
-              className="flex w-full flex-col rounded-md px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+              aria-selected={index === activeMentionIndex}
+              className={cn(
+                "flex w-full flex-col rounded-md px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
+                index === activeMentionIndex && "bg-accent",
+              )}
               onMouseDown={(event) => event.preventDefault()}
+              onMouseMove={() => setActiveMentionIndex(index)}
               onClick={() => insertMention(book)}
             >
               <span className="truncate font-medium">{book.title}</span>

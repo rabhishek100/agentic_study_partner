@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  Loader2,
   Minimize2,
   X,
   ZoomIn,
@@ -20,7 +21,6 @@ import { Document, Page, pdfjs } from "react-pdf";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api";
 import { findExcerptRange } from "@/lib/pdf-match";
 import type { BookSourceResponse } from "@/lib/types";
@@ -37,6 +37,19 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 export const MIN_PDF_ZOOM = 0.5;
 export const MAX_PDF_ZOOM = 2;
 export const PDF_ZOOM_STEP = 0.25;
+
+function PdfLoadingState({ label = "Loading document…" }: { label?: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex h-96 w-full flex-col items-center justify-center gap-3 rounded-lg border border-border/60 bg-muted/20 text-sm text-muted-foreground"
+    >
+      <Loader2 className="size-6 animate-spin" aria-hidden />
+      <span>{label}</span>
+    </div>
+  );
+}
 
 /** Elements whose own keyboard interaction must win over document shortcuts. */
 function ownsArrowKeys(target: EventTarget | null): boolean {
@@ -382,7 +395,7 @@ export function PdfViewer({
             <AlertDescription className="break-words">{error}</AlertDescription>
           </Alert>
         ) : !source ? (
-          <Skeleton className="h-96 w-full" />
+          <PdfLoadingState />
         ) : (
           <Document
             file={source}
@@ -393,7 +406,7 @@ export function PdfViewer({
               console.error("PDF load failed", cause);
               setError("The document could not be read.");
             }}
-            loading={<Skeleton className="h-96 w-full" />}
+            loading={<PdfLoadingState label="Opening document…" />}
             className={cn("flex w-max min-w-full justify-center")}
           >
             {width > 0 && (
@@ -408,7 +421,7 @@ export function PdfViewer({
                   console.error("PDF page render failed", cause);
                   setError("This page could not be rendered.");
                 }}
-                loading={<Skeleton className="h-96 w-full" />}
+                loading={<PdfLoadingState label={`Loading page ${page}…`} />}
                 className="shrink-0 shadow-sm"
               />
             )}
