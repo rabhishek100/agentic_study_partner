@@ -191,7 +191,7 @@ export default function Page() {
 
   if (sessionLoading) {
     return (
-      <div className="grid min-h-dvh place-items-center p-6">
+      <div className="grid h-dvh overflow-y-auto place-items-center p-6">
         <div className="w-full max-w-md space-y-3" aria-hidden>
           <Skeleton className="mx-auto size-11 rounded-xl" />
           <Skeleton className="h-6 w-2/3 mx-auto" />
@@ -206,7 +206,7 @@ export default function Page() {
 
   if (!session) {
     return (
-      <div className="relative grid min-h-dvh place-items-center p-6">
+      <div className="relative grid h-dvh overflow-y-auto place-items-center p-6">
         {/* Reachable before sign-in: a reader who needs light mode should not
             have to authenticate first to get it. */}
         <div className="absolute right-3 top-3">

@@ -17,6 +17,16 @@ function shell(aside?: React.ReactNode) {
 }
 
 describe("AppShell", () => {
+  it("owns exactly one viewport and clips document-level overflow", () => {
+    const { container } = shell();
+
+    expect(container.querySelector('[data-slot="app-shell"]')).toHaveClass(
+      "h-dvh",
+      "max-h-dvh",
+      "overflow-hidden",
+    );
+  });
+
   it("reclaims the fixed rail space while a document is open", () => {
     const { container } = shell(<div>Document viewer</div>);
 

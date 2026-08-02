@@ -38,7 +38,10 @@ export function AppShell({
   const [railOpen, setRailOpen] = useState(false);
 
   return (
-    <div className="flex h-dvh flex-col">
+    <div
+      data-slot="app-shell"
+      className="flex h-dvh max-h-dvh w-full flex-col overflow-hidden"
+    >
       <a
         href="#question"
         className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:shadow-md"

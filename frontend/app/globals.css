@@ -160,11 +160,17 @@
 
     html {
         @apply font-sans;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
         -webkit-text-size-adjust: 100%;
     }
 
     body {
         @apply bg-background text-foreground antialiased;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
         text-rendering: optimizeLegibility;
     }
 
