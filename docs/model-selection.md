@@ -116,24 +116,32 @@ measurement, and this document says models are replaced on paired evaluation
 rather than general benchmark scores — the same rule should have applied to
 choosing one.
 
-Measured on 13 pages of the three scanned books, against references written
+Measured on 35 pages of the three scanned books, against references written
 from the page images independently of every engine:
 
 | Engine | CER | WER | Table cell F1 | Fabricated spans |
 |---|---:|---:|---:|---:|
-| Qwen3-VL-32B | 0.1685 | 0.1874 | 0.948 | 0 |
-| Gemini 3 Flash | 0.1807 | 0.2114 | 0.917 | 0 |
+| Gemini 3 Flash | 0.1473 | 0.1868 | 0.884 | 0 |
+| Qwen3-VL-32B | 0.1480 | 0.1963 | 0.634 | 0 |
 
-Qwen is ahead on every aggregate and three times better on prose specifically.
-Thirteen pages cannot establish that Qwen is the better reader; what they
-establish is that there is no measured reason to pay six times more for Gemini.
-With quality indistinguishable, the cheaper model is the correct default.
+The two tie on character error to within a thousandth. The lead splits by page
+kind rather than falling to one model: Qwen reads prose a third better (0.111
+vs 0.169), Gemini reads bleed-through and figure-only pages a fifth better
+(0.276 vs 0.349), and they are level on tables and formulas. Most of the table
+F1 gap is a disagreement about cell granularity on a single matrix page, not a
+misread — dropping it moves Qwen to 0.786.
 
-Gemini remains the fallback and the second opinion for pages the fabrication
-gate flags, which is where a differing reading is worth its price.
+With accuracy indistinguishable and price differing sixfold, the cheaper model
+is the correct default. Qwen reads every page; Gemini remains the fallback and
+the second opinion for pages the fabrication gate flags — which is precisely
+the page kind it measures better on.
 
-**What this decision rests on, stated plainly.** A 13-page sample, and 24 of the
-39 selected pages excluded because their references were derived from a
-candidate and cannot rank one. Rebuilding those would roughly triple the sample
-and should be done before this is treated as settled. See
-`evaluation/transcription_measurement.md`.
+**What this decision rests on, stated plainly.** Thirty-five pages from three
+books by two publishers, all interview prep. The two findings that would change
+the arrangement — the prose gap and the pathological-page gap — each rest on
+nine or fewer pages. See `evaluation/transcription_measurement.md`.
+
+This entry initially read the other way. At n=13, with 24 references excluded
+for being derived from a candidate, Qwen led every aggregate. Rebuilding those
+24 from the page images tripled the sample and dissolved the lead into a tie.
+The decision did not change; the reason for it did.

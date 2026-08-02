@@ -72,14 +72,17 @@ OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Qwen is primary on measured evidence rather than reputation. Gemini was
 # chosen first from OCR Arena standing, at roughly six times the price per
-# page; scored against references written from the page images themselves it
-# was not better - 0.181 character error against 0.169, and three times worse
-# on prose. Thirteen pages cannot show Qwen is better, but they removed the
-# reason to pay six times more for Gemini, and the cheaper model is the right
-# default when quality is indistinguishable.
+# page; scored against references written from the page images themselves the
+# two are tied - 0.1473 character error against 0.1480 over 35 pages. The lead
+# splits by page kind rather than falling to one model: Qwen reads prose a
+# third better, Gemini survives bleed-through and figure-only pages a fifth
+# better. That split is the reason for this exact arrangement - the cheaper
+# model reads every page, the dearer one is the fallback and the second opinion
+# on the pages the gate flags, which are the pages it is better at.
 #
 # See evaluation/transcription_measurement.md, including what that measurement
-# still cannot support.
+# still cannot support - in particular the table F1 gap, most of which is a
+# disagreement about cell granularity rather than a misread.
 #
 # Both are read from the environment: a `-preview` model id will be withdrawn
 # eventually, and a hardcoded one turns that into an outage.
