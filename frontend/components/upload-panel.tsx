@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, FileUp, ListTree, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -117,7 +117,18 @@ interface TusUpload {
 }
 
 export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
-  const [job, setJob] = useState<IngestionJob | null>(null);
+  // The job and the moment it arrived move together. Timing the arrival in an
+  // effect instead put the stamp one render late, so the first frame after
+  // every poll added a whole poll interval to the clock and then took it back.
+  const [received, setReceived] = useState<{
+    job: IngestionJob | null;
+    at: number;
+  }>({ job: null, at: 0 });
+  const job = received.job;
+  const setJob = useCallback(
+    (next: IngestionJob | null) => setReceived({ job: next, at: Date.now() }),
+    [],
+  );
   // The create response is narrower than a polled job, so the identity of an
   // in-flight upload is tracked separately until the first poll fills it in.
   const [pending, setPending] = useState<{
@@ -126,6 +137,8 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
     filename: string;
   } | null>(null);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  // Filename of a book being imported from an operator's machine, if any.
+  const [imported, setImported] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
   const [maximumBytes, setMaximumBytes] = useState(FALLBACK_MAXIMUM_BYTES);
@@ -136,7 +149,6 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
   const uploadRef = useRef<TusUpload | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const notifiedRef = useRef(false);
-  const polledAtRef = useRef<{ at: number; elapsed: number } | null>(null);
 
   const jobId = job?.job_id ?? pending?.jobId;
   const jobStatus = job?.status ?? pending?.status;
@@ -172,11 +184,23 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
     (async () => {
       try {
         const { jobs } = await apiFetch<IngestionJobList>("/ingestions?limit=5");
-        const active = jobs.find((entry) => ACTIVE_STATUSES.has(entry.status));
-        if (active && !cancelled) {
+        // A job imported from an operator's filesystem is skipped on purpose.
+        // Adopting one puts this panel into "processing" over work no browser
+        // can advance and no shared worker will claim, which disables the
+        // upload control for as long as that job sits in the queue.
+        const running = jobs.filter((entry) => ACTIVE_STATUSES.has(entry.status));
+        const active = running.find((entry) => entry.driveable !== false);
+        if (cancelled) return;
+        if (active) {
           setJob(active);
           setPhase("processing");
         }
+        // Shown, not adopted: the reader should know a book is on its way
+        // without the panel pretending this tab is the thing delivering it.
+        setImported(
+          running.find((entry) => entry.driveable === false)?.original_filename ??
+            null,
+        );
       } catch {
         // Nothing to reattach to; the panel stays in its idle state.
       }
@@ -184,7 +208,7 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setJob]);
 
   // Durable polling: the job lives in Postgres, so refreshing the page and
   // polling again shows the same truth the worker is writing.
@@ -198,7 +222,7 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
       }
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [jobId, isActive]);
+  }, [jobId, isActive, setJob]);
 
   useEffect(() => {
     if (!jobId || !isActive) return;
@@ -206,12 +230,6 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [jobId, isActive]);
-
-  const elapsedSeconds = job?.timing?.elapsed_seconds;
-  useEffect(() => {
-    if (elapsedSeconds == null) return;
-    polledAtRef.current = { at: Date.now(), elapsed: elapsedSeconds };
-  }, [elapsedSeconds]);
 
   useEffect(() => {
     if (jobStatus === "ready" && !notifiedRef.current) {
@@ -356,9 +374,13 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
   const timing = job?.timing;
 
   // The server's elapsed time is a snapshot from the last poll; advance it
-  // locally so the clock moves every second rather than every 2.5.
+  // locally so the clock moves every second rather than every 2.5. It is held
+  // still while the job waits on a reviewer — that clock measures the person,
+  // not the pipeline, and the server does not count it either.
   const sincePoll =
-    polledAtRef.current && now ? (now - polledAtRef.current.at) / 1000 : 0;
+    received.at && now && !timing?.awaiting_input
+      ? Math.max(0, (now - received.at) / 1000)
+      : 0;
   const liveElapsed = timing ? timing.elapsed_seconds + sincePoll : null;
   const liveRemaining =
     timing?.estimated_remaining_seconds == null
@@ -419,6 +441,14 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
         which takes a few minutes and needs its contents confirmed before it
         can be read.
       </p>
+
+      {imported && (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground">{imported}</span> is
+          being imported directly from the library machine. It will appear on
+          its own; you can keep uploading in the meantime.
+        </p>
+      )}
 
       {showProgress && jobStatus && (
         <div
@@ -522,6 +552,13 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
                 The embedded contents were incomplete or unsafe. Review the
                 headings inferred from the PDF before parsing continues.
               </p>
+              {timing && (
+                <p className="text-xs text-muted-foreground">
+                  {duration(timing.elapsed_seconds)} of processing so far; the
+                  clock is paused while this waits for you. Take as long as you
+                  need — nothing expires.
+                </p>
+              )}
               <OutlineReviewEditor
                 jobId={jobId}
                 onConfirmed={(confirmed) => {

@@ -42,7 +42,8 @@ COLUMNS = """
     max_attempts, next_attempt_at, lease_owner, lease_expires_at,
     heartbeat_at, cancellation_requested_at, last_error_code,
     last_error_message, last_error_retryable, provenance_json,
-    created_at, started_at, stage_started_at, updated_at, completed_at
+    created_at, started_at, stage_started_at, updated_at, completed_at,
+    awaiting_input_seconds
 """
 
 MAXIMUM_FILENAME_LENGTH = 255
@@ -103,6 +104,10 @@ class IngestionJob:
     stage_started_at: datetime | None
     updated_at: datetime
     completed_at: datetime | None
+    # Seconds this job spent parked on a person rather than working. Only
+    # outline review parks a job, and only completed pauses are counted here;
+    # a pause still open is measured from ``stage_started_at``.
+    awaiting_input_seconds: float
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> "IngestionJob":
@@ -141,7 +146,19 @@ class IngestionJob:
             stage_started_at=row["stage_started_at"],
             updated_at=row["updated_at"],
             completed_at=row["completed_at"],
+            awaiting_input_seconds=float(row["awaiting_input_seconds"] or 0.0),
         )
+
+    @property
+    def locally_sourced(self) -> bool:
+        """Whether this job's bytes live on one operator's filesystem.
+
+        Such a job is real and its progress is worth showing, but no browser
+        can drive it and the shared worker will never claim it, so the upload
+        panel must not adopt it as the tab's own work.
+        """
+
+        return self.storage_bucket == LOCAL_SOURCE_BUCKET
 
     @property
     def cancellation_requested(self) -> bool:
@@ -533,6 +550,12 @@ def confirm_outline_review(
                 "progress_completed = 0, progress_total = null, "
                 "progress_unit = null, next_attempt_at = now(), "
                 "lease_owner = null, lease_expires_at = null, "
+                # Bank the wait now. Once stage_started_at moves on, how long
+                # this job sat waiting for a person is unrecoverable, and
+                # without it the resumed job reports the reviewer's lunch
+                # break as pipeline time.
+                "awaiting_input_seconds = awaiting_input_seconds + greatest("
+                "0, extract(epoch from (now() - stage_started_at))), "
                 "provenance_json = provenance_json || %s"
             ),
             parameters=(

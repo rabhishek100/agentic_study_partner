@@ -252,5 +252,85 @@ class ObservedRateTests(unittest.TestCase):
         self.assertGreaterEqual(nearly.estimated_remaining_seconds, 0.0)
 
 
+class AwaitingReviewTests(unittest.TestCase):
+    """Time spent waiting on a person is not time the pipeline spent working.
+
+    Outline review parks a job for as long as the reader takes. Charging that
+    to the job made an overnight review resume as a fourteen-hour job that had
+    overrun every estimate it had not actually missed.
+    """
+
+    def waiting(self, *, worked, waited, banked=0.0):
+        return estimate(
+            status=Status.NEEDS_TOC_REVIEW,
+            stage=Stage.PROPOSE_TOC,
+            page_count=269,
+            started_at=NOW - timedelta(seconds=worked + waited),
+            stage_started_at=NOW - timedelta(seconds=waited),
+            awaiting_input_seconds=banked,
+            now=NOW,
+        )
+
+    def test_the_clock_holds_while_a_reviewer_is_out(self):
+        early = self.waiting(worked=300, waited=30)
+        overnight = self.waiting(worked=300, waited=14 * 60 * 60)
+
+        self.assertAlmostEqual(early.elapsed_seconds, 300, delta=1.0)
+        self.assertAlmostEqual(overnight.elapsed_seconds, 300, delta=1.0)
+
+    def test_the_wait_is_reported_rather_than_hidden(self):
+        overnight = self.waiting(worked=300, waited=14 * 60 * 60)
+
+        self.assertTrue(overnight.awaiting_input)
+        self.assertAlmostEqual(
+            overnight.awaiting_input_seconds, 14 * 60 * 60, delta=1.0
+        )
+
+    def test_no_countdown_is_offered_for_a_person(self):
+        self.assertIsNone(self.waiting(worked=300, waited=60).estimated_remaining_seconds)
+
+    def test_a_parked_job_is_never_called_overrunning(self):
+        self.assertFalse(self.waiting(worked=300, waited=14 * 60 * 60).overrunning)
+
+    def test_a_resumed_job_is_not_charged_for_the_wait(self):
+        """The banked wait keeps the resumed job on its own clock."""
+
+        resumed = estimate(
+            status=Status.PARSING,
+            stage=Stage.PARSE_PAGES,
+            page_count=269,
+            started_at=NOW - timedelta(seconds=14 * 60 * 60 + 400),
+            stage_started_at=NOW - timedelta(seconds=100),
+            awaiting_input_seconds=14 * 60 * 60,
+            now=NOW,
+        )
+
+        self.assertAlmostEqual(resumed.elapsed_seconds, 400, delta=1.0)
+        self.assertFalse(resumed.overrunning)
+
+    def test_a_finished_book_reports_work_not_wall_clock(self):
+        """The history list shows how long the book took, not how long it sat."""
+
+        done = estimate(
+            status=Status.READY,
+            stage=Stage.VERIFY_BOOK,
+            page_count=269,
+            started_at=NOW - timedelta(seconds=14 * 60 * 60 + 600),
+            stage_started_at=NOW - timedelta(seconds=60),
+            completed_at=NOW,
+            awaiting_input_seconds=14 * 60 * 60,
+            now=NOW,
+        )
+
+        self.assertAlmostEqual(done.elapsed_seconds, 600, delta=1.0)
+
+    def test_a_job_that_never_waited_is_unaffected(self):
+        plain = running(Stage.PARSE_PAGES, in_stage_seconds=120)
+
+        self.assertFalse(plain.awaiting_input)
+        self.assertEqual(plain.awaiting_input_seconds, 0.0)
+        self.assertAlmostEqual(plain.elapsed_seconds, 120, delta=1.0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -171,6 +171,33 @@ class QueueLocalSourceTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertFalse(is_local(job))
 
+    def test_a_local_job_tells_the_browser_it_cannot_be_driven(self) -> None:
+        """The upload panel reattaches to whatever job it finds running.
+
+        A locally-sourced job will never be claimed by the shared worker and
+        cannot be advanced from a tab, so a panel that adopted one sat on a
+        spinner and refused new uploads for as long as it stayed queued.
+        """
+
+        from ingestion.jobs import create_job
+
+        source = inspect_local_source(scanned_pdf(self.directory / "scan.pdf"))
+        with database_connection(self.database_url) as connection:
+            local = queue_local_source(
+                connection, owner_id=self.owner_id, source=source
+            )
+            uploaded, _ = create_job(
+                connection,
+                owner_id=self.owner_id,
+                idempotency_key=__import__("uuid").uuid4(),
+                original_filename="book.pdf",
+                content_type="application/pdf",
+                content_length=1024,
+            )
+
+        self.assertTrue(local.locally_sourced)
+        self.assertFalse(uploaded.locally_sourced)
+
 
 if __name__ == "__main__":
     unittest.main()

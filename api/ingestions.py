@@ -108,7 +108,12 @@ class JobTiming(ContractModel):
     Estimates come from a measured production run, not from the parser, which
     reports nothing while it works. ``estimated_remaining_seconds`` is null
     once a stage has run well past its expected duration, because a countdown
-    that has already reached zero tells the reader less than saying so.
+    that has already reached zero tells the reader less than saying so, and
+    null again while the job waits on a person, whose return time is not
+    something this service can estimate.
+
+    ``elapsed_seconds`` is time the pipeline worked. The wait for a reviewer
+    is reported beside it, not inside it.
     """
 
     percent: float
@@ -117,6 +122,8 @@ class JobTiming(ContractModel):
     estimated_remaining_seconds: float | None
     overrunning: bool
     stages: list[StageView]
+    awaiting_input: bool = False
+    awaiting_input_seconds: float = 0.0
 
 
 class JobError(ContractModel):
@@ -137,6 +144,11 @@ class JobResponse(ContractModel):
     book_id: int | None
     error: JobError | None
     cancellation_requested: bool
+    # Whether a browser can act on this job. A job whose source was imported
+    # from an operator's filesystem is real and worth showing, but nothing in
+    # the tab can advance it and the shared worker will never claim it, so the
+    # upload panel must not adopt it and sit on a spinner forever.
+    driveable: bool = True
     timing: JobTiming
     created_at: datetime
     started_at: datetime | None
@@ -202,6 +214,7 @@ def _represent(job: IngestionJob) -> JobResponse:
         completed_at=job.completed_at,
         progress_completed=job.progress_completed,
         progress_total=job.progress_total,
+        awaiting_input_seconds=job.awaiting_input_seconds,
     )
     timing = JobTiming(
         percent=progress.percent,
@@ -209,6 +222,8 @@ def _represent(job: IngestionJob) -> JobResponse:
         estimated_total_seconds=progress.estimated_total_seconds,
         estimated_remaining_seconds=progress.estimated_remaining_seconds,
         overrunning=progress.overrunning,
+        awaiting_input=progress.awaiting_input,
+        awaiting_input_seconds=progress.awaiting_input_seconds,
         stages=[
             StageView(
                 stage=view.stage,
@@ -238,6 +253,7 @@ def _represent(job: IngestionJob) -> JobResponse:
         book_id=job.book_id,
         error=error,
         cancellation_requested=job.cancellation_requested,
+        driveable=not job.locally_sourced,
         timing=timing,
         created_at=job.created_at,
         started_at=job.started_at,
