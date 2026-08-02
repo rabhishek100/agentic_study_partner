@@ -122,6 +122,46 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(mentioned_chapters.route, "hierarchy_list")
         self.assertEqual(mentioned_chapters.resolved_scope.book_id, self.book_id)
 
+    def test_ordinal_chapter_is_resolved_by_toc_order_without_the_model(self):
+        decision = self.analyze(
+            "Explain the first chapter.",
+            self.state(),
+            FailIfCalled(),
+        )
+
+        self.assertEqual(decision.route, "hierarchy_summary")
+        self.assertEqual(
+            decision.resolved_scope.node_id,
+            self.nodes["Chapter 1. Overview"]["id"],
+        )
+        self.assertIn("table-of-contents order", decision.reason)
+
+        second = self.analyze(
+            "Review the second chapter.",
+            self.state(),
+            FailIfCalled(),
+        )
+        # The second canonical chapter is numbered 3, proving that ordinals
+        # use TOC order rather than being rewritten as chapter numbers.
+        self.assertEqual(
+            second.resolved_scope.node_id,
+            self.nodes["Chapter 3. Data Engineering Fundamentals"]["id"],
+        )
+
+    def test_book_reply_completes_a_pending_ordinal_chapter_request(self):
+        decision = self.analyze(
+            "hierarchy book",
+            self.state(pending_clarification="explain the first chapter"),
+            FailIfCalled(),
+        )
+
+        self.assertEqual(decision.route, "hierarchy_summary")
+        self.assertEqual(decision.history_dependency, "dependent")
+        self.assertEqual(
+            decision.resolved_scope.node_id,
+            self.nodes["Chapter 1. Overview"]["id"],
+        )
+
     def test_model_rewrites_followup_and_selects_only_canonical_scope(self):
         active = self.scope("Low-Rank Factorization")
         model = FakeModel(

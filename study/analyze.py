@@ -28,7 +28,13 @@ from .request import (
     parse_study_request,
     resolve_study_request,
 )
-from .scope import ResolvedScope, ScopeResolutionError
+from .scope import (
+    ResolvedScope,
+    ScopeResolutionError,
+    list_chapters,
+    resolve_book,
+    resolve_chapter,
+)
 from .scope_candidates import find_scope_candidates
 
 
@@ -73,6 +79,12 @@ LATE_LABELS = re.compile(r"\blabels?\b.*\b(?:arrive\s+late|delayed)\b", re.IGNOR
 OTHER_MODE = re.compile(r"\bother\s+mode\b", re.IGNORECASE)
 ORDINAL = re.compile(r"\b(first|second|third)\b", re.IGNORECASE)
 ORDINAL_INDEX = {"first": 0, "second": 1, "third": 2}
+ORDINAL_CHAPTER_REQUEST = re.compile(
+    r"\b(?:summari[sz]e|explain|review)\b.*?"
+    r"\b(?:the\s+)?(?P<ordinal>first|second|third)\s+chapter\b"
+    r"(?:\s+(?:of|in|from)\s+(?P<book_reference>.+?))?\s*[?.]?$",
+    re.IGNORECASE,
+)
 
 
 class ConversationDecisionError(RuntimeError):
@@ -104,6 +116,89 @@ def _scope_ref(scope: ResolvedScope) -> ScopeRef:
         display_path=scope.display_path,
         start_page=scope.start_page,
         end_page=scope.end_page,
+    )
+
+
+def _ordinal_chapter_decision(
+    question: str,
+    state: ConversationState,
+    database_url: str | None,
+    *,
+    owner_id: str | UUID,
+) -> TurnDecision | None:
+    """Resolve chapter ordinals by TOC order without asking the model.
+
+    The pending-clarification branch also repairs conversations created before
+    this deterministic route existed: after "explain the first chapter" asks
+    which book, a title-only reply can complete the original request.
+    """
+
+    source = question
+    match = ORDINAL_CHAPTER_REQUEST.search(source)
+    answering_clarification = False
+    if match is None and state.pending_clarification:
+        source = state.pending_clarification
+        match = ORDINAL_CHAPTER_REQUEST.search(source)
+        answering_clarification = match is not None
+    if match is None:
+        return None
+
+    ordinal = match.group("ordinal").casefold()
+    index = ORDINAL_INDEX[ordinal]
+    inline_book = match.groupdict().get("book_reference")
+    # A clarification reply is the book reference. When the UI has exactly
+    # one selected book, its canonical id is stronger than fuzzy title text
+    # such as "python mastery" for a stored title like "PythonMastery (1)".
+    book_reference = (
+        question.strip().rstrip("?.")
+        if answering_clarification and len(state.book_ids) != 1
+        else inline_book
+    )
+
+    try:
+        with database_connection(database_url, readonly=True) as connection:
+            book = resolve_book(
+                connection,
+                book_reference,
+                owner_id=owner_id,
+                book_ids=state.book_ids or None,
+            )
+            chapters = list_chapters(
+                connection,
+                owner_id=owner_id,
+                book_id=book.book_id,
+            )
+            if index >= len(chapters):
+                return TurnDecision(
+                    route="clarify",
+                    history_dependency="ambiguous",
+                    clarification_question=(
+                        f"I could not find a {ordinal} chapter in {book.book_title}."
+                    ),
+                    reason="The selected book has too few canonical chapters.",
+                )
+            scope = resolve_chapter(
+                connection,
+                chapters[index].title,
+                owner_id=owner_id,
+                book_id=book.book_id,
+            )
+    except ScopeResolutionError:
+        return TurnDecision(
+            route="clarify",
+            history_dependency="ambiguous",
+            clarification_question="Which selected book did you mean?",
+            reason="The chapter ordinal does not identify one selected book.",
+        )
+
+    return TurnDecision(
+        route="hierarchy_summary",
+        history_dependency=(
+            "dependent" if answering_clarification else "independent"
+        ),
+        standalone_query=f"Summarize {scope.display_path}.",
+        resolved_scope=_scope_ref(scope),
+        reason=f"Resolved the {ordinal} chapter by canonical table-of-contents order.",
     )
 
 
@@ -595,6 +690,14 @@ def analyze_turn(
     load_dotenv()
     if not question.strip():
         raise ConversationDecisionError("question cannot be empty")
+    ordinal = _ordinal_chapter_decision(
+        question,
+        state,
+        database_url,
+        owner_id=owner_id,
+    )
+    if ordinal:
+        return ordinal
     explicit = _explicit_hierarchy_decision(
         question,
         state,
