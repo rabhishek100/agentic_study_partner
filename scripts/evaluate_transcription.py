@@ -55,6 +55,12 @@ QUOTA = {PROSE: 3, TABLE: 3, FORMULA: 3, PATHOLOGICAL: 4}
 INDEPENDENT_SOURCES = frozenset({"image"})
 
 
+def _engine_label(model_id: str) -> str:
+    """A short name for a model, taken from the model itself."""
+
+    return model_id.split("/")[-1].split(":")[0]
+
+
 def _books(connection, owner_id) -> list[dict]:
     """Books whose pages were transcribed, newest ingestion per book."""
 
@@ -207,9 +213,12 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             with fitz.open(source) as document:
                 image = render_page(document, entry["page"] - 1, 300)
+            # Labelled by the model that actually ran, not by its position.
+            # These were "gemini" and "qwen" by assumption, which would have
+            # silently relabelled every result the day the primary changed.
             for name, engine in (
-                ("gemini", primary),
-                ("qwen", fallback),
+                (_engine_label(primary.model_id), primary),
+                (_engine_label(fallback.model_id), fallback),
                 ("tesseract", reference_engine),
             ):
                 if name in entry["candidates"]:
@@ -272,14 +281,15 @@ def main(argv: list[str] | None = None) -> int:
         for engine, candidate in entry["candidates"].items()
     ]
 
-    print(f"{'engine':<12}{'pages':>6}{'CER':>9}{'WER':>9}{'table F1':>10}{'fabricated':>12}")
-    for engine in ("gemini", "qwen", "tesseract"):
+    engines = sorted({s.engine for s in scores})
+    print(f"{'engine':<26}{'pages':>6}{'CER':>9}{'WER':>9}{'table F1':>10}{'fabricated':>12}")
+    for engine in engines:
         rows = [s for s in scores if s.engine == engine and s.scored]
         if not rows:
             continue
         tables = [s.table_cell_f1 for s in rows if s.table_cell_f1 is not None]
         print(
-            f"{engine:<12}{len(rows):>6}"
+            f"{engine:<26}{len(rows):>6}"
             f"{sum(s.character_error_rate for s in rows) / len(rows):>9.4f}"
             f"{sum(s.word_error_rate for s in rows) / len(rows):>9.4f}"
             f"{(sum(tables) / len(tables) if tables else float('nan')):>10.4f}"
@@ -287,8 +297,8 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     print()
-    print(f"{'engine':<12}{'category':<16}{'pages':>6}{'CER':>9}")
-    for engine in ("gemini", "qwen", "tesseract"):
+    print(f"{'engine':<26}{'category':<16}{'pages':>6}{'CER':>9}")
+    for engine in engines:
         for category in (PROSE, TABLE, FORMULA, PATHOLOGICAL):
             rows = [
                 s
@@ -298,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
             if not rows:
                 continue
             print(
-                f"{engine:<12}{category:<16}{len(rows):>6}"
+                f"{engine:<26}{category:<16}{len(rows):>6}"
                 f"{sum(s.character_error_rate for s in rows) / len(rows):>9.4f}"
             )
 

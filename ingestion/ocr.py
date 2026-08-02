@@ -70,13 +70,21 @@ logger = logging.getLogger("study_partner.ingestion.ocr")
 
 OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-# Top of OCR Arena for dense-text transcription, and about $3 for the 778
-# scanned pages in the corpus. The cheap tier is roughly a sixth of that and
-# exists so prompt iteration during development does not cost a full pass
-# every time. Both are read from the environment: a `-preview` model id will
-# be withdrawn eventually, and a hardcoded one turns that into an outage.
-DEFAULT_OCR_MODEL = "google/gemini-3-flash-preview"
-DEFAULT_OCR_FALLBACK_MODEL = "qwen/qwen3-vl-32b-instruct"
+# Qwen is primary on measured evidence rather than reputation. Gemini was
+# chosen first from OCR Arena standing, at roughly six times the price per
+# page; scored against references written from the page images themselves it
+# was not better - 0.181 character error against 0.169, and three times worse
+# on prose. Thirteen pages cannot show Qwen is better, but they removed the
+# reason to pay six times more for Gemini, and the cheaper model is the right
+# default when quality is indistinguishable.
+#
+# See evaluation/transcription_measurement.md, including what that measurement
+# still cannot support.
+#
+# Both are read from the environment: a `-preview` model id will be withdrawn
+# eventually, and a hardcoded one turns that into an outage.
+DEFAULT_OCR_MODEL = "qwen/qwen3-vl-32b-instruct"
+DEFAULT_OCR_FALLBACK_MODEL = "google/gemini-3-flash-preview"
 
 # Sources in this corpus carry only 110-160 dpi of real detail, so rendering
 # beyond 300 buys pixels without information while multiplying image tokens.

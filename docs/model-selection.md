@@ -15,6 +15,7 @@ general benchmark scores alone.
 | Figure captioning | Gemini 2.5 Flash Lite | unchanged | provider default |
 | Embeddings | OpenAI text-embedding-3-large | unchanged | not applicable |
 | Reranking | Cohere Rerank 4 Pro | unchanged | not applicable |
+| Page transcription | Gemini 3 Flash | Qwen3-VL-32B | not applicable |
 
 Luna is used through OpenRouter as `openai/gpt-5.6-luna`. Generation keeps
 reasoning disabled because it transforms retrieved evidence under
@@ -106,3 +107,33 @@ long-context rate.
 - [OpenAI: using GPT-5.6](https://developers.openai.com/api/docs/guides/model-guidance?model=gpt-5.6-luna)
 - [OpenRouter: GPT-5.6 Luna](https://openrouter.ai/openai/gpt-5.6-luna)
 - [OpenRouter models API](https://openrouter.ai/api/v1/models)
+
+## Page transcription, 2026-08-02
+
+Gemini 3 Flash was chosen first from OCR Arena standing and cost roughly six
+times as much per page as the alternative. That was reputation, not
+measurement, and this document says models are replaced on paired evaluation
+rather than general benchmark scores — the same rule should have applied to
+choosing one.
+
+Measured on 13 pages of the three scanned books, against references written
+from the page images independently of every engine:
+
+| Engine | CER | WER | Table cell F1 | Fabricated spans |
+|---|---:|---:|---:|---:|
+| Qwen3-VL-32B | 0.1685 | 0.1874 | 0.948 | 0 |
+| Gemini 3 Flash | 0.1807 | 0.2114 | 0.917 | 0 |
+
+Qwen is ahead on every aggregate and three times better on prose specifically.
+Thirteen pages cannot establish that Qwen is the better reader; what they
+establish is that there is no measured reason to pay six times more for Gemini.
+With quality indistinguishable, the cheaper model is the correct default.
+
+Gemini remains the fallback and the second opinion for pages the fabrication
+gate flags, which is where a differing reading is worth its price.
+
+**What this decision rests on, stated plainly.** A 13-page sample, and 24 of the
+39 selected pages excluded because their references were derived from a
+candidate and cannot rank one. Rebuilding those would roughly triple the sample
+and should be done before this is treated as settled. See
+`evaluation/transcription_measurement.md`.
