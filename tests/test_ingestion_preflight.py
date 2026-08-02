@@ -9,6 +9,7 @@ from ingestion.errors import ErrorCode, IngestionError
 from ingestion.preflight import (
     DIGITAL_WITHOUT_TOC,
     MIXED,
+    OCR,
     REVIEW,
     SCANNED,
     STRUCTURED_DIGITAL,
@@ -79,21 +80,27 @@ class PreflightTests(unittest.TestCase):
         self.assertFalse(profile["likely_ocr_backed"])
 
     def test_an_ocr_text_layer_is_distinguished_from_native_digital_text(self):
+        """A text layer someone else's OCR produced is not native text.
+
+        It routes to transcription rather than being parsed as-is: the corpus
+        contains one such book whose embedded outline is populated with OCR'd
+        equations, so the existing text is evidence about that engine rather
+        than about the book.
+        """
+
         report = preflight(ocr_backed_pdf(self.path("ocr.pdf")), limits=LIMITS)
 
         self.assertEqual(report.document_class, STRUCTURED_DIGITAL)
         self.assertFalse(report.supported)
-        self.assertEqual(report.decision.action, REVIEW)
+        self.assertEqual(report.decision.action, OCR)
+        self.assertIn("ocr_backed_source", report.decision.reasons)
         self.assertEqual(report.profile.image_page_coverage, 1.0)
         self.assertEqual(report.profile.full_page_image_coverage, 1.0)
         self.assertEqual(report.profile.ocr_overlay_coverage, 1.0)
         self.assertTrue(report.profile.likely_ocr_backed)
         self.assertGreater(report.profile.estimated_total_image_pixels, 0)
-        with self.assertRaises(IngestionError) as caught:
-            require_supported(report)
-        self.assertEqual(
-            caught.exception.code, ErrorCode.UNSUPPORTED_DOCUMENT_CLASS
-        )
+        # Routed, not refused.
+        require_supported(report)
 
     def test_an_illustrated_native_pdf_is_not_mistaken_for_an_ocr_scan(self):
         report = preflight(structured_pdf(self.path("book.pdf")), limits=LIMITS)
@@ -117,24 +124,36 @@ class PreflightTests(unittest.TestCase):
             source, ErrorCode.TOO_MANY_PAGES, limits=IngestionLimits(max_pages=10)
         )
 
-    def test_a_scanned_pdf_is_classified_and_refused(self):
+    def test_a_scanned_pdf_is_routed_to_transcription(self):
+        """A page with no text cannot be routed on its text.
+
+        It reaches the hierarchy question only after transcription has answered
+        the text question, and a human confirms the result either way.
+        """
+
         report = preflight(scanned_pdf(self.path("scan.pdf")), limits=LIMITS)
 
         self.assertEqual(report.document_class, SCANNED)
         self.assertFalse(report.supported)
         self.assertEqual(report.pages_with_text, 0)
-        with self.assertRaises(IngestionError) as caught:
-            require_supported(report)
-        self.assertEqual(
-            caught.exception.code, ErrorCode.UNSUPPORTED_DOCUMENT_CLASS
-        )
+        self.assertEqual(report.decision.action, OCR)
+        self.assertIn(f"document_class:{SCANNED}", report.decision.reasons)
+        require_supported(report)
 
-    def test_a_mixed_pdf_is_classified_and_refused(self):
+    def test_a_mixed_pdf_is_routed_to_transcription(self):
         report = preflight(mixed_pdf(self.path("mixed.pdf")), limits=LIMITS)
 
         self.assertEqual(report.document_class, MIXED)
-        with self.assertRaises(IngestionError):
-            require_supported(report)
+        self.assertEqual(report.decision.action, OCR)
+        require_supported(report)
+
+    def test_a_transcription_route_proposes_no_outline_yet(self):
+        """Nothing about the hierarchy is claimed before the text exists."""
+
+        report = preflight(scanned_pdf(self.path("scan.pdf")), limits=LIMITS)
+
+        self.assertEqual(report.decision.action, OCR)
+        self.assertIsNone(report.decision.outline_source)
 
     def test_a_digital_pdf_without_an_outline_is_refused_with_its_own_reason(self):
         report = preflight(pdf_without_outline(self.path("flat.pdf")), limits=LIMITS)

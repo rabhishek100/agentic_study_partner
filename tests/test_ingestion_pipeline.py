@@ -28,6 +28,7 @@ from ingestion.jobs import (
 )
 from ingestion.pipeline import (
     CancellationRequested,
+    _book_title,
     PipelineDependencies,
     evaluate_extraction,
     run_job,
@@ -66,6 +67,45 @@ BODY = (
     "Training-serving skew appears when production inputs drift away from the "
     "training distribution, which is why monitoring input statistics matters."
 )
+
+
+class StubOcrProvider:
+    """A local stand-in for the hosted transcription model.
+
+    It emits the heading markup a real transcription carries, so the stage's
+    proposal is exercised rather than bypassed.
+    """
+
+    name = "stub"
+    model_id = "test/vision-1"
+    prompt_hash = "stub-prompt"
+
+    # A page of real prose, so the extraction-quality gate sees a plausible
+    # book rather than a stub too thin to be worth importing.
+    BODY = (
+        "A proximity service discovers nearby places such as restaurants and "
+        "theaters, and powers features like finding the best restaurants near "
+        "a location. The design begins by narrowing scope: whether the user "
+        "may specify a search radius, and whether the system expands that "
+        "radius when too few businesses fall inside it."
+    )
+
+    def transcribe(self, image: bytes, mime_type: str, page: int):
+        from ingestion.ocr import PageTranscription
+
+        del image, mime_type
+        return PageTranscription(
+            page=page,
+            text=f"# Chapter {page}\n\n{self.BODY}\n\n"
+            f"<!-- footer: | {page} -->",
+            provider=self.name,
+            model_id=self.model_id,
+            render_dpi=72,
+            prompt_hash=self.prompt_hash,
+            input_tokens=100,
+            output_tokens=40,
+            cost_usd=0.001,
+        )
 
 
 class DeterministicEmbedder:
@@ -360,17 +400,144 @@ class StubbedParserTests(PipelineFixture):
         self.assertEqual(caught.exception.code, ErrorCode.ENCRYPTED_PDF)
         self.assertFalse(caught.exception.retryable)
 
-    def test_a_scanned_pdf_is_refused_rather_than_guessed_at(self):
+    def test_a_scanned_pdf_is_transcribed_and_then_waits_for_review(self):
+        """A scan reaches a hierarchy through a person, never on its own.
+
+        Transcription answers the text question; it is not allowed to answer
+        the structure question, because a wrong chapter boundary produces a
+        confidently wrong citation that nothing downstream would catch.
+        """
+
         job = self.claim(scanned_pdf(self.directory / "scan.pdf"))
+        self.dependencies = PipelineDependencies(
+            embedder_factory=DeterministicEmbedder,
+            ocr_factory=StubOcrProvider,
+            ocr_reference_factory=lambda: None,
+        )
+
+        outcome = self.run_claimed(job)
+
+        self.assertIsNone(outcome.book_id)
+        paused = self.job_now(job.id)
+        self.assertEqual(paused.status, Status.NEEDS_TOC_REVIEW)
+        self.assertEqual(paused.document_class, "scanned")
+        # Every page was read and committed before the pause.
+        ocr = paused.provenance.get("ocr", {})
+        self.assertEqual(ocr["pages"], paused.page_count)
+        self.assertEqual(ocr["model_id"], StubOcrProvider.model_id)
+        # The proposal is evidence a reviewer must confirm, not a hierarchy.
+        review = paused.provenance["outline_review"]
+        self.assertEqual(review["state"], "pending")
+        self.assertEqual(review["outline_source"], "transcribed_headings")
+        self.assertTrue(review["entries"])
+
+    def test_a_transcribed_scan_becomes_a_ready_book_after_review(self):
+        """The whole scanned path: transcribe, review, build, ingest.
+
+        The second pass must not run the PDF parser. On a pure scan it would
+        read the same pixels with a weaker engine and find nothing at all, so
+        the book is built from the transcription already stored.
+        """
+
+        self.dependencies = PipelineDependencies(
+            embedder_factory=DeterministicEmbedder,
+            ocr_factory=StubOcrProvider,
+            ocr_reference_factory=lambda: None,
+        )
+        first_claim = self.claim(scanned_pdf(self.directory / "scan.pdf"))
+
+        paused = self.run_claimed(first_claim)
+        self.assertEqual(paused.job.status, Status.NEEDS_TOC_REVIEW)
+
+        review = outline_review(paused.job)
+        confirmed = [
+            (entry["level"], entry["title"], entry["page"])
+            for entry in review["entries"]
+        ]
+        with connection(self.database_url) as database:
+            confirm_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=first_claim.id,
+                toc=confirmed,
+            )
+            second_claim = claim_next_job(
+                database, worker_id="test-worker", limits=LIMITS
+            )
+
+        outcome = self.run_claimed(second_claim)
+
+        self.assertEqual(outcome.job.status, Status.READY)
+        self.assertIsNotNone(outcome.book_id)
+        # Built from the transcription, and recorded as such: a reader asking
+        # where this text came from gets the transcription, not a parse that
+        # never happened.
+        provenance = outcome.job.provenance
+        self.assertTrue(provenance["parser"]["version"].startswith("transcript-"))
+        self.assertIn("printed_numbering", provenance)
+        with connection(self.database_url) as database:
+            books = list_books(database, owner_id=self.owner)
+        self.assertEqual(len(books), 1)
+
+    def test_a_local_source_runs_without_touching_storage(self):
+        """The route for books the 50 MB upload ceiling cannot carry.
+
+        Only acquisition changes. The book still transcribes, still stops at
+        outline review, and still needs a human before it is answerable, so
+        this is a way around the upload limit and not around the review gate.
+        """
+
+        from ingestion.local_source import inspect_local_source, queue_local_source
+
+        self.dependencies = PipelineDependencies(
+            embedder_factory=DeterministicEmbedder,
+            ocr_factory=StubOcrProvider,
+            ocr_reference_factory=lambda: None,
+        )
+        source = inspect_local_source(scanned_pdf(self.directory / "local.pdf"))
+        with connection(self.database_url) as database:
+            queued = queue_local_source(
+                database, owner_id=self.owner, source=source, limits=LIMITS
+            )
+            claimed = claim_next_job(
+                database,
+                worker_id="test-worker",
+                limits=LIMITS,
+                include_local=True,
+            )
+
+        self.assertEqual(claimed.id, queued.id)
+        # Nothing was ever uploaded, so a Storage-backed run would fail here.
+        self.assertNotIn(claimed.storage_path, self.uploaded)
+
+        outcome = self.run_claimed(claimed, local_source=source.path)
+
+        self.assertEqual(outcome.job.status, Status.NEEDS_TOC_REVIEW)
+        self.assertEqual(outcome.job.file_hash, source.sha256)
+
+    def test_a_local_source_that_changed_is_refused(self):
+        """The hash is what ties a confirmed outline to the file it came from."""
+
+        from ingestion.local_source import inspect_local_source, queue_local_source
+
+        source = inspect_local_source(scanned_pdf(self.directory / "swap.pdf"))
+        with connection(self.database_url) as database:
+            queue_local_source(
+                database, owner_id=self.owner, source=source, limits=LIMITS
+            )
+            claimed = claim_next_job(
+                database,
+                worker_id="test-worker",
+                limits=LIMITS,
+                include_local=True,
+            )
+
+        replacement = structured_pdf(self.directory / "other.pdf")
 
         with self.assertRaises(IngestionError) as caught:
-            self.run_claimed(job)
+            self.run_claimed(claimed, local_source=replacement)
 
-        self.assertEqual(
-            caught.exception.code, ErrorCode.UNSUPPORTED_DOCUMENT_CLASS
-        )
-        # The class it detected is recorded even though ingestion stopped.
-        self.assertEqual(self.job_now(job.id).document_class, "scanned")
+        self.assertEqual(caught.exception.code, ErrorCode.SOURCE_CHANGED)
 
     def test_a_source_deleted_after_queueing_fails_the_job(self):
         job = self.claim(structured_pdf(self.directory / "book.pdf"))
@@ -608,3 +775,40 @@ class ExtractionQualityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BookTitleTests(unittest.TestCase):
+    """Choosing between the embedded title and the uploaded filename.
+
+    A PDF's metadata title is frequently a placeholder its author never
+    changed. One deck in this corpus carries "TestDoc", which became the name
+    of a 550-slide course in the library.
+    """
+
+    def test_a_placeholder_loses_to_the_filename(self) -> None:
+        self.assertEqual(
+            _book_title("TestDoc", "PythonMastery (1).pdf"), "PythonMastery (1)"
+        )
+        self.assertEqual(
+            _book_title("untitled", "Head First Design Patterns.pdf"),
+            "Head First Design Patterns",
+        )
+
+    def test_a_real_title_beats_an_abbreviated_filename(self) -> None:
+        """Which is the case the metadata is there for."""
+
+        self.assertEqual(
+            _book_title("Designing Machine Learning Systems", "dmls.pdf"),
+            "Designing Machine Learning Systems",
+        )
+
+    def test_a_tool_export_name_is_not_a_title(self) -> None:
+        self.assertEqual(
+            _book_title("Microsoft Word - ch3.docx", "Chapter Three.pdf"),
+            "Chapter Three",
+        )
+
+    def test_a_missing_or_tiny_title_falls_back(self) -> None:
+        self.assertEqual(_book_title(None, "AI Engineering.pdf"), "AI Engineering")
+        self.assertEqual(_book_title("", "AI Engineering.pdf"), "AI Engineering")
+        self.assertEqual(_book_title("ab", "AI Engineering.pdf"), "AI Engineering")

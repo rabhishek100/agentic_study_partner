@@ -1,3 +1,4 @@
+import os
 import unittest
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
@@ -7,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 
 from api.auth import current_owner
 from api.main import app
+from api.version import build_revision
 from study.contracts import ConversationState, TurnResult
 from study.prompts import DEFAULT_PROMPT_PROFILE
 from study.query import QueryExecutionError
@@ -504,6 +506,28 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("event: error", body)
         self.assertIn("No indexed book is available", body)
+
+
+class BuildIdentityTests(unittest.TestCase):
+    """A service should be able to say what code it is serving.
+
+    Deployment drift is otherwise invisible: the worker once ran five commits
+    behind the repository for hours, and noticing meant comparing a deployment
+    timestamp against a git log by eye.
+    """
+
+    def test_an_unbuilt_checkout_reports_unknown_rather_than_guessing(self) -> None:
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("BUILD_REVISION", None)
+            self.assertEqual(build_revision(), "unknown")
+
+    def test_a_built_image_reports_what_it_was_built_from(self) -> None:
+        with patch.dict(os.environ, {"BUILD_REVISION": "abc1234"}):
+            self.assertEqual(build_revision(), "abc1234")
+
+    def test_whitespace_is_not_a_revision(self) -> None:
+        with patch.dict(os.environ, {"BUILD_REVISION": "   "}):
+            self.assertEqual(build_revision(), "unknown")
 
 
 if __name__ == "__main__":

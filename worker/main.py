@@ -24,6 +24,7 @@ from uuid import uuid4
 from dotenv import load_dotenv
 
 from ingestion.cleanup import run_cleanup
+from api.version import build_revision, build_time
 from ingestion.config import IngestionLimits, load_limits
 from ingestion.errors import ErrorCode, IngestionError, classify_failure
 from ingestion.jobs import (
@@ -351,7 +352,14 @@ class Worker:
     def run(self) -> None:
         """Poll until asked to stop."""
 
-        logger.info("worker started", extra={"job_id": None})
+        logger.info(
+            "worker started",
+            extra={
+                "job_id": None,
+                "build_revision": build_revision(),
+                "build_time": build_time(),
+            },
+        )
         while not self.stopping:
             try:
                 worked = self.run_once()

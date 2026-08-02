@@ -45,6 +45,11 @@ UNSUPPORTED = "unsupported"
 PARSE = "parse"
 REVIEW = "review"
 REJECT = "reject"
+# Transcribe the pages first, then propose a hierarchy from the text and send
+# it to review. A scan has no text layer to route on and an OCR-backed source
+# has one somebody else produced, so both reach the outline question only after
+# this stage has answered the text question.
+OCR = "ocr"
 
 
 @dataclass(frozen=True)
@@ -302,16 +307,38 @@ def decide_preflight(
 ) -> PreflightDecision:
     """Route measured evidence without invoking a model."""
 
-    if document_class in {SCANNED, MIXED, UNSUPPORTED}:
+    if document_class == UNSUPPORTED:
         return PreflightDecision(
             action=REJECT,
             reasons=(f"unsupported_document_class:{document_class}",),
             outline_source=None,
         )
 
+    # A page with no text cannot be routed on its text, and a text layer
+    # somebody else's OCR produced is evidence about that engine rather than
+    # about the book: this corpus contains one whose outline is populated with
+    # OCR'd equations. Both go to transcription first, and the hierarchy
+    # question is answered afterwards from text this pipeline produced and can
+    # account for.
+    if (
+        document_class in {SCANNED, MIXED}
+        or profile.likely_ocr_backed
+        or outline.poisoned
+    ):
+        reasons = [f"document_class:{document_class}"]
+        if profile.likely_ocr_backed:
+            reasons.append("ocr_backed_source")
+        if outline.poisoned:
+            # The embedded rows are discarded rather than repaired. They were
+            # harvested off the pages by OCR software, so the actual chapter
+            # headings are absent from them entirely and there is nothing in
+            # them to repair towards.
+            reasons.append("poisoned_outline")
+        return PreflightDecision(
+            action=OCR, reasons=tuple(reasons), outline_source=None
+        )
+
     reasons = list(outline.assessment.reasons)
-    if profile.likely_ocr_backed:
-        reasons.insert(0, "ocr_backed_source")
     if document_class == DIGITAL_WITHOUT_TOC and "missing_outline" not in reasons:
         reasons.append("missing_outline")
 
@@ -477,24 +504,21 @@ def preflight(source: Path, *, limits: IngestionLimits) -> PreflightReport:
 
 
 def require_supported(report: PreflightReport) -> None:
-    """Stop anything the first release cannot ingest safely.
+    """Stop anything this pipeline cannot ingest safely.
 
-    Scanned and TOC-less books are a separate workflow: OCR alone cannot
-    establish trustworthy chapter boundaries, and inventing them would put
-    wrong citations in front of a reader.
+    Scanned and OCR-backed sources are no longer stopped here: they route to
+    transcription and reach a hierarchy through review. What remains refused is
+    a source whose structure cannot be established at all, because inventing
+    chapter boundaries would put wrong citations in front of a reader and
+    nothing downstream would catch it.
     """
 
-    if report.decision.action == PARSE:
+    if report.decision.action in {PARSE, OCR}:
         return
     if report.document_class == DIGITAL_WITHOUT_TOC:
         raise IngestionError(
             ErrorCode.MISSING_TABLE_OF_CONTENTS,
             detail="digital PDF without an embedded outline",
-        )
-    if report.profile.likely_ocr_backed:
-        raise IngestionError(
-            ErrorCode.UNSUPPORTED_DOCUMENT_CLASS,
-            detail="OCR-backed PDF requires outline review",
         )
     if report.decision.action == REVIEW:
         raise IngestionError(

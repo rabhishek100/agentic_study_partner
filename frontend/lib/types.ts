@@ -220,11 +220,15 @@ export interface StageView {
 
 export interface JobTiming {
   percent: number;
+  /** Time the pipeline worked. Excludes any wait for a reviewer. */
   elapsed_seconds: number;
   estimated_total_seconds: number;
+  /** Null while overrunning, and while waiting on a person. */
   estimated_remaining_seconds: number | null;
   overrunning: boolean;
   stages: StageView[];
+  awaiting_input: boolean;
+  awaiting_input_seconds: number;
 }
 
 export interface JobProgress {
@@ -252,6 +256,12 @@ export interface IngestionJob {
   book_id: number | null;
   error: JobError | null;
   cancellation_requested: boolean;
+  /**
+   * Whether this tab can act on the job. False for a job whose source was
+   * imported from an operator's filesystem: no browser can advance it, so the
+   * upload panel shows it without adopting it.
+   */
+  driveable: boolean;
   timing: JobTiming;
   created_at: string;
   started_at: string | null;

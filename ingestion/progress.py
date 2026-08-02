@@ -103,7 +103,13 @@ class StageView:
 
 @dataclass(frozen=True)
 class JobProgress:
-    """What the UI needs to show honest progress and a time estimate."""
+    """What the UI needs to show honest progress and a time estimate.
+
+    ``elapsed_seconds`` counts time the pipeline was working. Time parked on a
+    person is reported separately as ``awaiting_input_seconds`` and never
+    folded into the estimates, which are calibrated against machine work and
+    mean nothing when measured across somebody's night.
+    """
 
     percent: float
     elapsed_seconds: float
@@ -111,6 +117,8 @@ class JobProgress:
     estimated_remaining_seconds: float | None
     overrunning: bool
     stages: tuple[StageView, ...]
+    awaiting_input: bool = False
+    awaiting_input_seconds: float = 0.0
 
 
 def stage_seconds(stage: Stage, pages: int) -> float:
@@ -135,6 +143,7 @@ def estimate(
     completed_at: datetime | None = None,
     progress_completed: int = 0,
     progress_total: int | None = None,
+    awaiting_input_seconds: float = 0.0,
     now: datetime | None = None,
 ) -> JobProgress:
     """Estimate overall progress and remaining time for one job.
@@ -148,6 +157,11 @@ def estimate(
     A stage with no count of its own is estimated from elapsed time against
     its expected duration, capped below completion so it never claims to be
     finished early.
+
+    Time spent awaiting outline review is subtracted throughout. Every
+    constant here was measured on a worker doing work; charging a job for the
+    hours it waited on a reviewer made it overrun estimates it had not
+    actually missed.
     """
 
     now = now or datetime.now(timezone.utc)
@@ -157,11 +171,53 @@ def estimate(
 
     expected = {step: stage_seconds(step, pages) for step in STAGE_ORDER}
     total = sum(expected.values())
-    elapsed = _elapsed(started_at, now) or 0.0
+
+    # A pause still open is not yet banked on the row, so measure it from the
+    # stage clock; review is the only status that parks a job.
+    awaiting = max(0.0, awaiting_input_seconds)
+    awaiting_now = current_status is Status.NEEDS_TOC_REVIEW
+    if awaiting_now:
+        awaiting += _elapsed(stage_started_at, now) or 0.0
+    elapsed = max(0.0, (_elapsed(started_at, now) or 0.0) - awaiting)
+
+    if awaiting_now:
+        # The pipeline is not running and no estimate can cover a person. Hold
+        # the work clock and the progress bar where review found them.
+        index = STAGE_ORDER.index(current_stage) if current_stage in STAGE_ORDER else 0
+        done_seconds = sum(expected[step] for step in STAGE_ORDER[:index])
+        return JobProgress(
+            percent=round(100.0 * done_seconds / total, 1) if total else 0.0,
+            elapsed_seconds=round(elapsed, 1),
+            estimated_total_seconds=round(total, 1),
+            estimated_remaining_seconds=None,
+            overrunning=False,
+            stages=tuple(
+                StageView(
+                    stage=str(step),
+                    label=STAGE_LABELS[step],
+                    state=(
+                        "done"
+                        if position < index
+                        else "active" if position == index else "pending"
+                    ),
+                    expected_seconds=round(expected[step], 1),
+                    elapsed_seconds=None,
+                )
+                for position, step in enumerate(STAGE_ORDER)
+            ),
+            awaiting_input=True,
+            awaiting_input_seconds=round(awaiting, 1),
+        )
 
     if is_terminal(current_status):
         finished = current_status is Status.READY
-        actual = _elapsed(started_at, completed_at) if completed_at else elapsed
+        # How long the work took, which for a reviewed book is not how long it
+        # was in the system. The history list shows this number.
+        actual = (
+            max(0.0, (_elapsed(started_at, completed_at) or 0.0) - awaiting)
+            if completed_at
+            else elapsed
+        )
         return JobProgress(
             percent=100.0 if finished else 0.0,
             elapsed_seconds=actual or elapsed,
@@ -178,6 +234,7 @@ def estimate(
                 )
                 for step in STAGE_ORDER
             ),
+            awaiting_input_seconds=round(awaiting, 1),
         )
 
     if current_stage is None or current_stage not in STAGE_ORDER:
@@ -198,6 +255,7 @@ def estimate(
                 )
                 for step in STAGE_ORDER
             ),
+            awaiting_input_seconds=round(awaiting, 1),
         )
 
     index = STAGE_ORDER.index(current_stage)
@@ -255,6 +313,7 @@ def estimate(
         estimated_remaining_seconds=None if overrunning else round(remaining, 1),
         overrunning=overrunning,
         stages=tuple(stages),
+        awaiting_input_seconds=round(awaiting, 1),
     )
 
 

@@ -14,12 +14,38 @@ from storage.database import parse_owner_id
 from .models import Chunk, ChunkSource, ChunkingConfig
 
 
-# v2 makes figure captions searchable text. A figure without a caption is
-# still a zero-length source, exactly as before.
-CHUNKER_VERSION = "ordered-blocks-v2"
+# v3 indexes mathematics as its words rather than its markup. A figure without
+# a caption is still a zero-length source, exactly as in v2.
+CHUNKER_VERSION = "ordered-blocks-v3"
 SKIPPED_CATEGORIES = NON_CONTENT_CATEGORIES
 WORD_WITH_SPACE = re.compile(r"\S+\s*")
 SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+|\n{2,}")
+
+# Transcribed books carry mathematics as LaTeX so a citation can show the
+# notation the page prints. The index wants the opposite: fed
+# `$\frac{\partial L}{\partial w}$`, the English configuration emits `frac`,
+# `partial` and `w` as terms, which dilute scoring on the most mathematical
+# chapters and match nothing anyone searches for.
+_LATEX_COMMAND = re.compile(r"\\[a-zA-Z]+\s*")
+_LATEX_DELIMITER = re.compile(r"\$\$?")
+_LATEX_GROUPING = re.compile(r"[{}^_]")
+
+
+def searchable_text(text: str) -> str | None:
+    """Return the indexable rendering of a chunk, or None when unchanged.
+
+    Only the markup is removed. The words and numbers inside the mathematics
+    stay: someone searching "64 x 64 pixels" should still find the page that
+    prints `$64 \\times 64$`.
+    """
+
+    if "$" not in text and "\\" not in text:
+        return None
+    stripped = _LATEX_GROUPING.sub(
+        " ", _LATEX_COMMAND.sub(" ", _LATEX_DELIMITER.sub(" ", text))
+    )
+    collapsed = " ".join(stripped.split())
+    return collapsed if collapsed != text else None
 
 
 @dataclass(frozen=True)
@@ -104,6 +130,31 @@ def _split_text(
     return final
 
 
+def _split_oversized(
+    value: str,
+    start: int,
+    *,
+    max_tokens: int,
+    encoding,
+) -> list[tuple[str, int, int, int]]:
+    """Divide a span with no word boundary into pieces that fit."""
+
+    pieces: list[tuple[str, int, int, int]] = []
+    # Characters per token varies, so step conservatively and measure each
+    # piece rather than trusting the ratio.
+    step = max(1, max_tokens * 2)
+    offset = 0
+    while offset < len(value):
+        piece = value[offset : offset + step]
+        while len(encoding.encode(piece)) > max_tokens and len(piece) > 1:
+            piece = piece[: len(piece) // 2]
+        pieces.append(
+            (piece, start + offset, start + offset + len(piece), len(encoding.encode(piece)))
+        )
+        offset += len(piece)
+    return pieces
+
+
 def _split_words(
     text: str,
     *,
@@ -116,7 +167,10 @@ def _split_words(
 
     spans = list(WORD_WITH_SPACE.finditer(text, start, end))
     if not spans:
-        raise ValueError("cannot split an oversized block without word boundaries")
+        # No whitespace anywhere in the span.
+        return _split_oversized(
+            text[start:end], start, max_tokens=max_tokens, encoding=encoding
+        )
 
     pieces: list[tuple[str, int, int, int]] = []
     piece_start = spans[0].start()
@@ -128,15 +182,23 @@ def _split_words(
             value = text[piece_start:piece_end].rstrip()
             value_tokens = len(encoding.encode(value))
             if value_tokens > max_tokens:
-                raise ValueError("a single unbroken token span exceeds max_tokens")
-            pieces.append(
-                (
-                    value,
-                    piece_start,
-                    piece_start + len(value),
-                    value_tokens,
+                pieces.extend(
+                    _split_oversized(
+                        value,
+                        piece_start,
+                        max_tokens=max_tokens,
+                        encoding=encoding,
+                    )
                 )
-            )
+            else:
+                pieces.append(
+                    (
+                        value,
+                        piece_start,
+                        piece_start + len(value),
+                        value_tokens,
+                    )
+                )
             piece_start = span.start()
         piece_end = span.end()
 
@@ -144,7 +206,14 @@ def _split_words(
     if value:
         token_count = len(encoding.encode(value))
         if token_count > max_tokens:
-            raise ValueError("a single unbroken token span exceeds max_tokens")
+            # Nothing in this span is a word boundary, so there is no good
+            # place to divide it. Dividing it badly still beats refusing the
+            # book: one page of a scan produced a single 59,648-character run
+            # and took the whole ingestion down with it at the chunking stage,
+            # long after the canonical content had been committed.
+            return _split_oversized(
+                value, piece_start, max_tokens=max_tokens, encoding=encoding
+            )
         pieces.append(
             (
                 value,
@@ -338,6 +407,7 @@ def _make_chunk(
         char_count=len(text),
         token_count=token_count,
         content_hash=content_digest,
+        search_text=searchable_text(text),
         sources=tuple(ordered_sources),
     )
 

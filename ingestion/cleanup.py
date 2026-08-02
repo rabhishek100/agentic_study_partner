@@ -16,6 +16,7 @@ marker, because a missing object must be explainable afterwards.
 
 from dataclasses import dataclass
 import logging
+import re
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
@@ -32,6 +33,10 @@ from .storage_objects import delete_object, list_prefix
 MAXIMUM_OWNERS_PER_SWEEP = 200
 MAXIMUM_JOBS_PER_OWNER = 200
 
+
+# A job directory is named by its UUID. Anything else under an owner
+# prefix belongs to something other than a job's source.
+_JOB_PREFIX = re.compile(r"[0-9a-fA-F-]{36}")
 
 logger = logging.getLogger("study_partner.ingestion.cleanup")
 
@@ -220,15 +225,24 @@ def delete_orphaned_sources(
     # A ready book's source cannot be reconstructed from anything else in the
     # system: canonical content, chunks, embeddings, and captions all survive
     # without it, but the reading pane has nothing to open.
-    protected = {
-        row["source_storage_path"]
-        for row in connection.execute(
-            """
-            select source_storage_path from books
-            where source_storage_path is not null
-            """
-        ).fetchall()
-    }
+    #
+    # A viewer copy is protected for the same reason and is not reconstructible
+    # either: it exists precisely for books whose own bytes were never uploaded,
+    # so losing it leaves the reading pane with nothing at all. Its path shape
+    # differs from the one this sweep builds, so it is not reachable today —
+    # which is exactly why it is worth naming here rather than relying on.
+    protected = set()
+    for row in connection.execute(
+        """
+        select source_storage_path, viewer_storage_path from books
+        where source_storage_path is not null or viewer_storage_path is not null
+        """
+    ).fetchall():
+        protected.update(
+            path
+            for path in (row["source_storage_path"], row["viewer_storage_path"])
+            if path
+        )
 
     deleted = 0
     failed = 0
@@ -258,6 +272,12 @@ def delete_orphaned_sources(
                 MAXIMUM_JOBS_PER_OWNER,
             )
         for job in jobs:
+            if not _JOB_PREFIX.fullmatch(job):
+                # Not a job's directory. Book-scoped prefixes hold the derived
+                # reading copies, and constructing a source path inside one
+                # asks Storage to delete something that was never there, which
+                # every sweep then counts as a failure.
+                continue
             path = f"{owner}/{job}/original.pdf"
             if path in known or path in protected:
                 continue

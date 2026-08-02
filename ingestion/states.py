@@ -96,8 +96,11 @@ _INTERRUPTIONS = frozenset(
 _ALLOWED: dict[Status, frozenset[Status]] = {
     Status.AWAITING_UPLOAD: frozenset({Status.QUEUED, Status.CANCELLED, Status.FAILED}),
     Status.QUEUED: frozenset({Status.VALIDATING, Status.CANCELLED, Status.FAILED}),
+    # Preflight runs inside ``validating``, so this is where the routing
+    # decision lands: a structured book goes on to parse, a scanned or
+    # OCR-backed one to transcription, and either may pause for outline review.
     Status.VALIDATING: frozenset(
-        {Status.PARSING, Status.NEEDS_TOC_REVIEW, Status.READY}
+        {Status.PARSING, Status.OCR, Status.NEEDS_TOC_REVIEW, Status.READY}
     )
     | (_INTERRUPTIONS - {Status.VALIDATING}),
     Status.PARSING: frozenset({Status.PERSISTING}) | _INTERRUPTIONS,

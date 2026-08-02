@@ -117,10 +117,10 @@ def rebuild(
                     id, owner_id, build_id, source_book_id, source_node_id,
                     toc_index, chunk_index, section_title, path_text,
                     start_page, end_page, text, content_types, token_count,
-                    content_hash
+                    content_hash, search_text
                 ) values (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s
+                    %s, %s, %s, %s
                 )
                 """,
                 (
@@ -139,6 +139,7 @@ def rebuild(
                     list(chunk.content_types),
                     chunk.token_count,
                     chunk.content_hash,
+                    chunk.search_text,
                 ),
             )
             with connection.cursor() as cursor:

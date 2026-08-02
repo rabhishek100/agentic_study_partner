@@ -11,6 +11,7 @@ making decisions. LangGraph stays where inspectable choices actually happen.
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import logging
+import re
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -48,7 +49,11 @@ from .jobs import (
     record_progress,
     set_stage,
 )
+from .ocr_stage import propose_outline, require_proposable, transcribe_book
+from .outlines import SLIDE_PROPOSER_VERSION
+from .ocr_store import transcribed_text
 from .preflight import (
+    OCR,
     REVIEW,
     PreflightReport,
     preflight,
@@ -81,6 +86,8 @@ class PipelineDependencies:
 
     embedder_factory: Callable[[], Any] | None = None
     captioner_factory: Callable[[], Any] | None = None
+    ocr_factory: Callable[[], Any] | None = None
+    ocr_reference_factory: Callable[[], Any] | None = None
     chunking_config: ChunkingConfig = field(default_factory=ChunkingConfig)
 
     def embedder(self) -> Any:
@@ -96,6 +103,31 @@ class PipelineDependencies:
         from ingestion.captions import OpenRouterCaptioner
 
         return OpenRouterCaptioner()
+
+    def ocr(self) -> Any:
+        if self.ocr_factory is not None:
+            return self.ocr_factory()
+        from ingestion.ocr import OpenRouterOcrProvider
+
+        return OpenRouterOcrProvider()
+
+    def ocr_reference(self) -> Any:
+        """The deterministic engine the fabrication gate compares against.
+
+        Optional by design. Its absence leaves pages unassessable, which is
+        recorded as such; it never stops a book, because the gate flags and
+        does not block.
+        """
+
+        if self.ocr_reference_factory is not None:
+            return self.ocr_reference_factory()
+        from ingestion.ocr import TesseractOcrProvider
+
+        try:
+            return TesseractOcrProvider()
+        except ValueError:
+            logger.warning("no local OCR engine; pages will be unassessable")
+            return None
 
 
 @dataclass
@@ -302,23 +334,22 @@ def _confirmed_outline(job: IngestionJob) -> list[tuple[int, str, int]] | None:
         ) from error
 
 
-def _validate_stage(
+@dataclass(frozen=True)
+class _Acquired:
+    """The measurements a source has to carry before preflight sees it."""
+
+    size_bytes: int
+    sha256: str
+
+
+def _acquire_stored(
     job: IngestionJob,
     *,
     limits: IngestionLimits,
     work_dir: Path,
     database_url: str | None,
-) -> (
-    tuple[
-        IngestionJob,
-        Path,
-        str,
-        PreflightReport,
-        list[tuple[int, str, int]],
-    ]
-    | JobOutcome
-):
-    """Verify the upload, hash it, and decide whether this book can be ingested."""
+) -> tuple[Path, _Acquired, IngestionJob]:
+    """Verify and download the source object this job reserved in Storage."""
 
     stored = object_info(job.storage_bucket, job.storage_path)
     if stored is None:
@@ -366,6 +397,72 @@ def _validate_stage(
         raise IngestionError(
             ErrorCode.SOURCE_CHANGED,
             detail="source bytes changed after preflight or outline review",
+        )
+    return source, _Acquired(download.size_bytes, download.sha256), job
+
+
+def _acquire_local(
+    job: IngestionJob,
+    *,
+    local_source: Path,
+    database_url: str | None,
+) -> tuple[Path, _Acquired, IngestionJob]:
+    """Take the source from this machine instead of from Storage.
+
+    The upload ceiling is not applied here: carrying a book the platform's
+    upload path cannot is the whole point. The hash check still is, and it is
+    the one that matters — it is what proves the file behind a confirmed
+    outline is still the file that outline was proposed from.
+    """
+
+    from .local_source import inspect_local_source
+
+    measured = inspect_local_source(local_source)
+    if job.file_hash is not None and measured.sha256 != job.file_hash:
+        raise IngestionError(
+            ErrorCode.SOURCE_CHANGED,
+            detail="local source bytes changed after preflight or outline review",
+        )
+
+    with _database(database_url) as connection:
+        job = set_stage(
+            connection,
+            owner_id=job.owner_id,
+            job_id=job.id,
+            current_status=Status.VALIDATING,
+            stage=Stage.DOWNLOAD_SOURCE,
+            provenance={"source": measured.provenance()},
+        )
+    return measured.path, _Acquired(measured.size_bytes, measured.sha256), job
+
+
+def _validate_stage(
+    job: IngestionJob,
+    *,
+    limits: IngestionLimits,
+    work_dir: Path,
+    database_url: str | None,
+    dependencies: PipelineDependencies,
+    local_source: Path | None = None,
+) -> (
+    tuple[
+        IngestionJob,
+        Path,
+        str,
+        PreflightReport,
+        list[tuple[int, str, int]],
+    ]
+    | JobOutcome
+):
+    """Verify the upload, hash it, and decide whether this book can be ingested."""
+
+    if local_source is not None:
+        source, download, job = _acquire_local(
+            job, local_source=local_source, database_url=database_url
+        )
+    else:
+        source, download, job = _acquire_stored(
+            job, limits=limits, work_dir=work_dir, database_url=database_url
         )
 
     # An owner who uploads a book they already have gets that book back rather
@@ -429,13 +526,21 @@ def _validate_stage(
             )
         validate_table_of_contents(confirmed_toc, report.page_count)
         approved_toc = confirmed_toc
+    elif report.decision.action == OCR:
+        return _transcribe_and_pause(
+            job,
+            source=source,
+            report=report,
+            limits=limits,
+            database_url=database_url,
+            dependencies=dependencies,
+        )
     else:
         proposal = report.outline.proposal
         if (
             report.decision.action == REVIEW
             and proposal is not None
             and proposal.entries
-            and not report.profile.likely_ocr_backed
         ):
             with _database(database_url) as connection:
                 paused = pause_for_outline_review(
@@ -444,8 +549,16 @@ def _validate_stage(
                     job_id=job.id,
                     proposal=proposal.as_toc(),
                     reasons=report.decision.reasons,
-                    outline_source=report.decision.outline_source
-                    or "deterministic_proposal",
+                    # Name the proposer that actually ran, not the routing
+                    # decision. A reviewer told "inferred from typography"
+                    # reviews a deck's footer-derived sections more suspiciously
+                    # than they need to.
+                    outline_source=(
+                        "slide_sections"
+                        if proposal.proposer_version == SLIDE_PROPOSER_VERSION
+                        else report.decision.outline_source
+                        or "deterministic_proposal"
+                    ),
                     proposer_version=proposal.proposer_version,
                     warnings=proposal.warnings,
                 )
@@ -453,6 +566,131 @@ def _validate_stage(
         require_supported(report)
         approved_toc = report.normalized_toc
     return job, source, download.sha256, report, approved_toc
+
+
+def _transcribe_and_pause(
+    job: IngestionJob,
+    *,
+    source: Path,
+    report: PreflightReport,
+    limits: IngestionLimits,
+    database_url: str | None,
+    dependencies: PipelineDependencies,
+) -> JobOutcome:
+    """Transcribe a scanned or OCR-backed source, then hand it to a reviewer.
+
+    The stage produces text and a candidate hierarchy, and stops. Nothing here
+    may become canonical without confirmation: a wrong chapter boundary yields
+    a confidently wrong citation, and no later stage would catch it.
+    """
+
+    owner_id = job.owner_id
+    with _database(database_url) as connection:
+        job = advance_stage(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            current_status=job.status,
+            status=Status.OCR,
+            stage=Stage.OCR_PAGES,
+        )
+        record_progress(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            completed=0,
+            total=report.page_count,
+            unit="pages",
+        )
+
+    def publish(completed: int, total: int) -> None:
+        try:
+            with _database(database_url) as connection:
+                record_progress(
+                    connection,
+                    owner_id=owner_id,
+                    job_id=job.id,
+                    completed=completed,
+                    total=total,
+                    unit="pages",
+                )
+        except Exception:
+            # Progress is a convenience. Losing a tick must not cost a page
+            # that has already been paid for.
+            logger.warning("could not record transcription progress", exc_info=True)
+
+    def cancelled() -> bool:
+        with _database(database_url) as connection:
+            current = get_job(connection, owner_id=owner_id, job_id=job.id)
+        return current.cancellation_requested
+
+    provider = dependencies.ocr()
+    outcome = transcribe_book(
+        source,
+        owner_id=owner_id,
+        job_id=job.id,
+        limits=limits,
+        provider=provider,
+        reference=dependencies.ocr_reference(),
+        open_connection=lambda: _database(database_url),
+        on_progress=publish,
+        should_stop=cancelled,
+    )
+    logger.info("transcribed job %s: %s", job.id, outcome.provenance())
+
+    job = _check_cancelled(job, database_url=database_url)
+
+    with _database(database_url) as connection:
+        job = set_stage(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            current_status=Status.OCR,
+            stage=Stage.PROPOSE_TOC,
+            provenance={
+                "ocr": {
+                    **outcome.provenance(),
+                    "provider": provider.name,
+                    "model_id": provider.model_id,
+                    "prompt_hash": provider.prompt_hash,
+                    "render_dpi": limits.ocr_render_dpi,
+                }
+            },
+        )
+        pages = transcribed_text(connection, owner_id=owner_id, job_id=job.id)
+
+    proposal = propose_outline(pages, page_count=report.page_count)
+    entries = require_proposable(
+        list(proposal.entries), page_count=report.page_count
+    )
+    warnings = [*report.warnings, *proposal.warnings]
+    if outcome.summary.flagged:
+        warnings.append(
+            f"{outcome.summary.flagged} pages contain text the reference engine "
+            "could not corroborate"
+        )
+
+    with _database(database_url) as connection:
+        if proposal.provenance_json:
+            set_stage(
+                connection,
+                owner_id=owner_id,
+                job_id=job.id,
+                current_status=Status.OCR,
+                stage=Stage.PROPOSE_TOC,
+                provenance=proposal.provenance_json,
+            )
+        paused = pause_for_outline_review(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            proposal=entries,
+            reasons=report.decision.reasons,
+            outline_source=proposal.source,
+            proposer_version=proposal.proposer_version,
+            warnings=warnings,
+        )
+    return JobOutcome(job=paused, book_id=None)
 
 
 POST_PERSIST_STATUSES = (
@@ -501,6 +739,8 @@ def _ingest_source(
     limits: IngestionLimits,
     work_dir: Path,
     database_url: str | None,
+    dependencies: PipelineDependencies,
+    local_source: Path | None = None,
 ) -> tuple[IngestionJob, int, dict[str, int | float]] | JobOutcome:
     """Validate, parse, and canonically import the source.
 
@@ -511,7 +751,12 @@ def _ingest_source(
 
     owner_id = job.owner_id
     validated = _validate_stage(
-        job, limits=limits, work_dir=work_dir, database_url=database_url
+        job,
+        limits=limits,
+        work_dir=work_dir,
+        database_url=database_url,
+        dependencies=dependencies,
+        local_source=local_source,
     )
     if isinstance(validated, JobOutcome):
         return validated
@@ -534,6 +779,24 @@ def _ingest_source(
             completed=0,
             total=report.page_count,
             unit="pages",
+        )
+
+    with _database(database_url) as connection:
+        transcription = transcribed_text(
+            connection, owner_id=owner_id, job_id=job.id
+        )
+    if transcription:
+        # A transcribed book already carries its text. Running the PDF parser
+        # over it would read the same pixels a second time with a weaker
+        # engine, and on a pure scan would find nothing at all.
+        return _persist_transcribed(
+            job,
+            source=source,
+            file_hash=file_hash,
+            report=report,
+            approved_toc=approved_toc,
+            transcription=transcription,
+            database_url=database_url,
         )
 
     # Deferred: importing the parser pulls in Unstructured and Torch, about
@@ -611,6 +874,91 @@ def _ingest_source(
     return job, book_id, metrics
 
 
+def _persist_transcribed(
+    job: IngestionJob,
+    *,
+    source: Path,
+    file_hash: str,
+    report: PreflightReport,
+    approved_toc: list[tuple[int, str, int]],
+    transcription: list[tuple[int, str]],
+    database_url: str | None,
+) -> tuple[IngestionJob, int, dict[str, int | float]]:
+    """Build and import a book from its transcription and confirmed outline.
+
+    The outline is the reviewer's, unaltered. Structure extraction reads the
+    transcription markup and never the pixels, so every decision it makes is
+    deterministic and reproducible from data already stored.
+    """
+
+    from parsing.transcript import build_transcribed_book, printed_numbering
+
+    owner_id = job.owner_id
+    try:
+        book = build_transcribed_book(
+            source,
+            toc=approved_toc,
+            pages=transcription,
+            page_count=report.page_count,
+        )
+    except ValueError as error:
+        raise IngestionError(
+            ErrorCode.EXTRACTION_CONTRACT_VIOLATION,
+            detail=f"transcription rejected: {error}",
+        ) from error
+
+    numbering = printed_numbering(transcription)
+    metrics = evaluate_extraction(book, report, approved_toc=approved_toc)
+    logger.info(
+        "built transcribed book for job %s: %s", job.id, numbering.provenance()
+    )
+
+    with _database(database_url) as connection:
+        record_progress(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            completed=report.page_count,
+            total=report.page_count,
+            unit="pages",
+        )
+    job = _check_cancelled(job, database_url=database_url)
+
+    with _database(database_url) as connection:
+        job = advance_stage(
+            connection,
+            owner_id=owner_id,
+            job_id=job.id,
+            current_status=job.status,
+            status=Status.PERSISTING,
+            stage=Stage.PERSIST_CANONICAL,
+            provenance={
+                "parser": {
+                    "version": f"transcript-{PARSER_VERSION}",
+                    **metrics,
+                },
+                "printed_numbering": numbering.provenance(),
+            },
+        )
+        book_id = _persist_canonical(
+            connection,
+            job=job,
+            book=book,
+            report=report,
+            file_hash=file_hash,
+            # Kept on the book rather than only on the job: a citation names
+            # the page a reader sees, and the job that measured the mapping is
+            # not what a reader queries years later.
+            extra_metadata={
+                "printed_numbering": {
+                    **numbering.provenance(),
+                    "anchors_detail": numbering.as_stored(),
+                }
+            },
+        )
+    return job, book_id, metrics
+
+
 def _committed_book(
     job: IngestionJob,
     *,
@@ -656,6 +1004,7 @@ def run_job(
     work_dir: Path,
     database_url: str | None = None,
     dependencies: PipelineDependencies | None = None,
+    local_source: Path | None = None,
 ) -> JobOutcome:
     """Run one claimed job to a ready book, a duplicate, or an exception.
 
@@ -704,9 +1053,12 @@ def run_job(
             limits=limits,
             work_dir=work_dir,
             database_url=database_url,
+            dependencies=dependencies,
+            local_source=local_source,
         )
         if isinstance(ingested, JobOutcome):
-            # A duplicate upload was resolved during validation.
+            # Validation resolved the job on its own: a duplicate upload, or a
+            # source that transcribed and is now waiting on outline review.
             return ingested
         job, book_id, metrics = ingested
 
@@ -804,8 +1156,12 @@ def run_job(
             connection,
             owner_id=owner_id,
             job_id=job.id,
-            completed=vectors.total_count,
-            total=vectors.total_count,
+            # This book's chunks, not the library's. `total_count` counts
+            # every embedding the owner has, so a 76-chunk deck reported 3,993
+            # and a reader watching the bar saw a number with no relation to
+            # the book they uploaded.
+            completed=vectors.embedded_count + vectors.unchanged_count,
+            total=vectors.embedded_count + vectors.unchanged_count,
             unit="chunks",
         )
     job = _check_cancelled(job, database_url=database_url)
@@ -853,6 +1209,42 @@ def run_job(
     return JobOutcome(job=job, book_id=book_id)
 
 
+# Metadata titles are frequently a placeholder the author never changed.
+# One deck in this corpus carries "TestDoc", which would have been the name of
+# a 550-slide course in the library. The uploaded filename is a worse title in
+# principle and a better one in practice whenever the metadata reads like this.
+_PLACEHOLDER_TITLES = frozenset(
+    {
+        "testdoc",
+        "untitled",
+        "document",
+        "presentation",
+        "book",
+        "pdf",
+        "new document",
+        "microsoft word",
+    }
+)
+_FILENAME_TITLE = re.compile(r"\.(?:docx?|pptx?|indd|pages|pdf|tex)$", re.IGNORECASE)
+MINIMUM_TITLE_CHARACTERS = 4
+
+
+def _book_title(metadata_title: str | None, filename: str) -> str:
+    """Choose the better of the embedded title and the uploaded filename."""
+
+    stem = Path(filename).stem
+    candidate = (metadata_title or "").strip()
+    if len(candidate) < MINIMUM_TITLE_CHARACTERS:
+        return stem
+    folded = candidate.casefold()
+    if folded in _PLACEHOLDER_TITLES:
+        return stem
+    # "Microsoft Word - chapter3.docx" and friends: a tool's export name.
+    if _FILENAME_TITLE.search(candidate) or folded.startswith("microsoft word"):
+        return stem
+    return candidate
+
+
 def _persist_canonical(
     connection,
     *,
@@ -860,6 +1252,7 @@ def _persist_canonical(
     book: ParsedBook,
     report: PreflightReport,
     file_hash: str,
+    extra_metadata: dict[str, object] | None = None,
 ) -> int:
     """Import canonical content, reusing what a previous attempt committed.
 
@@ -883,7 +1276,7 @@ def _persist_canonical(
             return int(existing["id"])
         delete_book(connection, existing["id"], owner_id=job.owner_id)
 
-    title = report.metadata.get("title") or Path(job.original_filename).stem
+    title = _book_title(report.metadata.get("title"), job.original_filename)
     author = report.metadata.get("author")
     try:
         return ingest_book(
@@ -899,6 +1292,7 @@ def _persist_canonical(
                 "pdf": report.metadata,
                 "preflight": report.provenance(),
                 "outline_review": outline_review(job),
+                **(extra_metadata or {}),
             },
             source_storage_bucket=job.storage_bucket,
             source_storage_path=job.storage_path,

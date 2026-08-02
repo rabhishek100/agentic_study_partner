@@ -275,6 +275,51 @@ class JobQueueTests(unittest.TestCase):
         self.assertEqual(review["source_sha256"], "a" * 64)
         self.assertEqual(review["confirmed_entries"], review["entries"])
 
+    def test_confirming_banks_the_time_the_reviewer_took(self):
+        """The wait has to be recorded on the way out, or it is unrecoverable.
+
+        Once the job resumes, ``stage_started_at`` moves to the new stage and
+        nothing on the row remembers how long a person was thinking. Without
+        the banked figure the resumed job counts the reviewer's night as
+        pipeline time and reports itself as overrunning.
+        """
+
+        proposal = [(1, "Chapter 1", 1)]
+        with connection(self.database_url) as database:
+            queued = self.queued(database)
+            database.execute(
+                """
+                update ingestion_jobs
+                set status = 'validating', stage = 'preflight',
+                    file_hash = %s, page_count = 6
+                where id = %s
+                """,
+                ("c" * 64, queued.id),
+            )
+            pause_for_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=queued.id,
+                proposal=proposal,
+                reasons=("missing_outline",),
+                outline_source="deterministic_proposal",
+                proposer_version="proposal-test-v1",
+            )
+            # Stand the review clock back an hour rather than sleeping.
+            database.execute(
+                "update ingestion_jobs "
+                "set stage_started_at = now() - interval '1 hour' where id = %s",
+                (queued.id,),
+            )
+            confirmed = confirm_outline_review(
+                database,
+                owner_id=self.owner,
+                job_id=queued.id,
+                toc=proposal,
+            )
+
+        self.assertAlmostEqual(confirmed.awaiting_input_seconds, 3600, delta=30)
+
     def test_outline_confirmation_is_owner_scoped_and_cannot_be_changed(self):
         proposal = [(1, "Chapter 1", 1)]
         with connection(self.database_url) as database:

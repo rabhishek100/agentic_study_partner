@@ -23,6 +23,17 @@ interface OutlineReviewEditorProps {
   onConfirmed: (job: IngestionJob) => void;
 }
 
+// A proposal read off the book's own contents page is far stronger evidence
+// than a typography sweep, and a reviewer who knows which one they are looking
+// at reviews it differently.
+const PROPOSAL_ORIGIN: Record<string, string> = {
+  printed_contents: "These headings were read from the book's own contents page",
+  transcribed_headings: "These headings were found in the transcribed text",
+  deterministic_proposal: "These headings were inferred from typography",
+  normalized_embedded: "These headings came from the PDF's embedded outline",
+  slide_sections: "These sections were read from the deck's own footers",
+};
+
 export function OutlineReviewEditor({
   jobId,
   onConfirmed,
@@ -113,10 +124,11 @@ export function OutlineReviewEditor({
         <DialogHeader>
           <DialogTitle>Review the proposed contents</DialogTitle>
           <DialogDescription>
-            These headings were inferred from typography and are not saved as
-            book content yet. Correct levels, titles, and PDF pages before
-            continuing; this hierarchy controls section boundaries and
-            citations.
+            {PROPOSAL_ORIGIN[review?.outline_source ?? ""] ??
+              "These headings were proposed automatically"}{" "}
+            and are not saved as book content yet. Correct levels, titles, and
+            PDF pages before continuing; this hierarchy controls section
+            boundaries and citations.
           </DialogDescription>
           {review && (
             <p className="text-xs text-muted-foreground">

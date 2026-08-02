@@ -22,6 +22,7 @@ import fitz
 
 OUTLINE_ANALYZER_VERSION = "outline-analysis-v1"
 OUTLINE_PROPOSER_VERSION = "span-headings-v1"
+SLIDE_PROPOSER_VERSION = "slide-sections-v1"
 MAXIMUM_ASSESSED_HEADINGS = 40
 MAXIMUM_PROPOSED_ENTRIES = 500
 MINIMUM_HEADING_MATCH_RATIO = 0.45
@@ -193,7 +194,12 @@ class OutlineAnalysis:
     normalization: OutlineNormalization
     assessment: OutlineAssessment
     proposal: OutlineProposal | None
+    poisoning: "OutlinePoisoning | None" = None
     analyzer_version: str = OUTLINE_ANALYZER_VERSION
+
+    @property
+    def poisoned(self) -> bool:
+        return self.poisoning is not None and self.poisoning.poisoned
 
     def provenance(self) -> dict[str, object]:
         return {
@@ -201,6 +207,7 @@ class OutlineAnalysis:
             "normalization": self.normalization.provenance(),
             "assessment": self.assessment.provenance(),
             "proposal": self.proposal.provenance() if self.proposal else None,
+            "poisoning": self.poisoning.provenance() if self.poisoning else None,
         }
 
 
@@ -703,6 +710,27 @@ def propose_outline(document: fitz.Document) -> OutlineProposal:
     return OutlineProposal(entries=tuple(entries), warnings=tuple(warnings))
 
 
+def _slide_proposal(document: fitz.Document) -> OutlineProposal | None:
+    """A deck's sections, when the document is a deck."""
+
+    from parsing.slides import synthesize_slide_outline
+
+    sections = synthesize_slide_outline(document)
+    if not sections:
+        return None
+    return OutlineProposal(
+        entries=tuple(
+            OutlineEntry(level=level, title=title, page=page, source_index=index)
+            for index, (level, title, page) in enumerate(sections)
+        ),
+        proposer_version=SLIDE_PROPOSER_VERSION,
+        warnings=(
+            "sections were read from the deck's own footers; slides inside a "
+            "section are retrieved as content rather than listed here",
+        ),
+    )
+
+
 def analyze_outline(
     document: fitz.Document,
     toc: list[tuple[int, str, int]],
@@ -713,11 +741,112 @@ def analyze_outline(
 
     normalization = normalize_outline(toc)
     assessment = assess_outline(document, normalization)
+    poisoning = detect_poisoning(normalization.as_toc())
     proposal = None
     if assessment.needs_review and not likely_ocr_backed:
-        proposal = propose_outline(document)
+        # A deck is asked about first. The span proposer reads every enlarged
+        # line as a heading, which on a 550-slide course produced 500 flat
+        # entries - bullet fragments included - and hit its cap 141 slides
+        # before the end. `synthesize_slide_outline` returns None for anything
+        # that is not a deck, so a book is unaffected.
+        proposal = _slide_proposal(document) or propose_outline(document)
     return OutlineAnalysis(
         normalization=normalization,
         assessment=assessment,
         proposal=proposal,
+        poisoning=poisoning,
+    )
+
+
+# --- outline poisoning ------------------------------------------------------
+
+# The share of entries that must fail to read as titles before an outline is
+# called poisoned. Measured on the corpus: a book whose outline was generated
+# by OCR software from styled text carries 19 junk entries out of 113, or 17%.
+# A well-formed outline sits near zero, and the few entries that fail there are
+# real titles with unusual punctuation.
+POISONED_JUNK_RATIO = 0.10
+# Outline entries crowded onto one page. In that same book, page 27 alone holds
+# ten entries, every one of them a fragment of the equations printed on it,
+# while no legitimate page in any book holds more than three.
+CROWDED_PAGE_ENTRIES = 4
+CROWDED_PAGE_JUNK = 3
+
+
+@dataclass(frozen=True)
+class OutlinePoisoning:
+    """Evidence that an outline was generated from the page rather than written.
+
+    OCR software builds an outline by promoting styled lines, and on a
+    mathematical book it promotes the equations too. The result is
+    syntactically valid and structurally worthless: in the book this was
+    measured on, level 1 holds `derr3 derr3 dd3 dw dd3 dw` and `dd±`, while the
+    actual chapter headings appear nowhere in it.
+
+    That last part is why detection matters rather than repair. `chapter_level`
+    looks for a consecutively numbered run of siblings; finding none, it falls
+    back to the depth rule and types equation fragments as chapters. The outline
+    has to be discarded, not cleaned.
+    """
+
+    entry_count: int
+    junk_count: int
+    crowded_pages: tuple[int, ...]
+    junk_titles: tuple[str, ...]
+
+    @property
+    def junk_ratio(self) -> float:
+        if not self.entry_count:
+            return 0.0
+        return self.junk_count / self.entry_count
+
+    @property
+    def poisoned(self) -> bool:
+        # Both signals are required. Junk alone catches books whose front
+        # matter is oddly punctuated; crowding alone catches a legitimate
+        # chapter opening with several subsections on its first page. Together
+        # they describe one thing only: entries harvested off a page.
+        return bool(self.crowded_pages) and self.junk_ratio >= POISONED_JUNK_RATIO
+
+    def provenance(self) -> dict[str, object]:
+        return {
+            "entry_count": self.entry_count,
+            "junk_count": self.junk_count,
+            "junk_ratio": round(self.junk_ratio, 4),
+            "crowded_pages": list(self.crowded_pages),
+            "poisoned": self.poisoned,
+            "junk_titles": list(self.junk_titles[:8]),
+        }
+
+
+def detect_poisoning(entries: list[tuple[int, str, int]]) -> OutlinePoisoning:
+    """Measure whether an outline was harvested off the pages it points at."""
+
+    if not entries:
+        return OutlinePoisoning(
+            entry_count=0, junk_count=0, crowded_pages=(), junk_titles=()
+        )
+
+    junk: list[str] = []
+    junk_by_page: Counter[int] = Counter()
+    entries_by_page: Counter[int] = Counter()
+    for _, title, page in entries:
+        normalized = normalize_title(title)
+        entries_by_page[page] += 1
+        if not _looks_like_title(normalized):
+            junk.append(normalized)
+            junk_by_page[page] += 1
+
+    crowded = tuple(
+        sorted(
+            page
+            for page, count in entries_by_page.items()
+            if count >= CROWDED_PAGE_ENTRIES and junk_by_page[page] >= CROWDED_PAGE_JUNK
+        )
+    )
+    return OutlinePoisoning(
+        entry_count=len(entries),
+        junk_count=len(junk),
+        crowded_pages=crowded,
+        junk_titles=tuple(junk),
     )

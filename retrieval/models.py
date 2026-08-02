@@ -92,4 +92,10 @@ class Chunk:
     char_count: int
     token_count: int
     content_hash: str
+    # The indexable rendering, when it differs from what is displayed. A
+    # transcribed book carries LaTeX so a citation can show the notation the
+    # page prints; the full-text index would otherwise tokenize `\frac` and
+    # `\partial` as terms and dilute scoring on the most mathematical chapters.
+    # None whenever the two are identical, which is every natively digital book.
+    search_text: str | None = None
     sources: tuple[ChunkSource, ...] = field(default_factory=tuple)

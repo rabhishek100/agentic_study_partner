@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 load_dotenv()
 
 from api.auth import current_owner
+from api.version import build_revision, build_time
 from api.ingestions import router as ingestion_router
 from ingestion.errors import IngestionError
 from ingestion.storage_objects import signed_object_url
@@ -193,6 +194,11 @@ class HealthResponse(ContractModel):
     status: Literal["ok", "unavailable"]
     canonical_database_ready: bool
     retrieval_database_ready: bool
+    # What code is actually answering. Deployment drift is otherwise invisible:
+    # the worker once ran five commits behind for hours, and finding out meant
+    # comparing a deployment timestamp against a git log by eye.
+    build_revision: str
+    build_time: str
 
 
 class QueueHealthResponse(ContractModel):
@@ -269,6 +275,8 @@ async def health(response: Response) -> HealthResponse:
         status=("ok" if canonical_ready and retrieval_ready else "unavailable"),
         canonical_database_ready=canonical_ready,
         retrieval_database_ready=retrieval_ready,
+        build_revision=build_revision(),
+        build_time=build_time(),
     )
 
 
@@ -866,14 +874,20 @@ async def book_source(
                 raise BOOK_NOT_FOUND
             details = connection.execute(
                 """
-                select source_storage_bucket, source_storage_path, page_count
+                select source_storage_bucket, source_storage_path,
+                       viewer_storage_bucket, viewer_storage_path, page_count
                 from books where id = %s and owner_id = %s
                 """,
                 (book_id, owner_id),
             ).fetchone()
 
-        bucket = details["source_storage_bucket"]
-        path = details["source_storage_path"]
+        # A viewer copy wins when there is one. It exists only for books whose
+        # own bytes could not be stored - a scan above the upload ceiling - and
+        # it is a rendering of the same pages, so a citation still lands where
+        # it should. The source stays the hash-identified original everywhere
+        # else in the system.
+        bucket = details["viewer_storage_bucket"] or details["source_storage_bucket"]
+        path = details["viewer_storage_path"] or details["source_storage_path"]
         if not bucket or not path:
             # Books imported by the manual CLI path never had a stored object.
             raise SOURCE_UNAVAILABLE

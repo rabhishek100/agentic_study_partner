@@ -49,6 +49,10 @@ BOILERPLATE_REPEAT_THRESHOLD = 3
 # real figure is ~84 KB.
 MINIMUM_FIGURE_BYTES = 4_000
 
+# Figures between commits. One per figure would triple the round trips on a
+# book of several hundred; losing this many calls to a fault is cheap.
+CAPTION_COMMIT_INTERVAL = 10
+
 CAPTION_INSTRUCTION = (
     "You are describing a figure from a technical textbook so that it can be "
     "found by search and referred to in a written answer.\n\n"
@@ -240,6 +244,13 @@ def caption_book_figures(
 
     Idempotent: an unchanged figure that already has a caption is left alone,
     so a retry after a partial failure resumes rather than paying twice.
+
+    Committed as it goes, for the same reason the transcription stage is. A
+    whole pass held in one transaction is a pass a dropped connection discards
+    entirely: this book's 288 figures were captioned and lost twice in one
+    evening to a network fault, each time costing 288 vision calls to redo,
+    while the OCR stage beside it lost nothing to the same fault because it
+    commits per page.
     """
 
     owner = parse_owner_id(owner_id)
@@ -264,6 +275,24 @@ def caption_book_figures(
     ).fetchall()
 
     captioned = reused = skipped_boilerplate = skipped_small = failed = 0
+    since_commit = 0
+
+    def checkpoint(force: bool = False) -> None:
+        """Commit what has been captioned so far.
+
+        Every few figures rather than every one: a commit per figure would
+        triple the round trips on a book of several hundred, and losing three
+        calls to a fault is not worth avoiding at that price.
+        """
+
+        nonlocal since_commit
+        since_commit += 1
+        if force or since_commit >= CAPTION_COMMIT_INTERVAL:
+            since_commit = 0
+            try:
+                connection.commit()
+            except Exception:  # noqa: BLE001 - the caller's transaction may own this
+                logger.debug("could not checkpoint captions", exc_info=True)
 
     for index, row in enumerate(rows, start=1):
         if on_progress is not None:
@@ -284,6 +313,7 @@ def caption_book_figures(
                 skipped_reason="boilerplate",
             )
             skipped_boilerplate += 1
+            checkpoint()
             continue
 
         try:
@@ -298,6 +328,7 @@ def caption_book_figures(
                 skipped_reason="unsupported",
             )
             failed += 1
+            checkpoint()
             continue
 
         if len(payload) < MINIMUM_FIGURE_BYTES:
@@ -310,6 +341,7 @@ def caption_book_figures(
                 skipped_reason="too_small",
             )
             skipped_small += 1
+            checkpoint()
             continue
 
         previous = known.get(digest)
@@ -325,6 +357,7 @@ def caption_book_figures(
                 skipped_reason=previous["skipped_reason"],
             )
             reused += 1
+            checkpoint()
             continue
 
         try:
@@ -340,6 +373,7 @@ def caption_book_figures(
                 skipped_reason="failed",
             )
             failed += 1
+            checkpoint()
             continue
 
         if caption is None:
@@ -358,6 +392,7 @@ def caption_book_figures(
                 "model_name": captioner.model_name,
                 "skipped_reason": "boilerplate",
             }
+            checkpoint()
             continue
 
         _record(
@@ -375,7 +410,9 @@ def caption_book_figures(
             "skipped_reason": None,
         }
         captioned += 1
+        checkpoint()
 
+    checkpoint(force=True)
     return CaptionSummary(
         captioned=captioned,
         reused=reused,

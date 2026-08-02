@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
-from ingestion.cleanup import run_cleanup
+from ingestion.cleanup import _JOB_PREFIX, run_cleanup
 from ingestion.config import IngestionLimits
 from ingestion.errors import ErrorCode, IngestionError
 from ingestion.jobs import get_job, list_events
@@ -262,3 +262,26 @@ class CleanupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OrphanSweepProtectionTests(unittest.TestCase):
+    """What the sweep must never delete, and what it must never try to.
+
+    This is the one deletion path with no job row to attach an event to, so it
+    is the one where a mistake leaves only a log line behind.
+    """
+
+    def test_a_book_scoped_prefix_is_not_a_job_directory(self) -> None:
+        """Reading copies live under `book-<id>/`, not a job UUID.
+
+        Building a source path inside one asks Storage to delete something
+        that was never there, which every sweep then counts as a failure.
+        """
+
+        self.assertIsNone(_JOB_PREFIX.fullmatch("book-536"))
+        self.assertIsNone(_JOB_PREFIX.fullmatch("viewer"))
+
+    def test_a_job_directory_is_recognised(self) -> None:
+        self.assertIsNotNone(
+            _JOB_PREFIX.fullmatch("afd7a837-3746-412e-994c-be29c95dd144")
+        )
