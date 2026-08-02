@@ -23,6 +23,8 @@ export interface AppShellProps {
   status: React.ReactNode;
   /** Account controls, right-aligned in the header. */
   account: React.ReactNode;
+  /** Restores a document that has been minimized. */
+  documentControl?: React.ReactNode;
   children: React.ReactNode;
   /** The document pane, docked right of the conversation when open. */
   aside?: React.ReactNode;
@@ -32,6 +34,7 @@ export function AppShell({
   rail,
   status,
   account,
+  documentControl,
   children,
   aside,
 }: AppShellProps) {
@@ -83,6 +86,7 @@ export function AppShell({
         </div>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {documentControl}
           <ThemeToggle />
           {account}
         </div>

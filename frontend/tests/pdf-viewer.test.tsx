@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PdfTarget } from "@/components/pdf/target";
@@ -66,6 +66,15 @@ const target: PdfTarget = {
   page: 4,
   excerpt: "target passage",
 };
+const noop = () => {};
+const viewerProps = {
+  page: 4,
+  onPageChange: noop,
+  zoom: 1,
+  onZoomChange: noop,
+  onMinimize: noop,
+  onClose: noop,
+};
 
 beforeEach(() => {
   apiFetch.mockReset().mockResolvedValue({ url: "https://example.test/book.pdf" });
@@ -106,13 +115,14 @@ afterEach(() => {
 
 describe("PdfViewer", () => {
   it("centres a cited passage inside only the PDF scroller", async () => {
-    render(<PdfViewer target={target} onClose={() => {}} />);
+    render(<PdfViewer target={target} {...viewerProps} />);
     await screen.findByTestId("pdf-page");
 
     act(() => pdfHarness.onRenderTextLayerSuccess?.());
 
     expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith({
       top: 90,
+      left: 0,
       behavior: "auto",
     });
     expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
@@ -121,8 +131,8 @@ describe("PdfViewer", () => {
   it("clears a stale no-match warning as soon as a new citation is selected", async () => {
     const { rerender } = render(
       <PdfViewer
+        {...viewerProps}
         target={{ ...target, excerpt: "not present" }}
-        onClose={() => {}}
       />,
     );
     await screen.findByTestId("pdf-page");
@@ -131,8 +141,8 @@ describe("PdfViewer", () => {
 
     rerender(
       <PdfViewer
+        {...viewerProps}
         target={{ ...target, page: 5, excerpt: "target passage" }}
-        onClose={() => {}}
       />,
     );
 
@@ -142,19 +152,19 @@ describe("PdfViewer", () => {
   });
 
   it("reuses the signed source while moving between citations in one book", async () => {
-    const { rerender } = render(<PdfViewer target={target} onClose={() => {}} />);
+    const { rerender } = render(<PdfViewer target={target} {...viewerProps} />);
     await screen.findByTestId("pdf-page");
     expect(apiFetch).toHaveBeenCalledTimes(1);
 
     rerender(
-      <PdfViewer target={{ ...target, page: 8 }} onClose={() => {}} />,
+      <PdfViewer {...viewerProps} target={{ ...target, page: 8 }} />,
     );
     expect(apiFetch).toHaveBeenCalledTimes(1);
 
     rerender(
       <PdfViewer
+        {...viewerProps}
         target={{ ...target, bookId: 9, bookTitle: "Another book" }}
-        onClose={() => {}}
       />,
     );
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
@@ -171,7 +181,7 @@ describe("PdfViewer", () => {
       disconnect() {}
     };
 
-    render(<PdfViewer target={target} onClose={() => {}} />);
+    render(<PdfViewer target={target} {...viewerProps} />);
     const page = await screen.findByTestId("pdf-page");
     expect(page).toHaveAttribute("data-width", "568");
 
@@ -191,5 +201,58 @@ describe("PdfViewer", () => {
 
     act(() => vi.advanceTimersByTime(1));
     expect(page).toHaveAttribute("data-width", "508");
+  });
+
+  it("zooms the rendered page and resets from the percentage control", async () => {
+    const onZoomChange = vi.fn();
+    const { rerender } = render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        onZoomChange={onZoomChange}
+      />,
+    );
+    const page = await screen.findByTestId("pdf-page");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(onZoomChange).toHaveBeenCalledWith(1.25);
+
+    rerender(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        zoom={1.25}
+        onZoomChange={onZoomChange}
+      />,
+    );
+    expect(page).toHaveAttribute("data-width", "710");
+    expect(screen.getByText("125%")).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Reset zoom to 100%. Current zoom 125%",
+      }),
+    );
+    expect(onZoomChange).toHaveBeenLastCalledWith(1);
+  });
+
+  it("offers a distinct minimize action without closing the document", async () => {
+    const onMinimize = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        onMinimize={onMinimize}
+        onClose={onClose}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Minimize the document" }),
+    );
+    expect(onMinimize).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

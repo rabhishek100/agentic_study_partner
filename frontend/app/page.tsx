@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { LogOut, PanelRightOpen } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
@@ -43,6 +43,9 @@ export default function Page() {
   const [responseDepth, setResponseDepth] =
     useState<ResponseDepth>("interview");
   const [reading, setReading] = useState<PdfTarget | null>(null);
+  const [readingMinimized, setReadingMinimized] = useState(false);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfZoom, setPdfZoom] = useState(1);
 
   const {
     turns,
@@ -95,6 +98,13 @@ export default function Page() {
   const hasBooks = books.length > 0;
   const canSend = hasBooks && selectedBookIds.length > 0;
 
+  const closeDocument = useCallback(() => {
+    setReading(null);
+    setReadingMinimized(false);
+    setPdfPage(1);
+    setPdfZoom(1);
+  }, []);
+
   const handleSend = useCallback(
     async (question: string, mentionedBookIds: number[] = []) => {
       const requestBookIds =
@@ -116,12 +126,12 @@ export default function Page() {
   const handleOpenConversation = useCallback(
     async (id: string) => {
       const detail = await history.open(id);
-      setReading(null);
+      closeDocument();
       resume(detail);
       setSelectedBookIds(detail.book_ids);
       setRetrievalMode(detail.retrieval_mode);
     },
-    [history, resume],
+    [history, resume, closeDocument],
   );
 
   const handleDeleteConversation = useCallback(
@@ -129,11 +139,11 @@ export default function Page() {
       await history.remove(id);
       // Deleting the conversation on screen leaves nothing to continue.
       if (id === conversationId) {
-        setReading(null);
+        closeDocument();
         reset();
       }
     },
-    [history, conversationId, reset],
+    [history, conversationId, reset, closeDocument],
   );
 
   const handleRetry = useCallback(() => {
@@ -154,6 +164,10 @@ export default function Page() {
   const openReference = useCallback(
     (reference: EvidenceRef, page?: number) => {
       if (reference.book_id === null) return;
+      const targetPage = page ?? reference.pages[0] ?? 1;
+      if (reading?.bookId !== reference.book_id) setPdfZoom(1);
+      setPdfPage(targetPage);
+      setReadingMinimized(false);
       setReading({
         bookId: reference.book_id,
         bookTitle:
@@ -163,24 +177,24 @@ export default function Page() {
         // The page the marker itself names, when it names one. A summary's
         // evidence can span five pages, so opening its first would land the
         // reader several pages from the sentence they clicked.
-        page: page ?? reference.pages[0] ?? 1,
+        page: targetPage,
         excerpt: reference.excerpt,
       });
     },
-    [books],
+    [books, reading?.bookId],
   );
 
   const handleNewConversation = useCallback(() => {
-    setReading(null);
+    closeDocument();
     reset();
-  }, [reset]);
+  }, [reset, closeDocument]);
 
   function selectBooks(bookIds: number[]) {
     const unchanged =
       bookIds.length === selectedBookIds.length &&
       bookIds.every((bookId, index) => bookId === selectedBookIds[index]);
     if (unchanged) return;
-    setReading(null);
+    closeDocument();
     setSelectedBookIds(bookIds);
     // Earlier answers were grounded in the previous selection, so a different
     // set of books is a different conversation. The server enforces the same
@@ -251,9 +265,35 @@ export default function Page() {
           </DropdownMenuContent>
         </DropdownMenu>
       }
+      documentControl={
+        reading && readingMinimized ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-w-56"
+            aria-label={`Restore ${reading.bookTitle} at page ${pdfPage}`}
+            title={reading.bookTitle}
+            onClick={() => setReadingMinimized(false)}
+          >
+            <PanelRightOpen aria-hidden />
+            <span className="hidden max-w-32 truncate lg:inline">
+              {reading.bookTitle}
+            </span>
+            <span className="text-muted-foreground">p. {pdfPage}</span>
+          </Button>
+        ) : null
+      }
       aside={
-        reading ? (
-          <PdfViewer target={reading} onClose={() => setReading(null)} />
+        reading && !readingMinimized ? (
+          <PdfViewer
+            target={reading}
+            page={pdfPage}
+            onPageChange={setPdfPage}
+            zoom={pdfZoom}
+            onZoomChange={setPdfZoom}
+            onMinimize={() => setReadingMinimized(true)}
+            onClose={closeDocument}
+          />
         ) : null
       }
       rail={

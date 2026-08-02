@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import { AppShell } from "@/components/app-shell";
 
-function shell(aside?: React.ReactNode) {
+function shell(aside?: React.ReactNode, documentControl?: React.ReactNode) {
   return render(
     <AppShell
       rail={<div>Library rail</div>}
       status="Ready"
       account={<button type="button">Account</button>}
+      documentControl={documentControl}
       aside={aside}
     >
       <div>Conversation</div>
@@ -46,5 +47,13 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("button", { name: "Open the library panel" }),
     ).toHaveClass("lg:hidden");
+  });
+
+  it("keeps a minimized document restore control in the app header", () => {
+    shell(undefined, <button type="button">Restore document</button>);
+
+    expect(
+      screen.getByRole("button", { name: "Restore document" }),
+    ).toBeVisible();
   });
 });
