@@ -49,6 +49,11 @@ logger = logging.getLogger("study_partner.scripts.evaluate_transcription")
 # that distinguish engines: prose is where they agree.
 QUOTA = {PROSE: 3, TABLE: 3, FORMULA: 3, PATHOLOGICAL: 4}
 
+# How a reference was produced decides what it can measure. Only one made from
+# the page itself is independent of every engine being scored; one taken from a
+# candidate makes that candidate unrankable and quietly flatters it.
+INDEPENDENT_SOURCES = frozenset({"image"})
+
 
 def _books(connection, owner_id) -> list[dict]:
     """Books whose pages were transcribed, newest ingestion per book."""
@@ -229,6 +234,30 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+
+    # A reference copied from a candidate scores that candidate against itself.
+    # The first run of this evaluation did exactly that on 31 of 39 pages and
+    # reported a character error rate of 0.0000 for the engine it had copied —
+    # a number produced by construction, and one that reads like a measurement.
+    # Only a reference made independently of every candidate can rank them.
+    independent = [
+        entry for entry in pages if entry.get("reference_source") in INDEPENDENT_SOURCES
+    ]
+    excluded = len(pages) - len(independent)
+    if excluded:
+        print(
+            f"scoring {len(independent)} of {len(pages)} pages; {excluded} excluded "
+            "because their reference came from a candidate",
+        )
+        print()
+    if not independent:
+        print(
+            "no page has a reference independent of the candidates; nothing "
+            "can be ranked",
+            file=sys.stderr,
+        )
+        return 3
+    pages = independent
 
     scores = [
         score_page(

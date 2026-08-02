@@ -3,6 +3,7 @@
 import unittest
 
 from scripts.evaluate_outlines import _matches
+from scripts.evaluate_transcription import INDEPENDENT_SOURCES
 from evals.transcription import (
     FORMULA,
     PATHOLOGICAL,
@@ -176,6 +177,25 @@ class ScorePageTests(unittest.TestCase):
         self.assertIn("fabricated_spans", provenance)
 
 
+
+
+class IndependentReferenceTests(unittest.TestCase):
+    """Only a reference made from the page can rank the engines.
+
+    The first run of this evaluation took one engine's text as the reference
+    wherever two agreed, scoring that engine against its own output on 31 of 39
+    pages and returning a character error rate of exactly 0.0000. A number
+    produced by construction reads exactly like one produced by measurement,
+    which is what made it dangerous.
+    """
+
+    def test_only_an_image_reference_is_independent(self) -> None:
+        self.assertIn("image", INDEPENDENT_SOURCES)
+
+    def test_a_reference_copied_from_a_candidate_is_not_independent(self) -> None:
+        for derived in ("agreement", "adjudicated", "gemini", None, ""):
+            with self.subTest(source=derived):
+                self.assertNotIn(derived, INDEPENDENT_SOURCES)
 
 
 class PublishedChapterMatchTests(unittest.TestCase):
