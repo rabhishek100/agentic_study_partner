@@ -255,4 +255,81 @@ describe("PdfViewer", () => {
     expect(onMinimize).toHaveBeenCalledOnce();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("navigates pages with arrow keys while focus is elsewhere in the chat", async () => {
+    const onPageChange = vi.fn();
+    render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        onPageChange={onPageChange}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(onPageChange).toHaveBeenCalledWith(5);
+
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(onPageChange).toHaveBeenLastCalledWith(3);
+  });
+
+  it("does not steal arrows from chat inputs, dialogs, or pane resizing", async () => {
+    const onPageChange = vi.fn();
+    render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        onPageChange={onPageChange}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    const composer = document.createElement("textarea");
+    document.body.appendChild(composer);
+    fireEvent.keyDown(composer, { key: "ArrowRight" });
+
+    const separator = document.createElement("div");
+    separator.setAttribute("role", "separator");
+    document.body.appendChild(separator);
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.appendChild(dialog);
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+
+    composer.remove();
+    separator.remove();
+    dialog.remove();
+    fireEvent.keyDown(window, { key: "ArrowRight", metaKey: true });
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it("respects the first and last page keyboard boundaries", async () => {
+    const onPageChange = vi.fn();
+    const { rerender } = render(
+      <PdfViewer
+        target={{ ...target, page: 1 }}
+        {...viewerProps}
+        page={1}
+        onPageChange={onPageChange}
+      />,
+    );
+    await screen.findByText("1 / 12");
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    expect(onPageChange).not.toHaveBeenCalled();
+
+    rerender(
+      <PdfViewer
+        target={{ ...target, page: 12 }}
+        {...viewerProps}
+        page={12}
+        onPageChange={onPageChange}
+      />,
+    );
+    await screen.findByText("12 / 12");
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
 });

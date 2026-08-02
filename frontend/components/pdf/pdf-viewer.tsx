@@ -38,6 +38,16 @@ export const MIN_PDF_ZOOM = 0.5;
 export const MAX_PDF_ZOOM = 2;
 export const PDF_ZOOM_STEP = 0.25;
 
+/** Elements whose own keyboard interaction must win over document shortcuts. */
+function ownsArrowKeys(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      'input, textarea, select, [contenteditable="true"], [role="combobox"], [role="dialog"], [role="listbox"], [role="menu"], [role="separator"], [role="slider"], [role="spinbutton"], [role="tablist"]',
+    ),
+  );
+}
+
 /**
  * Highlight the runs matching the excerpt, or the whole page when none match.
  *
@@ -217,6 +227,41 @@ export function PdfViewer({
 
   const zoomPercent = Math.round(zoom * 100);
 
+  // The reader often keeps focus in the answer while consulting the document,
+  // so the page shortcut belongs to the open viewer rather than to one focused
+  // toolbar button. Editable and composite controls retain their native arrow
+  // behaviour, and modifiers are left to the browser/operating system.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        ownsArrowKeys(event.target) ||
+        document.querySelector('[role="dialog"]')
+      ) {
+        return;
+      }
+
+      if (event.key === "ArrowLeft" && page > 1) {
+        event.preventDefault();
+        onPageChange(page - 1);
+      } else if (
+        event.key === "ArrowRight" &&
+        (pageCount === 0 || page < pageCount)
+      ) {
+        event.preventDefault();
+        onPageChange(page + 1);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onPageChange, page, pageCount]);
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-card">
       <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
@@ -244,7 +289,7 @@ export function PdfViewer({
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5">
         <div
           role="group"
-          aria-label="Document page navigation"
+          aria-label="Document page navigation. Use Left and Right Arrow keys."
           className="flex items-center gap-1"
         >
           <Button
@@ -271,6 +316,17 @@ export function PdfViewer({
           >
             <ChevronRight aria-hidden />
           </Button>
+          <span
+            className="ml-1 hidden items-center gap-1 text-[0.65rem] text-muted-foreground xl:flex"
+            title="Previous and next page keyboard shortcuts"
+          >
+            <kbd className="rounded border border-border px-1 py-0.5 font-sans">
+              ←
+            </kbd>
+            <kbd className="rounded border border-border px-1 py-0.5 font-sans">
+              →
+            </kbd>
+          </span>
         </div>
 
         <div
