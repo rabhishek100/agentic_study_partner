@@ -464,6 +464,38 @@ class PrintedNumbering:
             value=lambda anchor: anchor.pdf_page,
         )
 
+    def as_stored(self) -> list[dict[str, object]]:
+        """The anchors, small enough to keep on the book itself.
+
+        A citation names the page a reader sees, so the mapping has to outlive
+        the ingestion job that measured it.
+        """
+
+        return [
+            {"pdf": anchor.pdf_page, "printed": anchor.printed, "roman": anchor.roman}
+            for anchor in self.anchors
+        ]
+
+    @classmethod
+    def from_stored(
+        cls, anchors: list[dict] | None, *, sampled_pages: int = 0
+    ) -> "PrintedNumbering":
+        """Rebuild a mapping from what was stored with the book."""
+
+        if not anchors:
+            return cls()
+        return cls(
+            anchors=tuple(
+                PageAnchor(
+                    pdf_page=int(entry["pdf"]),
+                    printed=int(entry["printed"]),
+                    roman=bool(entry.get("roman")),
+                )
+                for entry in anchors
+            ),
+            sampled_pages=sampled_pages or len(anchors),
+        )
+
     def provenance(self) -> dict[str, object]:
         span = self.offset_range
         return {

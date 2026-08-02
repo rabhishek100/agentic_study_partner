@@ -67,10 +67,27 @@ class ResolvedScope:
     start_page: int
     end_page: int
     nodes: tuple[ScopeNode, ...]
+    # Where measured, what each PDF page prints on it. A citation should name
+    # the page a reader sees; for a scan those differ by however much front
+    # matter was included and by whatever pages the scanner missed - up to
+    # eight in this library. Empty for a book whose numbering was never
+    # measured, which is every natively digital one.
+    printed_anchors: tuple[dict, ...] = ()
 
     @property
     def node_ids(self) -> tuple[int, ...]:
         return tuple(node.id for node in self.nodes)
+
+    def printed_page(self, pdf_page: int) -> int | None:
+        """The number printed on a PDF page, when it is known."""
+
+        if not self.printed_anchors:
+            return None
+        from parsing.transcript import PrintedNumbering
+
+        return PrintedNumbering.from_stored(list(self.printed_anchors)).printed(
+            pdf_page
+        )
 
 
 class ScopeResolutionError(ValueError):
@@ -244,6 +261,19 @@ def _subtree_nodes(
     return tuple(_node(row) for row in rows)
 
 
+def _printed_anchors(connection: Connection, book_id: int, owner_id: UUID) -> tuple:
+    """The page mapping stored with a book, if its numbering was measured."""
+
+    row = connection.execute(
+        "select metadata_json from books where id = %s and owner_id = %s",
+        (book_id, owner_id),
+    ).fetchone()
+    if row is None:
+        return ()
+    numbering = (row["metadata_json"] or {}).get("printed_numbering") or {}
+    return tuple(numbering.get("anchors_detail") or ())
+
+
 def _resolved_node(
     connection: Connection,
     row: Any,
@@ -261,6 +291,7 @@ def _resolved_node(
         start_page=min(node.start_page for node in nodes),
         end_page=max(node.end_page for node in nodes),
         nodes=nodes,
+        printed_anchors=_printed_anchors(connection, row["book_id"], owner_id),
     )
 
 
@@ -314,6 +345,7 @@ def resolve_book(
             default=1,
         ),
         nodes=nodes,
+        printed_anchors=_printed_anchors(connection, book["id"], owner_id),
     )
 
 

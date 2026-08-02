@@ -10,6 +10,7 @@ import fitz
 from parsing.models import NON_CONTENT_CATEGORIES
 from retrieval.chunking import searchable_text
 from parsing.transcript import (
+    PrintedNumbering,
     build_transcribed_book,
     printed_numbering,
     table_to_text,
@@ -368,6 +369,52 @@ class PrintedNumberingTests(unittest.TestCase):
         self.assertTrue(provenance["drifts"])
         self.assertEqual(provenance["offset_range"], [1, 8])
         self.assertEqual(provenance["arabic_anchors"], 3)
+
+
+class StoredNumberingTests(unittest.TestCase):
+    """The mapping has to outlive the job that measured it.
+
+    A citation names the page a reader sees, and the reader queries the book
+    years after the ingestion job is gone.
+    """
+
+    def _numbering(self):
+        return printed_numbering(
+            [
+                (9, "<!-- footer: | 1 -->"),
+                (10, "<!-- footer: | 2 -->"),
+                (99, "<!-- footer: 93 -->"),
+            ]
+        )
+
+    def test_a_stored_mapping_round_trips(self) -> None:
+        original = self._numbering()
+
+        restored = PrintedNumbering.from_stored(original.as_stored())
+
+        for pdf_page in (9, 10, 50, 99):
+            self.assertEqual(restored.printed(pdf_page), original.printed(pdf_page))
+
+    def test_roman_anchors_survive_storage(self) -> None:
+        original = printed_numbering(
+            [
+                (5, "<!-- footer: iii -->"),
+                (7, "<!-- footer: v -->"),
+                (9, "<!-- footer: | 1 -->"),
+                (10, "<!-- footer: | 2 -->"),
+            ]
+        )
+
+        restored = PrintedNumbering.from_stored(original.as_stored())
+
+        self.assertEqual(restored.pdf_page(3, roman=True), 5)
+        self.assertEqual(restored.pdf_page(1), 9)
+
+    def test_a_book_with_no_measured_mapping_answers_nothing(self) -> None:
+        """Which is every natively digital book, and must not guess."""
+
+        self.assertIsNone(PrintedNumbering.from_stored(None).printed(10))
+        self.assertIsNone(PrintedNumbering.from_stored([]).printed(10))
 
 
 if __name__ == "__main__":

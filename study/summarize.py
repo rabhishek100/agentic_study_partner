@@ -353,8 +353,16 @@ def append_references(text: str, *, scope: ResolvedScope) -> str:
     for node_id, page in citations:
         node = nodes[node_id]
         hierarchy = node.path_text.replace(" :: ", " → ")
+        # A reader looks for the number printed on the page, not the index of
+        # the file. For a scan those differ by however much front matter was
+        # included and by whatever pages the scanner missed - up to eight in
+        # this library - so both are given where the mapping was measured.
+        printed = scope.printed_page(page)
+        location = (
+            f"PDF p. {page}" if printed is None else f"p. {printed} (PDF p. {page})"
+        )
         references.append(
-            f"- [N{node_id}:P{page}] {scope.book_title} → {hierarchy} — PDF p. {page}"
+            f"- [N{node_id}:P{page}] {scope.book_title} → {hierarchy} — {location}"
         )
     return text.rstrip() + "\n\n" + "\n".join(references)
 

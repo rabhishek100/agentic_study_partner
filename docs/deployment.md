@@ -180,6 +180,22 @@ railway init            # or: railway link  (existing project)
 Then per service, from the repository root:
 
 ```bash
+scripts/deploy.sh api
+scripts/deploy.sh worker
+scripts/deploy.sh web
+```
+
+The script records the deployed commit as a `BUILD_REVISION` service variable
+before uploading, which is what lets `/api/health` and the worker's startup
+line say what they are running. Nothing in a `railway up` image knows its own
+commit otherwise, and the worker once ran five commits behind for hours with no
+way to notice but reading timestamps against a git log. It also carries the
+`--path-as-root` that `web` requires, so the wrong image cannot be deployed to
+it by habit.
+
+The underlying commands, if the script is not used:
+
+```bash
 railway up --service api
 railway up --service worker
 railway up ./frontend --path-as-root --service web

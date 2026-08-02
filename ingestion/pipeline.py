@@ -946,6 +946,15 @@ def _persist_transcribed(
             book=book,
             report=report,
             file_hash=file_hash,
+            # Kept on the book rather than only on the job: a citation names
+            # the page a reader sees, and the job that measured the mapping is
+            # not what a reader queries years later.
+            extra_metadata={
+                "printed_numbering": {
+                    **numbering.provenance(),
+                    "anchors_detail": numbering.as_stored(),
+                }
+            },
         )
     return job, book_id, metrics
 
@@ -1243,6 +1252,7 @@ def _persist_canonical(
     book: ParsedBook,
     report: PreflightReport,
     file_hash: str,
+    extra_metadata: dict[str, object] | None = None,
 ) -> int:
     """Import canonical content, reusing what a previous attempt committed.
 
@@ -1282,6 +1292,7 @@ def _persist_canonical(
                 "pdf": report.metadata,
                 "preflight": report.provenance(),
                 "outline_review": outline_review(job),
+                **(extra_metadata or {}),
             },
             source_storage_bucket=job.storage_bucket,
             source_storage_path=job.storage_path,
