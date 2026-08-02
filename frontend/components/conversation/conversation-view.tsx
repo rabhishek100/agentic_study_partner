@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDown } from "lucide-react";
+import { useLayoutEffect } from "react";
 
 import { Composer } from "@/components/conversation/composer";
 import { PromptSettings } from "@/components/conversation/prompt-settings";
@@ -69,6 +70,13 @@ export function ConversationView({
 
   const isEmpty = turns.length === 0;
 
+  // A resumed conversation is a new scroll context even though the same DOM
+  // viewport is reused. Without this, switching from a conversation that was
+  // scrolled halfway up could open the next one at that arbitrary offset.
+  useLayoutEffect(() => {
+    scrollToBottom("auto");
+  }, [conversationId, scrollToBottom]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <p className="sr-only" role="status" aria-live="polite">
@@ -77,7 +85,7 @@ export function ConversationView({
 
       <div
         ref={viewportRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
       >
         <div
           ref={contentRef}

@@ -116,6 +116,7 @@ export default function Page() {
   const handleOpenConversation = useCallback(
     async (id: string) => {
       const detail = await history.open(id);
+      setReading(null);
       resume(detail);
       setSelectedBookIds(detail.book_ids);
       setRetrievalMode(detail.retrieval_mode);
@@ -127,7 +128,10 @@ export default function Page() {
     async (id: string) => {
       await history.remove(id);
       // Deleting the conversation on screen leaves nothing to continue.
-      if (id === conversationId) reset();
+      if (id === conversationId) {
+        setReading(null);
+        reset();
+      }
     },
     [history, conversationId, reset],
   );
@@ -166,11 +170,17 @@ export default function Page() {
     [books],
   );
 
+  const handleNewConversation = useCallback(() => {
+    setReading(null);
+    reset();
+  }, [reset]);
+
   function selectBooks(bookIds: number[]) {
     const unchanged =
       bookIds.length === selectedBookIds.length &&
       bookIds.every((bookId, index) => bookId === selectedBookIds[index]);
     if (unchanged) return;
+    setReading(null);
     setSelectedBookIds(bookIds);
     // Earlier answers were grounded in the previous selection, so a different
     // set of books is a different conversation. The server enforces the same
@@ -265,7 +275,7 @@ export default function Page() {
             onOpen: handleOpenConversation,
             onRename: history.rename,
             onDelete: handleDeleteConversation,
-            onNew: reset,
+            onNew: handleNewConversation,
           }}
         />
       }

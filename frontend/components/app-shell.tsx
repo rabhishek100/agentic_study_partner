@@ -14,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 export interface AppShellProps {
   /** Library, upload, and settings. Shown as a rail, or a sheet on mobile. */
@@ -51,7 +52,7 @@ export function AppShell({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="lg:hidden"
+              className={cn(!aside && "lg:hidden")}
               aria-label="Open the library panel"
             >
               <PanelLeft aria-hidden />
@@ -84,10 +85,12 @@ export function AppShell({
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-72 shrink-0 border-r border-border bg-sidebar lg:block xl:w-80">
-          {rail}
-        </aside>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {!aside && (
+          <aside className="hidden w-72 shrink-0 border-r border-border bg-sidebar lg:block xl:w-80">
+            {rail}
+          </aside>
+        )}
         <SplitPane aside={aside ?? null}>
           <main className="flex min-w-0 flex-1 flex-col">{children}</main>
         </SplitPane>

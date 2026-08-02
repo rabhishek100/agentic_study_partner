@@ -98,7 +98,7 @@ export function LibraryRail({
   const hasBooks = books.length > 0;
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
+    <div className="flex h-full flex-col gap-5 overflow-y-auto overscroll-contain p-4 [scrollbar-gutter:stable]">
       <section aria-labelledby="library-heading" className="space-y-2">
         <SectionHeading id="library-heading">Your library</SectionHeading>
 

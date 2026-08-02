@@ -52,7 +52,23 @@ function highlightExcerpt(
   for (let index = range.start; index <= range.end; index += 1) {
     spans[index]?.setAttribute("data-cited", "");
   }
-  spans[range.start]?.scrollIntoView({ block: "center", behavior: "smooth" });
+
+  // Scroll only the PDF viewport. `scrollIntoView` also scrolls eligible
+  // ancestors, which could move the conversation (or the whole app) when a
+  // citation opened. An immediate jump is intentional: a smooth animation is
+  // restarted whenever pdf.js lays the text layer out again and was the main
+  // source of the visible citation flicker.
+  const first = spans[range.start];
+  if (first) {
+    const viewportBounds = container.getBoundingClientRect();
+    const passageBounds = first.getBoundingClientRect();
+    const top =
+      container.scrollTop +
+      passageBounds.top -
+      viewportBounds.top -
+      (container.clientHeight - passageBounds.height) / 2;
+    container.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+  }
   return true;
 }
 
@@ -81,6 +97,8 @@ export function PdfViewer({
     let cancelled = false;
     setSource(null);
     setError("");
+    setPageCount(0);
+    setExactMatch(null);
     (async () => {
       try {
         const payload = await apiFetch<BookSourceResponse>(
@@ -105,7 +123,10 @@ export function PdfViewer({
     };
   }, [target.bookId]);
 
-  useEffect(() => setPage(target.page), [target.page, target.excerpt]);
+  useEffect(() => {
+    setPage(target.page);
+    setExactMatch(null);
+  }, [target.bookId, target.page, target.excerpt]);
 
   // Render at the pane's width so the page fills it without horizontal scroll.
   //
@@ -117,17 +138,33 @@ export function PdfViewer({
     const element = containerRef.current;
     if (!element) return;
 
+    let resizeTimer: number | null = null;
     const measure = (available: number) => {
       const usable = available - 32;
-      if (usable > 0) setWidth(Math.round(usable));
+      if (usable > 0) {
+        const next = Math.round(usable);
+        setWidth((current) => (current === next ? current : next));
+      }
     };
 
     measure(element.clientWidth);
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) measure(entry.contentRect.width);
+      if (!entry) return;
+      // Dragging the divider can report dozens of widths per second. pdf.js
+      // replaces the canvas while honoring each one, which looks like the page
+      // is flashing. Keep the existing page visible and render once the pane
+      // has settled instead.
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(
+        () => measure(entry.contentRect.width),
+        100,
+      );
     });
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+    };
   }, []);
 
   const onPageRendered = useCallback(() => {
@@ -189,7 +226,7 @@ export function PdfViewer({
 
       <div
         ref={containerRef}
-        className="min-h-0 w-full flex-1 overflow-auto p-4"
+        className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 [scrollbar-gutter:stable]"
       >
         {error ? (
           <Alert variant="destructive">

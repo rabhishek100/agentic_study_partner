@@ -5,9 +5,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "asp:reading-pane-width";
-const MIN_PERCENT = 25;
-const MAX_PERCENT = 70;
+const DEFAULT_PERCENT = 50;
+const MIN_PERCENT = 35;
+const MAX_PERCENT = 62;
 const KEYBOARD_STEP = 5;
+
+function clampPercent(value: number): number {
+  return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, value));
+}
 
 /**
  * Conversation on the left, document on the right, with a draggable divider.
@@ -24,13 +29,15 @@ export function SplitPane({
   children: React.ReactNode;
   aside: React.ReactNode | null;
 }) {
-  const [percent, setPercent] = useState(40);
+  const [percent, setPercent] = useState(DEFAULT_PERCENT);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
 
   useEffect(() => {
     const stored = Number(window.localStorage.getItem(STORAGE_KEY));
-    if (stored >= MIN_PERCENT && stored <= MAX_PERCENT) setPercent(stored);
+    if (Number.isFinite(stored) && stored > 0) {
+      setPercent(clampPercent(stored));
+    }
   }, []);
 
   const store = useCallback((value: number) => {
@@ -44,10 +51,7 @@ export function SplitPane({
       if (!draggingRef.current || !containerRef.current) return;
       const bounds = containerRef.current.getBoundingClientRect();
       const fromRight = bounds.right - event.clientX;
-      const next = Math.min(
-        MAX_PERCENT,
-        Math.max(MIN_PERCENT, (fromRight / bounds.width) * 100),
-      );
+      const next = clampPercent((fromRight / bounds.width) * 100);
       setPercent(next);
     };
     const onUp = () => {
@@ -66,6 +70,9 @@ export function SplitPane({
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      draggingRef.current = false;
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
     };
   }, [aside, store]);
 
@@ -74,7 +81,7 @@ export function SplitPane({
   }
 
   return (
-    <div ref={containerRef} className="flex min-h-0 flex-1">
+    <div ref={containerRef} className="flex min-h-0 flex-1 overflow-hidden">
       {/* Below the tablet breakpoint the document takes the whole area; a
           40% column on a phone is unreadable for both halves. */}
       <div className="hidden min-w-0 flex-1 md:flex">{children}</div>
@@ -99,10 +106,7 @@ export function SplitPane({
           if (!direction) return;
           event.preventDefault();
           setPercent((current) => {
-            const next = Math.min(
-              MAX_PERCENT,
-              Math.max(MIN_PERCENT, current + direction * KEYBOARD_STEP),
-            );
+            const next = clampPercent(current + direction * KEYBOARD_STEP);
             store(next);
             return next;
           });
@@ -123,12 +127,13 @@ export function SplitPane({
         entire row wider than the viewport, which is what a signed URL in an
         error message did.
       */}
-      <div
+      <aside
+        aria-label="Source document"
         className="w-full min-w-0 shrink-0 overflow-hidden md:w-[var(--pane)]"
         style={{ "--pane": `${percent}%` } as React.CSSProperties}
       >
         {aside}
-      </div>
+      </aside>
     </div>
   );
 }
