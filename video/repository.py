@@ -48,6 +48,28 @@ class VideoCreation:
     upload_storage_key: str | None = None
 
 
+@dataclass(frozen=True)
+class VideoUploadTarget:
+    job_id: UUID
+    video_id: UUID
+    source_id: UUID
+    status: str
+    storage_key: str
+    declared_size_bytes: int
+    declared_media_type: str
+    staging_size_bytes: int | None
+    staging_content_hash: str | None
+
+
+@dataclass(frozen=True)
+class VideoUploadCompletion:
+    job_id: UUID
+    video_id: UUID
+    status: str
+    size_bytes: int
+    replayed: bool
+
+
 def maximum_upload_bytes() -> int:
     return int(os.getenv("VIDEO_MAX_UPLOAD_BYTES", DEFAULT_MAXIMUM_UPLOAD_BYTES))
 
@@ -171,9 +193,11 @@ def _create_graph(
         insert into video.ingestion_jobs (
             id, owner_id, video_id, target_version_id, idempotency_key,
             status, stage, staging_storage_backend, staging_storage_key,
+            declared_size_bytes, declared_media_type,
             cost_cap_usd, provenance_json
         ) values (
-            %s, %s, %s, %s, %s, %s, 'acquire_source', %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, 'acquire_source', %s, %s,
+            %s, %s, %s, %s
         )
         """,
         (
@@ -185,6 +209,8 @@ def _create_graph(
             job_status,
             "filesystem" if staging_storage_key else None,
             staging_storage_key,
+            declared_size,
+            media_type,
             DEFAULT_INGESTION_CAP_USD,
             Jsonb({"declared_size_bytes": declared_size, "media_type": media_type}),
         ),
@@ -460,6 +486,143 @@ def load_ingestion_job(
         """,
         (parse_owner_id(owner_id), UUID(str(job_id))),
     ).fetchone()
+
+
+def load_video_upload_target(
+    connection: Connection, job_id: str | UUID, *, owner_id: str | UUID
+) -> VideoUploadTarget | None:
+    row = connection.execute(
+        """
+        select j.id as job_id, j.video_id, j.status, j.staging_storage_key,
+               j.declared_size_bytes, j.declared_media_type,
+               j.staging_size_bytes, j.staging_content_hash,
+               s.id as source_id
+        from video.ingestion_jobs as j
+        join video.video_sources as s
+          on s.owner_id = j.owner_id and s.video_id = j.video_id
+         and s.is_primary and s.source_kind = 'upload'
+        where j.owner_id = %s and j.id = %s
+        """,
+        (parse_owner_id(owner_id), UUID(str(job_id))),
+    ).fetchone()
+    if row is None or not row["staging_storage_key"]:
+        return None
+    return VideoUploadTarget(
+        job_id=row["job_id"],
+        video_id=row["video_id"],
+        source_id=row["source_id"],
+        status=row["status"],
+        storage_key=row["staging_storage_key"],
+        declared_size_bytes=row["declared_size_bytes"],
+        declared_media_type=row["declared_media_type"],
+        staging_size_bytes=row["staging_size_bytes"],
+        staging_content_hash=row["staging_content_hash"],
+    )
+
+
+def complete_video_upload(
+    connection: Connection,
+    job_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    storage_key: str,
+    content_hash: str,
+    size_bytes: int,
+    media_type: str,
+) -> VideoUploadCompletion | None:
+    """Record a fully streamed upload and make its job claimable.
+
+    This verifies transport facts only. The source deliberately stays pending
+    until the worker probes the container and promotes it to canonical media.
+    """
+
+    owner, job = parse_owner_id(owner_id), UUID(str(job_id))
+    row = connection.execute(
+        """
+        select j.id as job_id, j.video_id, j.status, j.staging_storage_key,
+               j.declared_size_bytes, j.declared_media_type,
+               j.staging_size_bytes, j.staging_content_hash,
+               s.id as source_id
+        from video.ingestion_jobs as j
+        join video.video_sources as s
+          on s.owner_id = j.owner_id and s.video_id = j.video_id
+         and s.is_primary and s.source_kind = 'upload'
+        where j.owner_id = %s and j.id = %s
+        for update of j, s
+        """,
+        (owner, job),
+    ).fetchone()
+    if row is None:
+        return None
+    expected = (
+        row["staging_storage_key"],
+        row["declared_size_bytes"],
+        row["declared_media_type"],
+    )
+    if (storage_key, size_bytes, media_type) != expected:
+        raise VideoConflictError("uploaded video does not match its reservation")
+    if row["status"] == "queued":
+        if (
+            row["staging_size_bytes"] == size_bytes
+            and row["staging_content_hash"] == content_hash
+        ):
+            return VideoUploadCompletion(
+                job_id=job,
+                video_id=row["video_id"],
+                status="queued",
+                size_bytes=size_bytes,
+                replayed=True,
+            )
+        raise VideoConflictError("video upload was already completed")
+    if row["status"] != "awaiting_upload":
+        raise VideoConflictError("video upload is not awaiting bytes")
+
+    connection.execute(
+        """
+        update video.video_sources
+        set storage_backend = 'filesystem', storage_key = %s,
+            content_hash = %s, size_bytes = %s, media_type = %s,
+            provenance_json = provenance_json || jsonb_build_object(
+                'upload_transport', 'fastapi-stream-v1'
+            )
+        where owner_id = %s and id = %s
+        """,
+        (storage_key, content_hash, size_bytes, media_type, owner, row["source_id"]),
+    )
+    connection.execute(
+        """
+        update video.ingestion_jobs
+        set status = 'queued', next_attempt_at = now(),
+            staging_size_bytes = %s, staging_content_hash = %s,
+            upload_completed_at = now(),
+            provenance_json = provenance_json || jsonb_build_object(
+                'upload', jsonb_build_object(
+                    'size_bytes', %s::bigint, 'content_hash', %s::text,
+                    'transport', 'fastapi-stream-v1'
+                )
+            )
+        where owner_id = %s and id = %s
+        """,
+        (size_bytes, content_hash, size_bytes, content_hash, owner, job),
+    )
+    connection.execute(
+        """
+        insert into video.ingestion_job_events (
+            owner_id, job_id, event_type, status, stage, message
+        ) values (
+            %s, %s, 'upload_completed', 'queued', 'acquire_source',
+            'Video upload received; awaiting media validation'
+        )
+        """,
+        (owner, job),
+    )
+    return VideoUploadCompletion(
+        job_id=job,
+        video_id=row["video_id"],
+        status="queued",
+        size_bytes=size_bytes,
+        replayed=False,
+    )
 
 
 def list_video_chapters(

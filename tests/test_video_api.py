@@ -65,6 +65,12 @@ class VideoApiTests(unittest.IsolatedAsyncioTestCase):
                     path, **({"json": body} if body else {})
                 )
                 self.assertEqual(response.status_code, 401)
+        upload = await self.client.put(
+            f"/api/video-ingestions/{identifier}/source",
+            content=b"video",
+            headers={"Content-Type": "video/mp4"},
+        )
+        self.assertEqual(upload.status_code, 401)
 
     async def test_youtube_create_replay_list_detail_and_safe_job_status(self) -> None:
         key = uuid4()

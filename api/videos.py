@@ -2,10 +2,11 @@
 
 from datetime import datetime
 from decimal import Decimal
+import logging
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import Field, HttpUrl, model_validator
 from starlette.concurrency import run_in_threadpool
 
@@ -17,6 +18,7 @@ from video.repository import (
     VideoAlreadyExistsError,
     VideoConflictError,
     VideoNotFoundError,
+    complete_video_upload,
     confirm_resource_suggestion,
     create_url_resource,
     create_youtube_video,
@@ -29,16 +31,25 @@ from video.repository import (
     list_standalone_videos,
     list_video_chapters,
     list_video_resources,
-    load_ingestion_job,
     load_standalone_video,
+    load_ingestion_job,
+    load_video_upload_target,
     maximum_upload_bytes,
     update_video_metadata,
 )
 from video.sources import InvalidVideoSource
+from video.media_store import (
+    FilesystemMediaStore,
+    MediaConflict,
+    MediaSizeMismatch,
+    MediaStoreError,
+    MediaTooLarge,
+)
 
 
 videos_router = APIRouter(prefix="/api/videos", tags=["videos"])
 jobs_router = APIRouter(prefix="/api/video-ingestions", tags=["video-ingestion"])
+logger = logging.getLogger("study_partner.api.videos")
 VIDEO_NOT_FOUND = HTTPException(status_code=404, detail="video not found")
 JOB_NOT_FOUND = HTTPException(status_code=404, detail="video ingestion job not found")
 
@@ -84,6 +95,14 @@ class CreateVideoResponse(ContractModel):
     readiness_status: Readiness = "processing"
     ingestion_status: JobStatus
     upload: UploadReservation | None = None
+
+
+class UploadSourceResponse(ContractModel):
+    video_id: UUID
+    ingestion_job_id: UUID
+    ingestion_status: Literal["queued"]
+    source_status: Literal["pending"] = "pending"
+    received_bytes: int
 
 
 class PlaybackView(ContractModel):
@@ -613,6 +632,98 @@ async def get_video_ingestion(
     if row is None:
         raise JOB_NOT_FOUND
     return _job(row)
+
+
+@jobs_router.put("/{job_id}/source", status_code=status.HTTP_202_ACCEPTED)
+async def upload_video_source(
+    job_id: UUID,
+    request: Request,
+    response: Response,
+    owner_id: UUID = Depends(current_owner),
+) -> UploadSourceResponse:
+    """Stream reserved upload bytes without buffering a lecture in memory."""
+
+    def load_target():
+        with database_connection(readonly=True) as database:
+            return load_video_upload_target(database, job_id, owner_id=owner_id)
+
+    target = await run_in_threadpool(load_target)
+    if target is None:
+        raise JOB_NOT_FOUND
+    if target.status not in {"awaiting_upload", "queued"}:
+        raise HTTPException(status_code=409, detail="video upload is not awaiting bytes")
+
+    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip()
+    if media_type != target.declared_media_type:
+        raise HTTPException(
+            status_code=415, detail="Content-Type does not match upload reservation"
+        )
+    raw_length = request.headers.get("content-length")
+    if raw_length is not None:
+        try:
+            content_length = int(raw_length)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail="invalid Content-Length") from error
+        if content_length > maximum_upload_bytes():
+            raise HTTPException(status_code=413, detail="video upload is too large")
+        if content_length != target.declared_size_bytes:
+            raise HTTPException(
+                status_code=422,
+                detail="Content-Length does not match upload reservation",
+            )
+
+    try:
+        store = FilesystemMediaStore()
+        writer = store.writer(
+            owner_id=owner_id,
+            storage_key=target.storage_key,
+            maximum_bytes=min(maximum_upload_bytes(), target.declared_size_bytes),
+        )
+        try:
+            async for chunk in request.stream():
+                await run_in_threadpool(writer.write, chunk)
+            stored = await run_in_threadpool(
+                writer.finish, expected_size=target.declared_size_bytes
+            )
+        finally:
+            await run_in_threadpool(writer.abort)
+    except MediaTooLarge as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except MediaSizeMismatch as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except MediaConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except MediaStoreError as error:
+        logger.exception("Video upload storage failed", extra={"job_id": str(job_id)})
+        raise HTTPException(status_code=503, detail="video media storage unavailable") from error
+
+    def complete():
+        with database_connection() as database:
+            return complete_video_upload(
+                database,
+                job_id,
+                owner_id=owner_id,
+                storage_key=stored.storage_key,
+                content_hash=stored.content_hash,
+                size_bytes=stored.size_bytes,
+                media_type=media_type,
+            )
+
+    try:
+        completed = await run_in_threadpool(complete)
+    except VideoConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if completed is None:
+        raise JOB_NOT_FOUND
+    if completed.replayed:
+        response.status_code = status.HTTP_200_OK
+    response.headers["Location"] = f"/api/video-ingestions/{job_id}"
+    return UploadSourceResponse(
+        video_id=completed.video_id,
+        ingestion_job_id=completed.job_id,
+        ingestion_status="queued",
+        received_bytes=completed.size_bytes,
+    )
 
 
 @jobs_router.get("/{job_id}/events")

@@ -127,7 +127,6 @@ class VideoRepositoryTests(unittest.TestCase):
                 """,
                 (created.source_id,),
             ).fetchone()
-
         self.assertTrue(created.created)
         self.assertEqual(created.job_status, "queued")
         self.assertEqual(dict(rows), {key: 1 for key in rows})
@@ -180,6 +179,14 @@ class VideoRepositoryTests(unittest.TestCase):
                 """,
                 (created.source_id,),
             ).fetchone()
+            job = database.execute(
+                """
+                select declared_size_bytes, declared_media_type,
+                       staging_size_bytes, staging_content_hash
+                from video.ingestion_jobs where id = %s
+                """,
+                (created.job_id,),
+            ).fetchone()
 
         self.assertEqual(created.job_status, "awaiting_upload")
         self.assertTrue(created.upload_storage_key.startswith(f"{self.owner_a}/"))
@@ -188,6 +195,10 @@ class VideoRepositoryTests(unittest.TestCase):
         self.assertIsNone(source["storage_backend"])
         self.assertIsNone(source["storage_key"])
         self.assertEqual(source["status"], "pending")
+        self.assertEqual(job["declared_size_bytes"], 250_000_000)
+        self.assertEqual(job["declared_media_type"], "video/mp4")
+        self.assertIsNone(job["staging_size_bytes"])
+        self.assertIsNone(job["staging_content_hash"])
 
     def test_listing_is_owner_scoped_processing_visible_and_course_excluded(
         self,

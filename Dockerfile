@@ -29,6 +29,7 @@ COPY retrieval ./retrieval
 # import time on the deployed service rather than in CI.
 COPY storage ./storage
 COPY study ./study
+COPY video ./video
 COPY worker ./worker
 # Operational commands the runbook refers to, and the parse benchmark, need
 # to be runnable inside the deployed image rather than only from a laptop.
