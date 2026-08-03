@@ -128,4 +128,3 @@ def _chapter_index(chapters: list[Chapter], timestamp: int) -> int | None:
         if chapter.start_ms <= timestamp < chapter.end_ms:
             return chapter.index
     return None
-

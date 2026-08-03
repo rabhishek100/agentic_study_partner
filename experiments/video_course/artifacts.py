@@ -102,4 +102,3 @@ def records(path: Path, constructor):
 
 def as_records(values: Iterable[Any]) -> list[dict[str, Any]]:
     return [asdict(value) if is_dataclass(value) else dict(value) for value in values]
-

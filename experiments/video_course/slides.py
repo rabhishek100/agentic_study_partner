@@ -42,4 +42,3 @@ def extract_slides(pdf_path: Path, output_dir: Path) -> list[SlidePage]:
     finally:
         document.close()
     return pages
-

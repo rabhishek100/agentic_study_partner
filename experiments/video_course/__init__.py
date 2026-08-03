@@ -3,4 +3,3 @@
 from .pipeline import VideoCoursePilot
 
 __all__ = ["VideoCoursePilot"]
-

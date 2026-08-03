@@ -280,4 +280,3 @@ def chapter_at(chapters: Iterable[Chapter], timestamp_ms: int) -> int | None:
         if chapter.start_ms <= timestamp_ms < chapter.end_ms:
             return chapter.index
     return None
-
