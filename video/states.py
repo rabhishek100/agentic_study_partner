@@ -29,3 +29,4 @@ class Stage(StrEnum):
 
 CLAIMABLE = frozenset({Status.QUEUED, Status.RETRY_SCHEDULED})
 TERMINAL = frozenset({Status.READY, Status.FAILED, Status.CANCELLED})
+PIPELINE = tuple(Stage)

@@ -1,20 +1,26 @@
 """Independent video queue claiming, leases, cancellation, and retry."""
 
 import unittest
+from decimal import Decimal
 from uuid import uuid4
 
 from storage.database import connection, resolve_database_url
 from video.jobs import (
     VideoJobConflictError,
     VideoJobNotFoundError,
+    advance_stage,
+    begin_stage_checkpoint,
     claim_next_job,
+    complete_stage_checkpoint,
     get_job,
+    reclaim_expired_leases,
     renew_lease,
     request_cancellation,
     retry_job,
 )
+from video.errors import VideoBudgetExceeded
 from video.repository import create_youtube_video
-from video.states import Status
+from video.states import Stage, Status
 
 
 class VideoJobTests(unittest.TestCase):
@@ -69,12 +75,14 @@ class VideoJobTests(unittest.TestCase):
                 database,
                 job_id=created.job_id,
                 worker_id="video-worker-b",
+                attempt_count=1,
                 lease_seconds=60,
             )
             renewed = renew_lease(
                 database,
                 job_id=created.job_id,
                 worker_id="video-worker-a",
+                attempt_count=1,
                 lease_seconds=60,
             )
             database.execute(
@@ -89,6 +97,7 @@ class VideoJobTests(unittest.TestCase):
                 database,
                 job_id=created.job_id,
                 worker_id="video-worker-a",
+                attempt_count=1,
                 lease_seconds=60,
             )
 
@@ -182,6 +191,198 @@ class VideoJobTests(unittest.TestCase):
         self.assertIsNone(version["completed_at"])
         self.assertIsNone(version["error_code"])
 
+    def test_checkpoint_completion_is_idempotent_costed_and_stage_guarded(self) -> None:
+        dependency = "a" * 64
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            claimed = claim_next_job(database, worker_id="video-worker")
+            started = begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+            )
+            completed = complete_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+                output_manifest={"source_hash": "b" * 64},
+                cost_usd="0.100000",
+            )
+            replay = complete_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+                output_manifest={"ignored": True},
+                cost_usd="0.100000",
+            )
+            advanced = advance_stage(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                next_stage=Stage.MEDIA_METADATA,
+            )
+            costs = database.execute(
+                """
+                select j.actual_cost_usd as job_cost,
+                       v.actual_cost_usd as version_cost
+                from video.ingestion_jobs j
+                join video.ingestion_versions v on v.id = j.target_version_id
+                where j.id = %s
+                """,
+                (created.job_id,),
+            ).fetchone()
+
+        self.assertEqual(started.status, "running")
+        self.assertEqual(completed.status, "complete")
+        self.assertTrue(replay.reused)
+        self.assertEqual(replay.output_manifest, {"source_hash": "b" * 64})
+        self.assertEqual(costs["job_cost"], Decimal("0.100000"))
+        self.assertEqual(costs["version_cost"], Decimal("0.100000"))
+        self.assertEqual(advanced.stage, Stage.MEDIA_METADATA)
+
+    def test_checkpoint_dependency_change_and_budget_failure_are_atomic(self) -> None:
+        first_hash, second_hash = "c" * 64, "d" * 64
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            claimed = claim_next_job(database, worker_id="video-worker")
+            begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=first_hash,
+            )
+            changed = begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=second_hash,
+            )
+            with self.assertRaises(VideoBudgetExceeded):
+                complete_stage_checkpoint(
+                    database,
+                    job_id=created.job_id,
+                    worker_id="video-worker",
+                    attempt_count=claimed.attempt_count,
+                    stage=Stage.ACQUIRE_SOURCE,
+                    dependency_hash=second_hash,
+                    output_manifest={"should": "roll back"},
+                    cost_usd="0.500001",
+                )
+            state = database.execute(
+                """
+                select c.status, c.output_manifest_json, c.actual_cost_usd,
+                       j.actual_cost_usd as job_cost,
+                       v.actual_cost_usd as version_cost
+                from video.ingestion_stage_checkpoints c
+                join video.ingestion_jobs j
+                  on j.target_version_id = c.ingestion_version_id
+                join video.ingestion_versions v on v.id = c.ingestion_version_id
+                where j.id = %s and c.stage = 'acquire_source'
+                """,
+                (created.job_id,),
+            ).fetchone()
+
+        self.assertEqual(changed.dependency_hash, second_hash)
+        self.assertEqual(changed.attempt_count, 2)
+        self.assertEqual(state["status"], "running")
+        self.assertEqual(state["output_manifest_json"], {})
+        self.assertEqual(state["actual_cost_usd"], Decimal("0"))
+        self.assertEqual(state["job_cost"], Decimal("0"))
+        self.assertEqual(state["version_cost"], Decimal("0"))
+
+    def test_expired_lease_retries_then_exhausts_with_attempt_fencing(self) -> None:
+        dependency = "e" * 64
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            first = claim_next_job(database, worker_id="stable-worker", lease_seconds=60)
+            begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="stable-worker",
+                attempt_count=first.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+            )
+            database.execute(
+                "update video.ingestion_jobs set lease_expires_at = now() - interval '1 second' where id = %s",
+                (created.job_id,),
+            )
+            reclaimed = reclaim_expired_leases(database, retry_delay_seconds=0)
+            reclaimed_again = reclaim_expired_leases(database, retry_delay_seconds=0)
+            second = claim_next_job(database, worker_id="stable-worker", lease_seconds=60)
+            stale_renewal = renew_lease(
+                database,
+                job_id=created.job_id,
+                worker_id="stable-worker",
+                attempt_count=first.attempt_count,
+            )
+            with self.assertRaises(VideoJobConflictError):
+                begin_stage_checkpoint(
+                    database,
+                    job_id=created.job_id,
+                    worker_id="stable-worker",
+                    attempt_count=first.attempt_count,
+                    stage=Stage.ACQUIRE_SOURCE,
+                    dependency_hash=dependency,
+                )
+            resumed = begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="stable-worker",
+                attempt_count=second.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+            )
+            database.execute(
+                """
+                update video.ingestion_jobs
+                set attempt_count = max_attempts,
+                    lease_expires_at = now() - interval '1 second'
+                where id = %s
+                """,
+                (created.job_id,),
+            )
+            exhausted = reclaim_expired_leases(database, retry_delay_seconds=0)
+            final_job = get_job(
+                database, owner_id=self.owner, job_id=created.job_id
+            )
+            version = database.execute(
+                "select status, error_code from video.ingestion_versions where id = %s",
+                (created.version_id,),
+            ).fetchone()
+            video = database.execute(
+                "select readiness_status from video.videos where id = %s",
+                (created.video_id,),
+            ).fetchone()
+
+        self.assertEqual(reclaimed, 1)
+        self.assertEqual(reclaimed_again, 0)
+        self.assertEqual(second.attempt_count, 2)
+        self.assertFalse(stale_renewal)
+        self.assertEqual(resumed.attempt_count, 2)
+        self.assertEqual(exhausted, 1)
+        self.assertEqual(final_job.status, Status.FAILED)
+        self.assertEqual(final_job.last_error_code, "attempts_exhausted")
+        self.assertFalse(final_job.last_error_retryable)
+        self.assertEqual(version["status"], "failed")
+        self.assertEqual(version["error_code"], "attempts_exhausted")
+        self.assertEqual(video["readiness_status"], "failed")
+
 
 if __name__ == "__main__":
     unittest.main()
+    reclaim_expired_leases,

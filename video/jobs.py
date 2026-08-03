@@ -8,13 +8,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
+import re
 from uuid import UUID
 
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
-from video.states import Stage, Status, TERMINAL
+from video.errors import VideoBudgetExceeded, VideoErrorCode
+from video.states import PIPELINE, Stage, Status, TERMINAL
 
 
 JOB_COLUMNS = """
@@ -35,6 +37,36 @@ class VideoJobNotFoundError(LookupError):
 
 class VideoJobConflictError(RuntimeError):
     pass
+
+
+CHECKPOINT_HASH = re.compile(r"^[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True)
+class StageCheckpoint:
+    id: UUID
+    ingestion_version_id: UUID
+    stage: Stage
+    status: str
+    dependency_hash: str
+    output_manifest: dict[str, Any]
+    actual_cost_usd: Decimal
+    attempt_count: int
+    reused: bool = False
+
+
+def _checkpoint(row: dict[str, Any], *, reused: bool = False) -> StageCheckpoint:
+    return StageCheckpoint(
+        id=row["id"],
+        ingestion_version_id=row["ingestion_version_id"],
+        stage=Stage(row["stage"]),
+        status=row["status"],
+        dependency_hash=row["dependency_hash"],
+        output_manifest=row["output_manifest_json"] or {},
+        actual_cost_usd=row["actual_cost_usd"],
+        attempt_count=row["attempt_count"],
+        reused=reused,
+    )
 
 
 @dataclass(frozen=True)
@@ -186,6 +218,7 @@ def renew_lease(
     *,
     job_id: str | UUID,
     worker_id: str,
+    attempt_count: int,
     lease_seconds: int = 300,
 ) -> bool:
     if lease_seconds <= 0:
@@ -197,9 +230,10 @@ def renew_lease(
             set lease_expires_at = now() + make_interval(secs => %s),
                 heartbeat_at = now()
             where id = %s and status = 'running' and lease_owner = %s
+              and attempt_count = %s
               and lease_expires_at >= now()
             """,
-            (lease_seconds, UUID(str(job_id)), worker_id),
+            (lease_seconds, UUID(str(job_id)), worker_id, attempt_count),
         ).rowcount
     )
 
@@ -317,3 +351,331 @@ def retry_job(
             stage=job.stage,
         )
         return job
+
+
+def _locked_running_job(
+    connection: Connection, *, job_id: UUID, worker_id: str, attempt_count: int
+) -> VideoIngestionJob:
+    row = connection.execute(
+        f"""
+        select {JOB_COLUMNS} from video.ingestion_jobs
+        where id = %s and status = 'running' and lease_owner = %s
+          and attempt_count = %s
+          and lease_expires_at >= now()
+        for update
+        """,
+        (job_id, worker_id, attempt_count),
+    ).fetchone()
+    if row is None:
+        raise VideoJobConflictError("video worker no longer owns this job")
+    return VideoIngestionJob.from_row(row)
+
+
+def begin_stage_checkpoint(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+    stage: Stage,
+    dependency_hash: str,
+) -> StageCheckpoint:
+    """Begin a stage or reuse its exact completed dependency checkpoint."""
+
+    stage = Stage(stage)
+    if not CHECKPOINT_HASH.fullmatch(dependency_hash):
+        raise ValueError("dependency_hash must be a SHA-256 hex digest")
+    identifier = UUID(str(job_id))
+    with connection.transaction():
+        job = _locked_running_job(
+            connection,
+            job_id=identifier,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+        )
+        if job.stage is not stage:
+            raise VideoJobConflictError("video job is not at the requested stage")
+        existing = connection.execute(
+            """
+            select * from video.ingestion_stage_checkpoints
+            where owner_id = %s and ingestion_version_id = %s and stage = %s
+            for update
+            """,
+            (job.owner_id, job.target_version_id, str(stage)),
+        ).fetchone()
+        if (
+            existing is not None
+            and existing["status"] == "complete"
+            and existing["dependency_hash"] == dependency_hash
+        ):
+            return _checkpoint(existing, reused=True)
+        if existing is None:
+            row = connection.execute(
+                """
+                insert into video.ingestion_stage_checkpoints (
+                    owner_id, video_id, ingestion_version_id, stage, status,
+                    dependency_hash, attempt_count, started_at
+                ) values (%s, %s, %s, %s, 'running', %s, 1, now())
+                returning *
+                """,
+                (
+                    job.owner_id,
+                    job.video_id,
+                    job.target_version_id,
+                    str(stage),
+                    dependency_hash,
+                ),
+            ).fetchone()
+        else:
+            row = connection.execute(
+                """
+                update video.ingestion_stage_checkpoints
+                set status = 'running', dependency_hash = %s,
+                    output_manifest_json = '{}'::jsonb,
+                    provenance_json = '{}'::jsonb, actual_cost_usd = 0,
+                    attempt_count = attempt_count + 1,
+                    reused_from_checkpoint_id = null, started_at = now(),
+                    completed_at = null, error_code = null, error_message = null
+                where id = %s returning *
+                """,
+                (dependency_hash, existing["id"]),
+            ).fetchone()
+        return _checkpoint(row)
+
+
+def complete_stage_checkpoint(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+    stage: Stage,
+    dependency_hash: str,
+    output_manifest: dict[str, Any],
+    cost_usd: Decimal | str | float = 0,
+) -> StageCheckpoint:
+    """Commit one stage and charge its provider-reported cost exactly once."""
+
+    stage, identifier = Stage(stage), UUID(str(job_id))
+    cost = Decimal(str(cost_usd))
+    if cost < 0:
+        raise ValueError("stage cost cannot be negative")
+    with connection.transaction():
+        job = _locked_running_job(
+            connection,
+            job_id=identifier,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+        )
+        if job.stage is not stage:
+            raise VideoJobConflictError("video job is not at the requested stage")
+        checkpoint = connection.execute(
+            """
+            select * from video.ingestion_stage_checkpoints
+            where owner_id = %s and ingestion_version_id = %s and stage = %s
+            for update
+            """,
+            (job.owner_id, job.target_version_id, str(stage)),
+        ).fetchone()
+        if checkpoint is None or checkpoint["dependency_hash"] != dependency_hash:
+            raise VideoJobConflictError("video stage checkpoint dependency changed")
+        if checkpoint["status"] == "complete":
+            return _checkpoint(checkpoint, reused=True)
+        if checkpoint["status"] != "running":
+            raise VideoJobConflictError("video stage checkpoint is not running")
+        charged_job = connection.execute(
+            """
+            update video.ingestion_jobs
+            set actual_cost_usd = actual_cost_usd + %s
+            where id = %s and owner_id = %s
+              and actual_cost_usd + %s <= cost_cap_usd
+            returning id
+            """,
+            (cost, identifier, job.owner_id, cost),
+        ).fetchone()
+        charged_version = connection.execute(
+            """
+            update video.ingestion_versions
+            set actual_cost_usd = actual_cost_usd + %s
+            where id = %s and owner_id = %s
+              and actual_cost_usd + %s <= cost_cap_usd
+            returning id
+            """,
+            (cost, job.target_version_id, job.owner_id, cost),
+        ).fetchone()
+        if charged_job is None or charged_version is None:
+            raise VideoBudgetExceeded()
+        row = connection.execute(
+            """
+            update video.ingestion_stage_checkpoints
+            set status = 'complete', output_manifest_json = %s,
+                actual_cost_usd = %s, completed_at = now(),
+                error_code = null, error_message = null
+            where id = %s returning *
+            """,
+            (Jsonb(output_manifest), cost, checkpoint["id"]),
+        ).fetchone()
+        _event(
+            connection,
+            owner_id=job.owner_id,
+            job_id=job.id,
+            event_type="stage_completed",
+            status=job.status,
+            stage=stage,
+        )
+        return _checkpoint(row)
+
+
+def advance_stage(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+    next_stage: Stage,
+) -> VideoIngestionJob:
+    next_stage, identifier = Stage(next_stage), UUID(str(job_id))
+    with connection.transaction():
+        job = _locked_running_job(
+            connection,
+            job_id=identifier,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+        )
+        if job.stage is None:
+            raise VideoJobConflictError("video job has no active stage")
+        position = PIPELINE.index(job.stage)
+        if position + 1 >= len(PIPELINE) or PIPELINE[position + 1] is not next_stage:
+            raise VideoJobConflictError("video stages must advance in order")
+        completed = connection.execute(
+            """
+            select 1 from video.ingestion_stage_checkpoints
+            where owner_id = %s and ingestion_version_id = %s
+              and stage = %s and status = 'complete'
+            """,
+            (job.owner_id, job.target_version_id, str(job.stage)),
+        ).fetchone()
+        if completed is None:
+            raise VideoJobConflictError("current video stage is not complete")
+        row = connection.execute(
+            f"""
+            update video.ingestion_jobs
+            set stage = %s, progress_completed = 0,
+                progress_total = null, progress_unit = null
+            where id = %s and owner_id = %s and status = 'running'
+              and lease_owner = %s and lease_expires_at >= now()
+              and attempt_count = %s
+            returning {JOB_COLUMNS}
+            """,
+            (str(next_stage), identifier, job.owner_id, worker_id, attempt_count),
+        ).fetchone()
+        advanced = VideoIngestionJob.from_row(row)
+        _event(
+            connection,
+            owner_id=job.owner_id,
+            job_id=job.id,
+            event_type="stage_started",
+            status=advanced.status,
+            stage=next_stage,
+        )
+        return advanced
+
+
+def reclaim_expired_leases(
+    connection: Connection, *, retry_delay_seconds: float = 30
+) -> int:
+    """Retry abandoned work until the attempt budget is exhausted."""
+
+    if retry_delay_seconds < 0:
+        raise ValueError("retry delay cannot be negative")
+    with connection.transaction():
+        expired = connection.execute(
+            """
+            select * from video.ingestion_jobs
+            where status = 'running' and lease_expires_at < now()
+            for update skip locked
+            """
+        ).fetchall()
+        for row in expired:
+            job = VideoIngestionJob.from_row(row)
+            connection.execute(
+                """
+                update video.ingestion_stage_checkpoints
+                set status = 'failed', completed_at = now(),
+                    error_code = 'lease_expired',
+                    error_message = 'Video processing lease expired'
+                where owner_id = %s and ingestion_version_id = %s
+                  and stage = %s and status = 'running'
+                """,
+                (job.owner_id, job.target_version_id, str(job.stage)),
+            )
+            if job.attempt_count < job.max_attempts:
+                connection.execute(
+                    """
+                    update video.ingestion_jobs
+                    set status = 'retry_scheduled',
+                        next_attempt_at = now() + make_interval(secs => %s),
+                        lease_owner = null, lease_expires_at = null,
+                        last_error_code = %s, last_error_message = %s,
+                        last_error_retryable = true
+                    where id = %s and owner_id = %s
+                    """,
+                    (
+                        retry_delay_seconds,
+                        str(VideoErrorCode.LEASE_EXPIRED),
+                        "Video processing stalled and will resume.",
+                        job.id,
+                        job.owner_id,
+                    ),
+                )
+                event_type, target = "retry_scheduled", Status.RETRY_SCHEDULED
+            else:
+                connection.execute(
+                    """
+                    update video.ingestion_jobs
+                    set status = 'failed', completed_at = now(),
+                        next_attempt_at = null,
+                        lease_owner = null, lease_expires_at = null,
+                        last_error_code = %s, last_error_message = %s,
+                        last_error_retryable = false
+                    where id = %s and owner_id = %s
+                    """,
+                    (
+                        str(VideoErrorCode.ATTEMPTS_EXHAUSTED),
+                        "Video processing failed repeatedly.",
+                        job.id,
+                        job.owner_id,
+                    ),
+                )
+                connection.execute(
+                    """
+                    update video.ingestion_versions
+                    set status = 'failed', completed_at = now(),
+                        error_code = %s, error_message = %s
+                    where id = %s and owner_id = %s and status = 'building'
+                    """,
+                    (
+                        str(VideoErrorCode.ATTEMPTS_EXHAUSTED),
+                        "Video processing failed repeatedly.",
+                        job.target_version_id,
+                        job.owner_id,
+                    ),
+                )
+                connection.execute(
+                    """
+                    update video.videos set readiness_status = 'failed'
+                    where id = %s and owner_id = %s
+                      and current_ingestion_version_id is null
+                    """,
+                    (job.video_id, job.owner_id),
+                )
+                event_type, target = "failed", Status.FAILED
+            _event(
+                connection,
+                owner_id=job.owner_id,
+                job_id=job.id,
+                event_type=event_type,
+                status=target,
+                stage=job.stage,
+            )
+        return len(expired)
