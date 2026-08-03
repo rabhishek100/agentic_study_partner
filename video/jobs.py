@@ -4,6 +4,7 @@ This module is deliberately separate from the PDF worker: the two domains
 have different stages, checkpoints, and publication rules.
 """
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -15,7 +16,7 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
-from video.errors import VideoBudgetExceeded, VideoErrorCode
+from video.errors import SAFE_MESSAGES, VideoBudgetExceeded, VideoErrorCode
 from video.states import PIPELINE, Stage, Status, TERMINAL
 
 
@@ -161,21 +162,36 @@ def get_job(
 
 
 def claim_next_job(
-    connection: Connection, *, worker_id: str, lease_seconds: int = 300
+    connection: Connection,
+    *,
+    worker_id: str,
+    lease_seconds: int = 300,
+    supported_stages: Collection[Stage] | None = None,
 ) -> VideoIngestionJob | None:
     if not worker_id.strip() or lease_seconds <= 0:
         raise ValueError("worker_id and a positive lease are required")
+    stages = (
+        None
+        if supported_stages is None
+        else tuple(str(Stage(stage)) for stage in supported_stages)
+    )
+    if stages == ():
+        return None
+    stage_filter = "" if stages is None else "and stage = any(%s)"
+    parameters: tuple[Any, ...] = () if stages is None else (list(stages),)
     with connection.transaction():
         candidate = connection.execute(
-            """
+            f"""
             select id, owner_id, status, stage
             from video.ingestion_jobs
             where status in ('queued', 'retry_scheduled')
               and (next_attempt_at is null or next_attempt_at <= now())
               and cancellation_requested_at is null
+              {stage_filter}
             order by next_attempt_at nulls first, created_at, id
             for update skip locked limit 1
-            """
+            """,
+            parameters,
         ).fetchone()
         if candidate is None:
             return None
@@ -579,6 +595,263 @@ def advance_stage(
             stage=next_stage,
         )
         return advanced
+
+
+def release_claim(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+) -> VideoIngestionJob:
+    """Return an advanced job to the queue without weakening its lease fence."""
+
+    identifier = UUID(str(job_id))
+    with connection.transaction():
+        current = _locked_running_job(
+            connection,
+            job_id=identifier,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+        )
+        if current.cancellation_requested:
+            raise VideoJobConflictError("video ingestion cancellation is pending")
+        row = connection.execute(
+            f"""
+            update video.ingestion_jobs
+            set status = 'queued', next_attempt_at = now(),
+                lease_owner = null, lease_expires_at = null,
+                heartbeat_at = null
+            where id = %s and owner_id = %s and status = 'running'
+              and lease_owner = %s and attempt_count = %s
+              and lease_expires_at >= now()
+              and cancellation_requested_at is null
+            returning {JOB_COLUMNS}
+            """,
+            (
+                identifier,
+                current.owner_id,
+                worker_id,
+                attempt_count,
+            ),
+        ).fetchone()
+        if row is None:
+            raise VideoJobConflictError("video worker no longer owns this job")
+        released = VideoIngestionJob.from_row(row)
+        _event(
+            connection,
+            owner_id=released.owner_id,
+            job_id=released.id,
+            event_type="stage_queued",
+            status=released.status,
+            stage=released.stage,
+        )
+        return released
+
+
+def finish_running_cancellation(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+) -> VideoIngestionJob:
+    """Cooperatively finish a cancellation requested on a running job."""
+
+    identifier = UUID(str(job_id))
+    with connection.transaction():
+        current = _locked_running_job(
+            connection,
+            job_id=identifier,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+        )
+        if not current.cancellation_requested:
+            raise VideoJobConflictError("video ingestion was not cancelled")
+        connection.execute(
+            """
+            update video.ingestion_stage_checkpoints
+            set status = 'failed', completed_at = now(),
+                error_code = 'cancelled',
+                error_message = 'Video ingestion cancelled'
+            where owner_id = %s and ingestion_version_id = %s
+              and stage = %s and status = 'running'
+            """,
+            (current.owner_id, current.target_version_id, str(current.stage)),
+        )
+        connection.execute(
+            """
+            update video.ingestion_versions
+            set status = 'cancelled', completed_at = now(),
+                error_code = 'cancelled',
+                error_message = 'Video ingestion cancelled'
+            where owner_id = %s and id = %s and status = 'building'
+            """,
+            (current.owner_id, current.target_version_id),
+        )
+        connection.execute(
+            """
+            update video.videos set readiness_status = 'failed'
+            where owner_id = %s and id = %s
+              and current_ingestion_version_id is null
+            """,
+            (current.owner_id, current.video_id),
+        )
+        row = connection.execute(
+            f"""
+            update video.ingestion_jobs
+            set status = 'cancelled', completed_at = now(),
+                next_attempt_at = null, lease_owner = null,
+                lease_expires_at = null, heartbeat_at = null,
+                last_error_code = 'cancelled',
+                last_error_message = 'Video ingestion cancelled',
+                last_error_retryable = false
+            where id = %s and owner_id = %s and status = 'running'
+              and lease_owner = %s and attempt_count = %s
+            returning {JOB_COLUMNS}
+            """,
+            (identifier, current.owner_id, worker_id, attempt_count),
+        ).fetchone()
+        cancelled = VideoIngestionJob.from_row(row)
+        _event(
+            connection,
+            owner_id=cancelled.owner_id,
+            job_id=cancelled.id,
+            event_type="cancelled",
+            status=cancelled.status,
+            stage=cancelled.stage,
+        )
+        return cancelled
+
+
+def record_stage_failure(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+    code: VideoErrorCode,
+    retryable: bool,
+    retry_delay_seconds: float = 30,
+) -> VideoIngestionJob:
+    """Persist a safe stage failure and either retry or terminate the job."""
+
+    if retry_delay_seconds < 0:
+        raise ValueError("retry delay cannot be negative")
+    identifier, cause = UUID(str(job_id)), VideoErrorCode(code)
+    with connection.transaction():
+        current = _locked_running_job(
+            connection,
+            job_id=identifier,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+        )
+        if current.cancellation_requested:
+            raise VideoJobConflictError("video ingestion cancellation is pending")
+        will_retry = retryable and current.attempt_count < current.max_attempts
+        recorded_code = (
+            cause
+            if will_retry or not retryable
+            else VideoErrorCode.ATTEMPTS_EXHAUSTED
+        )
+        safe_message = SAFE_MESSAGES[recorded_code]
+        connection.execute(
+            """
+            update video.ingestion_stage_checkpoints
+            set status = 'failed', completed_at = now(),
+                error_code = %s, error_message = %s
+            where owner_id = %s and ingestion_version_id = %s
+              and stage = %s and status = 'running'
+            """,
+            (
+                str(recorded_code),
+                safe_message,
+                current.owner_id,
+                current.target_version_id,
+                str(current.stage),
+            ),
+        )
+        if will_retry:
+            row = connection.execute(
+                f"""
+                update video.ingestion_jobs
+                set status = 'retry_scheduled',
+                    next_attempt_at = now() + make_interval(secs => %s),
+                    lease_owner = null, lease_expires_at = null,
+                    heartbeat_at = null, last_error_code = %s,
+                    last_error_message = %s, last_error_retryable = true
+                where id = %s and owner_id = %s and status = 'running'
+                  and lease_owner = %s and attempt_count = %s
+                returning {JOB_COLUMNS}
+                """,
+                (
+                    retry_delay_seconds,
+                    str(recorded_code),
+                    safe_message,
+                    identifier,
+                    current.owner_id,
+                    worker_id,
+                    attempt_count,
+                ),
+            ).fetchone()
+            event_type = "retry_scheduled"
+        else:
+            row = connection.execute(
+                f"""
+                update video.ingestion_jobs
+                set status = 'failed', completed_at = now(),
+                    next_attempt_at = null, lease_owner = null,
+                    lease_expires_at = null, heartbeat_at = null,
+                    last_error_code = %s, last_error_message = %s,
+                    last_error_retryable = false
+                where id = %s and owner_id = %s and status = 'running'
+                  and lease_owner = %s and attempt_count = %s
+                returning {JOB_COLUMNS}
+                """,
+                (
+                    str(recorded_code),
+                    safe_message,
+                    identifier,
+                    current.owner_id,
+                    worker_id,
+                    attempt_count,
+                ),
+            ).fetchone()
+            connection.execute(
+                """
+                update video.ingestion_versions
+                set status = 'failed', completed_at = now(),
+                    error_code = %s, error_message = %s
+                where owner_id = %s and id = %s and status = 'building'
+                """,
+                (
+                    str(recorded_code),
+                    safe_message,
+                    current.owner_id,
+                    current.target_version_id,
+                ),
+            )
+            connection.execute(
+                """
+                update video.videos set readiness_status = 'failed'
+                where owner_id = %s and id = %s
+                  and current_ingestion_version_id is null
+                """,
+                (current.owner_id, current.video_id),
+            )
+            event_type = "failed"
+        failed = VideoIngestionJob.from_row(row)
+        _event(
+            connection,
+            owner_id=failed.owner_id,
+            job_id=failed.id,
+            event_type=event_type,
+            status=failed.status,
+            stage=failed.stage,
+            message=safe_message,
+            metadata={"cause": str(cause)},
+        )
+        return failed
 
 
 def reclaim_expired_leases(

@@ -12,13 +12,16 @@ from video.jobs import (
     begin_stage_checkpoint,
     claim_next_job,
     complete_stage_checkpoint,
+    finish_running_cancellation,
     get_job,
     reclaim_expired_leases,
+    record_stage_failure,
+    release_claim,
     renew_lease,
     request_cancellation,
     retry_job,
 )
-from video.errors import VideoBudgetExceeded
+from video.errors import VideoBudgetExceeded, VideoErrorCode
 from video.repository import create_youtube_video
 from video.states import Stage, Status
 
@@ -107,6 +110,28 @@ class VideoJobTests(unittest.TestCase):
         self.assertFalse(wrong_worker)
         self.assertTrue(renewed)
         self.assertFalse(expired)
+
+    def test_worker_claims_only_stages_it_can_execute(self) -> None:
+        with connection(self.database_url) as database:
+            unsupported = self.create(database)
+            database.execute(
+                "update video.ingestion_jobs set stage = 'media_metadata' where id = %s",
+                (unsupported.job_id,),
+            )
+            supported = self.create(database, video_id="lmnopqrstuv")
+            claimed = claim_next_job(
+                database,
+                worker_id="acquisition-worker",
+                supported_stages={Stage.ACQUIRE_SOURCE},
+            )
+            none_left = claim_next_job(
+                database,
+                worker_id="acquisition-worker",
+                supported_stages={Stage.ACQUIRE_SOURCE},
+            )
+
+        self.assertEqual(claimed.id, supported.job_id)
+        self.assertIsNone(none_left)
 
     def test_cancellation_is_immediate_when_queued_and_cooperative_when_running(
         self,
@@ -249,6 +274,155 @@ class VideoJobTests(unittest.TestCase):
         self.assertEqual(costs["job_cost"], Decimal("0.100000"))
         self.assertEqual(costs["version_cost"], Decimal("0.100000"))
         self.assertEqual(advanced.stage, Stage.MEDIA_METADATA)
+
+    def test_advanced_stage_is_released_to_the_queue_with_lease_fencing(self) -> None:
+        dependency = "f" * 64
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            claimed = claim_next_job(database, worker_id="video-worker")
+            begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+            )
+            complete_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+                output_manifest={},
+            )
+            advance_stage(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                next_stage=Stage.MEDIA_METADATA,
+            )
+            released = release_claim(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+            )
+            with self.assertRaises(VideoJobConflictError):
+                release_claim(
+                    database,
+                    job_id=created.job_id,
+                    worker_id="video-worker",
+                    attempt_count=claimed.attempt_count,
+                )
+
+        self.assertEqual(released.status, Status.QUEUED)
+        self.assertEqual(released.stage, Stage.MEDIA_METADATA)
+        self.assertIsNone(released.lease_owner)
+
+    def test_running_cancellation_closes_checkpoint_version_and_claim(self) -> None:
+        dependency = "9" * 64
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            claimed = claim_next_job(database, worker_id="video-worker")
+            begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+            )
+            request_cancellation(
+                database, owner_id=self.owner, job_id=created.job_id
+            )
+            cancelled = finish_running_cancellation(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+            )
+            state = database.execute(
+                """
+                select c.status as checkpoint_status,
+                       v.status as version_status,
+                       source.readiness_status
+                from video.ingestion_stage_checkpoints c
+                join video.ingestion_versions v
+                  on v.id = c.ingestion_version_id
+                join video.videos source on source.id = v.video_id
+                where c.ingestion_version_id = %s
+                """,
+                (created.version_id,),
+            ).fetchone()
+
+        self.assertEqual(cancelled.status, Status.CANCELLED)
+        self.assertIsNone(cancelled.lease_owner)
+        self.assertEqual(state["checkpoint_status"], "failed")
+        self.assertEqual(state["version_status"], "cancelled")
+        self.assertEqual(state["readiness_status"], "failed")
+
+    def test_stage_failure_retries_then_exhausts_with_safe_messages(self) -> None:
+        dependency = "8" * 64
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            database.execute(
+                "update video.ingestion_jobs set max_attempts = 2 where id = %s",
+                (created.job_id,),
+            )
+            first = claim_next_job(database, worker_id="video-worker")
+            begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=first.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+            )
+            retry = record_stage_failure(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=first.attempt_count,
+                code=VideoErrorCode.PROVIDER_TIMEOUT,
+                retryable=True,
+                retry_delay_seconds=0,
+            )
+            second = claim_next_job(database, worker_id="video-worker")
+            begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=second.attempt_count,
+                stage=Stage.ACQUIRE_SOURCE,
+                dependency_hash=dependency,
+            )
+            failed = record_stage_failure(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=second.attempt_count,
+                code=VideoErrorCode.PROVIDER_TIMEOUT,
+                retryable=True,
+                retry_delay_seconds=0,
+            )
+            version = database.execute(
+                """
+                select status, error_code, error_message
+                from video.ingestion_versions where id = %s
+                """,
+                (created.version_id,),
+            ).fetchone()
+
+        self.assertEqual(retry.status, Status.RETRY_SCHEDULED)
+        self.assertEqual(retry.last_error_code, "provider_timeout")
+        self.assertEqual(failed.status, Status.FAILED)
+        self.assertEqual(failed.last_error_code, "attempts_exhausted")
+        self.assertNotIn("secret", failed.last_error_message.lower())
+        self.assertEqual(version["status"], "failed")
+        self.assertEqual(version["error_code"], "attempts_exhausted")
 
     def test_checkpoint_dependency_change_and_budget_failure_are_atomic(self) -> None:
         first_hash, second_hash = "c" * 64, "d" * 64
