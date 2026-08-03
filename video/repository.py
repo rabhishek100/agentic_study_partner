@@ -290,15 +290,22 @@ VIDEO_SELECT = """
            current_version.quality_gates_json,
            latest_job.id as latest_job_id, latest_job.status as latest_job_status,
            latest_job.stage as latest_job_stage,
-           latest_job.progress_completed, latest_job.progress_total,
-           latest_job.progress_unit, latest_job.actual_cost_usd,
-           latest_job.cost_cap_usd, latest_job.attempt_count,
-           latest_job.max_attempts, latest_job.last_error_code,
-           latest_job.cancellation_requested_at,
-           latest_job.created_at as job_created_at,
-           latest_job.started_at as job_started_at,
-           latest_job.updated_at as job_updated_at,
-           latest_job.completed_at as job_completed_at
+           latest_job.progress_completed as latest_job_progress_completed,
+           latest_job.progress_total as latest_job_progress_total,
+           latest_job.progress_unit as latest_job_progress_unit,
+           latest_job.actual_cost_usd as latest_job_actual_cost_usd,
+           latest_job.cost_cap_usd as latest_job_cost_cap_usd,
+           latest_job.attempt_count as latest_job_attempt_count,
+           latest_job.max_attempts as latest_job_max_attempts,
+           latest_job.target_version_id as latest_job_target_version_id,
+           latest_job.last_error_code as latest_job_last_error_code,
+           latest_job.last_error_retryable as latest_job_last_error_retryable,
+           latest_job.cancellation_requested_at
+               as latest_job_cancellation_requested_at,
+           latest_job.created_at as latest_job_created_at,
+           latest_job.started_at as latest_job_started_at,
+           latest_job.updated_at as latest_job_updated_at,
+           latest_job.completed_at as latest_job_completed_at
     from video.videos as v
     join video.video_sources as s
       on s.video_id = v.id and s.owner_id = v.owner_id and s.is_primary

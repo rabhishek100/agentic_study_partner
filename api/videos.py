@@ -1,0 +1,633 @@
+"""Authenticated standalone-video material and ingestion-status contracts."""
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Annotated, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from pydantic import Field, HttpUrl, model_validator
+from starlette.concurrency import run_in_threadpool
+
+from api.auth import current_owner
+from storage.database import connection as database_connection
+from study.contracts import ContractModel
+from video.repository import (
+    UNSET,
+    VideoAlreadyExistsError,
+    VideoConflictError,
+    VideoNotFoundError,
+    confirm_resource_suggestion,
+    create_url_resource,
+    create_youtube_video,
+    delete_unacquired_video,
+    detach_video_resource,
+    dismiss_resource_suggestion,
+    initialize_video_upload,
+    list_job_events,
+    list_resource_suggestions,
+    list_standalone_videos,
+    list_video_chapters,
+    list_video_resources,
+    load_ingestion_job,
+    load_standalone_video,
+    maximum_upload_bytes,
+    update_video_metadata,
+)
+from video.sources import InvalidVideoSource
+
+
+videos_router = APIRouter(prefix="/api/videos", tags=["videos"])
+jobs_router = APIRouter(prefix="/api/video-ingestions", tags=["video-ingestion"])
+VIDEO_NOT_FOUND = HTTPException(status_code=404, detail="video not found")
+JOB_NOT_FOUND = HTTPException(status_code=404, detail="video ingestion job not found")
+
+SourceKind = Literal["youtube", "upload"]
+Readiness = Literal["processing", "ready", "degraded", "failed"]
+JobStatus = Literal[
+    "awaiting_upload",
+    "queued",
+    "running",
+    "retry_scheduled",
+    "ready",
+    "failed",
+    "cancelled",
+]
+ResourceKind = Literal["pdf", "external_link"]
+ResourceRole = Literal["slides", "notes", "reference"]
+
+
+class CreateYouTubeVideoRequest(ContractModel):
+    url: str = Field(min_length=1, max_length=2_000)
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    description: str | None = Field(default=None, max_length=20_000)
+
+
+class InitializeVideoUploadRequest(ContractModel):
+    original_filename: str = Field(min_length=1, max_length=255)
+    content_type: Literal["video/mp4", "video/webm", "video/quicktime"]
+    content_length: int = Field(gt=0)
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    description: str | None = Field(default=None, max_length=20_000)
+
+
+class UploadReservation(ContractModel):
+    method: Literal["put"] = "put"
+    upload_url: str
+    maximum_bytes: int
+
+
+class CreateVideoResponse(ContractModel):
+    video_id: UUID
+    ingestion_job_id: UUID
+    source_kind: SourceKind
+    readiness_status: Readiness = "processing"
+    ingestion_status: JobStatus
+    upload: UploadReservation | None = None
+
+
+class PlaybackView(ContractModel):
+    kind: Literal["youtube", "local"]
+    youtube_video_id: str | None = None
+    media_url: str | None = None
+
+
+class ProgressView(ContractModel):
+    completed: int
+    total: int | None
+    unit: str | None
+    percent: float | None
+
+
+class JobErrorView(ContractModel):
+    code: str
+    message: str = "Video ingestion failed"
+
+
+class VideoIngestionView(ContractModel):
+    job_id: UUID
+    video_id: UUID
+    target_version_id: UUID
+    status: JobStatus
+    stage: str | None
+    progress: ProgressView
+    attempt: int
+    max_attempts: int
+    retryable: bool
+    cancellation_requested: bool
+    actual_cost_usd: Decimal
+    cost_cap_usd: Decimal
+    error: JobErrorView | None
+    created_at: datetime
+    started_at: datetime | None
+    updated_at: datetime
+    completed_at: datetime | None
+
+
+class VideoSummary(ContractModel):
+    video_id: UUID
+    title: str
+    description: str | None
+    source_kind: SourceKind
+    duration_ms: int | None
+    readiness_status: Readiness
+    ready_for_qa: bool
+    playback: PlaybackView
+    latest_ingestion: VideoIngestionView | None
+    created_at: datetime
+    updated_at: datetime
+    ready_at: datetime | None
+
+
+class VideoListResponse(ContractModel):
+    videos: list[VideoSummary]
+
+
+class SourceView(ContractModel):
+    source_kind: SourceKind
+    status: Literal["pending", "acquiring", "ready", "failed"]
+    source_url: str | None
+    youtube_video_id: str | None
+    original_filename: str | None
+
+
+class ChapterView(ContractModel):
+    chapter_index: int
+    chapter_kind: Literal["youtube", "manual"]
+    title: str
+    start_ms: int
+    end_ms: int
+
+
+class ResourceView(ContractModel):
+    resource_id: UUID
+    resource_kind: ResourceKind
+    origin: Literal["upload", "url", "discovered"]
+    status: Literal["pending", "processing", "ready", "failed"]
+    title: str
+    source_url: str | None
+    page_count: int | None
+    role: ResourceRole
+    required: bool
+
+
+class VideoDetail(VideoSummary):
+    source: SourceView
+    chapters: list[ChapterView]
+    resources: list[ResourceView]
+    quality_gates: dict
+
+
+class UpdateVideoRequest(ContractModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    description: str | None = Field(default=None, max_length=20_000)
+
+    @model_validator(mode="after")
+    def validate_patch(self) -> "UpdateVideoRequest":
+        if not self.model_fields_set:
+            raise ValueError("at least one video field is required")
+        if "title" in self.model_fields_set and self.title is None:
+            raise ValueError("title cannot be null")
+        return self
+
+
+class AttachUrlResourceRequest(ContractModel):
+    resource_kind: ResourceKind
+    title: str = Field(min_length=1, max_length=500)
+    url: HttpUrl
+    role: ResourceRole = "reference"
+    required: bool = False
+
+
+class ResourceListResponse(ContractModel):
+    resources: list[ResourceView]
+
+
+class ResolveSuggestionRequest(ContractModel):
+    role: ResourceRole = "reference"
+    required: bool = False
+
+
+class SuggestionView(ContractModel):
+    suggestion_id: UUID
+    suggested_kind: ResourceKind
+    url: str
+    title: str | None
+    reason: str | None
+    status: Literal["pending", "confirmed", "dismissed"]
+    confirmed_resource_id: UUID | None
+    created_at: datetime
+    resolved_at: datetime | None
+
+
+class SuggestionListResponse(ContractModel):
+    suggestions: list[SuggestionView]
+
+
+class JobEventView(ContractModel):
+    event_id: int
+    event_type: str
+    status: str | None
+    stage: str | None
+    message: str | None
+    created_at: datetime
+
+
+class JobEventListResponse(ContractModel):
+    events: list[JobEventView]
+
+
+def _key(value: str | None) -> UUID:
+    if not value or not value.strip():
+        raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
+    try:
+        return UUID(value.strip())
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400, detail="Idempotency-Key must be a UUID"
+        ) from error
+
+
+def _progress(row) -> ProgressView:
+    total = row.get("progress_total")
+    completed = row.get("progress_completed", 0)
+    percent = round(100 * completed / total, 2) if total else None
+    return ProgressView(
+        completed=completed,
+        total=total,
+        unit=row.get("progress_unit"),
+        percent=percent,
+    )
+
+
+def _job(row, *, prefix: str = "") -> VideoIngestionView | None:
+    def value(name):
+        return row.get(prefix + name)
+
+    identifier = value("id")
+    if identifier is None:
+        return None
+    job_row = {
+        "progress_completed": value("progress_completed"),
+        "progress_total": value("progress_total"),
+        "progress_unit": value("progress_unit"),
+    }
+    error_code = value("last_error_code")
+    return VideoIngestionView(
+        job_id=identifier,
+        video_id=value("video_id"),
+        target_version_id=value("target_version_id"),
+        status=value("status"),
+        stage=value("stage"),
+        progress=_progress(job_row),
+        attempt=value("attempt_count"),
+        max_attempts=value("max_attempts"),
+        retryable=bool(value("last_error_retryable")),
+        cancellation_requested=value("cancellation_requested_at") is not None,
+        actual_cost_usd=value("actual_cost_usd"),
+        cost_cap_usd=value("cost_cap_usd"),
+        error=JobErrorView(code=error_code) if error_code else None,
+        created_at=value("created_at"),
+        started_at=value("started_at"),
+        updated_at=value("updated_at"),
+        completed_at=value("completed_at"),
+    )
+
+
+def _summary(row) -> VideoSummary:
+    latest = None
+    if row.get("latest_job_id"):
+        mapped = dict(row)
+        mapped.update(
+            {
+                "latest_job_video_id": row["id"],
+            }
+        )
+        latest = _job(mapped, prefix="latest_job_")
+    return VideoSummary(
+        video_id=row["id"],
+        title=row["title"],
+        description=row["description"],
+        source_kind=row["source_kind"],
+        duration_ms=row["duration_ms"],
+        readiness_status=row["readiness_status"],
+        ready_for_qa=row["current_ingestion_version_id"] is not None,
+        playback=PlaybackView(
+            kind="youtube" if row["source_kind"] == "youtube" else "local",
+            youtube_video_id=row["youtube_video_id"],
+        ),
+        latest_ingestion=latest,
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        ready_at=row["ready_at"],
+    )
+
+
+def _resource(row) -> ResourceView:
+    return ResourceView(
+        resource_id=row["id"],
+        resource_kind=row["resource_kind"],
+        origin=row["origin"],
+        status=row["status"],
+        title=row["title"],
+        source_url=row["source_url"],
+        page_count=row["page_count"],
+        role=row["role"],
+        required=row["required"],
+    )
+
+
+@videos_router.post("/youtube", status_code=status.HTTP_201_CREATED)
+async def create_youtube(
+    request: CreateYouTubeVideoRequest,
+    response: Response,
+    owner_id: Annotated[UUID, Depends(current_owner)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> CreateVideoResponse:
+    def create():
+        with database_connection() as database:
+            return create_youtube_video(
+                database,
+                owner_id=owner_id,
+                idempotency_key=_key(idempotency_key),
+                url=request.url,
+                title=request.title,
+                description=request.description,
+            )
+
+    try:
+        created = await run_in_threadpool(create)
+    except VideoAlreadyExistsError as error:
+        raise HTTPException(status_code=409, detail="video already exists") from error
+    except (InvalidVideoSource, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    if not created.created:
+        response.status_code = status.HTTP_200_OK
+    response.headers["Location"] = f"/api/videos/{created.video_id}"
+    return CreateVideoResponse(
+        video_id=created.video_id,
+        ingestion_job_id=created.job_id,
+        source_kind="youtube",
+        ingestion_status=created.job_status,
+    )
+
+
+@videos_router.post("/uploads", status_code=status.HTTP_201_CREATED)
+async def initialize_upload(
+    request: InitializeVideoUploadRequest,
+    response: Response,
+    owner_id: Annotated[UUID, Depends(current_owner)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> CreateVideoResponse:
+    def create():
+        with database_connection() as database:
+            return initialize_video_upload(
+                database,
+                owner_id=owner_id,
+                idempotency_key=_key(idempotency_key),
+                original_filename=request.original_filename,
+                media_type=request.content_type,
+                declared_size_bytes=request.content_length,
+                title=request.title,
+                description=request.description,
+            )
+
+    try:
+        created = await run_in_threadpool(create)
+    except (InvalidVideoSource, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    if not created.created:
+        response.status_code = status.HTTP_200_OK
+    response.headers["Location"] = f"/api/videos/{created.video_id}"
+    return CreateVideoResponse(
+        video_id=created.video_id,
+        ingestion_job_id=created.job_id,
+        source_kind="upload",
+        ingestion_status=created.job_status,
+        upload=UploadReservation(
+            upload_url=f"/api/video-ingestions/{created.job_id}/source",
+            maximum_bytes=maximum_upload_bytes(),
+        ),
+    )
+
+
+@videos_router.get("")
+async def list_videos(
+    owner_id: Annotated[UUID, Depends(current_owner)], limit: int = 50
+) -> VideoListResponse:
+    def load():
+        with database_connection(readonly=True) as database:
+            return list_standalone_videos(database, owner_id=owner_id, limit=limit)
+    return VideoListResponse(videos=[_summary(row) for row in await run_in_threadpool(load)])
+
+
+def _load_detail(owner_id: UUID, video_id: UUID) -> VideoDetail:
+    with database_connection(readonly=True) as database:
+        row = load_standalone_video(database, video_id, owner_id=owner_id)
+        if row is None:
+            raise VIDEO_NOT_FOUND
+        chapters = list_video_chapters(database, video_id, owner_id=owner_id) or []
+        resources = list_video_resources(database, video_id, owner_id=owner_id) or []
+    summary = _summary(row)
+    return VideoDetail(
+        **summary.model_dump(),
+        source=SourceView(
+            source_kind=row["source_kind"], status=row["source_status"],
+            source_url=row["source_url"], youtube_video_id=row["youtube_video_id"],
+            original_filename=row["original_filename"],
+        ),
+        chapters=[
+            ChapterView(
+                chapter_index=chapter["chapter_index"],
+                chapter_kind=chapter["chapter_kind"],
+                title=chapter["title"],
+                start_ms=chapter["start_ms"],
+                end_ms=chapter["end_ms"],
+            )
+            for chapter in chapters
+        ],
+        resources=[_resource(resource) for resource in resources],
+        quality_gates=row.get("quality_gates_json") or {},
+    )
+
+
+@videos_router.get("/{video_id}")
+async def get_video(video_id: UUID, owner_id: UUID = Depends(current_owner)) -> VideoDetail:
+    return await run_in_threadpool(_load_detail, owner_id, video_id)
+
+
+@videos_router.patch("/{video_id}")
+async def patch_video(
+    video_id: UUID, request: UpdateVideoRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> VideoDetail:
+    def update():
+        with database_connection() as database:
+            return update_video_metadata(
+                database, video_id, owner_id=owner_id,
+                title=request.title if "title" in request.model_fields_set else UNSET,
+                description=(request.description if "description" in request.model_fields_set else UNSET),
+            )
+    if await run_in_threadpool(update) is None:
+        raise VIDEO_NOT_FOUND
+    return await run_in_threadpool(_load_detail, owner_id, video_id)
+
+
+@videos_router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_video(video_id: UUID, owner_id: UUID = Depends(current_owner)) -> Response:
+    def remove():
+        with database_connection() as database:
+            exists = load_standalone_video(database, video_id, owner_id=owner_id)
+            if exists is None:
+                return None
+            return delete_unacquired_video(database, video_id, owner_id=owner_id)
+    removed = await run_in_threadpool(remove)
+    if removed is None:
+        raise VIDEO_NOT_FOUND
+    if not removed:
+        raise HTTPException(status_code=409, detail="video cannot be deleted while acquired or running")
+    return Response(status_code=204)
+
+
+@videos_router.get("/{video_id}/resources")
+async def resources(video_id: UUID, owner_id: UUID = Depends(current_owner)) -> ResourceListResponse:
+    def load():
+        with database_connection(readonly=True) as database:
+            return list_video_resources(database, video_id, owner_id=owner_id)
+    rows = await run_in_threadpool(load)
+    if rows is None:
+        raise VIDEO_NOT_FOUND
+    return ResourceListResponse(resources=[_resource(row) for row in rows])
+
+
+@videos_router.post("/{video_id}/resources/links", status_code=201)
+async def attach_resource(
+    video_id: UUID, request: AttachUrlResourceRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ResourceView:
+    def create():
+        with database_connection() as database:
+            return create_url_resource(
+                database, owner_id=owner_id, video_id=video_id,
+                resource_kind=request.resource_kind, title=request.title,
+                source_url=str(request.url), role=request.role, required=request.required,
+            )
+    try:
+        return _resource(await run_in_threadpool(create))
+    except VideoNotFoundError as error:
+        raise VIDEO_NOT_FOUND from error
+
+
+@videos_router.delete("/{video_id}/resources/{resource_id}", status_code=204)
+async def detach_resource(
+    video_id: UUID, resource_id: UUID, owner_id: UUID = Depends(current_owner)
+) -> Response:
+    def detach():
+        with database_connection() as database:
+            return detach_video_resource(
+                database, video_id, resource_id, owner_id=owner_id
+            )
+    try:
+        removed = await run_in_threadpool(detach)
+    except VideoNotFoundError as error:
+        raise VIDEO_NOT_FOUND from error
+    if not removed:
+        raise HTTPException(status_code=404, detail="video resource not found")
+    return Response(status_code=204)
+
+
+@videos_router.get("/{video_id}/resource-suggestions")
+async def suggestions(
+    video_id: UUID, owner_id: UUID = Depends(current_owner)
+) -> SuggestionListResponse:
+    def load():
+        with database_connection(readonly=True) as database:
+            return list_resource_suggestions(database, video_id, owner_id=owner_id)
+    rows = await run_in_threadpool(load)
+    if rows is None:
+        raise VIDEO_NOT_FOUND
+    return SuggestionListResponse(suggestions=[
+        SuggestionView(
+            suggestion_id=row["id"], suggested_kind=row["suggested_kind"],
+            url=row["url"], title=row["title"], reason=row["reason"],
+            status=row["status"], confirmed_resource_id=row["confirmed_resource_id"],
+            created_at=row["created_at"], resolved_at=row["resolved_at"],
+        ) for row in rows
+    ])
+
+
+async def _resolve_suggestion(video_id, suggestion_id, request, owner_id, confirm):
+    def resolve():
+        with database_connection() as database:
+            if confirm:
+                return confirm_resource_suggestion(
+                    database, video_id, suggestion_id, owner_id=owner_id,
+                    role=request.role, required=request.required,
+                )
+            return dismiss_resource_suggestion(
+                database, video_id, suggestion_id, owner_id=owner_id
+            )
+    try:
+        result = await run_in_threadpool(resolve)
+    except VideoConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if result is None:
+        raise HTTPException(status_code=404, detail="resource suggestion not found")
+    return result
+
+
+@videos_router.post("/{video_id}/resource-suggestions/{suggestion_id}/confirm")
+async def confirm_suggestion(
+    video_id: UUID, suggestion_id: UUID, request: ResolveSuggestionRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ResourceView:
+    return _resource(await _resolve_suggestion(
+        video_id, suggestion_id, request, owner_id, True
+    ))
+
+
+@videos_router.post("/{video_id}/resource-suggestions/{suggestion_id}/dismiss")
+async def dismiss_suggestion(
+    video_id: UUID, suggestion_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> SuggestionView:
+    row = await _resolve_suggestion(
+        video_id, suggestion_id, ResolveSuggestionRequest(), owner_id, False
+    )
+    return SuggestionView(
+        suggestion_id=row["id"], suggested_kind=row["suggested_kind"],
+        url=row["url"], title=row["title"], reason=row["reason"],
+        status=row["status"], confirmed_resource_id=row["confirmed_resource_id"],
+        created_at=row["created_at"], resolved_at=row["resolved_at"],
+    )
+
+
+@jobs_router.get("/{job_id}")
+async def get_video_ingestion(
+    job_id: UUID, owner_id: UUID = Depends(current_owner)
+) -> VideoIngestionView:
+    def load():
+        with database_connection(readonly=True) as database:
+            return load_ingestion_job(database, job_id, owner_id=owner_id)
+    row = await run_in_threadpool(load)
+    if row is None:
+        raise JOB_NOT_FOUND
+    return _job(row)
+
+
+@jobs_router.get("/{job_id}/events")
+async def video_ingestion_events(
+    job_id: UUID, owner_id: UUID = Depends(current_owner)
+) -> JobEventListResponse:
+    def load():
+        with database_connection(readonly=True) as database:
+            return list_job_events(database, job_id, owner_id=owner_id)
+    rows = await run_in_threadpool(load)
+    if rows is None:
+        raise JOB_NOT_FOUND
+    return JobEventListResponse(events=[
+        JobEventView(
+            event_id=row["id"], event_type=row["event_type"], status=row["status"],
+            stage=row["stage"], message=row["message"], created_at=row["created_at"],
+        ) for row in rows
+    ])

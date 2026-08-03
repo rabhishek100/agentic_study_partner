@@ -28,6 +28,8 @@ load_dotenv()
 from api.auth import current_owner
 from api.version import build_revision, build_time
 from api.ingestions import router as ingestion_router
+from api.videos import jobs_router as video_ingestion_router
+from api.videos import videos_router
 from ingestion.errors import IngestionError
 from ingestion.storage_objects import signed_object_url
 from retrieval.langchain import warm_models
@@ -252,6 +254,8 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
 )
 app.include_router(ingestion_router)
+app.include_router(videos_router)
+app.include_router(video_ingestion_router)
 
 
 @app.on_event("startup")
