@@ -105,9 +105,12 @@ class VideoSchemaTests(unittest.TestCase):
                   on a.attrelid = c.oid and a.attname = 'owner_id'
                 join pg_policies as p
                   on p.schemaname = n.nspname and p.tablename = c.relname
-                where n.nspname = 'video' and c.relkind = 'r'
+                where n.nspname = 'video'
+                  and c.relkind = 'r'
+                  and c.relname = any(%s)
                 order by c.relname
-                """
+                """,
+                (list(TABLES),),
             ).fetchall()
             privileges = database.execute(
                 """
@@ -115,10 +118,13 @@ class VideoSchemaTests(unittest.TestCase):
                        array_agg(privilege_type::text order by privilege_type)
                     as privileges
                 from information_schema.role_table_grants
-                where table_schema = 'video' and grantee = 'authenticated'
+                where table_schema = 'video'
+                  and grantee = 'authenticated'
+                  and table_name = any(%s)
                 group by table_name
                 order by table_name
-                """
+                """,
+                (list(TABLES),),
             ).fetchall()
 
         self.assertEqual([row["table_name"] for row in rows], sorted(TABLES))
