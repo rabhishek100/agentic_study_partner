@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 import os
 from pathlib import Path, PurePosixPath
+import re
 from uuid import UUID, uuid4
 
 from storage.database import parse_owner_id
@@ -15,6 +16,8 @@ from storage.database import parse_owner_id
 
 DEFAULT_MEDIA_ROOT = Path("data/video-media")
 CHUNK_SIZE = 1024 * 1024
+NAMESPACE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+EXTENSION = re.compile(r"^\.[a-z0-9]{1,10}$")
 
 
 class MediaStoreError(RuntimeError):
@@ -120,6 +123,58 @@ class FilesystemMediaStore:
         if not path.is_file() or path.is_symlink():
             raise FileNotFoundError("video media object not found")
         return path
+
+    def verify_object(
+        self,
+        *,
+        owner_id: str | UUID,
+        storage_key: str,
+        expected_size: int,
+        expected_hash: str,
+    ) -> StoredMedia:
+        path = self.open_path(owner_id=owner_id, storage_key=storage_key)
+        content_hash, size = _sha256_file(path)
+        if size != expected_size or content_hash != expected_hash:
+            raise MediaConflict("video media object changed after upload")
+        return StoredMedia(storage_key, content_hash, size, created=False)
+
+    def import_file(
+        self,
+        *,
+        owner_id: str | UUID,
+        source: Path,
+        namespace: str,
+        extension: str,
+        maximum_bytes: int,
+    ) -> StoredMedia:
+        """Copy a validated work/staging file into immutable canonical storage."""
+
+        owner = parse_owner_id(owner_id)
+        extension = extension.lower()
+        if not NAMESPACE.fullmatch(namespace) or not EXTENSION.fullmatch(extension):
+            raise ValueError("invalid canonical media namespace or extension")
+        if source.is_symlink() or not source.is_file():
+            raise FileNotFoundError("source media file not found")
+        content_hash, size = _sha256_file(source)
+        if size <= 0 or size > maximum_bytes:
+            raise MediaTooLarge("video media exceeds the configured limit")
+        key = (
+            f"{owner}/canonical/{namespace}/sha256/{content_hash[:2]}/"
+            f"{content_hash[2:4]}/{content_hash}{extension}"
+        )
+        writer = self.writer(
+            owner_id=owner, storage_key=key, maximum_bytes=maximum_bytes
+        )
+        try:
+            with source.open("rb") as handle:
+                while chunk := handle.read(CHUNK_SIZE):
+                    writer.write(chunk)
+            stored = writer.finish(expected_size=size)
+        finally:
+            writer.abort()
+        if stored.content_hash != content_hash:
+            raise MediaConflict("video media changed while being promoted")
+        return stored
 
 
 class MediaWriter:

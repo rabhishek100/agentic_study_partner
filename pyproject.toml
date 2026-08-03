@@ -25,6 +25,7 @@ dependencies = [
     "torch>=2.10",
     "torchvision",
     "pyjwt[crypto]>=2.10,<3",
+    "yt-dlp>=2025.12.8,<2027",
 ]
 
 [dependency-groups]

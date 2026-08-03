@@ -16,6 +16,7 @@ RUN apt-get update \
         libglib2.0-0 \
         libmagic1 \
         libxcb1 \
+        ffmpeg \
         poppler-utils \
         tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*

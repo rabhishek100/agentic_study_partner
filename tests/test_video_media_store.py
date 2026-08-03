@@ -96,6 +96,36 @@ class VideoMediaStoreTests(unittest.TestCase):
 
         self.assertEqual((self.root / self.key).read_bytes(), b"first")
 
+    def test_imports_content_addressed_canonical_media_idempotently(self) -> None:
+        source = self.root / "work.mp4"
+        source.write_bytes(b"canonical-video")
+
+        first = self.store.import_file(
+            owner_id=self.owner,
+            source=source,
+            namespace="videos",
+            extension=".mp4",
+            maximum_bytes=100,
+        )
+        replay = self.store.import_file(
+            owner_id=self.owner,
+            source=source,
+            namespace="videos",
+            extension=".mp4",
+            maximum_bytes=100,
+        )
+        verified = self.store.verify_object(
+            owner_id=self.owner,
+            storage_key=first.storage_key,
+            expected_size=first.size_bytes,
+            expected_hash=first.content_hash,
+        )
+
+        self.assertTrue(first.created)
+        self.assertFalse(replay.created)
+        self.assertIn(f"{self.owner}/canonical/videos/sha256/", first.storage_key)
+        self.assertEqual(verified.content_hash, first.content_hash)
+
 
 if __name__ == "__main__":
     unittest.main()
