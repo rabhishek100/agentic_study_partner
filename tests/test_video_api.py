@@ -59,6 +59,8 @@ class VideoApiTests(unittest.IsolatedAsyncioTestCase):
             }),
             ("get", f"/api/videos/{identifier}", None),
             ("get", f"/api/video-ingestions/{identifier}", None),
+            ("post", f"/api/video-ingestions/{identifier}/cancel", None),
+            ("post", f"/api/video-ingestions/{identifier}/retry", None),
         ):
             with self.subTest(path=path):
                 response = await getattr(self.client, method)(
@@ -222,6 +224,56 @@ class VideoApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(confirmed.json()["resource_id"], replay.json()["resource_id"])
         self.assertEqual(dismissed.json()["status"], "dismissed")
         self.assertEqual(len(suggestions.json()["suggestions"]), 2)
+
+    async def test_video_job_cancel_and_retry_contracts(self) -> None:
+        cancelled_source = await self.create_youtube()
+        cancelled_job = cancelled_source.json()["ingestion_job_id"]
+        cancelled = await self.client.post(
+            f"/api/video-ingestions/{cancelled_job}/cancel"
+        )
+        cancelled_replay = await self.client.post(
+            f"/api/video-ingestions/{cancelled_job}/cancel"
+        )
+
+        failed_source = await self.create_youtube(video_id="lmnopqrstuv")
+        failed_job = failed_source.json()["ingestion_job_id"]
+        with connection(self.database_url) as database:
+            target_version = database.execute(
+                "select target_version_id from video.ingestion_jobs where id = %s",
+                (failed_job,),
+            ).fetchone()["target_version_id"]
+            database.execute(
+                """
+                update video.ingestion_jobs
+                set status = 'failed', completed_at = now(),
+                    last_error_code = 'provider_timeout',
+                    last_error_message = 'Provider timed out',
+                    last_error_retryable = true
+                where id = %s
+                """,
+                (failed_job,),
+            )
+            database.execute(
+                """
+                update video.ingestion_versions
+                set status = 'failed', completed_at = now(),
+                    error_code = 'provider_timeout',
+                    error_message = 'Provider timed out'
+                where id = %s
+                """,
+                (target_version,),
+            )
+        retried = await self.client.post(
+            f"/api/video-ingestions/{failed_job}/retry"
+        )
+
+        self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(cancelled.json()["status"], "cancelled")
+        self.assertEqual(cancelled_replay.json()["status"], "cancelled")
+        self.assertEqual(retried.status_code, 200)
+        self.assertEqual(retried.json()["status"], "retry_scheduled")
+        self.assertEqual(retried.json()["attempt"], 0)
+        self.assertIsNone(retried.json()["error"])
 
 
 if __name__ == "__main__":

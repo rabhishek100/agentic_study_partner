@@ -13,6 +13,12 @@ from starlette.concurrency import run_in_threadpool
 from api.auth import current_owner
 from storage.database import connection as database_connection
 from study.contracts import ContractModel
+from video.jobs import (
+    VideoJobConflictError,
+    VideoJobNotFoundError,
+    request_cancellation as request_video_cancellation,
+    retry_job as retry_video_job,
+)
 from video.repository import (
     UNSET,
     VideoAlreadyExistsError,
@@ -742,3 +748,39 @@ async def video_ingestion_events(
             stage=row["stage"], message=row["message"], created_at=row["created_at"],
         ) for row in rows
     ])
+
+
+@jobs_router.post("/{job_id}/cancel")
+async def cancel_video_ingestion(
+    job_id: UUID, owner_id: UUID = Depends(current_owner)
+) -> VideoIngestionView:
+    def cancel():
+        with database_connection() as database:
+            request_video_cancellation(
+                database, owner_id=owner_id, job_id=job_id
+            )
+            return load_ingestion_job(database, job_id, owner_id=owner_id)
+
+    try:
+        return _job(await run_in_threadpool(cancel))
+    except VideoJobNotFoundError as error:
+        raise JOB_NOT_FOUND from error
+    except VideoJobConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@jobs_router.post("/{job_id}/retry")
+async def retry_video_ingestion(
+    job_id: UUID, owner_id: UUID = Depends(current_owner)
+) -> VideoIngestionView:
+    def retry():
+        with database_connection() as database:
+            retry_video_job(database, owner_id=owner_id, job_id=job_id)
+            return load_ingestion_job(database, job_id, owner_id=owner_id)
+
+    try:
+        return _job(await run_in_threadpool(retry))
+    except VideoJobNotFoundError as error:
+        raise JOB_NOT_FOUND from error
+    except VideoJobConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
