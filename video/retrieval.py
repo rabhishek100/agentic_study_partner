@@ -1,4 +1,4 @@
-"""Owner-scoped lexical retrieval with timeline expansion across modalities."""
+"""Owner-scoped hybrid retrieval with timeline expansion across modalities."""
 
 from __future__ import annotations
 
@@ -9,11 +9,21 @@ from uuid import UUID
 from psycopg import Connection
 
 from storage.database import parse_owner_id
+from video.embeddings import (
+    IMAGE_DOCUMENT_FORMAT_VERSION,
+    TEXT_DOCUMENT_FORMAT_VERSION,
+    ImageEmbedder,
+    TextEmbedder,
+)
 
 
 VideoModality = Literal[
     "transcript", "visual_frame", "visual_event", "resource_page"
 ]
+RetrievalMethod = Literal[
+    "fts", "text_vector", "image_vector", "hybrid", "timeline_expansion"
+]
+RRF_RANK_CONSTANT = 60
 
 
 class VideoNotReadyError(LookupError):
@@ -33,7 +43,7 @@ class VideoEvidence:
     visual_event_id: int | None
     resource_page_id: int | None
     score: float
-    retrieval_method: Literal["fts", "timeline_expansion"]
+    retrieval_method: RetrievalMethod
     rank: int = 0
 
     @property
@@ -49,13 +59,20 @@ def retrieve_video_evidence(
     query: str,
     limit: int = 8,
     timeline_window_ms: int = 60_000,
+    text_embedder: TextEmbedder | None = None,
+    image_embedder: ImageEmbedder | None = None,
 ) -> tuple[UUID, tuple[VideoEvidence, ...]]:
     """Retrieve a mixed evidence set from the current published version.
 
-    Direct lexical matches remain the ranking baseline. Timeline expansion
-    adds nearby visual evidence when speech matched but the pixels used
-    different words, preventing the transcript from silently becoming the
-    only modality that can reach answer generation.
+    Lexical matches remain the baseline because lecture questions often reuse
+    the lecturer's exact wording. Evidence-text vectors recover paraphrases,
+    and diagram-region vectors recover drawings whose surrounding words never
+    named them. The three rankings are fused by reciprocal rank rather than by
+    comparing incomparable raw scores.
+
+    Timeline expansion then adds nearby evidence from any modality still
+    missing, preventing the transcript from silently becoming the only
+    modality that can reach answer generation.
     """
 
     owner, video = parse_owner_id(owner_id), UUID(str(video_id))
@@ -86,6 +103,7 @@ def retrieve_video_evidence(
         raise VideoNotReadyError("video has no published evidence")
     version_id = version["id"]
 
+    candidate_limit = limit * 4
     rows = connection.execute(
         """
         with query as (
@@ -101,9 +119,44 @@ def retrieve_video_evidence(
         order by score desc, evidence.start_ms nulls last, evidence.id
         limit %s
         """,
-        (cleaned, owner, video, version_id, limit * 4),
+        (cleaned, owner, video, version_id, candidate_limit),
     ).fetchall()
-    direct = [_evidence(row, method="fts") for row in rows]
+    ranked = [[_evidence(row, method="fts") for row in rows]]
+    if text_embedder is not None:
+        ranked.append(
+            _vector_candidates(
+                connection,
+                owner=owner,
+                video=video,
+                version_id=version_id,
+                query=cleaned,
+                embedder=text_embedder,
+                embedding_kind="text",
+                document_format_version=TEXT_DOCUMENT_FORMAT_VERSION,
+                method="text_vector",
+                limit=candidate_limit,
+            )
+        )
+    if image_embedder is not None:
+        ranked.append(
+            _vector_candidates(
+                connection,
+                owner=owner,
+                video=video,
+                version_id=version_id,
+                query=cleaned,
+                embedder=image_embedder,
+                embedding_kind="image",
+                document_format_version=IMAGE_DOCUMENT_FORMAT_VERSION,
+                method="image_vector",
+                limit=max(2, limit * 2),
+            )
+        )
+    direct = (
+        _reciprocal_rank_fusion(ranked, limit=candidate_limit)
+        if len(ranked) > 1
+        else ranked[0]
+    )
     selected = _balanced_direct(direct, limit=limit)
 
     anchor_timestamps = [
@@ -158,6 +211,94 @@ def retrieve_video_evidence(
     )
 
 
+def _vector_candidates(
+    connection: Connection,
+    *,
+    owner: UUID,
+    video: UUID,
+    version_id: UUID,
+    query: str,
+    embedder: TextEmbedder | ImageEmbedder,
+    embedding_kind: Literal["text", "image"],
+    document_format_version: str,
+    method: RetrievalMethod,
+    limit: int,
+) -> list[VideoEvidence]:
+    """Rank evidence by cosine distance in exactly one embedding space.
+
+    An evidence unit can carry several diagram-region vectors, so the closest
+    region represents the unit and the rest are dropped before fusion.
+    """
+
+    vector = list(embedder.embed_query(query).vectors[0])
+    rows = connection.execute(
+        """
+        select distinct on (evidence.id) evidence.*,
+               1 - (embedding.embedding <=> %s::extensions.vector) as score
+        from video.evidence_embeddings as embedding
+        join video.evidence_units as evidence
+          on evidence.id = embedding.evidence_id
+         and evidence.ingestion_version_id = embedding.ingestion_version_id
+         and evidence.video_id = embedding.video_id
+         and evidence.owner_id = embedding.owner_id
+        where embedding.owner_id = %s and embedding.video_id = %s
+          and embedding.ingestion_version_id = %s
+          and embedding.embedding_kind = %s
+          and embedding.model_name = %s
+          and embedding.model_revision = %s
+          and embedding.dimension = %s
+          and embedding.document_format_version = %s
+        order by evidence.id, embedding.embedding <=> %s::extensions.vector
+        """,
+        (
+            vector,
+            owner,
+            video,
+            version_id,
+            embedding_kind,
+            embedder.model_name,
+            embedder.model_revision,
+            embedder.dimension,
+            document_format_version,
+            vector,
+        ),
+    ).fetchall()
+    candidates = [_evidence(row, method=method) for row in rows]
+    candidates.sort(key=lambda item: (-item.score, item.start_ms or 0, item.id))
+    return candidates[:limit]
+
+
+def _reciprocal_rank_fusion(
+    ranked_lists: list[list[VideoEvidence]], *, limit: int
+) -> list[VideoEvidence]:
+    """Fuse rankings from incomparable scoring spaces by rank position."""
+
+    scores: dict[str, float] = {}
+    best: dict[str, VideoEvidence] = {}
+    methods: dict[str, set[RetrievalMethod]] = {}
+    for ranked in ranked_lists:
+        for position, item in enumerate(ranked, start=1):
+            scores[item.id] = scores.get(item.id, 0.0) + 1.0 / (
+                RRF_RANK_CONSTANT + position
+            )
+            best.setdefault(item.id, item)
+            methods.setdefault(item.id, set()).add(item.retrieval_method)
+    fused = [
+        replace(
+            item,
+            score=scores[item.id],
+            retrieval_method=(
+                item.retrieval_method
+                if len(methods[item.id]) == 1
+                else "hybrid"
+            ),
+        )
+        for item in best.values()
+    ]
+    fused.sort(key=lambda item: (-item.score, item.start_ms or 0, item.id))
+    return fused[:limit]
+
+
 def _balanced_direct(
     candidates: list[VideoEvidence], *, limit: int
 ) -> list[VideoEvidence]:
@@ -198,7 +339,7 @@ def _trim_mixed(values: list[VideoEvidence], *, limit: int) -> list[VideoEvidenc
 def _evidence(
     row: dict,
     *,
-    method: Literal["fts", "timeline_expansion"],
+    method: RetrievalMethod,
     score: float | None = None,
 ) -> VideoEvidence:
     return VideoEvidence(

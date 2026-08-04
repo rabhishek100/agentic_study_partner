@@ -23,6 +23,7 @@ class Stage(StrEnum):
     VISUAL_ANALYSIS = "visual_analysis"
     SPATIAL_REGIONS = "spatial_regions"
     INDEXING = "indexing"
+    EMBEDDINGS = "embeddings"
     QUALITY_GATES = "quality_gates"
     PUBLISH = "publish"
 

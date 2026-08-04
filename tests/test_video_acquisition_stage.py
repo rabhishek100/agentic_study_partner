@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from storage.database import connection, resolve_database_url
+from tests.test_video_embeddings import FakeRegionEmbedder, FakeTextEmbedder
 from video.acquisition import Chapter, DownloadedSource, MediaMetadata
 from video.acquisition_stage import (
     AcquisitionDependencies,
@@ -293,6 +294,8 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                 word_count=2,
             ),
             visual_analyzer=self._analyze_two_frames,
+            text_embedder=FakeTextEmbedder(),
+            image_embedder=FakeRegionEmbedder(),
         )
         with connection(self.database_url) as database:
             created = create_youtube_video(
@@ -350,10 +353,20 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                     (select count(*) from video.visual_events
                      where ingestion_version_id = %s) as events,
                     (select count(*) from video.evidence_units
-                     where ingestion_version_id = %s) as evidence
+                     where ingestion_version_id = %s) as evidence,
+                    (select count(*) from video.evidence_embeddings
+                     where ingestion_version_id = %s
+                       and embedding_kind = 'text') as text_vectors,
+                    (select count(*) from video.evidence_embeddings
+                     where ingestion_version_id = %s
+                       and embedding_kind = 'image') as image_vectors
                 """,
-                (created.version_id,) * 5,
+                (created.version_id,) * 7,
             ).fetchone()
+            gates = database.execute(
+                "select quality_gates_json from video.ingestion_versions where id = %s",
+                (created.version_id,),
+            ).fetchone()["quality_gates_json"]
 
         self.assertEqual(outcome.status, Status.READY)
         self.assertIsNone(outcome.stage)
@@ -372,8 +385,11 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                 "regions": 1,
                 "events": 1,
                 "evidence": 4,
+                "text_vectors": 4,
+                "image_vectors": 1,
             },
         )
+        self.assertTrue(gates["gates"]["semantic_index_complete"])
 
     def test_upload_without_captions_uses_budgeted_openrouter_audio(self) -> None:
         payload = b"uploaded-video-with-audio"

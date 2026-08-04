@@ -296,7 +296,8 @@ def evaluate_quality_gates(
                 count(*) filter (where modality = 'transcript') as transcript,
                 count(*) filter (where modality in (
                     'visual_frame', 'visual_event'
-                )) as visual
+                )) as visual,
+                count(*) as total
             from video.evidence_units
             where owner_id = %s and video_id = %s and ingestion_version_id = %s
             """,
@@ -309,6 +310,18 @@ def evaluate_quality_gates(
             """,
             (job["owner_id"], job["video_id"], transcript_id),
         ).fetchone()["count"]
+        embeddings = connection.execute(
+            """
+            select
+                count(distinct evidence_id) filter (
+                    where embedding_kind = 'text'
+                ) as text_count,
+                count(*) filter (where embedding_kind = 'image') as image_count
+            from video.evidence_embeddings
+            where owner_id = %s and video_id = %s and ingestion_version_id = %s
+            """,
+            (job["owner_id"], job["video_id"], job["target_version_id"]),
+        ).fetchone()
 
         frame_count = len(frame_rows)
         success_count = len(successful_timestamps)
@@ -348,6 +361,12 @@ def evaluate_quality_gates(
                 segment_count > 0 and counts["transcript"] == segment_count
             ),
             "visual_evidence_present": counts["visual"] > 0,
+            # Lexical retrieval alone answers only questions that reuse the
+            # lecturer's wording, so an incomplete semantic index is a
+            # publishable but degraded state rather than a silent omission.
+            "semantic_index_complete": (
+                counts["total"] > 0 and embeddings["text_count"] == counts["total"]
+            ),
         }
         metrics: dict[str, Any] = {
             "format_version": EVIDENCE_FORMAT_VERSION,
@@ -365,6 +384,9 @@ def evaluate_quality_gates(
             "maximum_visual_gap_ms": max(gaps, default=duration_ms),
             "transcript_evidence_count": int(counts["transcript"]),
             "visual_evidence_count": int(counts["visual"]),
+            "evidence_count": int(counts["total"]),
+            "text_embedding_count": int(embeddings["text_count"]),
+            "image_embedding_count": int(embeddings["image_count"]),
         }
         hard = (
             gates["canonical_source"]

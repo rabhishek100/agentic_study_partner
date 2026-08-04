@@ -225,9 +225,14 @@ class VideoEvidenceStoreTests(unittest.TestCase):
         )
         self.assertEqual(evidence[1]["start_ms"], evidence[1]["end_ms"])
         self.assertIn("Attention diagram", evidence[1]["retrieval_text"])
-        self.assertEqual(quality.readiness, "ready")
-        self.assertTrue(all(quality.metrics["gates"].values()))
-        self.assertEqual(stored_quality["readiness"], "ready")
+        # Lexical evidence alone publishes as degraded: every other gate holds,
+        # and only the missing semantic index keeps it from full readiness.
+        self.assertEqual(quality.readiness, "degraded")
+        self.assertEqual(
+            [name for name, passed in quality.metrics["gates"].items() if not passed],
+            ["semantic_index_complete"],
+        )
+        self.assertEqual(stored_quality["readiness"], "degraded")
         self.assertEqual(retrieved_version, created.version_id)
         self.assertEqual(missing_version, created.version_id)
         self.assertEqual(missing, ())

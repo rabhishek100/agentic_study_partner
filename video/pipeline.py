@@ -35,6 +35,15 @@ from video.jobs import (
     publish_job,
     release_claim,
 )
+from video.embeddings import (
+    IMAGE_DOCUMENT_FORMAT_VERSION,
+    TEXT_DOCUMENT_FORMAT_VERSION,
+    ImageEmbedder,
+    OpenRouterRegionEmbedder,
+    OpenRouterTextEmbedder,
+    TextEmbedder,
+    rebuild_evidence_embeddings,
+)
 from video.errors import VideoBudgetExceeded
 from video.evidence_store import (
     evaluate_quality_gates,
@@ -76,6 +85,7 @@ OCR_STAGE_VERSION = "video-frame-ocr-v1"
 VISUAL_STAGE_VERSION = "video-visual-analysis-v1"
 SPATIAL_STAGE_VERSION = "video-spatial-regions-v1"
 INDEX_STAGE_VERSION = "video-evidence-index-v1"
+EMBEDDING_STAGE_VERSION = "video-evidence-embeddings-v1"
 QUALITY_STAGE_VERSION = "video-quality-gates-v1"
 PUBLISH_STAGE_VERSION = "video-publish-v1"
 MediaProbe = Callable[[Path], MediaMetadata]
@@ -116,6 +126,8 @@ class VideoPipelineDependencies:
             "OPENROUTER_AUDIO_MODEL", DEFAULT_TRANSCRIPTION_MODEL
         )
     )
+    text_embedder: TextEmbedder | None = None
+    image_embedder: ImageEmbedder | None = None
 
 
 def run_video_stage(
@@ -204,6 +216,13 @@ def run_video_stage(
                 connection,
                 job=job,
                 worker_id=worker_id,
+            )
+        case Stage.EMBEDDINGS:
+            return _run_embeddings(
+                connection,
+                job=job,
+                worker_id=worker_id,
+                dependencies=dependencies,
             )
         case Stage.QUALITY_GATES:
             return _run_quality_gates(
@@ -1098,7 +1117,7 @@ def _run_spatial_regions(
                         "stage_version": SPATIAL_STAGE_VERSION,
                         "region_count": len(regions),
                         "event_count": len(events),
-                        "image_embeddings_deferred": True,
+                        "image_embedding_stage": str(Stage.EMBEDDINGS),
                     },
                 )
         with connection.transaction():
@@ -1179,6 +1198,105 @@ def _run_indexing(
             job_id=job.id,
             worker_id=worker_id,
             attempt_count=job.attempt_count,
+            next_stage=Stage.EMBEDDINGS,
+        )
+        return release_claim(
+            connection,
+            job_id=job.id,
+            worker_id=worker_id,
+            attempt_count=job.attempt_count,
+        )
+
+
+def _run_embeddings(
+    connection: Connection,
+    *,
+    job: VideoIngestionJob,
+    worker_id: str,
+    dependencies: VideoPipelineDependencies,
+) -> VideoIngestionJob:
+    indexing = _completed_manifest(connection, job=job, stage=Stage.INDEXING)
+    text_embedder = dependencies.text_embedder
+    image_embedder = dependencies.image_embedder
+    owned: list[Any] = []
+    try:
+        if text_embedder is None:
+            text_embedder = OpenRouterTextEmbedder()
+            owned.append(text_embedder)
+        if image_embedder is None:
+            image_embedder = OpenRouterRegionEmbedder()
+            owned.append(image_embedder)
+        dependency_hash = _stable_hash(
+            {
+                "stage_version": EMBEDDING_STAGE_VERSION,
+                "indexing": indexing,
+                "text": {
+                    "model": text_embedder.model_name,
+                    "revision": text_embedder.model_revision,
+                    "dimension": text_embedder.dimension,
+                    "format": TEXT_DOCUMENT_FORMAT_VERSION,
+                },
+                "image": {
+                    "model": image_embedder.model_name,
+                    "revision": image_embedder.model_revision,
+                    "dimension": image_embedder.dimension,
+                    "format": IMAGE_DOCUMENT_FORMAT_VERSION,
+                },
+            }
+        )
+        checkpoint = begin_stage_checkpoint(
+            connection,
+            job_id=job.id,
+            worker_id=worker_id,
+            attempt_count=job.attempt_count,
+            stage=Stage.EMBEDDINGS,
+            dependency_hash=dependency_hash,
+        )
+        if not checkpoint.reused:
+            built = rebuild_evidence_embeddings(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+                text_embedder=text_embedder,
+                image_embedder=image_embedder,
+                load_region_image=lambda owner_id, storage_key: (
+                    dependencies.media_store.open_path(
+                        owner_id=owner_id, storage_key=storage_key
+                    ).read_bytes()
+                ),
+                remaining_budget_usd=_remaining_job_budget(connection, job=job),
+            )
+            complete_stage_checkpoint(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+                stage=Stage.EMBEDDINGS,
+                dependency_hash=dependency_hash,
+                output_manifest={
+                    "stage_version": EMBEDDING_STAGE_VERSION,
+                    "text_embedding_count": built.text_count,
+                    "image_embedding_count": built.image_count,
+                    "reused_count": built.reused_count,
+                    "deleted_count": built.deleted_count,
+                    "text_model": built.text_model,
+                    "text_dimension": built.text_dimension,
+                    "image_model": built.image_model,
+                    "image_dimension": built.image_dimension,
+                    "retrieval": "postgres-simple-fts+pgvector",
+                },
+                cost_usd=built.cost_usd,
+            )
+    finally:
+        for client in owned:
+            client.close()
+    with connection.transaction():
+        advance_stage(
+            connection,
+            job_id=job.id,
+            worker_id=worker_id,
+            attempt_count=job.attempt_count,
             next_stage=Stage.QUALITY_GATES,
         )
         return release_claim(
@@ -1197,11 +1315,13 @@ def _run_quality_gates(
 ) -> VideoIngestionJob:
     transcript = _completed_manifest(connection, job=job, stage=Stage.TRANSCRIPT)
     indexing = _completed_manifest(connection, job=job, stage=Stage.INDEXING)
+    embeddings = _completed_manifest(connection, job=job, stage=Stage.EMBEDDINGS)
     dependency_hash = _stable_hash(
         {
             "stage_version": QUALITY_STAGE_VERSION,
             "transcript": transcript,
             "indexing": indexing,
+            "embeddings": embeddings,
         }
     )
     checkpoint = begin_stage_checkpoint(
