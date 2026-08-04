@@ -2,9 +2,11 @@
 #
 # Deploy one service, and record what was deployed.
 #
-#   scripts/deploy.sh worker
-#   scripts/deploy.sh api
+#   scripts/deploy.sh app     API and ingestion worker, one container
 #   scripts/deploy.sh web
+#
+# `api` and `worker` remain accepted for a books-only two-service split. Video
+# needs `app`, because both processes have to share one media volume.
 #
 # Two things this exists for, both learned the hard way.
 #
@@ -23,7 +25,7 @@ set -euo pipefail
 
 service="${1:-}"
 if [[ -z "$service" ]]; then
-    echo "usage: scripts/deploy.sh <api|worker|web>" >&2
+    echo "usage: scripts/deploy.sh <app|web|api|worker>" >&2
     exit 2
 fi
 
