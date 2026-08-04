@@ -12,6 +12,7 @@ from video.evidence_store import (
     rebuild_evidence,
 )
 from video.jobs import claim_next_job
+from video.retrieval import retrieve_video_evidence
 from video.repository import create_youtube_video
 from video.transcript_store import persist_transcript
 from video.transcripts import parse_webvtt
@@ -176,6 +177,44 @@ class VideoEvidenceStoreTests(unittest.TestCase):
                 """,
                 (created.version_id,),
             ).fetchone()["quality_gates_json"]
+            database.execute(
+                """
+                update video.ingestion_versions
+                set status = 'ready', completed_at = now(), published_at = now()
+                where id = %s
+                """,
+                (created.version_id,),
+            )
+            database.execute(
+                """
+                update video.videos
+                set readiness_status = 'ready',
+                    current_ingestion_version_id = %s, ready_at = now()
+                where id = %s
+                """,
+                (created.version_id, created.video_id),
+            )
+            retrieved_version, retrieved = retrieve_video_evidence(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                query="mechanism",
+                limit=3,
+            )
+            missing_version, missing = retrieve_video_evidence(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                query="words that do not occur",
+                limit=3,
+            )
+            _, visual_first = retrieve_video_evidence(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                query="diagram",
+                limit=3,
+            )
 
         self.assertEqual(built.transcript_count, 1)
         self.assertEqual(built.visual_frame_count, 2)
@@ -189,6 +228,21 @@ class VideoEvidenceStoreTests(unittest.TestCase):
         self.assertEqual(quality.readiness, "ready")
         self.assertTrue(all(quality.metrics["gates"].values()))
         self.assertEqual(stored_quality["readiness"], "ready")
+        self.assertEqual(retrieved_version, created.version_id)
+        self.assertEqual(missing_version, created.version_id)
+        self.assertEqual(missing, ())
+        self.assertEqual(retrieved[0].modality, "transcript")
+        self.assertTrue(any(item.is_visual for item in retrieved))
+        self.assertTrue(
+            any(
+                item.retrieval_method == "timeline_expansion" for item in retrieved
+            )
+        )
+        self.assertEqual([item.rank for item in retrieved], list(range(1, len(retrieved) + 1)))
+        self.assertTrue(any(item.is_visual for item in visual_first))
+        self.assertTrue(
+            any(item.modality == "transcript" for item in visual_first)
+        )
 
 
 if __name__ == "__main__":
