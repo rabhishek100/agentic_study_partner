@@ -47,10 +47,29 @@ async function putBytes(url: string, file: File, contentType: string) {
 export function AddVideo({ onAdded }: { onAdded(): void }) {
   const [url, setUrl] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [captionFile, setCaptionFile] = useState<File | null>(null);
   const [slidesUrl, setSlidesUrl] = useState("");
   const [slidesFile, setSlidesFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  async function attachCaptions(videoId: string) {
+    if (!captionFile) return;
+    const token = await accessToken();
+    const response = await fetch(`${API_BASE}/videos/${videoId}/captions`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "text/vtt",
+        "X-Caption-Filename": captionFile.name,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: captionFile,
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Captions were rejected: ${detail.slice(0, 200)}`);
+    }
+  }
 
   async function attachSlides(videoId: string) {
     if (slidesFile) {
@@ -101,6 +120,10 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
             content_length: videoFile.size,
           }),
         });
+        // Captions go first, while the job still waits for bytes: once the
+        // video lands the worker starts, and a caption arriving after the
+        // transcript stage would be ignored in favour of paid transcription.
+        await attachCaptions(created.video_id);
         if (created.upload) {
           await putBytes(
             created.upload.upload_url,
@@ -119,6 +142,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
       setUrl("");
       setSlidesUrl("");
       setVideoFile(null);
+      setCaptionFile(null);
       setSlidesFile(null);
       onAdded();
     } catch (caught) {
@@ -150,6 +174,22 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
           onChange={(event) => setVideoFile(event.target.files?.[0] ?? null)}
         />
       </div>
+      {videoFile ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="caption-file">Captions .vtt (recommended)</Label>
+          <Input
+            id="caption-file"
+            type="file"
+            accept=".vtt,text/vtt"
+            disabled={busy}
+            onChange={(event) => setCaptionFile(event.target.files?.[0] ?? null)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Without captions the lecture is transcribed by a paid model, which
+            for a long recording can exceed the per-video cost cap.
+          </p>
+        </div>
+      ) : null}
       <div className="space-y-1.5">
         <Label htmlFor="slides-url">Slides PDF URL (optional)</Label>
         <Input

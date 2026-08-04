@@ -352,6 +352,37 @@ def _run_media_metadata(
         )
 
 
+def _uploaded_captions(
+    connection: Connection, *, job: VideoIngestionJob, source_id: Any
+) -> list[dict[str, Any]]:
+    """Return caption artifacts a reader supplied with an uploaded video.
+
+    They are shaped like the downloader's manifest entries so the selection
+    that follows — verify, parse, measure coverage, take the best — does not
+    need to care where a candidate came from.
+    """
+
+    rows = connection.execute(
+        """
+        select storage_backend, storage_key, content_hash, size_bytes
+        from video.caption_uploads
+        where owner_id = %s and video_id = %s and video_source_id = %s
+        order by created_at
+        """,
+        (job.owner_id, job.video_id, source_id),
+    ).fetchall()
+    return [
+        {
+            "storage_backend": row["storage_backend"],
+            "storage_key": row["storage_key"],
+            "content_hash": row["content_hash"],
+            "size_bytes": int(row["size_bytes"]),
+            "origin": "upload",
+        }
+        for row in rows
+    ]
+
+
 def _run_transcript(
     connection: Connection,
     *,
@@ -374,6 +405,11 @@ def _run_transcript(
         connection, job=job, stage=Stage.MEDIA_METADATA
     )
     captions = list(acquisition.get("captions") or [])
+    # Captions supplied with an upload are candidates on the same footing as
+    # captions the downloader fetched. Without this an uploaded lecture would
+    # buy a transcript it already has.
+    uploaded = _uploaded_captions(connection, job=job, source_id=target.source_id)
+    captions.extend(uploaded)
     dependency_hash = _stable_hash(
         {
             "stage_version": TRANSCRIPT_STAGE_VERSION,
@@ -402,15 +438,20 @@ def _run_transcript(
             for caption in captions:
                 if caption.get("storage_backend") != dependencies.media_store.backend:
                     continue
-                dependencies.media_store.verify_object(
-                    owner_id=job.owner_id,
-                    storage_key=caption["storage_key"],
-                    expected_size=int(caption["size_bytes"]),
-                    expected_hash=caption["content_hash"],
-                )
                 path = dependencies.media_store.open_path(
                     owner_id=job.owner_id,
                     storage_key=caption["storage_key"],
+                )
+                # An uploaded caption is recorded by hash alone; the manifest
+                # entries the downloader writes also carry the size they were
+                # promoted with, and that check is kept where it exists.
+                dependencies.media_store.verify_object(
+                    owner_id=job.owner_id,
+                    storage_key=caption["storage_key"],
+                    expected_size=int(
+                        caption.get("size_bytes") or path.stat().st_size
+                    ),
+                    expected_hash=caption["content_hash"],
                 )
                 try:
                     cues = parse_webvtt(path.read_bytes())
@@ -424,9 +465,12 @@ def _run_transcript(
             best = max(candidates, key=lambda value: value[:3]) if candidates else None
             if best is not None and best[0] >= MINIMUM_CAPTION_COVERAGE:
                 coverage, _, _, selected, cues = best
-                source_kind = "youtube_caption"
+                from_upload = selected.get("origin") == "upload"
+                source_kind = (
+                    "uploaded_caption" if from_upload else "youtube_caption"
+                )
                 language = "en"
-                provider = "youtube"
+                provider = "upload" if from_upload else "youtube"
                 model_name = model_revision = None
                 storage_backend = selected["storage_backend"]
                 storage_key = selected["storage_key"]

@@ -15,7 +15,9 @@ from video.transcripts import TranscriptCue, transcript_coverage
 
 CONTENT_HASH = re.compile(r"^[0-9a-f]{64}$")
 STORAGE_BACKENDS = frozenset({"filesystem", "supabase", "s3"})
-SOURCE_KINDS = frozenset({"youtube_caption", "openrouter_transcription"})
+SOURCE_KINDS = frozenset(
+    {"youtube_caption", "uploaded_caption", "openrouter_transcription"}
+)
 
 
 class TranscriptSourceNotFoundError(LookupError):

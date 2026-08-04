@@ -1053,6 +1053,76 @@ def create_url_resource(
     return resource
 
 
+def load_caption_target(
+    connection: Connection, *, owner_id: str | UUID, video_id: str | UUID
+) -> dict[str, Any] | None:
+    """Return the source a caption upload would attach to, if it may attach.
+
+    Captions are accepted until the transcript stage has settled: after that a
+    published version already rests on whatever transcript it found, and
+    replacing it silently would leave answers citing cues that no longer
+    exist. Rebuilding the video is the supported way to change it.
+    """
+
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    return connection.execute(
+        """
+        select s.id as source_id, s.source_kind, v.duration_ms,
+               exists (
+                   select 1 from video.transcript_sources t
+                   where t.video_source_id = s.id and t.owner_id = s.owner_id
+                     and t.source_kind = 'openrouter_transcription'
+               ) as has_paid_transcript
+        from video.videos as v
+        join video.video_sources as s
+          on s.video_id = v.id and s.owner_id = v.owner_id and s.is_primary
+        where v.id = %s and v.owner_id = %s
+        """,
+        (video, owner),
+    ).fetchone()
+
+
+def record_caption_upload(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    video_source_id: str | UUID,
+    original_filename: str | None,
+    storage_backend: str,
+    storage_key: str,
+    content_hash: str,
+    size_bytes: int,
+    cue_count: int,
+) -> dict[str, Any]:
+    """Stage one supplied caption file for the transcript stage to consider."""
+
+    owner = parse_owner_id(owner_id)
+    row = connection.execute(
+        """
+        insert into video.caption_uploads (
+            owner_id, video_id, video_source_id, original_filename,
+            storage_backend, storage_key, content_hash, size_bytes, cue_count
+        ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        on conflict (video_source_id, content_hash) do update
+            set cue_count = excluded.cue_count
+        returning id, content_hash, cue_count, created_at
+        """,
+        (
+            owner,
+            UUID(str(video_id)),
+            UUID(str(video_source_id)),
+            original_filename,
+            storage_backend,
+            storage_key,
+            content_hash,
+            size_bytes,
+            cue_count,
+        ),
+    ).fetchone()
+    return row
+
+
 def initialize_resource_upload(
     connection: Connection,
     *,

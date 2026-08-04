@@ -3,6 +3,8 @@
 from datetime import datetime
 from decimal import Decimal
 import logging
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -40,15 +42,18 @@ from video.repository import (
     list_video_chapters,
     list_video_resources,
     load_standalone_video,
+    load_caption_target,
     load_ingestion_job,
     load_resource_upload_target,
     load_video_upload_target,
     maximum_upload_bytes,
+    record_caption_upload,
     reingest_video,
     update_video_metadata,
 )
 from video.resources import maximum_resource_bytes
-from video.sources import InvalidVideoSource
+from video.transcripts import parse_webvtt, transcript_coverage
+from video.sources import InvalidVideoSource, display_filename
 from video.media_store import (
     FilesystemMediaStore,
     MediaConflict,
@@ -76,6 +81,8 @@ JobStatus = Literal[
     "cancelled",
 ]
 ResourceKind = Literal["pdf", "external_link"]
+# A caption file is text: the 102-minute lecture this was built for is 708 KB.
+MAXIMUM_CAPTION_BYTES = 25 * 1024 * 1024
 ResourceRole = Literal["slides", "notes", "reference"]
 
 
@@ -207,6 +214,13 @@ class ResourceView(ContractModel):
     page_count: int | None
     role: ResourceRole
     required: bool
+
+
+class CaptionUploadResponse(ContractModel):
+    caption_id: int
+    cue_count: int
+    coverage_ratio: float | None
+    content_hash: str
 
 
 class ResourceUploadReservation(ContractModel):
@@ -532,6 +546,102 @@ async def delete_video(video_id: UUID, owner_id: UUID = Depends(current_owner)) 
     if not removed:
         raise HTTPException(status_code=409, detail="video cannot be deleted while acquired or running")
     return Response(status_code=204)
+
+
+@videos_router.put("/{video_id}/captions")
+async def upload_captions(
+    video_id: UUID,
+    request: Request,
+    owner_id: UUID = Depends(current_owner),
+) -> CaptionUploadResponse:
+    """Attach a WebVTT transcript to a video, so ingestion need not buy one.
+
+    Parsed on arrival rather than during ingestion: a malformed file should be
+    a rejected upload the reader can fix immediately, not a stage that fails
+    twenty minutes later.
+    """
+
+    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip()
+    if media_type not in {"text/vtt", "text/plain", "application/octet-stream"}:
+        raise HTTPException(status_code=415, detail="captions must be WebVTT")
+    raw_name = request.headers.get("x-caption-filename")
+    filename = display_filename(raw_name) if raw_name else None
+
+    def load_target():
+        with database_connection(readonly=True) as database:
+            return load_caption_target(
+                database, owner_id=owner_id, video_id=video_id
+            )
+
+    target = await run_in_threadpool(load_target)
+    if target is None:
+        raise VIDEO_NOT_FOUND
+    if target["has_paid_transcript"]:
+        raise HTTPException(
+            status_code=409,
+            detail="this video already has a transcript; rebuild it to replace one",
+        )
+
+    payload = bytearray()
+    async for chunk in request.stream():
+        payload.extend(chunk)
+        if len(payload) > MAXIMUM_CAPTION_BYTES:
+            raise HTTPException(status_code=413, detail="caption file is too large")
+    if not payload:
+        raise HTTPException(status_code=422, detail="caption file is empty")
+    try:
+        cues = parse_webvtt(bytes(payload))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+    def store() -> dict:
+        media_store = FilesystemMediaStore()
+        with NamedTemporaryFile(suffix=".vtt", delete=False) as handle:
+            handle.write(bytes(payload))
+            staged = Path(handle.name)
+        try:
+            stored = media_store.import_file(
+                owner_id=owner_id,
+                source=staged,
+                namespace="captions",
+                extension=".vtt",
+                maximum_bytes=MAXIMUM_CAPTION_BYTES,
+            )
+        finally:
+            staged.unlink(missing_ok=True)
+        with database_connection() as database:
+            return record_caption_upload(
+                database,
+                owner_id=owner_id,
+                video_id=video_id,
+                video_source_id=target["source_id"],
+                original_filename=filename,
+                storage_backend=media_store.backend,
+                storage_key=stored.storage_key,
+                content_hash=stored.content_hash,
+                size_bytes=stored.size_bytes,
+                cue_count=len(cues),
+            )
+
+    try:
+        recorded = await run_in_threadpool(store)
+    except MediaStoreError as error:
+        logger.exception("Caption upload storage failed")
+        raise HTTPException(
+            status_code=503, detail="video media storage unavailable"
+        ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return CaptionUploadResponse(
+        caption_id=int(recorded["id"]),
+        cue_count=len(cues),
+        coverage_ratio=(
+            transcript_coverage(cues, duration_ms=int(target["duration_ms"]))
+            if target["duration_ms"]
+            else None
+        ),
+        content_hash=recorded["content_hash"],
+    )
 
 
 @videos_router.post("/{video_id}/reingest", status_code=status.HTTP_202_ACCEPTED)
