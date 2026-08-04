@@ -487,6 +487,10 @@ def _run_transcript(
                         "canonical media is unavailable for audio transcription"
                     )
                 remaining = _remaining_job_budget(connection, job=job)
+                # Same rule as the visual stage: never hold a read transaction
+                # across a provider call, or the locks it took will starve the
+                # lease renewal running on another connection.
+                connection.commit()
                 transcriber = dependencies.audio_transcriber
                 owned_client: OpenRouterAudioClient | None = None
                 if transcriber is None:
@@ -1093,6 +1097,13 @@ def _run_visual_analysis(
             for start in range(0, len(frames), 2):
                 group = frames[start : start + 2]
                 _ensure_visual_budget(connection, job=job, estimated_cost="0.002")
+                # The budget check reads, and a bare read opens a transaction
+                # that psycopg holds until something commits. Left open across
+                # a model call it keeps FOR UPDATE locks on the job and its
+                # version, which blocks lease renewal on the worker's other
+                # connection: the lease dies mid-stage and every paid result
+                # rolls back. Commit before spending money.
+                connection.commit()
                 inputs = tuple(
                     VisualFrame(
                         frame_index=frame.frame_index,
@@ -1138,6 +1149,9 @@ def _run_visual_analysis(
                                 ),
                             ),
                         )
+                # Each pair is durable on its own: a stage that dies halfway
+                # keeps what it already paid for.
+                connection.commit()
         finally:
             if owned_client is not None:
                 owned_client.close()

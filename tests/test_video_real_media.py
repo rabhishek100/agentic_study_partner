@@ -216,6 +216,85 @@ class RealMediaIngestionTests(unittest.TestCase):
         # decode and OCR path works on real media rather than on a fixture.
         self.assertIn("ATTENTION", text)
 
+    def test_no_transaction_is_held_open_across_a_provider_call(self) -> None:
+        """A held transaction keeps FOR UPDATE locks on the job and version.
+
+        In production that starved the lease renewal on the worker's other
+        connection: the lease expired mid-stage, every paid observation sat in
+        an uncommitted transaction, and the whole stage rolled back after
+        spending real money on calls that could never land.
+        """
+
+        from psycopg import pq
+
+        observed: list[str] = []
+
+        def watching_analyzer(frames):
+            observed.append(connection_holder[0].info.transaction_status.name)
+            return analyze(frames)
+
+        connection_holder: list = []
+        payload = self.video.read_bytes()
+        dependencies = VideoPipelineDependencies(
+            media_store=self.store,
+            youtube_acquirer=lambda *args, **kwargs: None,
+            visual_analyzer=watching_analyzer,
+            text_embedder=FakeEmbedder(),
+            image_embedder=FakeEmbedder(),
+        )
+        with connection(self.database_url) as database:
+            connection_holder.append(database)
+            created = initialize_video_upload(
+                database,
+                owner_id=self.owner,
+                idempotency_key=uuid4(),
+                original_filename="clip.mp4",
+                media_type="video/mp4",
+                declared_size_bytes=len(payload),
+            )
+            writer = self.store.writer(
+                owner_id=self.owner,
+                storage_key=created.upload_storage_key,
+                maximum_bytes=len(payload) + 1,
+            )
+            writer.write(payload)
+            staged = writer.finish(expected_size=len(payload))
+            complete_video_upload(
+                database,
+                created.job_id,
+                owner_id=self.owner,
+                storage_key=staged.storage_key,
+                content_hash=staged.content_hash,
+                size_bytes=staged.size_bytes,
+                media_type="video/mp4",
+            )
+            for stage in (
+                Stage.ACQUIRE_SOURCE,
+                Stage.MEDIA_METADATA,
+                Stage.FRAME_SELECTION,
+                Stage.OCR,
+                Stage.VISUAL_ANALYSIS,
+            ):
+                database.execute(
+                    "update video.ingestion_jobs set stage = %s, status = 'queued',"
+                    " lease_owner = null, lease_expires_at = null where id = %s",
+                    (str(stage), created.job_id),
+                )
+                claimed = claim_next_job(
+                    database, worker_id="txn-worker", supported_stages={stage}
+                )
+                run_video_stage(
+                    database,
+                    job=claimed,
+                    worker_id="txn-worker",
+                    work_dir=self.root / "work" / uuid4().hex,
+                    dependencies=dependencies,
+                )
+
+        self.assertTrue(observed, "the visual analyzer was never called")
+        for status in observed:
+            self.assertEqual(status, pq.TransactionStatus.IDLE.name)
+
     def test_an_undecodable_file_is_refused_at_acquisition(self) -> None:
         broken = self.root / "broken.mp4"
         broken.write_bytes(b"\x00\x01\x02not really a video\x03" * 64)
