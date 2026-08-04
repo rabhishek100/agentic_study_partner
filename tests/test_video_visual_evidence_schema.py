@@ -401,7 +401,7 @@ class VideoVisualEvidenceSchemaTests(unittest.TestCase):
                 """
                 select id from video.evidence_units
                 where owner_id = %s
-                  and search_vector @@ plainto_tsquery('simple', %s)
+                  and search_vector @@ plainto_tsquery('english', %s)
                 """,
                 (self.owner_a, "backpropagation gradient"),
             ).fetchall()

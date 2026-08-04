@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import re
 from typing import Literal
 from uuid import UUID
 
@@ -24,6 +25,7 @@ RetrievalMethod = Literal[
     "fts", "text_vector", "image_vector", "hybrid", "timeline_expansion"
 ]
 RRF_RANK_CONSTANT = 60
+QUERY_TOKEN = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
 
 
 class VideoNotReadyError(LookupError):
@@ -104,23 +106,28 @@ def retrieve_video_evidence(
     version_id = version["id"]
 
     candidate_limit = limit * 4
-    rows = connection.execute(
-        """
-        with query as (
-            select websearch_to_tsquery('simple', %s) as value
-        )
-        select evidence.*,
-               ts_rank_cd(evidence.search_vector, query.value, 32) as score
-        from video.evidence_units as evidence
-        cross join query
-        where evidence.owner_id = %s and evidence.video_id = %s
-          and evidence.ingestion_version_id = %s
-          and evidence.search_vector @@ query.value
-        order by score desc, evidence.start_ms nulls last, evidence.id
-        limit %s
-        """,
-        (cleaned, owner, video, version_id, candidate_limit),
-    ).fetchall()
+    lexical = _lexical_query(cleaned)
+    rows = (
+        connection.execute(
+            """
+            with query as (
+                select to_tsquery('english', %s) as value
+            )
+            select evidence.*,
+                   ts_rank_cd(evidence.search_vector, query.value, 32) as score
+            from video.evidence_units as evidence
+            cross join query
+            where evidence.owner_id = %s and evidence.video_id = %s
+              and evidence.ingestion_version_id = %s
+              and evidence.search_vector @@ query.value
+            order by score desc, evidence.start_ms nulls last, evidence.id
+            limit %s
+            """,
+            (lexical, owner, video, version_id, candidate_limit),
+        ).fetchall()
+        if lexical
+        else []
+    )
     ranked = [[_evidence(row, method="fts") for row in rows]]
     if text_embedder is not None:
         ranked.append(
@@ -209,6 +216,19 @@ def retrieve_video_evidence(
     return version_id, tuple(
         replace(item, rank=index) for index, item in enumerate(selected, start=1)
     )
+
+
+def _lexical_query(query: str) -> str:
+    """Match any meaningful word, the way the book pipeline's BM25 does.
+
+    Requiring every word would make an ordinary spoken question match nothing;
+    the 'english' configuration then drops the stopwords that carry no signal
+    and stems the rest, so "what did he draw" reaches a frame described as
+    "drawn".
+    """
+
+    terms = list(dict.fromkeys(QUERY_TOKEN.findall(query.casefold())))
+    return " | ".join(f"'{term}'" for term in terms)
 
 
 def _vector_candidates(
