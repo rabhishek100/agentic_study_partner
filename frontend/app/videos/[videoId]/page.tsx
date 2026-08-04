@@ -19,6 +19,7 @@ import {
   ResourcePanel,
   VisualTimeline,
 } from "@/components/video/side-panels";
+import { ResumeUpload } from "@/components/video/resume-upload";
 import {
   VideoPlayer,
   type VideoPlayerHandle,
@@ -211,7 +212,9 @@ export default function VideoWorkspace() {
       nav={<SectionNav active="videos" />}
       status={
         <span>
-          {video ? readinessLabel(video.readiness_status) : "Loading…"}
+          {video
+            ? readinessLabel(video.readiness_status, video.latest_ingestion)
+            : "Loading…"}
         </span>
       }
       account={
@@ -307,6 +310,13 @@ export default function VideoWorkspace() {
                   ingestion={video.latest_ingestion}
                 />
               )}
+              {video.latest_ingestion?.status === "awaiting_upload" ? (
+                <ResumeUpload
+                  jobId={video.latest_ingestion.job_id}
+                  expectedFilename={video.source.original_filename}
+                  onUploaded={loadVideo}
+                />
+              ) : null}
               <AskPane
                 videoId={videoId}
                 turns={turns}

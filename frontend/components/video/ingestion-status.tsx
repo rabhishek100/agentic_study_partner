@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  CircleSlash,
+  Loader2,
+  Upload,
+} from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +31,12 @@ const STAGE_LABEL: Record<string, string> = {
 
 const STAGE_ORDER = Object.keys(STAGE_LABEL);
 
-export function readinessLabel(readiness: VideoReadiness): string {
+export function readinessLabel(
+  readiness: VideoReadiness,
+  ingestion?: VideoIngestion | null,
+): string {
+  if (ingestion?.status === "awaiting_upload") return "Waiting for file";
+  if (ingestion?.status === "cancelled") return "Cancelled";
   return {
     processing: "Processing",
     ready: "Ready",
@@ -62,6 +73,30 @@ export function IngestionStatus({
           {ingestion.retryable ? " You can retry it." : null}
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  // A reserved upload sits at stage one with nothing happening. Reading only
+  // the stage made that look identical to work in progress, so the interface
+  // reported "Fetching the video" while the server was waiting on the reader.
+  if (ingestion?.status === "awaiting_upload") {
+    return (
+      <div className="flex items-start gap-2 text-sm" role="status">
+        <Upload aria-hidden className="mt-0.5 size-4 shrink-0" />
+        <span>
+          Waiting for the video file. Nothing is processing yet — the upload
+          never finished, so the lecture has not started ingesting.
+        </span>
+      </div>
+    );
+  }
+
+  if (ingestion?.status === "cancelled") {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <CircleSlash aria-hidden className="size-4" />
+        Ingestion was cancelled.
+      </div>
     );
   }
 

@@ -176,7 +176,7 @@ export default function VideosPage() {
                           : "outline"
                       }
                     >
-                      {readinessLabel(video.readiness_status)}
+                      {readinessLabel(video.readiness_status, video.latest_ingestion)}
                     </Badge>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -186,7 +186,8 @@ export default function VideosPage() {
                       : null}
                   </p>
                   {video.readiness_status === "processing" ||
-                  video.latest_ingestion?.error ? (
+                  video.latest_ingestion?.error ||
+                  video.latest_ingestion?.status === "awaiting_upload" ? (
                     <div className="mt-3">
                       <IngestionStatus
                         readiness={video.readiness_status}
