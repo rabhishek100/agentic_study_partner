@@ -14,6 +14,7 @@ from video.jobs import (
     complete_stage_checkpoint,
     finish_running_cancellation,
     get_job,
+    publish_job,
     reclaim_expired_leases,
     record_stage_failure,
     release_claim,
@@ -423,6 +424,67 @@ class VideoJobTests(unittest.TestCase):
         self.assertNotIn("secret", failed.last_error_message.lower())
         self.assertEqual(version["status"], "failed")
         self.assertEqual(version["error_code"], "attempts_exhausted")
+
+    def test_quality_gated_publication_atomically_exposes_the_version(self) -> None:
+        dependency = "7" * 64
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            claimed = claim_next_job(database, worker_id="video-worker")
+            database.execute(
+                "update video.ingestion_jobs set stage = 'publish' where id = %s",
+                (created.job_id,),
+            )
+            database.execute(
+                """
+                update video.ingestion_versions
+                set quality_gates_json = '{"readiness":"degraded"}'::jsonb
+                where id = %s
+                """,
+                (created.version_id,),
+            )
+            begin_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.PUBLISH,
+                dependency_hash=dependency,
+            )
+            complete_stage_checkpoint(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                stage=Stage.PUBLISH,
+                dependency_hash=dependency,
+                output_manifest={"readiness": "degraded"},
+            )
+            published = publish_job(
+                database,
+                job_id=created.job_id,
+                worker_id="video-worker",
+                attempt_count=claimed.attempt_count,
+                readiness="degraded",
+            )
+            state = database.execute(
+                """
+                select video.readiness_status,
+                       video.current_ingestion_version_id,
+                       version.status as version_status,
+                       version.published_at
+                from video.videos video
+                join video.ingestion_versions version on version.video_id = video.id
+                where video.id = %s and version.id = %s
+                """,
+                (created.video_id, created.version_id),
+            ).fetchone()
+
+        self.assertEqual(published.status, Status.READY)
+        self.assertIsNone(published.stage)
+        self.assertEqual(state["readiness_status"], "degraded")
+        self.assertEqual(state["version_status"], "degraded")
+        self.assertEqual(state["current_ingestion_version_id"], created.version_id)
+        self.assertIsNotNone(state["published_at"])
 
     def test_checkpoint_dependency_change_and_budget_failure_are_atomic(self) -> None:
         first_hash, second_hash = "c" * 64, "d" * 64

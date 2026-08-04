@@ -11,6 +11,7 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from video.acquisition import Chapter, MediaMetadata
+from video.states import Stage
 
 
 CONTENT_HASH = re.compile(r"^[0-9a-f]{64}$")
@@ -123,6 +124,27 @@ def load_acquisition_target(
             worker_id=worker_id,
             attempt_count=attempt_count,
             stage="acquire_source",
+        )
+        return AcquisitionTarget(**dict(row))
+
+
+def load_source_stage_target(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+    stage: Stage,
+) -> AcquisitionTarget:
+    """Load canonical source facts for one explicitly owned worker stage."""
+
+    with connection.transaction():
+        row = _locked_target(
+            connection,
+            job_id=job_id,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+            stage=str(Stage(stage)),
         )
         return AcquisitionTarget(**dict(row))
 

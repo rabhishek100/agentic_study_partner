@@ -854,6 +854,95 @@ def record_stage_failure(
         return failed
 
 
+def publish_job(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+    readiness: str,
+) -> VideoIngestionJob:
+    """Atomically make a quality-gated ingestion version queryable."""
+
+    if readiness not in {"ready", "degraded"}:
+        raise ValueError("published video readiness must be ready or degraded")
+    identifier = UUID(str(job_id))
+    with connection.transaction():
+        current = _locked_running_job(
+            connection,
+            job_id=identifier,
+            worker_id=worker_id,
+            attempt_count=attempt_count,
+        )
+        if current.stage is not Stage.PUBLISH:
+            raise VideoJobConflictError("video job is not at the publish stage")
+        checkpoint = connection.execute(
+            """
+            select status from video.ingestion_stage_checkpoints
+            where owner_id = %s and ingestion_version_id = %s
+              and stage = 'publish'
+            """,
+            (current.owner_id, current.target_version_id),
+        ).fetchone()
+        if checkpoint is None or checkpoint["status"] != "complete":
+            raise VideoJobConflictError("video publish checkpoint is incomplete")
+        version = connection.execute(
+            """
+            update video.ingestion_versions
+            set status = %s, completed_at = now(), published_at = now(),
+                error_code = null, error_message = null
+            where id = %s and owner_id = %s and status = 'building'
+              and quality_gates_json <> '{}'::jsonb
+            returning id
+            """,
+            (readiness, current.target_version_id, current.owner_id),
+        ).fetchone()
+        if version is None:
+            raise VideoJobConflictError("video version cannot be published")
+        connection.execute(
+            """
+            update video.videos
+            set readiness_status = %s, current_ingestion_version_id = %s,
+                ready_at = now()
+            where id = %s and owner_id = %s
+            """,
+            (
+                readiness,
+                current.target_version_id,
+                current.video_id,
+                current.owner_id,
+            ),
+        )
+        row = connection.execute(
+            f"""
+            update video.ingestion_jobs
+            set status = 'ready', stage = null, completed_at = now(),
+                next_attempt_at = null, lease_owner = null,
+                lease_expires_at = null, heartbeat_at = null,
+                last_error_code = null, last_error_message = null,
+                last_error_retryable = null
+            where id = %s and owner_id = %s and status = 'running'
+              and lease_owner = %s and attempt_count = %s
+            returning {JOB_COLUMNS}
+            """,
+            (identifier, current.owner_id, worker_id, attempt_count),
+        ).fetchone()
+        published = VideoIngestionJob.from_row(row)
+        _event(
+            connection,
+            owner_id=published.owner_id,
+            job_id=published.id,
+            event_type="published",
+            status=published.status,
+            stage=None,
+            metadata={
+                "readiness": readiness,
+                "ingestion_version_id": str(published.target_version_id),
+            },
+        )
+        return published
+
+
 def reclaim_expired_leases(
     connection: Connection, *, retry_delay_seconds: float = 30
 ) -> int:
