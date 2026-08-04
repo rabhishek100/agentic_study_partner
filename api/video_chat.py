@@ -480,6 +480,49 @@ async def timeline(
     )
 
 
+@chat_router.get("/api/videos/{video_id}/resources/{resource_id}/content")
+async def resource_content(
+    video_id: UUID, resource_id: UUID, owner_id: UUID = Depends(current_owner)
+) -> Response:
+    """Serve a linked PDF so a page citation can open the page it names."""
+
+    def load() -> bytes:
+        with database_connection(readonly=True) as connection:
+            row = connection.execute(
+                """
+                select resource.storage_key
+                from video.video_resources as link
+                join video.resources as resource
+                  on resource.id = link.resource_id
+                 and resource.owner_id = link.owner_id
+                where link.owner_id = %s and link.video_id = %s
+                  and link.resource_id = %s
+                  and resource.resource_kind = 'pdf'
+                  and resource.storage_key is not null
+                """,
+                (owner_id, video_id, resource_id),
+            ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="resource not found")
+        try:
+            return (
+                FilesystemMediaStore()
+                .open_path(owner_id=owner_id, storage_key=row["storage_key"])
+                .read_bytes()
+            )
+        except (MediaStoreError, OSError) as error:
+            raise HTTPException(
+                status_code=404, detail="resource content not found"
+            ) from error
+
+    payload = await run_in_threadpool(load)
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
 @chat_router.get("/api/videos/{video_id}/frames/{frame_id}/image")
 async def frame_image(
     video_id: UUID,
