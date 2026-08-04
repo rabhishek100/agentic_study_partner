@@ -1,6 +1,22 @@
 """Safe, stable failures for the video-ingestion domain."""
 
 from enum import StrEnum
+import re
+
+
+# Signed URLs, bearer-ish tokens, and absolute paths appear freely in provider
+# output and tool stderr, and must not reach a durable job record or a log.
+_SECRET = re.compile(
+    r"https?://\S+"
+    r"|\b[A-Za-z0-9_-]{32,}\b"
+    r"|(?<![\w.])/(?:[\w.-]+/){2,}[\w.-]*"
+)
+
+
+def redact(text: str, *, limit: int = 300) -> str:
+    """Keep a provider's own words without keeping its secrets."""
+
+    return " ".join(_SECRET.sub("[redacted]", text or "").split())[:limit]
 
 
 class VideoErrorCode(StrEnum):

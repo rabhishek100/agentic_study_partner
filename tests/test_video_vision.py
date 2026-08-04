@@ -10,6 +10,7 @@ from unittest.mock import patch
 import httpx
 
 from video.vision import (
+    strict_schema,
     DEFAULT_VISUAL_MODEL,
     MAX_ATTEMPTS,
     PROMPT_VERSION,
@@ -127,7 +128,9 @@ class OpenRouterVisualClientTests(unittest.TestCase):
         self.assertEqual(payload["usage"], {"include": True})
         structured = payload["response_format"]["json_schema"]
         self.assertTrue(structured["strict"])
-        self.assertEqual(structured["schema"], VISUAL_ANALYSIS_SCHEMA)
+        # Sent sanitized: the provider rejects "uniqueItems" outright.
+        self.assertEqual(structured["schema"], strict_schema(VISUAL_ANALYSIS_SCHEMA))
+        self.assertNotIn("uniqueItems", json.dumps(structured["schema"]))
         content = payload["messages"][0]["content"]
         self.assertIn("Frame 11", content[0]["text"])
         self.assertEqual(len(content), 3)
@@ -214,9 +217,11 @@ class OpenRouterVisualClientTests(unittest.TestCase):
 
         self.assertEqual(attempts, MAX_ATTEMPTS)
         self.assertNotIn(secret, str(raised.exception))
-        self.assertEqual(
-            str(raised.exception),
-            f"visual analysis failed after {MAX_ATTEMPTS} attempts",
+        # The provider's reason survives; its secrets do not.
+        self.assertTrue(
+            str(raised.exception).startswith(
+                f"visual analysis failed after {MAX_ATTEMPTS} attempts"
+            )
         )
 
     def test_rejects_non_db_visual_types_and_regions_outside_the_frame(self) -> None:
@@ -291,3 +296,49 @@ class OpenRouterVisualClientTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VisualSchemaTests(unittest.TestCase):
+    """The request schema must be one the provider will actually accept."""
+
+    def test_validation_keywords_are_stripped_from_the_request_schema(self) -> None:
+        from video.vision import VISUAL_ANALYSIS_SCHEMA, strict_schema
+
+        def keywords(node) -> set[str]:
+            found: set[str] = set()
+            if isinstance(node, dict):
+                found.update(node)
+                for value in node.values():
+                    found |= keywords(value)
+            elif isinstance(node, list):
+                for value in node:
+                    found |= keywords(value)
+            return found
+
+        # The hand-written schema carries uniqueItems, which strict structured
+        # output rejects outright: every call 400'd in production because of it.
+        self.assertIn("uniqueItems", keywords(VISUAL_ANALYSIS_SCHEMA))
+        sanitized = keywords(strict_schema(VISUAL_ANALYSIS_SCHEMA))
+        for keyword in ("uniqueItems", "minItems", "maxItems", "maxLength"):
+            self.assertNotIn(keyword, sanitized)
+        # Shape survives; only validation is dropped.
+        for keyword in ("type", "properties", "required", "enum", "items"):
+            self.assertIn(keyword, sanitized)
+
+    def test_a_rejected_request_reports_the_provider_reason(self) -> None:
+        import httpx
+
+        from video.vision import _provider_failure
+
+        error = httpx.HTTPStatusError(
+            "400",
+            request=httpx.Request("POST", "https://openrouter.ai/api/v1/x"),
+            response=httpx.Response(
+                400,
+                text='{"error":{"message":"Invalid schema for response_format: '
+                "'uniqueItems' is not permitted.\"}}",
+            ),
+        )
+        detail = _provider_failure(error)
+        self.assertIn("400", detail)
+        self.assertIn("uniqueItems", detail)

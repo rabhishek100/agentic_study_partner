@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from hashlib import sha256
 import json
 import os
+import re
 from typing import Annotated, Any, Literal, TypeAlias
 
 import httpx
+
+from video.errors import redact
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -409,6 +412,7 @@ class OpenRouterVisualClient:
         validated_frames = _validate_frames(frames)
         prompt = _analysis_prompt(validated_frames)
         input_hash = _input_hash(self.model, prompt, validated_frames)
+        last_failure: str | None = None
         request = _request_payload(self.model, prompt, validated_frames)
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -428,14 +432,37 @@ class OpenRouterVisualClient:
                     frames=tuple(_frame_result(item) for item in parsed.frames),
                     provenance=provenance,
                 )
-            except (httpx.HTTPError, ValueError, KeyError, TypeError, ValidationError):
-                # Response bodies, signed upstream URLs, and image data must not
-                # escape through durable job errors. The second failure is
-                # intentionally reported as a stable, operational message.
+            except (
+                httpx.HTTPError,
+                ValueError,
+                KeyError,
+                TypeError,
+                ValidationError,
+            ) as error:
+                # Image data and signed URLs must not escape through durable
+                # job errors, but the provider's own complaint must: a bare
+                # "failed after 2 attempts" hid a schema the provider rejected
+                # on every single call, and the stage looked flaky instead of
+                # broken.
+                last_failure = _provider_failure(error)
                 continue
         raise VisualAnalysisError(
             f"visual analysis failed after {MAX_ATTEMPTS} attempts"
+            + (f": {last_failure}" if last_failure else "")
         ) from None
+
+
+def _provider_failure(error: Exception) -> str:
+    """The provider's reason for refusing, with payload echoes removed."""
+
+    if isinstance(error, httpx.HTTPStatusError):
+        body = " ".join((error.response.text or "").split())
+        # A rejected request is echoed back with the images inlined; the
+        # message is the part worth keeping.
+        message = re.search(r'"message"\s*:\s*"([^"]{0,300})"', body)
+        detail = redact(message.group(1) if message else body)
+        return f"{error.response.status_code} {detail}".strip()
+    return redact(f"{type(error).__name__}: {error}")
 
 
 def _validate_frames(
@@ -488,6 +515,44 @@ def _analysis_prompt(frames: tuple[VisualFrame, ...]) -> str:
     return f"{SYSTEM_INSTRUCTION}\n\nFrame inventory:\n{inventory}"
 
 
+# Keywords that describe validation rather than shape. Strict structured
+# output rejects some of them outright — a schema carrying "uniqueItems" is a
+# 400 from the provider, which is how every visual-analysis call in production
+# failed — and the response is validated against the real model afterwards
+# anyway, so dropping them here costs nothing but the model's hint.
+_UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
+    {
+        "uniqueItems",
+        "minItems",
+        "maxItems",
+        "minLength",
+        "maxLength",
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "pattern",
+        "format",
+        "default",
+    }
+)
+
+
+def strict_schema(node: Any) -> Any:
+    """Return the schema with provider-unsupported validation removed."""
+
+    if isinstance(node, dict):
+        return {
+            key: strict_schema(value)
+            for key, value in node.items()
+            if key not in _UNSUPPORTED_SCHEMA_KEYWORDS
+        }
+    if isinstance(node, list):
+        return [strict_schema(value) for value in node]
+    return node
+
+
 def _request_payload(
     model: str, prompt: str, frames: tuple[VisualFrame, ...]
 ) -> dict[str, Any]:
@@ -515,7 +580,7 @@ def _request_payload(
             "json_schema": {
                 "name": "technical_lecture_visual_analysis",
                 "strict": True,
-                "schema": VISUAL_ANALYSIS_SCHEMA,
+                "schema": strict_schema(VISUAL_ANALYSIS_SCHEMA),
             },
         },
         "usage": {"include": True},

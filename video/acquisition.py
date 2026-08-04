@@ -17,6 +17,7 @@ import re
 import subprocess
 from typing import Protocol
 
+from video.errors import redact
 from video.sources import YOUTUBE_ID, parse_youtube_url
 
 
@@ -33,13 +34,6 @@ VIDEO_FORMAT = (
     "/bv*[height<=1080]+ba/b[height<=1080]"
 )
 MAXIMUM_FAILURE_DETAIL = 600
-# Signed URLs, cookies, bearer-ish tokens, and absolute paths, all of which a
-# downloader prints freely and none of which belong in a log.
-_REDACTED = re.compile(
-    r"https?://\S+"
-    r"|\b[A-Za-z0-9_-]{32,}\b"
-    r"|(?<![\w.])/(?:[\w.-]+/){2,}[\w.-]*"
-)
 ENGLISH_SUBTITLE_LANGUAGES = "en.*"
 
 
@@ -467,6 +461,5 @@ def _command_failure(command: str, stderr: str) -> str:
         return f"{command} failed"
     # yt-dlp explains itself on its ERROR lines and warns loudly on the rest.
     reported = [line for line in lines if line.upper().startswith("ERROR")] or lines
-    detail = _REDACTED.sub("[redacted]", " ".join(reported))
-    detail = " ".join(detail.split())[-MAXIMUM_FAILURE_DETAIL:]
+    detail = redact(" ".join(reported), limit=MAXIMUM_FAILURE_DETAIL)
     return f"{command} failed: {detail}" if detail else f"{command} failed"
