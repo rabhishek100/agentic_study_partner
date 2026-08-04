@@ -24,6 +24,7 @@ from video.repository import (
     VideoAlreadyExistsError,
     VideoConflictError,
     VideoNotFoundError,
+    complete_resource_upload,
     complete_video_upload,
     confirm_resource_suggestion,
     create_url_resource,
@@ -31,6 +32,7 @@ from video.repository import (
     delete_unacquired_video,
     detach_video_resource,
     dismiss_resource_suggestion,
+    initialize_resource_upload,
     initialize_video_upload,
     list_job_events,
     list_resource_suggestions,
@@ -39,10 +41,12 @@ from video.repository import (
     list_video_resources,
     load_standalone_video,
     load_ingestion_job,
+    load_resource_upload_target,
     load_video_upload_target,
     maximum_upload_bytes,
     update_video_metadata,
 )
+from video.resources import maximum_resource_bytes
 from video.sources import InvalidVideoSource
 from video.media_store import (
     FilesystemMediaStore,
@@ -92,6 +96,14 @@ class UploadReservation(ContractModel):
     method: Literal["put"] = "put"
     upload_url: str
     maximum_bytes: int
+
+
+class InitializeResourceUploadRequest(ContractModel):
+    original_filename: str = Field(min_length=1, max_length=255)
+    content_length: int = Field(gt=0)
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    role: ResourceRole = "slides"
+    required: bool = False
 
 
 class CreateVideoResponse(ContractModel):
@@ -194,6 +206,13 @@ class ResourceView(ContractModel):
     page_count: int | None
     role: ResourceRole
     required: bool
+
+
+class ResourceUploadReservation(ContractModel):
+    resource: ResourceView
+    method: Literal["put"] = "put"
+    upload_url: str
+    maximum_bytes: int
 
 
 class VideoDetail(VideoSummary):
@@ -541,6 +560,118 @@ async def attach_resource(
         return _resource(await run_in_threadpool(create))
     except VideoNotFoundError as error:
         raise VIDEO_NOT_FOUND from error
+
+
+@videos_router.post("/{video_id}/resources/uploads", status_code=201)
+async def initialize_resource_upload_endpoint(
+    video_id: UUID,
+    request: InitializeResourceUploadRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ResourceUploadReservation:
+    def create():
+        with database_connection() as database:
+            return initialize_resource_upload(
+                database,
+                owner_id=owner_id,
+                video_id=video_id,
+                title=request.title or request.original_filename,
+                original_filename=request.original_filename,
+                declared_size_bytes=request.content_length,
+                role=request.role,
+                required=request.required,
+            )
+
+    try:
+        created = await run_in_threadpool(create)
+    except VideoNotFoundError as error:
+        raise VIDEO_NOT_FOUND from error
+    except (InvalidVideoSource, ValueError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return ResourceUploadReservation(
+        resource=_resource(created),
+        upload_url=(
+            f"/api/videos/{video_id}/resources/{created['id']}/content"
+        ),
+        maximum_bytes=maximum_resource_bytes(),
+    )
+
+
+@videos_router.put("/{video_id}/resources/{resource_id}/content")
+async def upload_resource_content(
+    video_id: UUID,
+    resource_id: UUID,
+    request: Request,
+    owner_id: UUID = Depends(current_owner),
+) -> ResourceView:
+    """Stream an uploaded PDF straight to storage without buffering it."""
+
+    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip()
+    if media_type != "application/pdf":
+        raise HTTPException(status_code=415, detail="resource must be a PDF")
+    limit = maximum_resource_bytes()
+
+    def load_target():
+        with database_connection(readonly=True) as database:
+            return load_resource_upload_target(
+                database,
+                owner_id=owner_id,
+                video_id=video_id,
+                resource_id=resource_id,
+            )
+
+    target = await run_in_threadpool(load_target)
+    if target is None:
+        raise HTTPException(status_code=404, detail="video resource not found")
+    declared = int((target["provenance_json"] or {}).get("declared_size_bytes") or 0)
+    if declared <= 0:
+        raise HTTPException(status_code=409, detail="resource has no upload reservation")
+    raw_length = request.headers.get("content-length")
+    if raw_length is not None and int(raw_length) != declared:
+        raise HTTPException(
+            status_code=422, detail="Content-Length does not match the reservation"
+        )
+
+    storage_key = f"{owner_id}/staging/resources/{resource_id}/original.pdf"
+    try:
+        store = FilesystemMediaStore()
+        writer = store.writer(
+            owner_id=owner_id, storage_key=storage_key, maximum_bytes=limit
+        )
+        try:
+            async for chunk in request.stream():
+                await run_in_threadpool(writer.write, chunk)
+            stored = await run_in_threadpool(writer.finish, expected_size=declared)
+        finally:
+            await run_in_threadpool(writer.abort)
+    except MediaTooLarge as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except MediaSizeMismatch as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except MediaConflict as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except MediaStoreError as error:
+        logger.exception("Resource upload storage failed")
+        raise HTTPException(
+            status_code=503, detail="video media storage unavailable"
+        ) from error
+
+    def complete():
+        with database_connection() as database:
+            return complete_resource_upload(
+                database,
+                owner_id=owner_id,
+                video_id=video_id,
+                resource_id=resource_id,
+                storage_backend=store.backend,
+                storage_key=stored.storage_key,
+                content_hash=stored.content_hash,
+                size_bytes=stored.size_bytes,
+            )
+
+    completed = await run_in_threadpool(complete)
+    if completed is None:
+        raise HTTPException(status_code=404, detail="video resource not found")
+    return _resource(completed)
 
 
 @videos_router.delete("/{video_id}/resources/{resource_id}", status_code=204)

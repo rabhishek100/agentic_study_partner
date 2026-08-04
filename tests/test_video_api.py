@@ -1,6 +1,10 @@
 """Standalone-video HTTP contracts against the real video repository."""
 
+import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 from httpx import ASGITransport, AsyncClient
@@ -8,12 +12,18 @@ from httpx import ASGITransport, AsyncClient
 from api.auth import current_owner
 from api.main import app
 from storage.database import connection, resolve_database_url
+from tests.test_video_resources import write_deck
 
 
 class VideoApiTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.database_url = resolve_database_url()
         self.owner, self.other_owner = uuid4(), uuid4()
+        self.uploads = TemporaryDirectory()
+        self.environment = patch.dict(
+            os.environ, {"VIDEO_MEDIA_ROOT": self.uploads.name}
+        )
+        self.environment.start()
         with connection(self.database_url) as database:
             for owner in (self.owner, self.other_owner):
                 database.execute(
@@ -33,6 +43,8 @@ class VideoApiTests(unittest.IsolatedAsyncioTestCase):
                 "delete from auth.users where id = any(%s)",
                 ([self.owner, self.other_owner],),
             )
+        self.environment.stop()
+        self.uploads.cleanup()
 
     def act_as(self, owner) -> None:
         app.dependency_overrides[current_owner] = lambda: owner
@@ -182,6 +194,53 @@ class VideoApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(listed.json()["resources"][0]["role"], "notes")
         self.assertEqual(detached.status_code, 204)
         self.assertEqual(canonical, 1)
+
+    async def test_uploaded_slides_are_reserved_then_streamed_to_storage(
+        self,
+    ) -> None:
+        created = await self.create_youtube()
+        video_id = created.json()["video_id"]
+        payload = write_deck(Path(self.uploads.name) / "slides.pdf").read_bytes()
+        reserved = await self.client.post(
+            f"/api/videos/{video_id}/resources/uploads",
+            json={
+                "original_filename": "slides.pdf",
+                "content_length": len(payload),
+                "title": "Lecture slides",
+                "role": "slides",
+                "required": True,
+            },
+        )
+        self.assertEqual(reserved.status_code, 201)
+        reservation = reserved.json()
+        self.assertEqual(reservation["resource"]["status"], "pending")
+        self.assertEqual(reservation["resource"]["origin"], "upload")
+
+        uploaded = await self.client.put(
+            reservation["upload_url"],
+            content=payload,
+            headers={"Content-Type": "application/pdf"},
+        )
+        rejected = await self.client.put(
+            reservation["upload_url"],
+            content=b"not a pdf",
+            headers={"Content-Type": "text/plain"},
+        )
+        with connection(self.database_url) as database:
+            stored = database.execute(
+                """
+                select status, storage_key, size_bytes, media_type
+                from video.resources where id = %s
+                """,
+                (reservation["resource"]["resource_id"],),
+            ).fetchone()
+
+        self.assertEqual(uploaded.status_code, 200)
+        self.assertEqual(rejected.status_code, 415)
+        self.assertEqual(stored["status"], "pending")
+        self.assertEqual(stored["media_type"], "application/pdf")
+        self.assertEqual(stored["size_bytes"], len(payload))
+        self.assertTrue(stored["storage_key"].startswith(f"{self.owner}/staging/"))
 
     async def test_suggestion_confirm_and_dismiss_contracts(self) -> None:
         created = await self.create_youtube()

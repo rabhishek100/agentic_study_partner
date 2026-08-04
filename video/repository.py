@@ -11,6 +11,7 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
+from video.resources import maximum_resource_bytes
 from video.sources import display_filename, parse_youtube_url, upload_extension
 
 
@@ -688,6 +689,132 @@ def create_url_resource(
     )
     resource["role"], resource["required"] = role, required
     return resource
+
+
+def initialize_resource_upload(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    title: str,
+    original_filename: str,
+    declared_size_bytes: int,
+    role: str,
+    required: bool = False,
+) -> dict[str, Any]:
+    """Reserve one uploaded PDF; the worker parses it into pages later."""
+
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    if load_standalone_video(connection, video, owner_id=owner) is None:
+        raise VideoNotFoundError("video does not exist")
+    _validate_resource_values("pdf", role)
+    filename = display_filename(original_filename)
+    clean_title = (title or filename).strip()
+    if not clean_title:
+        raise ValueError("resource title is required")
+    if declared_size_bytes <= 0 or declared_size_bytes > maximum_resource_bytes():
+        raise ValueError("resource upload size is outside the supported range")
+    resource = connection.execute(
+        """
+        insert into video.resources (
+            owner_id, resource_kind, origin, status, title, original_filename,
+            provenance_json
+        ) values (%s, 'pdf', 'upload', 'pending', %s, %s, %s)
+        returning id, resource_kind, origin, status, title, source_url,
+                  page_count, created_at, updated_at
+        """,
+        (
+            owner,
+            clean_title,
+            filename,
+            Jsonb({"declared_size_bytes": declared_size_bytes}),
+        ),
+    ).fetchone()
+    connection.execute(
+        """
+        insert into video.video_resources (
+            owner_id, video_id, resource_id, role, required
+        ) values (%s, %s, %s, %s, %s)
+        """,
+        (owner, video, resource["id"], role, required),
+    )
+    resource["role"], resource["required"] = role, required
+    resource["upload_storage_key"] = (
+        f"{owner}/staging/resources/{resource['id']}/original.pdf"
+    )
+    return resource
+
+
+def load_resource_upload_target(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    resource_id: str | UUID,
+) -> dict[str, Any] | None:
+    """Return the reservation an uploaded PDF must match, if it exists."""
+
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    return connection.execute(
+        """
+        select r.id, r.status, r.origin, r.provenance_json
+        from video.video_resources as link
+        join video.resources as r
+          on r.id = link.resource_id and r.owner_id = link.owner_id
+        where link.owner_id = %s and link.video_id = %s and link.resource_id = %s
+          and r.resource_kind = 'pdf' and r.origin = 'upload'
+        """,
+        (owner, video, UUID(str(resource_id))),
+    ).fetchone()
+
+
+def complete_resource_upload(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    resource_id: str | UUID,
+    storage_backend: str,
+    storage_key: str,
+    content_hash: str,
+    size_bytes: int,
+) -> dict[str, Any] | None:
+    """Attach uploaded bytes; ingestion turns them into pages."""
+
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    resource = UUID(str(resource_id))
+    linked = connection.execute(
+        """
+        select role, required from video.video_resources
+        where owner_id = %s and video_id = %s and resource_id = %s
+        """,
+        (owner, video, resource),
+    ).fetchone()
+    if linked is None:
+        return None
+    updated = connection.execute(
+        """
+        update video.resources
+        set storage_backend = %s, storage_key = %s, content_hash = %s,
+            size_bytes = %s, media_type = 'application/pdf', status = 'pending',
+            updated_at = now()
+        where id = %s and owner_id = %s and resource_kind = 'pdf'
+        returning id, resource_kind, origin, status, title, source_url,
+                  page_count, created_at, updated_at
+        """,
+        (
+            storage_backend,
+            storage_key,
+            content_hash,
+            size_bytes,
+            resource,
+            owner,
+        ),
+    ).fetchone()
+    if updated is None:
+        return None
+    updated["role"], updated["required"] = linked["role"], linked["required"]
+    return updated
 
 
 def list_video_resources(
