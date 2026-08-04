@@ -10,6 +10,7 @@ import numpy as np
 
 from storage.database import connection, resolve_database_url
 from tests.test_video_embeddings import FakeRegionEmbedder, FakeTextEmbedder
+from tests.test_video_resources import write_deck
 from video.acquisition import Chapter, DownloadedSource, MediaMetadata
 from video.acquisition_stage import (
     AcquisitionDependencies,
@@ -25,9 +26,11 @@ from video.media_store import FilesystemMediaStore
 from video.pipeline import VideoPipelineDependencies, run_video_stage
 from video.repository import (
     complete_video_upload,
+    create_url_resource,
     create_youtube_video,
     initialize_video_upload,
 )
+from video.resources import DownloadedResource
 from video.states import Stage, Status
 from video.transcripts import TranscriptCue
 from video.frames import FrameCandidate, OcrResult
@@ -296,6 +299,7 @@ class VideoAcquisitionStageTests(unittest.TestCase):
             visual_analyzer=self._analyze_two_frames,
             text_embedder=FakeTextEmbedder(),
             image_embedder=FakeRegionEmbedder(),
+            pdf_downloader=self._download_deck,
         )
         with connection(self.database_url) as database:
             created = create_youtube_video(
@@ -303,6 +307,16 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                 owner_id=self.owner,
                 idempotency_key=uuid4(),
                 url="https://youtu.be/abcdefghijk",
+            )
+            create_url_resource(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                resource_kind="pdf",
+                title="Lecture slides",
+                source_url="https://example.test/slides.pdf",
+                role="slides",
+                required=True,
             )
             for expected_stage in tuple(Stage):
                 claimed = claim_next_job(
@@ -354,6 +368,9 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                      where ingestion_version_id = %s) as events,
                     (select count(*) from video.evidence_units
                      where ingestion_version_id = %s) as evidence,
+                    (select count(*) from video.evidence_units
+                     where ingestion_version_id = %s
+                       and modality = 'resource_page') as page_evidence,
                     (select count(*) from video.evidence_embeddings
                      where ingestion_version_id = %s
                        and embedding_kind = 'text') as text_vectors,
@@ -361,7 +378,7 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                      where ingestion_version_id = %s
                        and embedding_kind = 'image') as image_vectors
                 """,
-                (created.version_id,) * 7,
+                (created.version_id,) * 8,
             ).fetchone()
             gates = database.execute(
                 "select quality_gates_json from video.ingestion_versions where id = %s",
@@ -384,12 +401,16 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                 "observations": 2,
                 "regions": 1,
                 "events": 1,
-                "evidence": 4,
-                "text_vectors": 4,
+                # One transcript cue, two frames, one transition, three slides.
+                "evidence": 7,
+                "page_evidence": 3,
+                "text_vectors": 7,
                 "image_vectors": 1,
             },
         )
         self.assertTrue(gates["gates"]["semantic_index_complete"])
+        self.assertTrue(gates["gates"]["required_resources_ready"])
+        self.assertEqual(gates["resource_page_evidence_count"], 3)
 
     def test_upload_without_captions_uses_budgeted_openrouter_audio(self) -> None:
         payload = b"uploaded-video-with-audio"
@@ -536,6 +557,15 @@ class VideoAcquisitionStageTests(unittest.TestCase):
             owner_id=self.owner, storage_key=transcript["storage_key"]
         )
         self.assertIn("gen-audio-1", raw.read_text(encoding="utf-8"))
+
+    def _download_deck(self, url, destination, *, maximum_bytes, timeout=60.0):
+        del url, maximum_bytes, timeout
+        return DownloadedResource(
+            path=write_deck(Path(destination)),
+            media_type="application/pdf",
+            size_bytes=Path(destination).stat().st_size,
+            final_url="https://example.test/slides.pdf",
+        )
 
     @staticmethod
     def _select_two_frames(

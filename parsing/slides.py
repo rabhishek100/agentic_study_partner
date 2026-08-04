@@ -28,7 +28,12 @@ import fitz
 
 logger = logging.getLogger("study_partner.parsing.slides")
 
-__all__ = ["SlideProfile", "profile_slides", "synthesize_slide_outline"]
+__all__ = [
+    "SlideProfile",
+    "profile_slides",
+    "slide_page_titles",
+    "synthesize_slide_outline",
+]
 
 # A slide is wider than it is tall. Every deck in this corpus is 4:3 or 16:9;
 # no paginated book is landscape.
@@ -165,6 +170,20 @@ def _page_title(page: fitz.Page, *, body_size: float) -> str:
         if abs(span["size"] - largest) < 0.5
     ]
     return " ".join(" ".join(words).split())
+
+
+def slide_page_titles(document: fitz.Document) -> list[str] | None:
+    """Return each slide's own title line, or None when this is not a deck.
+
+    Video resources need the per-slide titles the outline synthesizer throws
+    away: a lecture's slides are cited page by page rather than by section,
+    and the title is what makes a retrieved page readable.
+    """
+
+    profile = profile_slides(document)
+    if not profile.is_deck:
+        return None
+    return [_page_title(page, body_size=profile.body_size) for page in document]
 
 
 def _section_marker(page: fitz.Page) -> int | None:

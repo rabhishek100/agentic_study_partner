@@ -11,6 +11,7 @@ from uuid import UUID
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from video.resources import page_evidence_text
 from video.states import Stage
 
 
@@ -33,6 +34,7 @@ class EvidenceBuild:
     visual_frame_count: int
     visual_event_count: int
     total_count: int
+    resource_page_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -187,11 +189,52 @@ def rebuild_evidence(
                 end_ms=row["end_ms"],
             )
 
-        total = len(transcript_rows) + visual_count + len(event_rows)
+        page_rows = connection.execute(
+            """
+            select page.id, page.page_number, page.text_content,
+                   page.layout_json, resource.title
+            from video.resource_pages as page
+            join video.resources as resource
+              on resource.id = page.resource_id
+             and resource.owner_id = page.owner_id
+            join video.video_resources as link
+              on link.resource_id = resource.id
+             and link.owner_id = resource.owner_id
+            where page.owner_id = %s and link.video_id = %s
+              and resource.status = 'ready'
+            order by link.attached_at, resource.id, page.page_number
+            """,
+            (job["owner_id"], job["video_id"]),
+        ).fetchall()
+        page_count = 0
+        for row in page_rows:
+            text = page_evidence_text(
+                resource_title=row["title"],
+                page_number=int(row["page_number"]),
+                title=(row["layout_json"] or {}).get("title"),
+                text=row["text_content"],
+            )
+            if not text.strip():
+                # An image-only slide has no text to retrieve; it stays
+                # canonical in resource_pages and simply is not searchable.
+                continue
+            _insert_evidence(
+                connection,
+                job=job,
+                modality="resource_page",
+                source_id=row["id"],
+                retrieval_text=text,
+                resource_page_id=row["id"],
+                page_number=int(row["page_number"]),
+            )
+            page_count += 1
+
+        total = len(transcript_rows) + visual_count + len(event_rows) + page_count
         return EvidenceBuild(
             transcript_count=len(transcript_rows),
             visual_frame_count=visual_count,
             visual_event_count=len(event_rows),
+            resource_page_count=page_count,
             total_count=total,
         )
 
@@ -290,6 +333,23 @@ def evaluate_quality_gates(
             """,
             (job["owner_id"], job["video_id"], job["target_version_id"]),
         ).fetchone()["count"]
+        resources = connection.execute(
+            """
+            select
+                count(*) filter (where link.required) as required_count,
+                count(*) filter (
+                    where link.required and resource.status <> 'ready'
+                ) as required_unready,
+                count(*) filter (where resource.status = 'failed') as failed_count,
+                count(*) filter (where resource.status = 'ready') as ready_count
+            from video.video_resources as link
+            join video.resources as resource
+              on resource.id = link.resource_id
+             and resource.owner_id = link.owner_id
+            where link.owner_id = %s and link.video_id = %s
+            """,
+            (job["owner_id"], job["video_id"]),
+        ).fetchone()
         counts = connection.execute(
             """
             select
@@ -297,6 +357,7 @@ def evaluate_quality_gates(
                 count(*) filter (where modality in (
                     'visual_frame', 'visual_event'
                 )) as visual,
+                count(*) filter (where modality = 'resource_page') as resource_page,
                 count(*) as total
             from video.evidence_units
             where owner_id = %s and video_id = %s and ingestion_version_id = %s
@@ -367,6 +428,9 @@ def evaluate_quality_gates(
             "semantic_index_complete": (
                 counts["total"] > 0 and embeddings["text_count"] == counts["total"]
             ),
+            # Optional slides never block a video, but a document the reader
+            # marked required is part of what they asked to be able to cite.
+            "required_resources_ready": resources["required_unready"] == 0,
         }
         metrics: dict[str, Any] = {
             "format_version": EVIDENCE_FORMAT_VERSION,
@@ -385,8 +449,12 @@ def evaluate_quality_gates(
             "transcript_evidence_count": int(counts["transcript"]),
             "visual_evidence_count": int(counts["visual"]),
             "evidence_count": int(counts["total"]),
+            "resource_page_evidence_count": int(counts["resource_page"]),
             "text_embedding_count": int(embeddings["text_count"]),
             "image_embedding_count": int(embeddings["image_count"]),
+            "required_resource_count": int(resources["required_count"]),
+            "ready_resource_count": int(resources["ready_count"]),
+            "failed_resource_count": int(resources["failed_count"]),
         }
         hard = (
             gates["canonical_source"]
@@ -442,8 +510,10 @@ def _insert_evidence(
     transcript_segment_id: int | None = None,
     frame_id: int | None = None,
     visual_event_id: int | None = None,
-    start_ms: int,
-    end_ms: int,
+    resource_page_id: int | None = None,
+    start_ms: int | None = None,
+    end_ms: int | None = None,
+    page_number: int | None = None,
 ) -> None:
     clean = " ".join(retrieval_text.split())
     content_hash = sha256(clean.encode()).hexdigest()
@@ -462,9 +532,10 @@ def _insert_evidence(
         """
         insert into video.evidence_units (
             id, owner_id, video_id, ingestion_version_id, modality,
-            transcript_segment_id, frame_id, visual_event_id, retrieval_text,
-            start_ms, end_ms, content_hash
-        ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            transcript_segment_id, frame_id, visual_event_id,
+            resource_page_id, retrieval_text, start_ms, end_ms, page_number,
+            content_hash
+        ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         (
             evidence_id,
@@ -475,9 +546,11 @@ def _insert_evidence(
             transcript_segment_id,
             frame_id,
             visual_event_id,
+            resource_page_id,
             clean,
             start_ms,
             end_ms,
+            page_number,
             content_hash,
         ),
     )

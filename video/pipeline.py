@@ -51,7 +51,24 @@ from video.evidence_store import (
     rebuild_evidence,
 )
 from video.frames import OcrResult, select_frames, run_tesseract
-from video.media_store import FilesystemMediaStore
+from video.media_store import FilesystemMediaStore, MediaStoreError
+from video.resource_store import (
+    PendingResource,
+    load_linked_pdfs,
+    mark_resource_failed,
+    persist_resource_pages,
+    stored_page_count,
+)
+from video.resources import (
+    PARSER_VERSION,
+    DownloadedResource,
+    ResourceAcquisitionError,
+    ResourceParseError,
+    download_pdf,
+    maximum_resource_bytes,
+    parse_pdf_pages,
+    parser_config_hash,
+)
 from video.source_store import (
     load_source_stage_target,
     publish_media_metadata,
@@ -79,7 +96,7 @@ from video.visual_store import (
 
 METADATA_STAGE_VERSION = "video-media-metadata-v1"
 TRANSCRIPT_STAGE_VERSION = "video-transcript-prefer-caption-v2"
-RESOURCES_STAGE_VERSION = "video-resources-deferred-v1"
+RESOURCES_STAGE_VERSION = "video-resource-pdf-pages-v1"
 FRAME_STAGE_VERSION = "video-frame-selection-v1"
 OCR_STAGE_VERSION = "video-frame-ocr-v1"
 VISUAL_STAGE_VERSION = "video-visual-analysis-v1"
@@ -93,6 +110,7 @@ FrameSelector = Callable[..., tuple[Any, ...]]
 FrameOcr = Callable[[Path], OcrResult]
 VisualAnalyzer = Callable[[tuple[VisualFrame, ...]], VisualAnalysis]
 AudioTranscriber = Callable[..., AudioTranscription]
+PdfDownloader = Callable[..., DownloadedResource]
 MINIMUM_CAPTION_COVERAGE = 0.90
 MAXIMUM_TRANSCRIPT_ARTIFACT_BYTES = 50 * 1024 * 1024
 
@@ -128,6 +146,7 @@ class VideoPipelineDependencies:
     )
     text_embedder: TextEmbedder | None = None
     image_embedder: ImageEmbedder | None = None
+    pdf_downloader: PdfDownloader | None = None
 
 
 def run_video_stage(
@@ -173,13 +192,12 @@ def run_video_stage(
                 dependencies=dependencies,
             )
         case Stage.RESOURCES:
-            return _run_deferred_stage(
+            return _run_resources(
                 connection,
                 job=job,
                 worker_id=worker_id,
-                stage=Stage.RESOURCES,
-                next_stage=Stage.FRAME_SELECTION,
-                stage_version=RESOURCES_STAGE_VERSION,
+                work_dir=work_dir,
+                dependencies=dependencies,
             )
         case Stage.FRAME_SELECTION:
             return _run_frame_selection(
@@ -539,19 +557,37 @@ def _run_transcript(
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def _run_deferred_stage(
+def _run_resources(
     connection: Connection,
     *,
     job: VideoIngestionJob,
     worker_id: str,
-    stage: Stage,
-    next_stage: Stage,
-    stage_version: str,
+    work_dir: Path,
+    dependencies: VideoPipelineDependencies,
 ) -> VideoIngestionJob:
+    """Ingest the confirmed PDFs a lecture points at, page by page.
+
+    A failed document never fails the stage. Slides are supporting material:
+    the video is still answerable without them, and the failure is recorded on
+    the resource so the panel shows it instead of hiding it.
+    """
+
+    resources = load_linked_pdfs(
+        connection,
+        job_id=job.id,
+        worker_id=worker_id,
+        attempt_count=job.attempt_count,
+    )
+    config_hash = parser_config_hash()
     dependency_hash = _stable_hash(
         {
-            "stage_version": stage_version,
-            "ingestion_version_id": str(job.target_version_id),
+            "stage_version": RESOURCES_STAGE_VERSION,
+            "parser_version": PARSER_VERSION,
+            "parser_config_hash": config_hash,
+            "resources": [
+                [str(item.id), item.origin, item.source_url, item.content_hash]
+                for item in resources
+            ],
         }
     )
     checkpoint = begin_stage_checkpoint(
@@ -559,33 +595,193 @@ def _run_deferred_stage(
         job_id=job.id,
         worker_id=worker_id,
         attempt_count=job.attempt_count,
-        stage=stage,
+        stage=Stage.RESOURCES,
         dependency_hash=dependency_hash,
     )
-    if not checkpoint.reused:
-        complete_stage_checkpoint(
+    work_dir = Path(work_dir)
+    try:
+        if not checkpoint.reused:
+            outcomes = [
+                _ingest_pdf_resource(
+                    connection,
+                    job=job,
+                    worker_id=worker_id,
+                    resource=resource,
+                    work_dir=work_dir,
+                    config_hash=config_hash,
+                    dependencies=dependencies,
+                )
+                for resource in resources
+            ]
+            complete_stage_checkpoint(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+                stage=Stage.RESOURCES,
+                dependency_hash=dependency_hash,
+                output_manifest={
+                    "stage_version": RESOURCES_STAGE_VERSION,
+                    "parser_version": PARSER_VERSION,
+                    "parser_config_hash": config_hash,
+                    "resource_count": len(resources),
+                    "ready_count": sum(
+                        1 for item in outcomes if item["status"] == "ready"
+                    ),
+                    "failed_count": sum(
+                        1 for item in outcomes if item["status"] == "failed"
+                    ),
+                    "page_count": sum(item.get("page_count") or 0 for item in outcomes),
+                    "resources": outcomes,
+                },
+            )
+        with connection.transaction():
+            advance_stage(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+                next_stage=Stage.FRAME_SELECTION,
+            )
+            return release_claim(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+            )
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def _ingest_pdf_resource(
+    connection: Connection,
+    *,
+    job: VideoIngestionJob,
+    worker_id: str,
+    resource: PendingResource,
+    work_dir: Path,
+    config_hash: str,
+    dependencies: VideoPipelineDependencies,
+) -> dict[str, Any]:
+    stored_pages = stored_page_count(
+        connection,
+        owner_id=job.owner_id,
+        resource_id=resource.id,
+        parser_config_hash=config_hash,
+    )
+    if resource.status == "ready" and resource.is_stored and stored_pages:
+        # Adding a second PDF re-runs this stage; the first must not be
+        # downloaded and reparsed to reach the same bytes and pages.
+        return {
+            "resource_id": str(resource.id),
+            "status": "reused",
+            "page_count": stored_pages,
+        }
+    try:
+        source = _pdf_source_path(
+            job=job,
+            resource=resource,
+            work_dir=work_dir,
+            dependencies=dependencies,
+        )
+        parsed = parse_pdf_pages(source.path)
+        page_count = persist_resource_pages(
             connection,
             job_id=job.id,
             worker_id=worker_id,
             attempt_count=job.attempt_count,
-            stage=stage,
-            dependency_hash=dependency_hash,
-            output_manifest={"stage_version": stage_version, "deferred": True},
+            resource_id=resource.id,
+            storage_backend=dependencies.media_store.backend,
+            storage_key=source.storage_key,
+            content_hash=source.content_hash,
+            size_bytes=source.size_bytes,
+            page_count=parsed.page_count,
+            pages=parsed.pages,
+            parser_version=PARSER_VERSION,
+            parser_config_hash=config_hash,
+            provenance={
+                **parsed.provenance,
+                "parser_config_hash": config_hash,
+                "source_url": resource.source_url,
+            },
         )
-    with connection.transaction():
-        advance_stage(
+    except (
+        ResourceAcquisitionError,
+        ResourceParseError,
+        MediaStoreError,
+    ) as error:
+        mark_resource_failed(
             connection,
             job_id=job.id,
             worker_id=worker_id,
             attempt_count=job.attempt_count,
-            next_stage=next_stage,
+            resource_id=resource.id,
+            reason=str(error),
         )
-        return release_claim(
-            connection,
-            job_id=job.id,
-            worker_id=worker_id,
-            attempt_count=job.attempt_count,
+        return {
+            "resource_id": str(resource.id),
+            "status": "failed",
+            "error": str(error)[:200],
+            "required": resource.required,
+        }
+    return {
+        "resource_id": str(resource.id),
+        "status": "ready",
+        "page_count": page_count,
+        "is_slide_deck": parsed.is_slide_deck,
+    }
+
+
+@dataclass(frozen=True)
+class _ResourceBytes:
+    path: Path
+    storage_key: str
+    content_hash: str
+    size_bytes: int
+
+
+def _pdf_source_path(
+    *,
+    job: VideoIngestionJob,
+    resource: PendingResource,
+    work_dir: Path,
+    dependencies: VideoPipelineDependencies,
+) -> _ResourceBytes:
+    """Return canonical local bytes, downloading the document once if needed."""
+
+    if resource.is_stored:
+        path = dependencies.media_store.open_path(
+            owner_id=job.owner_id, storage_key=resource.storage_key
         )
+        return _ResourceBytes(
+            path=path,
+            storage_key=resource.storage_key,
+            content_hash=resource.content_hash or "",
+            size_bytes=path.stat().st_size,
+        )
+    if not resource.source_url:
+        raise ResourceAcquisitionError("resource has neither stored bytes nor a URL")
+    downloader = dependencies.pdf_downloader or download_pdf
+    downloaded = downloader(
+        resource.source_url,
+        work_dir / "resources" / f"{resource.id}.pdf",
+        maximum_bytes=maximum_resource_bytes(),
+    )
+    stored = dependencies.media_store.import_file(
+        owner_id=job.owner_id,
+        source=downloaded.path,
+        namespace="resources",
+        extension=".pdf",
+        maximum_bytes=maximum_resource_bytes(),
+    )
+    return _ResourceBytes(
+        path=dependencies.media_store.open_path(
+            owner_id=job.owner_id, storage_key=stored.storage_key
+        ),
+        storage_key=stored.storage_key,
+        content_hash=stored.content_hash,
+        size_bytes=stored.size_bytes,
+    )
 
 
 def _run_frame_selection(
@@ -1145,6 +1341,7 @@ def _run_indexing(
     worker_id: str,
 ) -> VideoIngestionJob:
     transcript = _completed_manifest(connection, job=job, stage=Stage.TRANSCRIPT)
+    resources = _completed_manifest(connection, job=job, stage=Stage.RESOURCES)
     visual = _completed_manifest(
         connection, job=job, stage=Stage.VISUAL_ANALYSIS
     )
@@ -1155,6 +1352,7 @@ def _run_indexing(
         {
             "stage_version": INDEX_STAGE_VERSION,
             "transcript": transcript,
+            "resources": resources,
             "visual": visual,
             "spatial": spatial,
         }
@@ -1188,6 +1386,7 @@ def _run_indexing(
                     "transcript_count": built.transcript_count,
                     "visual_frame_count": built.visual_frame_count,
                     "visual_event_count": built.visual_event_count,
+                    "resource_page_count": built.resource_page_count,
                     "total_count": built.total_count,
                     "retrieval": "postgres-simple-fts",
                 },
