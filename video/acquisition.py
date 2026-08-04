@@ -13,6 +13,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import subprocess
 from typing import Protocol
 
@@ -25,6 +26,14 @@ MAXIMUM_METADATA_BYTES = 10 * 1024 * 1024
 DOWNLOAD_TIMEOUT_SECONDS = 2 * 60 * 60
 PROBE_TIMEOUT_SECONDS = 30
 VIDEO_FORMAT = "bv*[height<=1080]+ba/b[height<=1080]"
+MAXIMUM_FAILURE_DETAIL = 600
+# Signed URLs, cookies, bearer-ish tokens, and absolute paths, all of which a
+# downloader prints freely and none of which belong in a log.
+_REDACTED = re.compile(
+    r"https?://\S+"
+    r"|\b[A-Za-z0-9_-]{32,}\b"
+    r"|(?<![\w.])/(?:[\w.-]+/){2,}[\w.-]*"
+)
 ENGLISH_SUBTITLE_LANGUAGES = "en.*"
 
 
@@ -407,7 +416,21 @@ def _milliseconds(value: object, label: str, *, allow_zero: bool) -> int:
 
 
 def _command_failure(command: str, stderr: str) -> str:
-    # Provider stderr may contain signed URLs, cookies, or local paths. It is
-    # intentionally excluded from the exception that callers may record.
-    del stderr
-    return f"{command} failed"
+    """Keep enough of a tool failure to diagnose it, with secrets removed.
+
+    Dropping stderr entirely was the safe choice and the wrong one: a download
+    that failed in production reported only "yt-dlp failed", which is the same
+    sentence for a blocked request, a missing format, and an unplayable video.
+    Signed URLs, cookies, tokens, and local paths really can appear here, so
+    they are replaced; the tool's own error sentence, which is the part an
+    operator needs, survives.
+    """
+
+    lines = [line.strip() for line in (stderr or "").splitlines() if line.strip()]
+    if not lines:
+        return f"{command} failed"
+    # yt-dlp explains itself on its ERROR lines and warns loudly on the rest.
+    reported = [line for line in lines if line.upper().startswith("ERROR")] or lines
+    detail = _REDACTED.sub("[redacted]", " ".join(reported))
+    detail = " ".join(detail.split())[-MAXIMUM_FAILURE_DETAIL:]
+    return f"{command} failed: {detail}" if detail else f"{command} failed"

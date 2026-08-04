@@ -129,6 +129,50 @@ class VideoAcquisitionTests(unittest.TestCase):
             )
         self.assertEqual(runner.calls, [])
 
+    def test_a_failed_download_reports_why_without_leaking_secrets(self) -> None:
+        stderr = (
+            "WARNING: [youtube] n challenge solving failed\n"
+            "ERROR: [youtube] Ub3GoFaUcds: Sign in to confirm you are not a bot; "
+            "cookies at /home/worker/secrets/cookies.txt, url "
+            "https://rr3.googlevideo.com/playback?sig=SECRET, token "
+            "abcdefghijklmnopqrstuvwxyz0123456789\n"
+        )
+
+        def failing(argv: tuple[str, ...], *, timeout_seconds: int) -> Result:
+            del argv, timeout_seconds
+            return Result(returncode=1, stderr=stderr)
+
+        with self.assertRaises(AcquisitionError) as caught:
+            acquire_youtube(
+                f"https://www.youtube.com/watch?v={VIDEO_ID}",
+                self.root,
+                expected_video_id=VIDEO_ID,
+                runner=failing,
+            )
+
+        message = str(caught.exception)
+        # The operator needs the provider's own sentence: without it, a blocked
+        # request and a missing format are the same unreadable failure.
+        self.assertIn("Sign in to confirm you are not a bot", message)
+        self.assertNotIn("googlevideo.com", message)
+        self.assertNotIn("SECRET", message)
+        self.assertNotIn("/home/worker/secrets", message)
+        self.assertNotIn("abcdefghijklmnopqrstuvwxyz0123456789", message)
+        self.assertLessEqual(len(message), 700)
+
+    def test_a_silent_tool_failure_still_names_the_tool(self) -> None:
+        def failing(argv: tuple[str, ...], *, timeout_seconds: int) -> Result:
+            del argv, timeout_seconds
+            return Result(returncode=1, stderr="   \n  ")
+
+        with self.assertRaisesRegex(AcquisitionError, r"^yt-dlp failed$"):
+            acquire_youtube(
+                f"https://www.youtube.com/watch?v={VIDEO_ID}",
+                self.root,
+                expected_video_id=VIDEO_ID,
+                runner=failing,
+            )
+
     def test_downloaded_identity_must_match_expected_video(self) -> None:
         runner = RecordingRunner(self.root, returned_id="9bZkp7q19f0")
         with self.assertRaisesRegex(AcquisitionError, "different YouTube video"):
