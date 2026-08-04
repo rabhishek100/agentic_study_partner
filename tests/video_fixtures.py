@@ -7,6 +7,7 @@ helpers makes pytest collect that suite twice.
 
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import UUID, uuid4
 
 import cv2
@@ -34,6 +35,7 @@ from video.transcripts import parse_webvtt
 
 __all__ = [
     "FakeRegionEmbedder",
+    "encoded_video_bytes",
     "FakeTextEmbedder",
     "FakeYouTubeAcquirer",
     "PublishedVideo",
@@ -48,6 +50,46 @@ DURATION_MS = 600_000
 # that matches only speech has to broaden its retrieval to find them.
 TRANSCRIPT_TEXT = "today I will use the board to explain this"
 FRAME_TIMESTAMPS = (120_000, 130_000)
+
+
+_ENCODED_VIDEO: bytes | None = None
+
+
+def encoded_video_bytes() -> bytes:
+    """A real, tiny, decodable mp4 for fixtures that stand in for a source.
+
+    Fixtures used to write a few ASCII bytes and call it a video. Acquisition
+    now proves a frame decodes before promoting a source — the check that a
+    production upload needed and did not have — so a fixture source has to be
+    something a decoder can actually open.
+    """
+
+    global _ENCODED_VIDEO
+    if _ENCODED_VIDEO is None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "fixture.mp4"
+            writer = cv2.VideoWriter(
+                str(path), cv2.VideoWriter_fourcc(*"avc1"), 5, (320, 180)
+            )
+            if not writer.isOpened():  # pragma: no cover - local codec support
+                writer = cv2.VideoWriter(
+                    str(path), cv2.VideoWriter_fourcc(*"mp4v"), 5, (320, 180)
+                )
+            for index in range(10):
+                frame = np.full((180, 320, 3), 255, dtype=np.uint8)
+                cv2.putText(
+                    frame,
+                    "ATTENTION" if index < 5 else "OUTPUT",
+                    (20, 100),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (0, 0, 0),
+                    3,
+                )
+                writer.write(frame)
+            writer.release()
+            _ENCODED_VIDEO = path.read_bytes()
+    return _ENCODED_VIDEO
 
 
 @dataclass(frozen=True)
@@ -228,7 +270,7 @@ class FakeYouTubeAcquirer:
         video = root / "source.mp4"
         info = root / "source.info.json"
         caption = root / "source.en.vtt"
-        video.write_bytes(b"youtube-video")
+        video.write_bytes(encoded_video_bytes())
         info.write_text('{"id":"abcdefghijk"}', encoding="utf-8")
         caption.write_text(
             "WEBVTT\n\n00:00.000 --> 00:10.000\nhello\n",
@@ -250,7 +292,7 @@ class FakeYouTubeAcquirer:
                 video_codec="h264",
                 audio_codec="aac",
                 format_name="mov,mp4",
-                size_bytes=len(b"youtube-video"),
+                size_bytes=len(encoded_video_bytes()),
             ),
             chapters=(Chapter(0, "Complete lecture", 0, 10_000),),
         )

@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from api.auth import current_owner
 from api.main import app
 from storage.database import connection, resolve_database_url
+from tests.video_fixtures import encoded_video_bytes
 from video.acquisition import MediaMetadata
 from video.jobs import claim_next_job, get_job
 from video.media_store import FilesystemMediaStore
@@ -25,7 +26,7 @@ VTT = (
     "00:00.000 --> 00:04.000\nattention is all you need\n\n"
     "00:04.000 --> 00:09.500\nqueries keys and values are compared\n"
 )
-PAYLOAD = b"uploaded-lecture-bytes"
+PAYLOAD = encoded_video_bytes()
 
 
 class VideoCaptionUploadTests(unittest.IsolatedAsyncioTestCase):
@@ -73,7 +74,7 @@ class VideoCaptionUploadTests(unittest.IsolatedAsyncioTestCase):
         writer = self.store.writer(
             owner_id=self.owner,
             storage_key=created.upload_storage_key,
-            maximum_bytes=1024,
+            maximum_bytes=len(PAYLOAD) + 1,
         )
         writer.write(PAYLOAD)
         staged = writer.finish(expected_size=len(PAYLOAD))

@@ -20,6 +20,7 @@ from video.acquisition import (
     MediaMetadata,
     acquire_youtube,
     probe_media,
+    verify_decodable,
 )
 from video.jobs import (
     VideoIngestionJob,
@@ -189,6 +190,7 @@ def run_acquire_source(
                 owner_id=job.owner_id,
                 storage_key=target.staging_storage_key,
             )
+            verify_decodable(media_path)
             media = dependencies.media_probe(media_path)
             provider = "upload"
             acquisition_version = UPLOAD_ACQUISITION_VERSION

@@ -25,7 +25,13 @@ DEFAULT_MAXIMUM_BYTES = 2 * 1024 * 1024 * 1024
 MAXIMUM_METADATA_BYTES = 10 * 1024 * 1024
 DOWNLOAD_TIMEOUT_SECONDS = 2 * 60 * 60
 PROBE_TIMEOUT_SECONDS = 30
-VIDEO_FORMAT = "bv*[height<=1080]+ba/b[height<=1080]"
+# H.264 first, deliberately. "Best video under 1080p" resolves to AV1 on
+# modern YouTube, which the deployed image cannot decode; the later branches
+# keep older or unusual uploads reachable rather than refusing them outright.
+VIDEO_FORMAT = (
+    "bv*[vcodec^=avc1][height<=1080]+ba/b[vcodec^=avc1][height<=1080]"
+    "/bv*[height<=1080]+ba/b[height<=1080]"
+)
 MAXIMUM_FAILURE_DETAIL = 600
 # Signed URLs, cookies, bearer-ish tokens, and absolute paths, all of which a
 # downloader prints freely and none of which belong in a log.
@@ -190,6 +196,7 @@ def acquire_youtube(
     if size_bytes > maximum_bytes:
         raise AcquisitionError("downloaded video exceeds the configured size limit")
 
+    verify_decodable(video_path)
     media = probe_media(video_path, runner=runner)
     if media.height > MAXIMUM_HEIGHT:
         raise AcquisitionError("downloaded video exceeds the 1080p limit")
@@ -209,6 +216,35 @@ def acquire_youtube(
         media=media,
         chapters=chapters,
     )
+
+
+def verify_decodable(path: Path) -> None:
+    """Prove the frame reader can actually read this file, here, now.
+
+    Probing tells you what a container claims to hold; it does not tell you
+    whether this machine can decode it. A 1080p AV1 lecture probed cleanly and
+    then failed four stages later with "the source is not a playable video",
+    because the deployed image's OpenCV build has no AV1 decoder while the
+    developer's does. Reading one frame at acquisition turns that into an
+    immediate, explainable rejection instead of a late, misleading one.
+    """
+
+    import cv2
+
+    capture = cv2.VideoCapture(str(path))
+    try:
+        if not capture.isOpened():
+            raise AcquisitionError(
+                "this server cannot open the video; re-encode it as H.264"
+            )
+        readable, frame = capture.read()
+        if not readable or frame is None:
+            raise AcquisitionError(
+                "this server cannot decode the video's frames, which usually "
+                "means an unsupported codec such as AV1; re-encode it as H.264"
+            )
+    finally:
+        capture.release()
 
 
 def probe_media(

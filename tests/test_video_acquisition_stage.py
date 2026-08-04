@@ -13,6 +13,7 @@ from tests.test_video_embeddings import FakeRegionEmbedder, FakeTextEmbedder
 from tests.test_video_resources import write_deck
 from tests.video_fixtures import (
     FakeYouTubeAcquirer,
+    encoded_video_bytes,
     analyze_two_frames,
     select_two_frames,
 )
@@ -117,12 +118,12 @@ class VideoAcquisitionStageTests(unittest.TestCase):
         self.store.verify_object(
             owner_id=self.owner,
             storage_key=source["storage_key"],
-            expected_size=len(b"youtube-video"),
+            expected_size=len(encoded_video_bytes()),
             expected_hash=source["content_hash"],
         )
 
     def test_uploaded_object_is_verified_probed_and_promoted(self) -> None:
-        payload = b"uploaded-video"
+        payload = encoded_video_bytes()
         work_dir = self.root / "work" / "upload"
         with connection(self.database_url) as database:
             created = initialize_video_upload(
@@ -136,7 +137,7 @@ class VideoAcquisitionStageTests(unittest.TestCase):
             writer = self.store.writer(
                 owner_id=self.owner,
                 storage_key=created.upload_storage_key,
-                maximum_bytes=100,
+                maximum_bytes=len(payload) + 1,
             )
             writer.write(payload)
             staged = writer.finish(expected_size=len(payload))
@@ -371,7 +372,7 @@ class VideoAcquisitionStageTests(unittest.TestCase):
         self.assertEqual(gates["resource_page_evidence_count"], 3)
 
     def test_upload_without_captions_uses_budgeted_openrouter_audio(self) -> None:
-        payload = b"uploaded-video-with-audio"
+        payload = encoded_video_bytes()
         calls = []
 
         def probe(path: Path) -> MediaMetadata:
@@ -452,7 +453,7 @@ class VideoAcquisitionStageTests(unittest.TestCase):
             writer = self.store.writer(
                 owner_id=self.owner,
                 storage_key=created.upload_storage_key,
-                maximum_bytes=100,
+                maximum_bytes=len(payload) + 1,
             )
             writer.write(payload)
             staged = writer.finish(expected_size=len(payload))

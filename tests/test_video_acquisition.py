@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from tests.video_fixtures import encoded_video_bytes
 from video.acquisition import (
     AcquisitionError,
     acquire_youtube,
@@ -35,7 +36,7 @@ class RecordingRunner:
     def __call__(self, argv: tuple[str, ...], *, timeout_seconds: int) -> Result:
         self.calls.append((argv, timeout_seconds))
         if argv[0] == "yt-dlp":
-            (self.root / "source.mp4").write_bytes(b"validated-video")
+            (self.root / "source.mp4").write_bytes(encoded_video_bytes())
             (self.root / "source.en.vtt").write_text("WEBVTT\n", encoding="utf-8")
             (self.root / "source.info.json").write_text(
                 json.dumps(
@@ -92,10 +93,11 @@ class VideoAcquisitionTests(unittest.TestCase):
         self.assertEqual(download[0], "yt-dlp")
         self.assertIn("--no-playlist", download)
         self.assertEqual(download[download.index("--max-downloads") + 1], "1")
-        self.assertEqual(
-            download[download.index("--format") + 1],
-            "bv*[height<=1080]+ba/b[height<=1080]",
-        )
+        # H.264 is requested first: the deployed image cannot decode the AV1
+        # that "best video under 1080p" now resolves to on YouTube.
+        requested_format = download[download.index("--format") + 1]
+        self.assertTrue(requested_format.startswith("bv*[vcodec^=avc1]"))
+        self.assertIn("/bv*[height<=1080]+ba/b[height<=1080]", requested_format)
         self.assertEqual(download[download.index("--max-filesize") + 1], "123456")
         self.assertIn("--write-subs", download)
         self.assertIn("--write-auto-subs", download)
@@ -200,7 +202,7 @@ class VideoAcquisitionTests(unittest.TestCase):
 
     def test_probe_requires_json_video_stream_and_positive_duration(self) -> None:
         path = self.root / "source.mp4"
-        path.write_bytes(b"video")
+        path.write_bytes(encoded_video_bytes())
         invalid_outputs = (
             "not-json",
             json.dumps({"streams": [], "format": {"duration": "10"}}),
@@ -227,7 +229,7 @@ class VideoAcquisitionTests(unittest.TestCase):
 
     def test_probe_uses_an_argv_vector_without_a_shell(self) -> None:
         path = self.root / "a video; touch nope.mp4"
-        path.write_bytes(b"video")
+        path.write_bytes(encoded_video_bytes())
         calls: list[tuple[str, ...]] = []
 
         def runner(argv: tuple[str, ...], *, timeout_seconds: int) -> Result:
