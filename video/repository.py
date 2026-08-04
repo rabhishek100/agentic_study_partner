@@ -307,6 +307,368 @@ def initialize_video_upload(
     )
 
 
+# What a replacement version inherits instead of recomputing. Everything from
+# the source through visual interpretation is decided by content that has not
+# changed, and two of these stages are the only ones that pay a model. The
+# resource stage onward always re-runs: that is where a newly attached
+# document enters, and what the evidence and answers are rebuilt from.
+CARRIED_STAGES = (
+    "acquire_source",
+    "media_metadata",
+    "transcript",
+    "frame_selection",
+    "ocr",
+    "visual_analysis",
+    "spatial_regions",
+)
+
+
+def reingest_video(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    idempotency_key: str | UUID,
+) -> VideoCreation:
+    """Build a replacement version, reusing every compatible earlier stage.
+
+    Attaching slides to a lecture that already finished must not re-download
+    the video, re-transcribe it, or pay the visual model again. The new
+    version inherits those stages and their derived rows, so the work that
+    actually re-runs is reading the new document and rebuilding the retrieval
+    layer on top of it.
+
+    The published version stays queryable throughout: the swap happens once,
+    atomically, when the replacement passes its own quality gates.
+    """
+
+    owner, video, key = (
+        parse_owner_id(owner_id),
+        UUID(str(video_id)),
+        UUID(str(idempotency_key)),
+    )
+    existing = _existing_creation(connection, owner, key)
+    if existing is not None:
+        return existing
+    with connection.transaction():
+        current = connection.execute(
+            """
+            select v.id, v.source_kind, v.current_ingestion_version_id,
+                   s.id as source_id, s.status as source_status
+            from video.videos as v
+            join video.video_sources as s
+              on s.video_id = v.id and s.owner_id = v.owner_id and s.is_primary
+            where v.id = %s and v.owner_id = %s
+            for update of v
+            """,
+            (video, owner),
+        ).fetchone()
+        if current is None:
+            raise VideoNotFoundError("video does not exist")
+        if current["source_status"] != "ready":
+            raise VideoConflictError("video source is not acquired yet")
+        if current["current_ingestion_version_id"] is None:
+            raise VideoConflictError("video has no published version to rebuild")
+        active = connection.execute(
+            """
+            select 1 from video.ingestion_jobs
+            where owner_id = %s and video_id = %s
+              and status in (
+                  'awaiting_upload', 'queued', 'running', 'retry_scheduled'
+              )
+            """,
+            (owner, video),
+        ).fetchone()
+        if active is not None:
+            raise VideoConflictError("video ingestion is already in progress")
+
+        source_version = current["current_ingestion_version_id"]
+        version_id, job_id = uuid4(), uuid4()
+        connection.execute(
+            """
+            insert into video.ingestion_versions (
+                id, owner_id, video_id, video_source_id, version_number,
+                config_json, config_hash, cost_cap_usd
+            )
+            select %s, %s, %s, %s, coalesce(max(version_number), 0) + 1,
+                   %s, %s, %s
+            from video.ingestion_versions
+            where owner_id = %s and video_id = %s
+            """,
+            (
+                version_id,
+                owner,
+                video,
+                current["source_id"],
+                Jsonb(INGESTION_CONFIG),
+                _config_hash(),
+                DEFAULT_INGESTION_CAP_USD,
+                owner,
+                video,
+            ),
+        )
+        carried = _carry_forward(
+            connection,
+            owner=owner,
+            video=video,
+            source_version=source_version,
+            target_version=version_id,
+        )
+        connection.execute(
+            """
+            insert into video.ingestion_jobs (
+                id, owner_id, video_id, target_version_id, idempotency_key,
+                status, stage, cost_cap_usd, provenance_json
+            ) values (%s, %s, %s, %s, %s, 'queued', 'acquire_source', %s, %s)
+            """,
+            (
+                job_id,
+                owner,
+                video,
+                version_id,
+                key,
+                DEFAULT_INGESTION_CAP_USD,
+                Jsonb({"reingest_of_version": str(source_version), **carried}),
+            ),
+        )
+        connection.execute(
+            """
+            insert into video.ingestion_job_events (
+                owner_id, job_id, event_type, status, stage, message
+            ) values (%s, %s, 'created', 'queued', 'acquire_source', %s)
+            """,
+            (owner, job_id, "Rebuilding with the current linked documents"),
+        )
+    return VideoCreation(
+        video_id=video,
+        source_id=current["source_id"],
+        version_id=version_id,
+        job_id=job_id,
+        source_kind=current["source_kind"],
+        job_status="queued",
+        created=True,
+        upload_storage_key=None,
+    )
+
+
+def _carry_forward(
+    connection: Connection,
+    *,
+    owner: UUID,
+    video: UUID,
+    source_version: UUID,
+    target_version: UUID,
+) -> dict[str, int]:
+    """Copy version-scoped derived rows and their completed checkpoints.
+
+    The rows are metadata pointing at content-addressed objects that already
+    exist, so copying them is cheap and keeps every stage's own query — which
+    filters by ingestion version — working unchanged.
+    """
+
+    frames: dict[int, int] = {}
+    for row in connection.execute(
+        """
+        select * from video.frames
+        where owner_id = %s and video_id = %s and ingestion_version_id = %s
+        order by frame_index
+        """,
+        (owner, video, source_version),
+    ).fetchall():
+        frames[row["id"]] = connection.execute(
+            """
+            insert into video.frames (
+                owner_id, video_id, ingestion_version_id, frame_index,
+                timestamp_ms, selection_reasons, full_storage_backend,
+                full_storage_key, full_content_hash, preview_storage_backend,
+                preview_storage_key, preview_content_hash, perceptual_hash,
+                width, height, ocr_text, ocr_confidence, ocr_engine,
+                ocr_version
+            ) values (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s
+            ) returning id
+            """,
+            (
+                owner,
+                video,
+                target_version,
+                row["frame_index"],
+                row["timestamp_ms"],
+                row["selection_reasons"],
+                row["full_storage_backend"],
+                row["full_storage_key"],
+                row["full_content_hash"],
+                row["preview_storage_backend"],
+                row["preview_storage_key"],
+                row["preview_content_hash"],
+                row["perceptual_hash"],
+                row["width"],
+                row["height"],
+                row["ocr_text"],
+                row["ocr_confidence"],
+                row["ocr_engine"],
+                row["ocr_version"],
+            ),
+        ).fetchone()["id"]
+
+    observations: dict[int, int] = {}
+    for row in connection.execute(
+        """
+        select * from video.visual_observations
+        where owner_id = %s and video_id = %s and ingestion_version_id = %s
+        order by id
+        """,
+        (owner, video, source_version),
+    ).fetchall():
+        observations[row["id"]] = connection.execute(
+            """
+            insert into video.visual_observations (
+                owner_id, video_id, ingestion_version_id, frame_id, status,
+                visual_types, summary, visible_text, technical_details_json,
+                importance, confidence, model_name, model_revision,
+                prompt_version, input_hash, cost_usd
+            ) values (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0
+            ) returning id
+            """,
+            (
+                owner,
+                video,
+                target_version,
+                frames[row["frame_id"]],
+                row["status"],
+                row["visual_types"],
+                row["summary"],
+                row["visible_text"],
+                Jsonb(row["technical_details_json"]),
+                row["importance"],
+                row["confidence"],
+                row["model_name"],
+                row["model_revision"],
+                row["prompt_version"],
+                row["input_hash"],
+            ),
+        ).fetchone()["id"]
+
+    regions = 0
+    for row in connection.execute(
+        """
+        select * from video.visual_regions
+        where owner_id = %s and video_id = %s and ingestion_version_id = %s
+        order by id
+        """,
+        (owner, video, source_version),
+    ).fetchall():
+        connection.execute(
+            """
+            insert into video.visual_regions (
+                owner_id, video_id, ingestion_version_id, frame_id,
+                visual_observation_id, region_index, region_type, x, y, width,
+                height, summary, crop_storage_backend, crop_storage_key,
+                crop_content_hash, model_name, model_revision, prompt_version,
+                input_hash, confidence, cost_usd
+            ) values (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, 0
+            )
+            """,
+            (
+                owner,
+                video,
+                target_version,
+                frames[row["frame_id"]],
+                observations[row["visual_observation_id"]],
+                row["region_index"],
+                row["region_type"],
+                row["x"],
+                row["y"],
+                row["width"],
+                row["height"],
+                row["summary"],
+                row["crop_storage_backend"],
+                row["crop_storage_key"],
+                row["crop_content_hash"],
+                row["model_name"],
+                row["model_revision"],
+                row["prompt_version"],
+                row["input_hash"],
+                row["confidence"],
+            ),
+        )
+        regions += 1
+
+    events = 0
+    for row in connection.execute(
+        """
+        select * from video.visual_events
+        where owner_id = %s and video_id = %s and ingestion_version_id = %s
+        order by id
+        """,
+        (owner, video, source_version),
+    ).fetchall():
+        connection.execute(
+            """
+            insert into video.visual_events (
+                owner_id, video_id, ingestion_version_id, start_frame_id,
+                end_frame_id, event_type, start_ms, end_ms, summary,
+                details_json, model_name, model_revision, prompt_version,
+                input_hash, cost_usd
+            ) values (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0
+            )
+            """,
+            (
+                owner,
+                video,
+                target_version,
+                frames[row["start_frame_id"]],
+                frames[row["end_frame_id"]],
+                row["event_type"],
+                row["start_ms"],
+                row["end_ms"],
+                row["summary"],
+                Jsonb(row["details_json"]),
+                row["model_name"],
+                row["model_revision"],
+                row["prompt_version"],
+                row["input_hash"],
+            ),
+        )
+        events += 1
+
+    checkpoints = connection.execute(
+        """
+        insert into video.ingestion_stage_checkpoints (
+            owner_id, video_id, ingestion_version_id, stage, status,
+            dependency_hash, output_manifest_json, provenance_json,
+            actual_cost_usd, attempt_count, reused_from_checkpoint_id,
+            started_at, completed_at
+        )
+        select owner_id, video_id, %s, stage, 'complete', dependency_hash,
+               output_manifest_json, provenance_json, 0, 0, id, now(), now()
+        from video.ingestion_stage_checkpoints
+        where owner_id = %s and video_id = %s and ingestion_version_id = %s
+          and status = 'complete' and stage = any(%s)
+        returning id
+        """,
+        (
+            target_version,
+            owner,
+            video,
+            source_version,
+            list(CARRIED_STAGES),
+        ),
+    ).fetchall()
+    return {
+        "carried_frames": len(frames),
+        "carried_observations": len(observations),
+        "carried_regions": regions,
+        "carried_events": events,
+        "carried_stages": len(checkpoints),
+    }
+
+
 VIDEO_SELECT = """
     select v.id, v.title, v.description, v.source_kind, v.duration_ms,
            v.readiness_status, v.playback_json, v.created_at, v.updated_at,

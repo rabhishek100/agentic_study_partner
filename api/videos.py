@@ -44,6 +44,7 @@ from video.repository import (
     load_resource_upload_target,
     load_video_upload_target,
     maximum_upload_bytes,
+    reingest_video,
     update_video_metadata,
 )
 from video.resources import maximum_resource_bytes
@@ -531,6 +532,46 @@ async def delete_video(video_id: UUID, owner_id: UUID = Depends(current_owner)) 
     if not removed:
         raise HTTPException(status_code=409, detail="video cannot be deleted while acquired or running")
     return Response(status_code=204)
+
+
+@videos_router.post("/{video_id}/reingest", status_code=status.HTTP_202_ACCEPTED)
+async def reingest(
+    video_id: UUID,
+    response: Response,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    owner_id: UUID = Depends(current_owner),
+) -> CreateVideoResponse:
+    """Rebuild this video's answers from its current set of documents.
+
+    Everything already decided by unchanged content — the download, the
+    transcript, the frames, the paid visual analysis — is inherited by the
+    replacement version. The published version keeps answering questions until
+    the replacement passes its own gates.
+    """
+
+    key = _key(idempotency_key)
+
+    def start():
+        with database_connection() as database:
+            return reingest_video(
+                database, owner_id=owner_id, video_id=video_id, idempotency_key=key
+            )
+
+    try:
+        created = await run_in_threadpool(start)
+    except VideoNotFoundError as error:
+        raise VIDEO_NOT_FOUND from error
+    except VideoConflictError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if not created.created:
+        response.status_code = status.HTTP_200_OK
+    response.headers["Location"] = f"/api/video-ingestions/{created.job_id}"
+    return CreateVideoResponse(
+        video_id=created.video_id,
+        ingestion_job_id=created.job_id,
+        source_kind=created.source_kind,
+        ingestion_status=created.job_status,
+    )
 
 
 @videos_router.get("/{video_id}/resources")

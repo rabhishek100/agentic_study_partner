@@ -1164,8 +1164,11 @@ def _run_spatial_regions(
     dependency_hash = _stable_hash(
         {
             "stage_version": SPATIAL_STAGE_VERSION,
+            # Identified by what the observation says, not by its row id: a
+            # replacement version copies these rows and would otherwise re-crop
+            # identical regions just because the copies were numbered anew.
             "observations": [
-                [row["id"], row["input_hash"], row["technical_details_json"]]
+                [row["input_hash"], row["technical_details_json"]]
                 for row in observations
             ],
         }

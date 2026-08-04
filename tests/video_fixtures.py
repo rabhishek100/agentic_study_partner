@@ -1,9 +1,28 @@
-"""Shared setup for tests that need a published, answerable video."""
+"""Shared setup for tests that need a published, answerable video.
+
+The pipeline fakes live here rather than in one suite because more than one
+suite drives the real stage machinery: importing a TestCase to borrow its
+helpers makes pytest collect that suite twice.
+"""
 
 from dataclasses import dataclass
+from pathlib import Path
 from uuid import UUID, uuid4
 
+import cv2
+import numpy as np
 from psycopg.types.json import Jsonb
+
+from video.acquisition import Chapter, DownloadedSource, MediaMetadata
+from video.frames import FrameCandidate
+from video.vision import (
+    FrameVisualAnalysis,
+    TechnicalDetails,
+    VisualAnalysis,
+    VisualProvenance,
+    VisualRegion,
+    VisualTransition,
+)
 
 from tests.test_video_embeddings import FakeRegionEmbedder, FakeTextEmbedder
 from video.evidence_store import rebuild_evidence
@@ -16,8 +35,11 @@ from video.transcripts import parse_webvtt
 __all__ = [
     "FakeRegionEmbedder",
     "FakeTextEmbedder",
+    "FakeYouTubeAcquirer",
     "PublishedVideo",
+    "analyze_two_frames",
     "publish_video_with_evidence",
+    "select_two_frames",
 ]
 
 DURATION_MS = 600_000
@@ -184,4 +206,149 @@ def publish_video_with_evidence(
         source_id=created.source_id,
         title=title,
         frame_ids=tuple(frame_ids),
+    )
+
+
+class FakeYouTubeAcquirer:
+    def __init__(self, *, on_call=None) -> None:
+        self.calls = 0
+        self.on_call = on_call
+
+    def __call__(
+        self,
+        source_url,
+        destination,
+        *,
+        expected_video_id,
+        maximum_bytes,
+    ) -> DownloadedSource:
+        del source_url, maximum_bytes
+        self.calls += 1
+        root = Path(destination).resolve()
+        video = root / "source.mp4"
+        info = root / "source.info.json"
+        caption = root / "source.en.vtt"
+        video.write_bytes(b"youtube-video")
+        info.write_text('{"id":"abcdefghijk"}', encoding="utf-8")
+        caption.write_text(
+            "WEBVTT\n\n00:00.000 --> 00:10.000\nhello\n",
+            encoding="utf-8",
+        )
+        if self.on_call is not None:
+            self.on_call()
+        return DownloadedSource(
+            video_id=expected_video_id,
+            title="Lecture 1",
+            description="Stanford course lecture",
+            video_path=video,
+            info_path=info,
+            caption_paths=(caption,),
+            media=MediaMetadata(
+                duration_ms=10_000,
+                width=1920,
+                height=1080,
+                video_codec="h264",
+                audio_codec="aac",
+                format_name="mov,mp4",
+                size_bytes=len(b"youtube-video"),
+            ),
+            chapters=(Chapter(0, "Complete lecture", 0, 10_000),),
+        )
+
+
+def select_two_frames(
+    video_path: Path, staging_dir: Path, *, chapters
+) -> tuple[FrameCandidate, ...]:
+    del video_path, chapters
+    root = Path(staging_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    candidates = []
+    for index, timestamp in enumerate((0, 9_000)):
+        full = root / f"frame-{index}-full.jpg"
+        preview = root / f"frame-{index}-preview.jpg"
+        image = np.full((100, 160, 3), 40 + index * 100, dtype=np.uint8)
+        cv2.imwrite(str(full), image)
+        cv2.imwrite(str(preview), image)
+        candidates.append(
+            FrameCandidate(
+                frame_index=index,
+                timestamp_ms=timestamp,
+                selection_reasons=(
+                    "first_frame" if index == 0 else "periodic_safeguard",
+                ),
+                full_path=full,
+                preview_path=preview,
+                full_content_hash=f"{index + 1:064x}",
+                preview_content_hash=f"{index + 3:064x}",
+                perceptual_hash=f"{index + 5:016x}",
+                width=160,
+                height=100,
+                difference_score=1.0,
+                chapter_index=0,
+            )
+        )
+    return tuple(candidates)
+
+
+def analyze_two_frames(frames) -> VisualAnalysis:
+    details = TechnicalDetails(
+        concepts=("attention",),
+        relationships=("query connects to key",),
+        equations=(),
+        code_or_commands=(),
+        chart_or_ui_details=(),
+    )
+    values = []
+    for index, frame in enumerate(frames):
+        values.append(
+            FrameVisualAnalysis(
+                frame_index=frame.frame_index,
+                visual_types=("diagram",) if index == 0 else ("slide",),
+                importance=0.9,
+                confidence=0.95,
+                summary=(
+                    "Attention connects queries, keys, and values"
+                    if index == 0
+                    else "The resulting representation feeds the output"
+                ),
+                visible_text="Scaled dot-product attention",
+                technical_details=details,
+                transition_after=(
+                    VisualTransition(
+                        event_type="transition",
+                        summary="The diagram changes to the output representation",
+                        technical_changes=("attention output appears",),
+                    )
+                    if index == 0 and len(frames) > 1
+                    else None
+                ),
+                regions=(
+                    VisualRegion(
+                        region_type="diagram",
+                        x=0.1,
+                        y=0.1,
+                        width=0.8,
+                        height=0.8,
+                        summary="Attention block diagram",
+                        confidence=0.95,
+                    ),
+                )
+                if index == 0
+                else (),
+            )
+        )
+    return VisualAnalysis(
+        sequence_summary="Attention is transformed into an output representation",
+        frames=tuple(values),
+        provenance=VisualProvenance(
+            provider="openrouter",
+            requested_model="openai/gpt-5.6-luna",
+            model="openai/gpt-5.6-luna",
+            input_tokens=100,
+            output_tokens=50,
+            cost_usd=0.001,
+            input_hash="f" * 64,
+            prompt_version="technical-lecture-visual-v1",
+            attempt=1,
+        ),
     )

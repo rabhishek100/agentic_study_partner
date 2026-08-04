@@ -1,10 +1,11 @@
 "use client";
 
-import { ExternalLink, FileText, Search } from "lucide-react";
+import { ExternalLink, FileText, RefreshCw, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useAuthenticatedImage } from "@/hooks/use-authenticated-image";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -24,10 +25,38 @@ const RESOURCE_STATUS: Record<VideoResource["status"], string> = {
 export function ResourcePanel({
   resources,
   onOpen,
+  onRebuild,
+  rebuilding,
 }: {
   resources: VideoResource[];
   onOpen(resource: VideoResource, page?: number): void;
+  onRebuild?: () => void;
+  rebuilding?: boolean;
 }) {
+  // A document attached after ingestion finished is not searchable until the
+  // lecture is rebuilt against it, so say that plainly rather than leaving a
+  // resource that quietly never gets cited.
+  const unread = resources.some(
+    (resource) =>
+      resource.resource_kind === "pdf" && resource.status === "pending",
+  );
+  const rebuild =
+    onRebuild && unread ? (
+      <div className="mb-3 rounded-md border border-border bg-muted/40 p-2">
+        <p className="mb-2 text-xs text-muted-foreground">
+          A document here has not been read yet. Rebuilding indexes it without
+          re-downloading the video or re-running the visual analysis.
+        </p>
+        <Button size="sm" variant="outline" onClick={onRebuild} disabled={rebuilding}>
+          <RefreshCw
+            aria-hidden
+            className={rebuilding ? "animate-spin" : undefined}
+          />
+          {rebuilding ? "Rebuilding…" : "Rebuild with these documents"}
+        </Button>
+      </div>
+    ) : null;
+
   if (resources.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -37,6 +66,7 @@ export function ResourcePanel({
   }
   return (
     <ul className="space-y-2">
+      {rebuild ? <li>{rebuild}</li> : null}
       {resources.map((resource) => (
         <li key={resource.resource_id}>
           <button

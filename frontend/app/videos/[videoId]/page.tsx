@@ -62,6 +62,7 @@ export default function VideoWorkspace() {
     VideoConversationSummary[]
   >([]);
   const [panel, setPanel] = useState<Panel>("resources");
+  const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState("");
   const playerRef = useRef<VideoPlayerHandle>(null);
 
@@ -160,6 +161,22 @@ export default function VideoWorkspace() {
     },
     [send, loadConversations],
   );
+
+  const rebuild = useCallback(async () => {
+    if (rebuilding) return;
+    setRebuilding(true);
+    try {
+      await apiFetch(`/videos/${videoId}/reingest`, {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+      });
+      await loadVideo();
+    } catch (caught) {
+      setError((caught as Error).message || "Could not start the rebuild.");
+    } finally {
+      setRebuilding(false);
+    }
+  }, [rebuilding, videoId, loadVideo]);
 
   const openConversation = useCallback(
     async (id: string) => {
@@ -335,6 +352,8 @@ export default function VideoWorkspace() {
               <ResourcePanel
                 resources={video?.resources ?? []}
                 onOpen={(resource, page) => openResource(resource, page)}
+                onRebuild={video?.ready_for_qa ? rebuild : undefined}
+                rebuilding={rebuilding}
               />
             ) : panel === "timeline" ? (
               <VisualTimeline

@@ -242,6 +242,24 @@ class VideoApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stored["size_bytes"], len(payload))
         self.assertTrue(stored["storage_key"].startswith(f"{self.owner}/staging/"))
 
+    async def test_reingest_requires_a_published_version_and_a_key(self) -> None:
+        created = await self.create_youtube()
+        video_id = created.json()["video_id"]
+        missing_key = await self.client.post(f"/api/videos/{video_id}/reingest")
+        # Nothing has finished yet, so there is nothing to rebuild from.
+        too_early = await self.client.post(
+            f"/api/videos/{video_id}/reingest",
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+        unknown = await self.client.post(
+            f"/api/videos/{uuid4()}/reingest",
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+
+        self.assertEqual(missing_key.status_code, 400)
+        self.assertEqual(too_early.status_code, 409)
+        self.assertEqual(unknown.status_code, 404)
+
     async def test_suggestion_confirm_and_dismiss_contracts(self) -> None:
         created = await self.create_youtube()
         video_id = created.json()["video_id"]
