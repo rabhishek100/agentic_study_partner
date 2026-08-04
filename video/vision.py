@@ -14,6 +14,7 @@ import httpx
 
 from video.errors import redact
 from pydantic import (
+    BeforeValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -299,8 +300,36 @@ class VisualAnalysis:
     provenance: VisualProvenance
 
 
+def _clamped(limit: int) -> Callable[[str], str]:
+    """Trim descriptive text to its limit instead of refusing the response.
+
+    These fields are prose the model wrote about a frame, not a locator or a
+    claim. Rejecting a whole batch — and with it a stage that costs real money
+    and half an hour — because a summary ran twenty characters long trades
+    something valuable for something cosmetic.
+    """
+
+    def clamp(value: str) -> str:
+        text = " ".join(str(value).split())
+        return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+    return clamp
+
+
 ShortText = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)
+    str,
+    BeforeValidator(_clamped(240)),
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=240),
+]
+SummaryText = Annotated[
+    str,
+    BeforeValidator(_clamped(320)),
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=320),
+]
+SequenceText = Annotated[
+    str,
+    BeforeValidator(_clamped(280)),
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=280),
 ]
 
 
@@ -343,11 +372,12 @@ class _FramePayload(_StrictPayload):
     visual_types: list[VisualType] = Field(min_length=1)
     importance: float = Field(ge=0, le=1, allow_inf_nan=False)
     confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
-    summary: Annotated[
+    summary: SummaryText
+    visible_text: Annotated[
         str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=320),
+        BeforeValidator(_clamped(1_000)),
+        StringConstraints(max_length=1_000),
     ]
-    visible_text: Annotated[str, StringConstraints(max_length=1_000)]
     technical_details: _TechnicalDetailsPayload
     transition_after: _TransitionPayload | None
     regions: list[_RegionPayload] = Field(max_length=4)
@@ -363,10 +393,7 @@ class _FramePayload(_StrictPayload):
 
 
 class _AnalysisPayload(_StrictPayload):
-    sequence_summary: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=280),
-    ]
+    sequence_summary: SequenceText
     frames: list[_FramePayload] = Field(min_length=1, max_length=2)
 
 
@@ -520,23 +547,12 @@ def _analysis_prompt(frames: tuple[VisualFrame, ...]) -> str:
 # 400 from the provider, which is how every visual-analysis call in production
 # failed — and the response is validated against the real model afterwards
 # anyway, so dropping them here costs nothing but the model's hint.
-_UNSUPPORTED_SCHEMA_KEYWORDS = frozenset(
-    {
-        "uniqueItems",
-        "minItems",
-        "maxItems",
-        "minLength",
-        "maxLength",
-        "minimum",
-        "maximum",
-        "exclusiveMinimum",
-        "exclusiveMaximum",
-        "multipleOf",
-        "pattern",
-        "format",
-        "default",
-    }
-)
+# Measured against the provider rather than assumed: with "uniqueItems"
+# removed, a schema keeping maxLength, minItems, maxItems, and numeric bounds
+# is accepted. Stripping more than this is actively harmful — dropping
+# maxLength removed the model's only cue about length, and it promptly wrote a
+# summary our own validator then rejected.
+_UNSUPPORTED_SCHEMA_KEYWORDS = frozenset({"uniqueItems"})
 
 
 def strict_schema(node: Any) -> Any:

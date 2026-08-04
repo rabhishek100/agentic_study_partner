@@ -319,8 +319,11 @@ class VisualSchemaTests(unittest.TestCase):
         # output rejects outright: every call 400'd in production because of it.
         self.assertIn("uniqueItems", keywords(VISUAL_ANALYSIS_SCHEMA))
         sanitized = keywords(strict_schema(VISUAL_ANALYSIS_SCHEMA))
-        for keyword in ("uniqueItems", "minItems", "maxItems", "maxLength"):
-            self.assertNotIn(keyword, sanitized)
+        self.assertNotIn("uniqueItems", sanitized)
+        # Everything else the provider accepts, and maxLength in particular is
+        # what keeps the model's prose inside the limits we validate against.
+        for keyword in ("minItems", "maxItems", "maxLength"):
+            self.assertIn(keyword, sanitized)
         # Shape survives; only validation is dropped.
         for keyword in ("type", "properties", "required", "enum", "items"):
             self.assertIn(keyword, sanitized)
@@ -342,3 +345,52 @@ class VisualSchemaTests(unittest.TestCase):
         detail = _provider_failure(error)
         self.assertIn("400", detail)
         self.assertIn("uniqueItems", detail)
+
+
+class VisualToleranceTests(unittest.TestCase):
+    def test_only_the_keyword_the_provider_rejects_is_stripped(self) -> None:
+        import json
+
+        from video.vision import VISUAL_ANALYSIS_SCHEMA, strict_schema
+
+        sent = json.dumps(strict_schema(VISUAL_ANALYSIS_SCHEMA))
+        self.assertNotIn("uniqueItems", sent)
+        # Measured against the live provider: these are accepted, and dropping
+        # maxLength removed the model's only cue about how long to write.
+        self.assertIn("maxLength", sent)
+        self.assertIn("minItems", sent)
+
+    def test_an_over_long_summary_is_trimmed_not_refused(self) -> None:
+        from video.vision import _AnalysisPayload
+
+        payload = _AnalysisPayload.model_validate(
+            {
+                "sequence_summary": "s" * 400,
+                "frames": [
+                    {
+                        "frame_index": 0,
+                        "visual_types": ["slide"],
+                        "importance": 0.5,
+                        "confidence": 0.5,
+                        "summary": "f" * 400,
+                        "visible_text": "v" * 2_000,
+                        "technical_details": {
+                            "concepts": ["c" * 400],
+                            "relationships": [],
+                            "equations": [],
+                            "code_or_commands": [],
+                            "chart_or_ui_details": [],
+                        },
+                        "transition_after": None,
+                        "regions": [],
+                    }
+                ],
+            }
+        )
+
+        # A description that runs long is a cosmetic problem; refusing the
+        # batch would waste a paid stage over it.
+        self.assertEqual(len(payload.sequence_summary), 280)
+        self.assertEqual(len(payload.frames[0].summary), 320)
+        self.assertEqual(len(payload.frames[0].visible_text), 1_000)
+        self.assertEqual(len(payload.frames[0].technical_details.concepts[0]), 240)
