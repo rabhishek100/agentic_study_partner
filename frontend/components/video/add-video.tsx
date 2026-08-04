@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiFetch, API_BASE } from "@/lib/api";
+import { apiFetch, uploadUrl } from "@/lib/api";
 import { accessToken } from "@/lib/supabase";
 import type { VideoResource } from "@/lib/video-types";
 
@@ -24,7 +24,7 @@ interface ResourceReservation {
 
 async function putBytes(url: string, file: File, contentType: string) {
   const token = await accessToken();
-  const response = await fetch(url.startsWith("/api") ? url : `${API_BASE}${url}`, {
+  const response = await fetch(uploadUrl(url), {
     method: "PUT",
     headers: {
       "Content-Type": contentType,
@@ -56,7 +56,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
   async function attachCaptions(videoId: string) {
     if (!captionFile) return;
     const token = await accessToken();
-    const response = await fetch(`${API_BASE}/videos/${videoId}/captions`, {
+    const response = await fetch(uploadUrl(`/videos/${videoId}/captions`), {
       method: "PUT",
       headers: {
         "Content-Type": "text/vtt",

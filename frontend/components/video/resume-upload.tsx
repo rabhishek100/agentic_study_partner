@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { API_BASE } from "@/lib/api";
+import { uploadUrl } from "@/lib/api";
 import { accessToken } from "@/lib/supabase";
 
 /**
@@ -42,7 +42,7 @@ export function ResumeUpload({
     try {
       const token = await accessToken();
       const response = await fetch(
-        `${API_BASE}/video-ingestions/${jobId}/source`,
+        uploadUrl(`/video-ingestions/${jobId}/source`),
         {
           method: "PUT",
           headers: {

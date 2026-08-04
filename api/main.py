@@ -252,7 +252,12 @@ app.add_middleware(
     allow_origins=_allowed_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Idempotency-Key",
+        "X-Caption-Filename",
+    ],
 )
 app.include_router(ingestion_router)
 app.include_router(videos_router)

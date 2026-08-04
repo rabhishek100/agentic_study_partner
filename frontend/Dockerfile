@@ -19,8 +19,11 @@ ENV BACKEND_URL=$BACKEND_URL
 # must arrive as build arguments. Both are publishable browser credentials.
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Uploads address the API directly; the proxy caps request bodies at 10MB.
+ARG NEXT_PUBLIC_API_ORIGIN
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    NEXT_PUBLIC_API_ORIGIN=$NEXT_PUBLIC_API_ORIGIN
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
