@@ -427,10 +427,13 @@ export default function VideoWorkspace() {
                   title={video.title}
                 />
               </div>
-              {video.ready_for_qa ? null : (
+              {/* A lecture that answers but missed a quality gate still owes
+                  the reader the reason, where they are working. */}
+              {video.ready_for_qa && video.readiness_notes.length === 0 ? null : (
                 <IngestionStatus
                   readiness={video.readiness_status}
                   ingestion={video.latest_ingestion}
+                  notes={video.readiness_notes}
                 />
               )}
               {video.latest_ingestion?.status === "awaiting_upload" ? (

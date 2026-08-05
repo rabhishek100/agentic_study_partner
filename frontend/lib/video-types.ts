@@ -58,6 +58,10 @@ export interface VideoSummary {
   ready_for_qa: boolean;
   playback: VideoPlayback;
   latest_ingestion: VideoIngestion | null;
+  /** Measured sentences for the quality gates a published version missed. */
+  readiness_notes: string[];
+  /** Whether removal would succeed; the server owns the constraint. */
+  deletable: boolean;
   created_at: string;
   updated_at: string;
   ready_at: string | null;

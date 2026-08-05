@@ -724,13 +724,35 @@ VIDEO_SELECT = """
            latest_job.max_attempts as latest_job_max_attempts,
            latest_job.target_version_id as latest_job_target_version_id,
            latest_job.last_error_code as latest_job_last_error_code,
+           latest_job.last_error_message as latest_job_last_error_message,
            latest_job.last_error_retryable as latest_job_last_error_retryable,
            latest_job.cancellation_requested_at
                as latest_job_cancellation_requested_at,
            latest_job.created_at as latest_job_created_at,
            latest_job.started_at as latest_job_started_at,
            latest_job.updated_at as latest_job_updated_at,
-           latest_job.completed_at as latest_job_completed_at
+           latest_job.completed_at as latest_job_completed_at,
+           -- Mirrors `delete_unacquired_video`, so the interface offers
+           -- removal only where it would succeed rather than discovering the
+           -- constraint through a 409.
+           (
+               not exists (
+                   select 1 from video.course_lectures as lecture
+                   where lecture.owner_id = v.owner_id and lecture.video_id = v.id
+               )
+               and not exists (
+                   select 1 from video.video_sources as acquired
+                   where acquired.owner_id = v.owner_id
+                     and acquired.video_id = v.id
+                     and acquired.status = 'ready'
+               )
+               and not exists (
+                   select 1 from video.ingestion_jobs as running
+                   where running.owner_id = v.owner_id
+                     and running.video_id = v.id
+                     and running.status = 'running'
+               )
+           ) as deletable
     from video.videos as v
     join video.video_sources as s
       on s.video_id = v.id and s.owner_id = v.owner_id and s.is_primary
