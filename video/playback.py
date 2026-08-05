@@ -17,6 +17,10 @@ from uuid import UUID
 
 
 DEFAULT_TTL_SECONDS = 6 * 60 * 60
+# Expiries land on a fixed grid so repeated requests produce the identical
+# URL. A freshly minted token per response changed the player's src on every
+# poll, which reloaded the video and threw away the viewer's position.
+EXPIRY_BUCKET_SECONDS = 30 * 60
 
 
 class PlaybackTokenError(ValueError):
@@ -37,7 +41,11 @@ def _secret() -> bytes:
 def sign_playback(
     *, video_id: str | UUID, owner_id: str | UUID, ttl_seconds: int = DEFAULT_TTL_SECONDS
 ) -> str:
-    expires_at = int(time.time()) + max(60, ttl_seconds)
+    ttl = max(60, ttl_seconds)
+    bucket = min(EXPIRY_BUCKET_SECONDS, ttl)
+    # Round up to the next boundary: stable between calls, and never issued
+    # with less than the requested lifetime remaining.
+    expires_at = ((int(time.time()) + ttl) // bucket + 1) * bucket
     payload = f"{UUID(str(video_id))}:{UUID(str(owner_id))}:{expires_at}"
     digest = hmac.new(_secret(), payload.encode(), hashlib.sha256).digest()
     return (

@@ -380,6 +380,36 @@ class VideoReingestTests(unittest.TestCase):
         self.assertEqual(rebuild.job_status, "queued")
         self.assertEqual(advanced.stage, Stage.MEDIA_METADATA)
 
+        # And again from the rebuild: the second one must take its staging
+        # identity from the job that received the bytes, not from the rebuild
+        # before it, which never had any.
+        with connection(self.database_url) as database:
+            database.execute(
+                """
+                update video.ingestion_jobs set status = 'failed',
+                    completed_at = now(), lease_owner = null,
+                    lease_expires_at = null
+                where id = %s
+                """,
+                (rebuild.job_id,),
+            )
+            second = reingest_video(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                idempotency_key=uuid4(),
+            )
+            carried = database.execute(
+                """
+                select staging_storage_key is not null as staged,
+                       upload_completed_at is not null as completed
+                from video.ingestion_jobs where id = %s
+                """,
+                (second.job_id,),
+            ).fetchone()
+        self.assertTrue(carried["staged"])
+        self.assertTrue(carried["completed"])
+
     def test_rejects_a_rebuild_that_has_nothing_to_build_on(self) -> None:
         with connection(self.database_url) as database:
             fresh = create_youtube_video(

@@ -60,3 +60,36 @@ class PlaybackTokenTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlaybackStabilityTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.environment = patch.dict(
+            os.environ, {"VIDEO_PLAYBACK_SECRET": "test-secret-value"}
+        )
+        self.environment.start()
+        self.video, self.owner = uuid4(), uuid4()
+
+    def tearDown(self) -> None:
+        self.environment.stop()
+
+    def test_repeated_requests_produce_the_same_link(self) -> None:
+        """A changing URL reloads the player and loses the viewer's place.
+
+        The workspace polls while a video is processing, so the link has to be
+        the same string each time rather than a fresh token per response.
+        """
+
+        first = playback_url(video_id=self.video, owner_id=self.owner)
+        later = time.time() + 120
+        with patch("video.playback.time.time", lambda: later):
+            second = playback_url(video_id=self.video, owner_id=self.owner)
+        self.assertEqual(first, second)
+
+    def test_the_link_still_carries_a_usable_lifetime(self) -> None:
+        token = sign_playback(video_id=self.video, owner_id=self.owner)
+        self.assertEqual(verify_playback(token), (self.video, self.owner))
+        # Still valid an hour from now, well past any single page visit.
+        soon = time.time() + 3_600
+        with patch("video.playback.time.time", lambda: soon):
+            self.assertEqual(verify_playback(token), (self.video, self.owner))

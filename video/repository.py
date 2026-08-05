@@ -372,11 +372,16 @@ def reingest_video(
             raise VideoConflictError("video has no published version to rebuild")
         previous = connection.execute(
             """
+            -- The job that actually received the bytes, not merely the most
+            -- recent one: a failed rebuild carries no staging identity, and
+            -- copying its emptiness made the next rebuild re-acquire a source
+            -- whose staging object no longer exists.
             select staging_storage_backend, staging_storage_key,
                    staging_content_hash, staging_size_bytes, upload_completed_at,
                    declared_size_bytes, declared_media_type
             from video.ingestion_jobs
             where owner_id = %s and video_id = %s
+              and upload_completed_at is not null
             order by created_at desc limit 1
             """,
             (owner, video),
