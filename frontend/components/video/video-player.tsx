@@ -75,10 +75,12 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       );
     }
 
+    // No 16:9 placeholder: an empty frame pushed the conversation off the
+    // screen for exactly the videos that had nothing to show in it.
     return (
-      <div className="grid aspect-video w-full place-items-center rounded-lg border border-dashed border-border bg-muted/40 text-sm text-muted-foreground">
+      <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
         Playback becomes available once the source finishes uploading.
-      </div>
+      </p>
     );
   },
 );

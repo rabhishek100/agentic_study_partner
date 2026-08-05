@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import json
 import logging
+from pathlib import Path
 import queue
 import threading
 from typing import Any
@@ -46,6 +47,7 @@ from video.embeddings import (
 )
 from video.media_store import FilesystemMediaStore, MediaStoreError
 from video.models import VideoModelError
+from video.playback import PlaybackTokenError, verify_playback
 from video.prompts import prompt_snapshot
 from video.repository import load_standalone_video
 from video.retrieval import VideoNotReadyError
@@ -62,6 +64,7 @@ IMAGE_NOT_FOUND = HTTPException(status_code=404, detail="frame not found")
 IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 MAXIMUM_IMAGE_BYTES = 8 * 1024 * 1024
 HEARTBEAT_INTERVAL_SECONDS = 15
+STREAM_CHUNK_BYTES = 512 * 1024
 _STREAM_DONE = object()
 
 
@@ -477,6 +480,83 @@ async def timeline(
             )
             for row in rows
         ],
+    )
+
+
+@chat_router.get("/api/videos/{video_id}/stream")
+async def stream_source(video_id: UUID, request: Request, token: str = "") -> Response:
+    """Serve the canonical video to a player, honouring range requests.
+
+    Authenticated by a signed, expiring link rather than a bearer token: a
+    `<video>` element cannot set headers, and seeking needs ranges the browser
+    requests directly.
+    """
+
+    try:
+        signed_video, owner_id = verify_playback(token)
+    except PlaybackTokenError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    if signed_video != video_id:
+        raise HTTPException(status_code=403, detail="link is for another video")
+
+    def locate() -> tuple[Path, int]:
+        with database_connection(readonly=True) as connection:
+            row = connection.execute(
+                """
+                select v.playback_json->>'storage_key' as storage_key
+                from video.videos v
+                where v.id = %s and v.owner_id = %s
+                """,
+                (video_id, owner_id),
+            ).fetchone()
+        if row is None or not row["storage_key"]:
+            raise VIDEO_NOT_FOUND
+        try:
+            path = FilesystemMediaStore().open_path(
+                owner_id=owner_id, storage_key=row["storage_key"]
+            )
+            return path, path.stat().st_size
+        except (MediaStoreError, OSError) as error:
+            raise VIDEO_NOT_FOUND from error
+
+    path, size = await run_in_threadpool(locate)
+    start, end = 0, size - 1
+    requested = request.headers.get("range", "")
+    partial = requested.startswith("bytes=")
+    if partial:
+        first, _, last = requested.removeprefix("bytes=").partition("-")
+        try:
+            start = int(first) if first else 0
+            end = int(last) if last else size - 1
+        except ValueError:
+            raise HTTPException(status_code=416, detail="invalid range") from None
+        if start >= size or start > end:
+            raise HTTPException(status_code=416, detail="range is outside the video")
+        end = min(end, size - 1)
+
+    def chunks():
+        remaining = end - start + 1
+        with path.open("rb") as handle:
+            handle.seek(start)
+            while remaining > 0:
+                block = handle.read(min(STREAM_CHUNK_BYTES, remaining))
+                if not block:
+                    break
+                remaining -= len(block)
+                yield block
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(end - start + 1),
+        "Cache-Control": "private, max-age=3600",
+    }
+    if partial:
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    return StreamingResponse(
+        chunks(),
+        status_code=206 if partial else 200,
+        media_type="video/mp4",
+        headers=headers,
     )
 
 

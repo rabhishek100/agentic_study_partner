@@ -110,6 +110,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
     setBusy(true);
     try {
       let created: CreatedVideo;
+      let attached = false;
       if (videoFile) {
         created = await apiFetch<CreatedVideo>("/videos/uploads", {
           method: "POST",
@@ -120,10 +121,13 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
             content_length: videoFile.size,
           }),
         });
-        // Captions go first, while the job still waits for bytes: once the
-        // video lands the worker starts, and a caption arriving after the
-        // transcript stage would be ignored in favour of paid transcription.
+        // Captions and slides go first, while the job still waits for bytes.
+        // The video landing starts the worker, and it reaches the transcript
+        // and resource stages within seconds — anything attached after that
+        // is simply not there when those stages look for it.
         await attachCaptions(created.video_id);
+        await attachSlides(created.video_id);
+        attached = true;
         if (created.upload) {
           await putBytes(
             created.upload.upload_url,
@@ -138,7 +142,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
           body: JSON.stringify({ url: url.trim() }),
         });
       }
-      await attachSlides(created.video_id);
+      if (!attached) await attachSlides(created.video_id);
       setUrl("");
       setSlidesUrl("");
       setVideoFile(null);

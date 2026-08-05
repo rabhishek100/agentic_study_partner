@@ -670,7 +670,7 @@ def _carry_forward(
 
 
 VIDEO_SELECT = """
-    select v.id, v.title, v.description, v.source_kind, v.duration_ms,
+    select v.id, v.owner_id, v.title, v.description, v.source_kind, v.duration_ms,
            v.readiness_status, v.playback_json, v.created_at, v.updated_at,
            v.ready_at, v.current_ingestion_version_id,
            s.id as source_id, s.status as source_status, s.source_url,

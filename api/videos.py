@@ -51,6 +51,7 @@ from video.repository import (
     reingest_video,
     update_video_metadata,
 )
+from video.playback import playback_url
 from video.resources import maximum_resource_bytes
 from video.transcripts import parse_webvtt, transcript_coverage
 from video.sources import InvalidVideoSource, display_filename
@@ -374,6 +375,14 @@ def _summary(row) -> VideoSummary:
         playback=PlaybackView(
             kind="youtube" if row["source_kind"] == "youtube" else "local",
             youtube_video_id=row["youtube_video_id"],
+            # An uploaded lecture plays from its canonical object through a
+            # signed link; without one the workspace showed an empty frame.
+            media_url=(
+                playback_url(video_id=row["id"], owner_id=row["owner_id"])
+                if row["source_kind"] != "youtube"
+                and (row["playback_json"] or {}).get("storage_key")
+                else None
+            ),
         ),
         latest_ingestion=latest,
         created_at=row["created_at"],
