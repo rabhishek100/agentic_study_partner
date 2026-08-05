@@ -22,10 +22,16 @@ from psycopg import Connection
 
 from storage.database import parse_owner_id
 from study.streaming import TokenCallback, invoke_with_streaming
-from video.answers import AnswerDraft, VideoAnswerDependencies, extract_citations
+from video.answers import (
+    AnswerDraft,
+    SOURCE_CITATION,
+    VideoAnswerDependencies,
+    extract_citations,
+)
 from video.contracts import VideoEvidenceRef
 from video.models import answer_model, reported_cost_usd
 from video.prompts import (
+    build_coverage_addendum_messages,
     build_inventory_messages,
     build_reduce_messages,
     build_summary_messages,
@@ -45,10 +51,57 @@ MINIMUM_WINDOW_MS = 60_000
 # roughly 85,000, so it summarizes in one pass; a longer one is mapped in
 # batches and reduced rather than silently truncated.
 BATCH_CHARACTERS = 120_000
+# A window carrying less than this is silence, logistics, or a handful of
+# filler words. Requiring a summary to cite it would force padding — the exact
+# behaviour the summary prompt forbids.
+SUBSTANTIVE_WINDOW_CHARACTERS = 240
+# One repair pass. A second has nothing new to say: the same evidence was
+# already supplied twice, and a third call mostly spends money to reword.
+COVERAGE_REPAIR_ATTEMPTS = 1
 
 
 class NoTranscriptError(LookupError):
     """The lecture has no transcript to summarize."""
+
+
+@dataclass(frozen=True)
+class CoverageUnit:
+    """A stretch of lecture the summary is expected to say something about.
+
+    The book workflow requires a citation from every content-bearing node of
+    the chapter, because a node is a topic and an uncited node is a topic the
+    summary skipped. A lecture's equivalent is its published chapters when it
+    has them, and its transcript windows when it does not — a time slice is a
+    cruder unit than a section, but an uncited one is still forty minutes the
+    summary demonstrably never reached.
+    """
+
+    key: str
+    label: str
+    window_ranks: tuple[int, ...]
+    required: bool
+
+    def satisfied_by(self, cited_ranks: set[int]) -> bool:
+        return any(rank in cited_ranks for rank in self.window_ranks)
+
+
+@dataclass(frozen=True)
+class SummaryCoverage:
+    units: tuple[CoverageUnit, ...]
+    missing_required: tuple[CoverageUnit, ...]
+    missing_optional: tuple[CoverageUnit, ...]
+
+    @property
+    def complete(self) -> bool:
+        return not self.missing_required
+
+    @property
+    def required_total(self) -> int:
+        return sum(1 for unit in self.units if unit.required)
+
+    def describe(self) -> str:
+        covered = self.required_total - len(self.missing_required)
+        return f"{covered} of {self.required_total} required stretches cited"
 
 
 @dataclass(frozen=True)
@@ -176,6 +229,92 @@ def load_chapters(
     ).fetchall()
 
 
+def coverage_units(
+    scope: LectureScope, chapters: list[dict[str, Any]]
+) -> tuple[CoverageUnit, ...]:
+    """What the summary must touch, in the lecture's own segmentation.
+
+    Chapters win when the source published them: they are the lecturer's own
+    topics, which is what a reader means by "cover everything". Without them
+    the windows are the only segmentation there is, and a window too thin to
+    carry content is optional so that silence never forces padding.
+    """
+
+    if chapters:
+        units: list[CoverageUnit] = []
+        for chapter in chapters:
+            start = int(chapter["start_ms"])
+            end = int(chapter["end_ms"] or start)
+            # Strict overlap on both edges: a window ending exactly where the
+            # chapter begins contains none of it, and counting it would let a
+            # summary "cover" a chapter by citing the moment before it.
+            ranks = tuple(
+                window.rank
+                for window in scope.windows
+                if window.start_ms is not None
+                and window.start_ms < max(end, start + 1)
+                and (window.end_ms or window.start_ms) > start
+            )
+            # A chapter the transcript never reaches cannot be cited, and
+            # demanding it would fail every summary of that lecture forever.
+            if not ranks:
+                continue
+            units.append(
+                CoverageUnit(
+                    key=f"chapter:{chapter['chapter_index']}",
+                    label=(
+                        f"{chapter['title']} "
+                        f"({format_timestamp(start)}–{format_timestamp(end)})"
+                    ),
+                    window_ranks=ranks,
+                    required=True,
+                )
+            )
+        if units:
+            return tuple(units)
+
+    return tuple(
+        CoverageUnit(
+            key=f"window:{window.rank}",
+            label=(
+                f"{format_timestamp(window.start_ms)}"
+                f"–{format_timestamp(window.end_ms)}"
+            ),
+            window_ranks=(window.rank,),
+            required=len(window.excerpt) >= SUBSTANTIVE_WINDOW_CHARACTERS,
+        )
+        for window in scope.windows
+    )
+
+
+def evaluate_coverage(
+    text: str, units: tuple[CoverageUnit, ...]
+) -> SummaryCoverage:
+    """Check what the draft actually cited, not what it was asked to cite."""
+
+    cited = {int(match.group(1)) for match in SOURCE_CITATION.finditer(text)}
+    missing_required = tuple(
+        unit for unit in units if unit.required and not unit.satisfied_by(cited)
+    )
+    missing_optional = tuple(
+        unit
+        for unit in units
+        if not unit.required and not unit.satisfied_by(cited)
+    )
+    return SummaryCoverage(
+        units=units,
+        missing_required=missing_required,
+        missing_optional=missing_optional,
+    )
+
+
+def _windows_for(
+    scope: LectureScope, units: tuple[CoverageUnit, ...]
+) -> list[VideoEvidenceRef]:
+    wanted = {rank for unit in units for rank in unit.window_ranks}
+    return [window for window in scope.windows if window.rank in wanted]
+
+
 def _batches(windows: list[VideoEvidenceRef]) -> list[list[VideoEvidenceRef]]:
     """Split into groups small enough for one call, keeping global ranks.
 
@@ -217,62 +356,147 @@ def summarize_lecture(
     dependencies: VideoAnswerDependencies,
     token_callback: TokenCallback | None = None,
 ) -> AnswerDraft:
-    """Summarize the complete transcript, citing the moments it draws on."""
+    """Summarize the complete transcript, then check it actually covered it.
 
-    batches = _batches(scope.windows)
+    Asking for complete coverage in the prompt is not the same as getting it.
+    The book workflow does not trust that either: it lists the sections that
+    must be cited, parses the draft to see which ones were, and repairs the
+    gap. This is the same three steps over a lecture's own segmentation.
+
+    Deliberately not streamed. A draft that is about to gain a coverage
+    addendum should not already be on screen, and a provider stream that ends
+    without a terminal finish reason yields a plausible half-summary that
+    validation would then be run against — the book path disabled streaming
+    here for that second reason before this one existed.
+    """
+
+    units = coverage_units(scope, chapters)
+    text, cost = _draft_summary(
+        question=question,
+        windows=scope.windows,
+        scope=scope,
+        video_title=video_title,
+        chapters=chapters,
+        units=units,
+        dependencies=dependencies,
+    )
+
+    coverage = evaluate_coverage(text, units)
+    warnings: list[str] = []
+    for _ in range(COVERAGE_REPAIR_ATTEMPTS):
+        if coverage.complete:
+            break
+        addendum, spent = _generate(
+            build_coverage_addendum_messages(
+                video_title=video_title,
+                missing=coverage.missing_required,
+                windows=_windows_for(scope, coverage.missing_required),
+            ),
+            dependencies=dependencies,
+            token_callback=None,
+        )
+        cost += spent
+        if not addendum.strip():
+            break
+        # An addendum rather than a rewrite: the draft is already grounded and
+        # cited, and regenerating it risks losing coverage it had to gain
+        # coverage it lacked.
+        text = f"{text.rstrip()}\n\n## Also covered\n\n{addendum.strip()}"
+        coverage = evaluate_coverage(text, units)
+
+    if not coverage.complete:
+        # Said out loud rather than swallowed: a summary with a hole in it is
+        # still useful, but the reader must know which part is missing before
+        # they rely on it.
+        warnings.append(
+            "This summary does not cite "
+            + "; ".join(unit.label for unit in coverage.missing_required[:5])
+            + (
+                f" and {len(coverage.missing_required) - 5} more"
+                if len(coverage.missing_required) > 5
+                else ""
+            )
+            + ". Ask about those stretches directly for a grounded answer."
+        )
+
+    if token_callback is not None:
+        # The whole answer at once, so the interface renders the validated
+        # text through the same path a streamed answer arrives on.
+        token_callback("token", text)
+
+    return AnswerDraft(
+        answer=text,
+        outcome="answer",
+        citations=extract_citations(text, scope.windows),
+        visual_cards=[],
+        cost_usd=round(cost, 6),
+        image_count=0,
+        coverage=coverage.describe(),
+        warnings=tuple(warnings),
+    )
+
+
+def _draft_summary(
+    *,
+    question: str,
+    windows: list[VideoEvidenceRef],
+    scope: LectureScope,
+    video_title: str,
+    chapters: list[dict[str, Any]],
+    units: tuple[CoverageUnit, ...],
+    dependencies: VideoAnswerDependencies,
+) -> tuple[str, float]:
+    """One summary of the supplied windows, mapped and reduced if needed."""
+
+    batches = _batches(windows)
     cost = 0.0
-    # Only the last call streams: a reader watching tokens arrive should see
-    # the summary being written, not the intermediate passes over batches.
     if len(batches) == 1:
-        text, spent = _generate(
+        return _generate(
             build_summary_messages(
                 question=question,
                 windows=batches[0],
                 video_title=video_title,
                 chapters=chapters,
                 duration_ms=scope.duration_ms,
+                units=units,
             ),
             dependencies=dependencies,
-            token_callback=token_callback,
+            token_callback=None,
         )
-        cost += spent
-    else:
-        partials: list[str] = []
-        for index, batch in enumerate(batches, start=1):
-            part, spent = _generate(
-                build_summary_messages(
-                    question=question,
-                    windows=batch,
-                    video_title=video_title,
-                    chapters=chapters,
-                    duration_ms=scope.duration_ms,
-                    part=(index, len(batches)),
-                ),
-                dependencies=dependencies,
-                token_callback=None,
-            )
-            partials.append(part)
-            cost += spent
-        text, spent = _generate(
-            build_reduce_messages(
-                question=question,
-                partials=partials,
-                video_title=video_title,
-            ),
-            dependencies=dependencies,
-            token_callback=token_callback,
-        )
-        cost += spent
 
-    citations = extract_citations(text, scope.windows)
-    return AnswerDraft(
-        answer=text,
-        outcome="answer",
-        citations=citations,
-        visual_cards=[],
-        cost_usd=round(cost, 6),
-        image_count=0,
+    partials: list[str] = []
+    for index, batch in enumerate(batches, start=1):
+        ranks = {window.rank for window in batch}
+        part, spent = _generate(
+            build_summary_messages(
+                question=question,
+                windows=batch,
+                video_title=video_title,
+                chapters=chapters,
+                duration_ms=scope.duration_ms,
+                # Each stretch is told only about the coverage it can satisfy;
+                # naming units it holds no windows for would invite a citation
+                # to evidence it was never given.
+                units=tuple(
+                    unit
+                    for unit in units
+                    if any(rank in ranks for rank in unit.window_ranks)
+                ),
+                part=(index, len(batches)),
+            ),
+            dependencies=dependencies,
+            token_callback=None,
+        )
+        partials.append(part)
+        cost += spent
+    combined, spent = _generate(
+        build_reduce_messages(
+            question=question, partials=partials, video_title=video_title
+        ),
+        dependencies=dependencies,
+        token_callback=None,
     )
+    return combined, cost + spent
 
 
 def inventory_topics(

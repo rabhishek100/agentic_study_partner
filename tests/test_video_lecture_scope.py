@@ -13,6 +13,8 @@ from video.contracts import VideoEvidenceRef, VideoMessage
 from video.lecture import (
     LectureScope,
     NoTranscriptError,
+    coverage_units,
+    evaluate_coverage,
     inventory_topics,
     load_chapters,
     load_lecture_scope,
@@ -270,10 +272,10 @@ class LongLectureTests(unittest.TestCase):
         module.BATCH_CHARACTERS = len(scope.windows[0].excerpt) * 2
         try:
             model = FakeSummaryModel(
-                "Part one [S1].",
-                "Part two [S3].",
-                "Part three [S5].",
-                "Combined [S1] [S3] [S5].",
+                "Part one [S1] [S2].",
+                "Part two [S3] [S4].",
+                "Part three [S5] [S6].",
+                "Combined [S1] [S2] [S3] [S4] [S5] [S6].",
             )
             draft = summarize_lecture(
                 question="summarize this lecture",
@@ -285,15 +287,18 @@ class LongLectureTests(unittest.TestCase):
         finally:
             module.BATCH_CHARACTERS = original
 
+        # Three mapped stretches plus one reduce. No repair call, because the
+        # combined draft already cited every window.
         self.assertEqual(len(model.calls), 4)
-        self.assertEqual(draft.answer, "Combined [S1] [S3] [S5].")
+        self.assertEqual(draft.answer, "Combined [S1] [S2] [S3] [S4] [S5] [S6].")
         # Markers survive the reduce, so they still point at real windows.
         self.assertEqual(
             [citation.marker for citation in draft.citations],
-            ["[S1]", "[S3]", "[S5]"],
+            ["[S1]", "[S2]", "[S3]", "[S4]", "[S5]", "[S6]"],
         )
         # Cost accumulates across every call rather than reporting the last.
         self.assertAlmostEqual(draft.cost_usd, 0.04, places=6)
+        self.assertEqual(draft.warnings, ())
 
     def test_ranks_stay_global_so_a_later_batch_cites_correctly(self) -> None:
         scope = self._scope(4)
@@ -322,3 +327,162 @@ class LongLectureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SummaryCoverageTests(unittest.TestCase):
+    """A summary is checked against the lecture, not trusted to cover it."""
+
+    def _scope(self, windows: int, *, characters: int = 2_000) -> LectureScope:
+        return LectureScope(
+            version_id=uuid4(),
+            duration_ms=windows * 60_000,
+            windows=[
+                VideoEvidenceRef(
+                    rank=index,
+                    evidence_id=f"{index:064d}",
+                    modality="transcript",
+                    excerpt="x" * characters,
+                    retrieval_method="complete_transcript",
+                    score=1.0,
+                    start_ms=(index - 1) * 60_000,
+                    end_ms=index * 60_000,
+                )
+                for index in range(1, windows + 1)
+            ],
+        )
+
+    def _chapters(self) -> list[dict]:
+        return [
+            {"chapter_index": 0, "title": "Opening", "start_ms": 0, "end_ms": 120_000},
+            {
+                "chapter_index": 1,
+                "title": "The main result",
+                "start_ms": 120_000,
+                "end_ms": 240_000,
+            },
+        ]
+
+    def test_published_chapters_are_the_units_a_summary_must_cover(self) -> None:
+        units = coverage_units(self._scope(4), self._chapters())
+
+        self.assertEqual([unit.key for unit in units], ["chapter:0", "chapter:1"])
+        self.assertEqual(units[0].window_ranks, (1, 2))
+        self.assertEqual(units[1].window_ranks, (3, 4))
+        self.assertIn("The main result", units[1].label)
+
+    def test_windows_are_the_units_when_no_chapters_were_published(self) -> None:
+        units = coverage_units(self._scope(3), [])
+
+        self.assertEqual(len(units), 3)
+        self.assertTrue(all(unit.required for unit in units))
+
+    def test_a_window_too_thin_to_carry_content_is_optional(self) -> None:
+        scope = self._scope(2, characters=10)
+
+        units = coverage_units(scope, [])
+
+        # Requiring a citation for near-silence would force the padding the
+        # summary prompt forbids.
+        self.assertFalse(any(unit.required for unit in units))
+
+    def test_a_chapter_the_transcript_never_reaches_is_not_required(self) -> None:
+        # One window of lecture, but a chapter list running to four minutes.
+        units = coverage_units(self._scope(1), self._chapters())
+
+        self.assertEqual([unit.key for unit in units], ["chapter:0"])
+
+    def test_coverage_is_measured_from_what_was_cited(self) -> None:
+        scope = self._scope(4)
+        units = coverage_units(scope, self._chapters())
+
+        complete = evaluate_coverage("Opening [S1]. Result [S3].", units)
+        self.assertTrue(complete.complete)
+        self.assertEqual(complete.describe(), "2 of 2 required stretches cited")
+
+        partial = evaluate_coverage("Only the opening [S2].", units)
+        self.assertFalse(partial.complete)
+        self.assertEqual(
+            [unit.key for unit in partial.missing_required], ["chapter:1"]
+        )
+
+    def test_a_draft_that_skips_a_stretch_is_repaired_not_shipped(self) -> None:
+        scope = self._scope(4)
+        model = FakeSummaryModel(
+            "The lecturer opens with definitions [S1].",
+            "He then proves the main result [S3].",
+        )
+
+        draft = summarize_lecture(
+            question="summarize this lecture",
+            scope=scope,
+            video_title="A lecture",
+            chapters=self._chapters(),
+            dependencies=VideoAnswerDependencies(model=model),
+        )
+
+        self.assertEqual(len(model.calls), 2)
+        # The repair is an addendum, so the first draft survives intact.
+        self.assertIn("The lecturer opens with definitions [S1]", draft.answer)
+        self.assertIn("proves the main result [S3]", draft.answer)
+        self.assertEqual(draft.coverage, "2 of 2 required stretches cited")
+        self.assertEqual(draft.warnings, ())
+        # The repair was asked only about what was missing.
+        repair = model.calls[1][1]["content"]
+        self.assertIn("The main result", repair)
+        self.assertNotIn("Opening", repair)
+
+    def test_a_stretch_still_missing_after_repair_is_declared(self) -> None:
+        scope = self._scope(4)
+        # Both the draft and the repair ignore the second chapter.
+        model = FakeSummaryModel("Opening only [S1].", "Still the opening [S2].")
+
+        draft = summarize_lecture(
+            question="summarize this lecture",
+            scope=scope,
+            video_title="A lecture",
+            chapters=self._chapters(),
+            dependencies=VideoAnswerDependencies(model=model),
+        )
+
+        self.assertEqual(draft.coverage, "1 of 2 required stretches cited")
+        self.assertEqual(len(draft.warnings), 1)
+        self.assertIn("The main result", draft.warnings[0])
+        # Repair is attempted exactly once; a second pass has the same
+        # evidence and mostly spends money to reword.
+        self.assertEqual(len(model.calls), 2)
+
+    def test_the_required_stretches_are_named_in_the_prompt(self) -> None:
+        scope = self._scope(4)
+        model = FakeSummaryModel("Everything [S1] [S3].")
+
+        summarize_lecture(
+            question="summarize this lecture",
+            scope=scope,
+            video_title="A lecture",
+            chapters=self._chapters(),
+            dependencies=VideoAnswerDependencies(model=model),
+        )
+
+        system = model.calls[0][0]["content"]
+        self.assertIn("Required coverage:", system)
+        self.assertIn("Opening", system)
+        self.assertIn("The main result", system)
+        self.assertIn("Complete coverage is mandatory", system)
+
+    def test_a_summary_is_not_streamed_before_it_has_been_checked(self) -> None:
+        scope = self._scope(2)
+        model = FakeSummaryModel("Everything [S1] [S2].")
+        streamed: list[tuple[str, str]] = []
+
+        draft = summarize_lecture(
+            question="summarize this lecture",
+            scope=scope,
+            video_title="A lecture",
+            chapters=[],
+            dependencies=VideoAnswerDependencies(model=model),
+            token_callback=lambda kind, text: streamed.append((kind, text)),
+        )
+
+        # One delivery of the validated text, not a token stream of a draft
+        # that a coverage addendum might still be appended to.
+        self.assertEqual(streamed, [("token", draft.answer)])

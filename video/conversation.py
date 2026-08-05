@@ -201,8 +201,10 @@ def whole_lecture(
             retrieval_attempts=0,
             sufficiency_reason=(
                 f"The complete transcript, in {len(scope.windows)} windows "
-                f"across {format_timestamp(scope.duration_ms)}."
+                f"across {format_timestamp(scope.duration_ms)}"
+                + (f" — {draft.coverage}." if draft.coverage else ".")
             ),
+            warnings=list(draft.warnings),
             routing_reason=decision.reason,
             cost_usd=draft.cost_usd,
             trace_id=_current_trace_id(),

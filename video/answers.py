@@ -63,6 +63,10 @@ class AnswerDraft:
     visual_cards: list[VisualCard]
     cost_usd: float
     image_count: int
+    # Whole-lecture routes report what fraction of the lecture they cited;
+    # a retrieval answer has no such notion and leaves this unset.
+    coverage: str | None = None
+    warnings: tuple[str, ...] = ()
 
 
 def retrieve_turn_evidence(
