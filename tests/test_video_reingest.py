@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from storage.database import connection, resolve_database_url
 from tests.test_video_embeddings import FakeRegionEmbedder, FakeTextEmbedder
+from tests.video_fixtures import encoded_video_bytes
 from tests.test_video_resources import write_deck
 from tests.video_fixtures import (
     FakeYouTubeAcquirer,
@@ -20,6 +21,9 @@ from video.media_store import FilesystemMediaStore
 from video.pipeline import VideoPipelineDependencies, run_video_stage
 from video.repository import (
     VideoConflictError,
+    complete_video_upload,
+    initialize_video_upload,
+    record_caption_upload,
     VideoNotFoundError,
     create_url_resource,
     create_youtube_video,
@@ -287,6 +291,94 @@ class VideoReingestTests(unittest.TestCase):
         self.assertEqual(published["current_ingestion_version_id"], rebuild.version_id)
         self.assertIn(published["readiness_status"], {"ready", "degraded"})
         self.assertEqual(superseded["status"], "ready")
+
+    def test_an_uploaded_source_is_not_re_acquired_by_a_rebuild(self) -> None:
+        """The acquire stage identifies an upload by the bytes staged for it.
+
+        A rebuild that dropped that identity failed its inherited checkpoint
+        and tried to acquire the source again — but an upload's staging object
+        is gone once promoted, so the rebuild died at stage one with "uploaded
+        video has no completed staging object".
+        """
+
+        payload = encoded_video_bytes()
+        with connection(self.database_url) as database:
+            created = initialize_video_upload(
+                database,
+                owner_id=self.owner,
+                idempotency_key=uuid4(),
+                original_filename="lecture.mp4",
+                media_type="video/mp4",
+                declared_size_bytes=len(payload),
+            )
+            writer = self.store.writer(
+                owner_id=self.owner,
+                storage_key=created.upload_storage_key,
+                maximum_bytes=len(payload) + 1,
+            )
+            writer.write(payload)
+            staged = writer.finish(expected_size=len(payload))
+            complete_video_upload(
+                database,
+                created.job_id,
+                owner_id=self.owner,
+                storage_key=staged.storage_key,
+                content_hash=staged.content_hash,
+                size_bytes=staged.size_bytes,
+                media_type="video/mp4",
+            )
+            # Captions keep the transcript stage away from paid audio, the
+            # same way an uploaded lecture does in practice.
+            vtt = self.root / "clip.en.vtt"
+            vtt.write_text(
+                "WEBVTT\n\n00:00.000 --> 00:09.500\nattention weights\n",
+                encoding="utf-8",
+            )
+            stored_caption = self.store.import_file(
+                owner_id=self.owner,
+                source=vtt,
+                namespace="captions",
+                extension=".vtt",
+                maximum_bytes=1024 * 1024,
+            )
+            record_caption_upload(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                video_source_id=created.source_id,
+                original_filename="clip.en.vtt",
+                storage_backend=self.store.backend,
+                storage_key=stored_caption.storage_key,
+                content_hash=stored_caption.content_hash,
+                size_bytes=stored_caption.size_bytes,
+                cue_count=1,
+            )
+            outcome = self._drain(database, self._dependencies())
+            self.assertEqual(outcome.status, Status.READY)
+
+            rebuild = reingest_video(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                idempotency_key=uuid4(),
+            )
+            claimed = claim_next_job(
+                database,
+                worker_id="video-worker",
+                supported_stages={Stage.ACQUIRE_SOURCE},
+            )
+            # The staging object is deliberately not touched: the inherited
+            # checkpoint must carry the stage without re-acquiring anything.
+            advanced = run_video_stage(
+                database,
+                job=claimed,
+                worker_id="video-worker",
+                work_dir=self.root / "work" / uuid4().hex,
+                dependencies=self._dependencies(refuse_paid_work=True),
+            )
+
+        self.assertEqual(rebuild.job_status, "queued")
+        self.assertEqual(advanced.stage, Stage.MEDIA_METADATA)
 
     def test_rejects_a_rebuild_that_has_nothing_to_build_on(self) -> None:
         with connection(self.database_url) as database:

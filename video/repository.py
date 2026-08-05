@@ -370,6 +370,17 @@ def reingest_video(
             raise VideoConflictError("video source is not acquired yet")
         if current["current_ingestion_version_id"] is None:
             raise VideoConflictError("video has no published version to rebuild")
+        previous = connection.execute(
+            """
+            select staging_storage_backend, staging_storage_key,
+                   staging_content_hash, staging_size_bytes, upload_completed_at,
+                   declared_size_bytes, declared_media_type
+            from video.ingestion_jobs
+            where owner_id = %s and video_id = %s
+            order by created_at desc limit 1
+            """,
+            (owner, video),
+        ).fetchone()
         active = connection.execute(
             """
             select 1 from video.ingestion_jobs
@@ -419,8 +430,14 @@ def reingest_video(
             """
             insert into video.ingestion_jobs (
                 id, owner_id, video_id, target_version_id, idempotency_key,
-                status, stage, cost_cap_usd, provenance_json
-            ) values (%s, %s, %s, %s, %s, 'queued', 'acquire_source', %s, %s)
+                status, stage, staging_storage_backend, staging_storage_key,
+                staging_content_hash, staging_size_bytes, upload_completed_at,
+                declared_size_bytes, declared_media_type, cost_cap_usd,
+                provenance_json
+            ) values (
+                %s, %s, %s, %s, %s, 'queued', 'acquire_source', %s, %s, %s,
+                %s, %s, %s, %s, %s, %s
+            )
             """,
             (
                 job_id,
@@ -428,6 +445,19 @@ def reingest_video(
                 video,
                 version_id,
                 key,
+                # The acquire stage identifies an uploaded source by the bytes
+                # that were staged for it. Without carrying that identity the
+                # inherited checkpoint does not match, and the rebuild tries to
+                # re-acquire an upload whose staging object is long gone.
+                (previous or {}).get("staging_storage_backend"),
+                (previous or {}).get("staging_storage_key"),
+                (previous or {}).get("staging_content_hash"),
+                (previous or {}).get("staging_size_bytes"),
+                # Required alongside the staged size and hash: the schema
+                # treats the three as one fact about a completed upload.
+                (previous or {}).get("upload_completed_at"),
+                (previous or {}).get("declared_size_bytes"),
+                (previous or {}).get("declared_media_type"),
                 DEFAULT_INGESTION_CAP_USD,
                 Jsonb({"reingest_of_version": str(source_version), **carried}),
             ),
