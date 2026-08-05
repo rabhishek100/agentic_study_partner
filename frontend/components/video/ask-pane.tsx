@@ -1,15 +1,18 @@
 "use client";
 
-import { AlertCircle, ArrowDown, Loader2, Send, Square } from "lucide-react";
+import { ArrowDown, Loader2, Send, Square } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 
-import { TurnDiagnostics, VisualEvidence } from "@/components/video/evidence-cards";
-import { VideoAnswer } from "@/components/video/video-answer";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { VideoTurnView } from "@/components/video/video-turn";
+import { VideoWelcome } from "@/components/video/video-welcome";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
-import type { VideoCitationRef, VideoTurn } from "@/lib/video-types";
+import type {
+  VideoChapter,
+  VideoCitationRef,
+  VideoTurn,
+} from "@/lib/video-types";
 
 /**
  * Announced to assistive technology when a turn settles.
@@ -29,6 +32,7 @@ function liveStatus(turns: VideoTurn[]): string {
 interface AskPaneProps {
   videoId: string;
   turns: VideoTurn[];
+  chapters: VideoChapter[];
   isStreaming: boolean;
   canAsk: boolean;
   blockedReason: string | null;
@@ -36,6 +40,7 @@ interface AskPaneProps {
   conversationId: string | null;
   onAsk(question: string): void;
   onStop(): void;
+  onRetry(): void;
   onSeek(milliseconds: number): void;
   onOpenDocument(citation: VideoCitationRef): void;
 }
@@ -43,12 +48,14 @@ interface AskPaneProps {
 export function AskPane({
   videoId,
   turns,
+  chapters,
   isStreaming,
   canAsk,
   blockedReason,
   conversationId,
   onAsk,
   onStop,
+  onRetry,
   onSeek,
   onOpenDocument,
 }: AskPaneProps) {
@@ -89,50 +96,28 @@ export function AskPane({
       >
         <div
           ref={contentRef}
-          className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 sm:px-6"
+          className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-5 sm:px-6"
         >
           {isEmpty ? (
-            <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-              Ask about anything in this lecture — what was said, what was
-              drawn, or what a slide shows. Answers cite the moment they came
-              from.
-            </p>
-          ) : null}
-          {turns.map((turn) => (
-            <article key={turn.id} className="space-y-2">
-              <div className="flex justify-end">
-                <h3 className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-2.5 text-[0.95rem] font-normal text-secondary-foreground">
-                  {turn.question}
-                </h3>
-              </div>
-              {turn.status === "failed" ? (
-                <Alert variant="destructive">
-                  <AlertCircle aria-hidden />
-                  <AlertDescription>{turn.error}</AlertDescription>
-                </Alert>
-              ) : turn.result ? (
-                <div className="space-y-3">
-                  <VideoAnswer
-                    answer={turn.answer}
-                    evidence={turn.result.evidence}
-                    citations={turn.result.citations}
-                    onSeek={onSeek}
-                    onOpenDocument={onOpenDocument}
-                  />
-                  <VisualEvidence
-                    videoId={videoId}
-                    cards={turn.result.visual_cards}
-                    onSeek={onSeek}
-                  />
-                  <TurnDiagnostics result={turn.result} onSeek={onSeek} />
-                </div>
-              ) : (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                  {turn.answer || "Searching the lecture…"}
-                </p>
-              )}
-            </article>
-          ))}
+            <VideoWelcome
+              chapters={chapters}
+              canAsk={canAsk}
+              onAsk={onAsk}
+            />
+          ) : (
+            turns.map((turn, index) => (
+              <VideoTurnView
+                key={turn.id}
+                videoId={videoId}
+                turn={turn}
+                isLast={index === turns.length - 1}
+                canRetry={canAsk && !isStreaming}
+                onRetry={onRetry}
+                onSeek={onSeek}
+                onOpenDocument={onOpenDocument}
+              />
+            ))
+          )}
         </div>
       </div>
 
@@ -194,6 +179,10 @@ export function AskPane({
               </Button>
             )}
           </div>
+          <p className="text-center text-[0.7rem] text-muted-foreground">
+            Answers are limited to this lecture&apos;s transcript, frames, and
+            linked documents.
+          </p>
         </div>
       </div>
     </section>

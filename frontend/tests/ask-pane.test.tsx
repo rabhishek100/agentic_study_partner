@@ -11,12 +11,14 @@ function pane(props: Partial<Parameters<typeof AskPane>[0]> = {}) {
     <AskPane
       videoId="video-1"
       turns={[]}
+      chapters={[]}
       conversationId="conversation-a"
       isStreaming={false}
       canAsk
       blockedReason={null}
       onAsk={noop}
       onStop={noop}
+      onRetry={noop}
       onSeek={noop}
       onOpenDocument={noop}
       {...props}

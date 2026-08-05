@@ -80,7 +80,7 @@ export default function VideoWorkspace() {
   const [error, setError] = useState("");
   const playerRef = useRef<VideoPlayerHandle>(null);
 
-  const { turns, conversationId, isStreaming, send, stop, reset, resume } =
+  const { turns, conversationId, isStreaming, send, stop, retry, reset, resume } =
     useVideoChat(videoId);
   const { percent, containerRef, separatorProps } = useResizablePane({
     ...VIDEO_PANE,
@@ -180,6 +180,11 @@ export default function VideoWorkspace() {
     },
     [send, loadConversations],
   );
+
+  const handleRetry = useCallback(async () => {
+    await retry();
+    loadConversations().catch(() => undefined);
+  }, [retry, loadConversations]);
 
   const rebuild = useCallback(async () => {
     if (rebuilding) return;
@@ -443,6 +448,7 @@ export default function VideoWorkspace() {
           <AskPane
             videoId={videoId}
             turns={turns}
+            chapters={video?.chapters ?? []}
             conversationId={conversationId}
             isStreaming={isStreaming}
             canAsk={video?.ready_for_qa ?? false}
@@ -453,6 +459,7 @@ export default function VideoWorkspace() {
             }
             onAsk={handleAsk}
             onStop={stop}
+            onRetry={handleRetry}
             onSeek={seek}
             onOpenDocument={openDocument}
           />

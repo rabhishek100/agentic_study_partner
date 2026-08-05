@@ -172,6 +172,22 @@ export function useVideoChat(videoId: string) {
     controllerRef.current.abort();
   }, []);
 
+  /**
+   * Ask the last question again, replacing its turn.
+   *
+   * The failed or unsatisfying turn is dropped from the list first so the same
+   * question does not appear twice. A turn that reached the server was already
+   * recorded there, so the regenerated answer becomes a second stored turn —
+   * the conversation history is a log of what was asked, not of what is
+   * currently on screen.
+   */
+  const retry = useCallback(async () => {
+    const last = turns.at(-1);
+    if (!last || isStreaming) return;
+    setTurns((current) => current.filter((turn) => turn.id !== last.id));
+    await send(last.question);
+  }, [turns, isStreaming, send]);
+
   const reset = useCallback(() => {
     controllerRef.current?.abort();
     controllerRef.current = null;
@@ -197,5 +213,5 @@ export function useVideoChat(videoId: string) {
     );
   }, []);
 
-  return { turns, conversationId, isStreaming, send, stop, reset, resume };
+  return { turns, conversationId, isStreaming, send, stop, retry, reset, resume };
 }
