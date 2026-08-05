@@ -31,6 +31,7 @@ from video.answers import VideoAnswerDependencies
 from video.contracts import VideoConversationState, VideoTurnResult
 from video.conversation import execute_video_turn, new_video_conversation_state
 from video.conversation_store import (
+    PLACEHOLDER_TITLE,
     VideoConversationNotFoundError,
     VideoTurnCostExceeded,
     append_turn,
@@ -176,7 +177,7 @@ async def start_conversation(
                 connection,
                 owner_id=owner_id,
                 video_id=video_id,
-                title=request.title or "New conversation",
+                title=request.title or PLACEHOLDER_TITLE,
                 prompt_snapshot=prompt_snapshot(),
             )
             return {**record, "video_title": video["title"], "turn_count": 0}

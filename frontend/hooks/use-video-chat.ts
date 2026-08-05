@@ -36,15 +36,26 @@ export function useVideoChat(videoId: string) {
     );
   }, []);
 
-  const ensureConversation = useCallback(async () => {
-    if (conversationId) return conversationId;
-    const created = await apiFetch<VideoConversationSummary>(
-      `/videos/${videoId}/conversations`,
-      { method: "POST", body: JSON.stringify({}) },
-    );
-    setConversationId(created.conversation_id);
-    return created.conversation_id;
-  }, [conversationId, videoId]);
+  /**
+   * The conversation this question belongs to, created on demand.
+   *
+   * The question is sent as the title so the thread is named from the moment
+   * it exists. The server names it from the first turn as well, but only a
+   * turn that lands can do that — a first question that fails would otherwise
+   * leave an empty thread called "New conversation" in the sidebar forever.
+   */
+  const ensureConversation = useCallback(
+    async (question: string) => {
+      if (conversationId) return conversationId;
+      const created = await apiFetch<VideoConversationSummary>(
+        `/videos/${videoId}/conversations`,
+        { method: "POST", body: JSON.stringify({ title: question }) },
+      );
+      setConversationId(created.conversation_id);
+      return created.conversation_id;
+    },
+    [conversationId, videoId],
+  );
 
   const send = useCallback(
     async (question: string) => {
@@ -79,7 +90,7 @@ export function useVideoChat(videoId: string) {
       let streamedText = "";
 
       try {
-        const target = await ensureConversation();
+        const target = await ensureConversation(submitted);
         const token = await accessToken();
         const response = await fetch(
           `${API_BASE}/video-conversations/${target}/turns/stream`,

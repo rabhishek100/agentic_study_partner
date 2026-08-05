@@ -177,6 +177,57 @@ class VideoChatApiTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(missing.status_code, 404)
 
+    async def test_names_a_conversation_from_its_first_question(self) -> None:
+        created = await self.client.post(
+            f"/api/videos/{self.video.video_id}/conversations", json={}
+        )
+        conversation_id = created.json()["conversation_id"]
+        self.assertEqual(created.json()["title"], "New conversation")
+
+        await self.client.post(
+            f"/api/video-conversations/{conversation_id}/turns",
+            json={"question": "What does the lecturer say about attention?"},
+        )
+
+        listed = await self.client.get(
+            f"/api/videos/{self.video.video_id}/conversations"
+        )
+        titles = [row["title"] for row in listed.json()["conversations"]]
+        self.assertIn("What does the lecturer say about attention?", titles)
+
+    async def test_a_later_turn_never_renames_the_conversation(self) -> None:
+        created = await self.client.post(
+            f"/api/videos/{self.video.video_id}/conversations", json={}
+        )
+        conversation_id = created.json()["conversation_id"]
+        for question in ("First question?", "Second question?"):
+            await self.client.post(
+                f"/api/video-conversations/{conversation_id}/turns",
+                json={"question": question},
+            )
+
+        detail = await self.client.get(
+            f"/api/video-conversations/{conversation_id}"
+        )
+        self.assertEqual(detail.json()["title"], "First question?")
+
+    async def test_a_name_the_reader_chose_survives_the_first_turn(self) -> None:
+        created = await self.client.post(
+            f"/api/videos/{self.video.video_id}/conversations",
+            json={"title": "Attention questions"},
+        )
+        conversation_id = created.json()["conversation_id"]
+
+        await self.client.post(
+            f"/api/video-conversations/{conversation_id}/turns",
+            json={"question": "What does the lecturer say about attention?"},
+        )
+
+        detail = await self.client.get(
+            f"/api/video-conversations/{conversation_id}"
+        )
+        self.assertEqual(detail.json()["title"], "Attention questions")
+
     def _attach_deck(self, *, pages: int = 3) -> UUID:
         """Link a real, readable PDF to this video and return its id."""
 
