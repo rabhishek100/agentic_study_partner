@@ -169,8 +169,9 @@ def build_answer_messages(
     system = [LOCKED_GROUNDING_PROMPT, f"Lecture: {video_title}"]
     if conversation_context:
         system.append(
-            "Earlier turns, for resolving references only — never evidence:\n"
-            + conversation_context
+            "Earlier turns, for resolving references and for not repeating "
+            "yourself — never evidence. A claim needs a marker even if an "
+            "earlier answer already made it:\n" + conversation_context
         )
     content: list[dict[str, Any]] = [
         {

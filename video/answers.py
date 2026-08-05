@@ -155,7 +155,11 @@ def synthesize_answer(
             video_title=video_title,
             images=images,
             conversation_context=(
-                conversation_context(state.recent_messages(turns=2))
+                # The same three turns the router saw when it rewrote the
+                # question. Showing the answerer less than the rewriter means
+                # a follow-up can be resolved into a query whose answer then
+                # reads as if the exchange never happened.
+                conversation_context(state.recent_messages(turns=3))
                 if state.messages
                 else None
             ),
