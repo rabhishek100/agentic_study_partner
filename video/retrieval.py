@@ -25,6 +25,13 @@ RetrievalMethod = Literal[
     "fts", "text_vector", "image_vector", "hybrid", "timeline_expansion"
 ]
 RRF_RANK_CONSTANT = 60
+# Asking about the deck should put the deck in front of the model. Frames of a
+# screen-shared slide carry richer text than the page itself, so without this
+# a question naming the document is answered almost entirely from frames.
+DOCUMENT_FOCUS = re.compile(
+    r"\b(slide|slides|deck|pdf|document|handout|notes|page)\b", re.IGNORECASE
+)
+DOCUMENT_FOCUS_FLOOR = 3
 QUERY_TOKEN = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
 
 
@@ -164,7 +171,13 @@ def retrieve_video_evidence(
         if len(ranked) > 1
         else ranked[0]
     )
-    selected = _balanced_direct(direct, limit=limit)
+    selected = _balanced_direct(
+        direct,
+        limit=limit,
+        document_floor=(
+            DOCUMENT_FOCUS_FLOOR if DOCUMENT_FOCUS.search(cleaned) else 1
+        ),
+    )
 
     anchor_timestamps = [
         item.start_ms
@@ -320,7 +333,7 @@ def _reciprocal_rank_fusion(
 
 
 def _balanced_direct(
-    candidates: list[VideoEvidence], *, limit: int
+    candidates: list[VideoEvidence], *, limit: int, document_floor: int = 1
 ) -> list[VideoEvidence]:
     selected: list[VideoEvidence] = []
     for predicate in (
@@ -331,6 +344,13 @@ def _balanced_direct(
         match = next((item for item in candidates if predicate(item)), None)
         if match is not None and match not in selected:
             selected.append(match)
+    for item in candidates:
+        if len(
+            [value for value in selected if value.modality == "resource_page"]
+        ) >= document_floor:
+            break
+        if item.modality == "resource_page" and item not in selected:
+            selected.append(item)
     for item in candidates:
         if item not in selected:
             selected.append(item)

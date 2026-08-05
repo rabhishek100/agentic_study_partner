@@ -400,3 +400,54 @@ class VideoResourceStageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DocumentFocusedRetrievalTests(unittest.TestCase):
+    """A question about the deck must reach the deck, not only the screen."""
+
+    def test_naming_the_document_raises_its_share_of_the_evidence(self) -> None:
+        from video.retrieval import (
+            DOCUMENT_FOCUS,
+            DOCUMENT_FOCUS_FLOOR,
+            VideoEvidence,
+            _balanced_direct,
+        )
+
+        def unit(index: int, modality: str) -> VideoEvidence:
+            return VideoEvidence(
+                id=f"{index:064x}",
+                modality=modality,
+                text=f"unit {index}",
+                start_ms=None if modality == "resource_page" else index * 1000,
+                end_ms=None if modality == "resource_page" else index * 1000,
+                page_number=index if modality == "resource_page" else None,
+                transcript_segment_id=None,
+                frame_id=index if modality == "visual_frame" else None,
+                visual_event_id=None,
+                resource_page_id=index if modality == "resource_page" else None,
+                score=1.0 / (index + 1),
+                retrieval_method="hybrid",
+            )
+
+        # Frames of a screen-shared deck outrank its pages, because the frame
+        # text carries the model's description as well as the slide's words.
+        candidates = [unit(index, "visual_frame") for index in range(6)]
+        candidates += [unit(index + 10, "resource_page") for index in range(4)]
+        candidates.append(unit(20, "transcript"))
+
+        self.assertTrue(DOCUMENT_FOCUS.search("what do the slides say?"))
+        self.assertIsNone(DOCUMENT_FOCUS.search("what did he explain first?"))
+
+        ordinary = _balanced_direct(list(candidates), limit=8, document_floor=1)
+        focused = _balanced_direct(
+            list(candidates), limit=8, document_floor=DOCUMENT_FOCUS_FLOOR
+        )
+        pages = lambda items: sum(
+            1 for item in items if item.modality == "resource_page"
+        )
+        self.assertEqual(pages(ordinary), 1)
+        self.assertGreaterEqual(pages(focused), DOCUMENT_FOCUS_FLOOR)
+        # The other modalities are still represented; this is a floor, not a
+        # takeover of the evidence set.
+        self.assertTrue(any(item.modality == "transcript" for item in focused))
+        self.assertTrue(any(item.is_visual for item in focused))
