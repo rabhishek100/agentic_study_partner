@@ -355,3 +355,55 @@ class VideoApiTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    async def test_uploading_a_document_the_owner_already_has_reuses_it(
+        self,
+    ) -> None:
+        payload = write_deck(Path(self.uploads.name) / "shared.pdf").read_bytes()
+
+        async def attach(video_id: str) -> dict:
+            reserved = await self.client.post(
+                f"/api/videos/{video_id}/resources/uploads",
+                json={
+                    "original_filename": "shared.pdf",
+                    "content_length": len(payload),
+                    "title": "Shared slides",
+                    "role": "slides",
+                },
+            )
+            self.assertEqual(reserved.status_code, 201)
+            uploaded = await self.client.put(
+                reserved.json()["upload_url"],
+                content=payload,
+                headers={"Content-Type": "application/pdf"},
+            )
+            self.assertEqual(uploaded.status_code, 200, uploaded.text)
+            return uploaded.json()
+
+        first_video = (await self.create_youtube()).json()["video_id"]
+        second_video = (
+            await self.create_youtube(video_id="bcdefghijkl")
+        ).json()["video_id"]
+        first = await attach(first_video)
+        # The same bytes on another lecture must not 500 on the content index:
+        # one document, referenced twice, is exactly what that index is for.
+        second = await attach(second_video)
+
+        self.assertEqual(second["resource_id"], first["resource_id"])
+        with connection(self.database_url) as database:
+            rows = database.execute(
+                """
+                select count(*) as count from video.resources
+                where owner_id = %s and resource_kind = 'pdf'
+                """,
+                (self.owner,),
+            ).fetchone()["count"]
+            links = database.execute(
+                """
+                select count(*) as count from video.video_resources
+                where owner_id = %s and resource_id = %s
+                """,
+                (self.owner, first["resource_id"]),
+            ).fetchone()["count"]
+        self.assertEqual(rows, 1)
+        self.assertEqual(links, 2)

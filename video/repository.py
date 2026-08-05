@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from psycopg import Connection
+from psycopg.errors import UniqueViolation
 from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
@@ -1177,6 +1178,56 @@ def initialize_resource_upload(
     return resource
 
 
+def _adopt_existing_document(
+    connection: Connection,
+    *,
+    owner: UUID,
+    video: UUID,
+    placeholder: UUID,
+    content_hash: str,
+) -> dict[str, Any] | None:
+    existing = connection.execute(
+        """
+        select id, resource_kind, origin, status, title, source_url,
+               page_count, created_at, updated_at
+        from video.resources
+        where owner_id = %s and content_hash = %s and resource_kind = 'pdf'
+        """,
+        (owner, content_hash),
+    ).fetchone()
+    if existing is None:
+        return None
+    with connection.transaction():
+        link = connection.execute(
+            """
+            delete from video.video_resources
+            where owner_id = %s and video_id = %s and resource_id = %s
+            returning role, required
+            """,
+            (owner, video, placeholder),
+        ).fetchone()
+        connection.execute(
+            """
+            insert into video.video_resources (
+                owner_id, video_id, resource_id, role, required
+            ) values (%s, %s, %s, %s, %s)
+            on conflict (video_id, resource_id) do nothing
+            """,
+            (
+                owner,
+                video,
+                existing["id"],
+                (link or {}).get("role", "slides"),
+                (link or {}).get("required", False),
+            ),
+        )
+        connection.execute(
+            "delete from video.resources where id = %s and owner_id = %s",
+            (placeholder, owner),
+        )
+    return existing
+
+
 def load_resource_upload_target(
     connection: Connection,
     *,
@@ -1224,25 +1275,39 @@ def complete_resource_upload(
     ).fetchone()
     if linked is None:
         return None
-    updated = connection.execute(
-        """
-        update video.resources
-        set storage_backend = %s, storage_key = %s, content_hash = %s,
-            size_bytes = %s, media_type = 'application/pdf', status = 'pending',
-            updated_at = now()
-        where id = %s and owner_id = %s and resource_kind = 'pdf'
-        returning id, resource_kind, origin, status, title, source_url,
-                  page_count, created_at, updated_at
-        """,
-        (
-            storage_backend,
-            storage_key,
-            content_hash,
-            size_bytes,
-            resource,
-            owner,
-        ),
-    ).fetchone()
+    try:
+        with connection.transaction():
+            updated = connection.execute(
+                """
+                update video.resources
+                set storage_backend = %s, storage_key = %s, content_hash = %s,
+                    size_bytes = %s, media_type = 'application/pdf',
+                    status = 'pending', updated_at = now()
+                where id = %s and owner_id = %s and resource_kind = 'pdf'
+                returning id, resource_kind, origin, status, title, source_url,
+                          page_count, created_at, updated_at
+                """,
+                (
+                    storage_backend,
+                    storage_key,
+                    content_hash,
+                    size_bytes,
+                    resource,
+                    owner,
+                ),
+            ).fetchone()
+    except UniqueViolation:
+        # The owner already has this exact document. That is what the content
+        # index is for, so the video points at the copy that exists instead of
+        # failing the upload — and the placeholder this upload reserved goes
+        # away rather than lingering as a second, empty record of the same PDF.
+        updated = _adopt_existing_document(
+            connection,
+            owner=owner,
+            video=video,
+            placeholder=resource,
+            content_hash=content_hash,
+        )
     if updated is None:
         return None
     updated["role"], updated["required"] = linked["role"], linked["required"]
