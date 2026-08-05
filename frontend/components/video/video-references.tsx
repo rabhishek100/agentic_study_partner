@@ -24,6 +24,7 @@ import {
 import {
   formatTimestamp,
   type VideoCitationRef,
+  type VideoDocumentTarget,
   type VideoEvidenceRef,
   type VideoModality,
 } from "@/lib/video-types";
@@ -70,7 +71,7 @@ function ReferenceRow({
   index: number | null;
   muted?: boolean;
   onSeek(milliseconds: number): void;
-  onOpenDocument(reference: VideoEvidenceRef): void;
+  onOpenDocument(target: VideoDocumentTarget): void;
 }) {
   const [open, setOpen] = useState(false);
   const Icon = MODALITY_ICON[reference.modality];
@@ -122,8 +123,12 @@ function ReferenceRow({
             <button
               type="button"
               onClick={() =>
-                isDocument
-                  ? onOpenDocument(reference)
+                isDocument && reference.resource_id
+                  ? onOpenDocument({
+                      resourceId: reference.resource_id,
+                      page: reference.page_number ?? 1,
+                      excerpt: reference.excerpt,
+                    })
                   : onSeek(reference.start_ms ?? 0)
               }
               className="text-xs text-muted-foreground transition-colors hover:text-citation"
@@ -161,7 +166,7 @@ export interface VideoReferencesProps {
   evidence: VideoEvidenceRef[];
   citations: VideoCitationRef[];
   onSeek(milliseconds: number): void;
-  onOpenDocument(reference: VideoEvidenceRef): void;
+  onOpenDocument(target: VideoDocumentTarget): void;
 }
 
 /**

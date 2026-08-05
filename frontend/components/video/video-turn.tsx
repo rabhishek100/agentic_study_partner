@@ -10,8 +10,7 @@ import { VideoReferences } from "@/components/video/video-references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type {
-  VideoCitationRef,
-  VideoEvidenceRef,
+  VideoDocumentTarget,
   VideoTurn as VideoTurnModel,
 } from "@/lib/video-types";
 
@@ -67,7 +66,7 @@ export interface VideoTurnViewProps {
   canRetry: boolean;
   onRetry(): void;
   onSeek(milliseconds: number): void;
-  onOpenDocument(citation: VideoCitationRef): void;
+  onOpenDocument(target: VideoDocumentTarget): void;
 }
 
 /**
@@ -90,20 +89,6 @@ export function VideoTurnView({
 }: VideoTurnViewProps) {
   const result = turn.result;
   const showThinking = turn.status === "streaming" && !turn.answer;
-
-  // A reference row carries the evidence itself; the document opener speaks in
-  // citations, so the row is translated into the citation-shaped locator it
-  // would have had if the answer had cited it.
-  const openDocumentFor = (reference: VideoEvidenceRef) =>
-    onOpenDocument({
-      marker: `[S${reference.rank}]`,
-      evidence_rank: reference.rank,
-      modality: reference.modality,
-      start_ms: reference.start_ms,
-      page_number: reference.page_number,
-      frame_id: reference.frame_id,
-      resource_id: reference.resource_id,
-    });
 
   return (
     <article className="space-y-4" aria-labelledby={`question-${turn.id}`}>
@@ -150,7 +135,7 @@ export function VideoTurnView({
             evidence={result.evidence}
             citations={result.citations}
             onSeek={onSeek}
-            onOpenDocument={openDocumentFor}
+            onOpenDocument={onOpenDocument}
           />
         )}
 

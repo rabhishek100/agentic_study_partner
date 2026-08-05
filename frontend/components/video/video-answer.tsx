@@ -19,6 +19,7 @@ import "katex/dist/katex.min.css";
 import {
   formatTimestamp,
   type VideoCitationRef,
+  type VideoDocumentTarget,
   type VideoEvidenceRef,
   type VideoModality,
 } from "@/lib/video-types";
@@ -48,7 +49,7 @@ interface VideoAnswerProps {
   evidence: VideoEvidenceRef[];
   citations: VideoCitationRef[];
   onSeek(milliseconds: number): void;
-  onOpenDocument(citation: VideoCitationRef): void;
+  onOpenDocument(target: VideoDocumentTarget): void;
 }
 
 /** Minimal hast shapes, enough to rewrite text nodes without a tree library. */
@@ -151,8 +152,15 @@ export function VideoAnswer({
               "align-baseline text-xs font-normal",
             )}
             onClick={() =>
-              citation.modality === "resource_page"
-                ? onOpenDocument(citation)
+              citation.modality === "resource_page" && citation.resource_id
+                ? onOpenDocument({
+                    resourceId: citation.resource_id,
+                    page: citation.page_number ?? 1,
+                    // The passage the viewer highlights comes from the
+                    // evidence, not the citation: the marker names a page,
+                    // and the page is not the claim.
+                    excerpt: item?.excerpt,
+                  })
                 : onSeek(citation.start_ms ?? 0)
             }
           >

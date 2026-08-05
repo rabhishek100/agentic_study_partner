@@ -107,9 +107,11 @@ describe("VideoReferences", () => {
     expect(onSeek).toHaveBeenCalledWith(1000);
 
     await user.click(screen.getByRole("button", { name: "Open" }));
-    expect(onOpenDocument).toHaveBeenCalledWith(
-      expect.objectContaining({ page_number: 12, resource_id: "resource-a" }),
-    );
+    expect(onOpenDocument).toHaveBeenCalledWith({
+      resourceId: "resource-a",
+      page: 12,
+      excerpt: "Passage 3",
+    });
   });
 
   it("offers no way to open a page whose document was detached", () => {

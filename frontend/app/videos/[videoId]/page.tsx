@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowLeft, LogOut, Maximize2, MessageSquarePlus } from "lucide-react";
+import {
+  ArrowLeft,
+  LogOut,
+  Maximize2,
+  MessageSquarePlus,
+  PanelRightOpen,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -20,6 +26,7 @@ import {
   VisualTimeline,
 } from "@/components/video/side-panels";
 import { AttachResource } from "@/components/video/attach-resource";
+import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { ResumeUpload } from "@/components/video/resume-upload";
 import {
   VideoPlayer,
@@ -41,13 +48,12 @@ import { useResizablePane } from "@/hooks/use-resizable-pane";
 import { useVideoChat } from "@/hooks/use-video-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
-import { accessToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import type {
-  VideoCitationRef,
   VideoConversationDetail,
   VideoConversationSummary,
   VideoDetail,
+  VideoDocumentTarget,
   VideoResource,
   VideoTimelineEntry,
 } from "@/lib/video-types";
@@ -78,6 +84,10 @@ export default function VideoWorkspace() {
   const [panel, setPanel] = useState<Panel>("resources");
   const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState("");
+  const [reading, setReading] = useState<PdfTarget | null>(null);
+  const [readingMinimized, setReadingMinimized] = useState(false);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfZoom, setPdfZoom] = useState(1);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const { turns, conversationId, isStreaming, send, stop, retry, reset, resume } =
@@ -134,43 +144,59 @@ export default function VideoWorkspace() {
   }, []);
 
 
-  const openResource = useCallback(
-    async (resource?: VideoResource, page?: number) => {
-      if (!resource) return;
-      setPanel("resources");
-      const anchor =
-        page && resource.resource_kind === "pdf" ? `#page=${page}` : "";
-      if (resource.resource_kind === "external_link" && resource.source_url) {
-        window.open(resource.source_url, "_blank", "noopener");
-        return;
-      }
-      // The content endpoint authenticates by bearer token, which a plain
-      // link cannot carry, so the bytes are fetched and opened as a blob.
-      const token = await accessToken();
-      const response = await fetch(
-        `/api/videos/${videoId}/resources/${resource.resource_id}/content`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  const closeDocument = useCallback(() => {
+    setReading(null);
+    setReadingMinimized(false);
+    setPdfPage(1);
+    setPdfZoom(1);
+  }, []);
+
+  /**
+   * Open a linked document beside the conversation.
+   *
+   * This used to download the whole PDF and hand a blob URL to a new browser
+   * tab, which lost the reader's place in the lecture, could not highlight the
+   * cited passage, and left the answer behind. It is now the same docked
+   * viewer the book side uses, opened at the page the citation names.
+   */
+  const openDocument = useCallback(
+    (target: VideoDocumentTarget) => {
+      const resource = video?.resources.find(
+        (item) => item.resource_id === target.resourceId,
       );
-      if (!response.ok) {
+      if (!resource) return;
+      // A link is somewhere else on the web; there is nothing to render here.
+      if (resource.resource_kind === "external_link") {
         if (resource.source_url) {
-          window.open(`${resource.source_url}${anchor}`, "_blank", "noopener");
+          window.open(resource.source_url, "_blank", "noopener");
         }
         return;
       }
-      const url = URL.createObjectURL(await response.blob());
-      window.open(`${url}${anchor}`, "_blank", "noopener");
+      const opened =
+        reading?.document.kind === "video-resource"
+          ? reading.document.resourceId
+          : null;
+      if (opened !== resource.resource_id) setPdfZoom(1);
+      setPdfPage(target.page);
+      setReadingMinimized(false);
+      setReading({
+        document: {
+          kind: "video-resource",
+          videoId,
+          resourceId: resource.resource_id,
+        },
+        title: resource.title,
+        page: target.page,
+        excerpt: target.excerpt,
+      });
     },
-    [videoId],
+    [video, videoId, reading?.document],
   );
 
-  const openDocument = useCallback(
-    (citation: VideoCitationRef) => {
-      const resource = video?.resources.find(
-        (item) => item.resource_id === citation.resource_id,
-      );
-      openResource(resource, citation.page_number ?? undefined);
-    },
-    [video, openResource],
+  const openResource = useCallback(
+    (resource: VideoResource, page?: number) =>
+      openDocument({ resourceId: resource.resource_id, page: page ?? 1 }),
+    [openDocument],
   );
 
   const handleAsk = useCallback(
@@ -207,9 +233,15 @@ export default function VideoWorkspace() {
       await apiFetch(`/videos/${videoId}/resources/${resource.resource_id}`, {
         method: "DELETE",
       });
+      if (
+        reading?.document.kind === "video-resource" &&
+        reading.document.resourceId === resource.resource_id
+      ) {
+        closeDocument();
+      }
       await loadVideo();
     },
-    [videoId, loadVideo],
+    [videoId, loadVideo, reading?.document, closeDocument],
   );
 
   const openConversation = useCallback(
@@ -217,9 +249,10 @@ export default function VideoWorkspace() {
       const detail = await apiFetch<VideoConversationDetail>(
         `/video-conversations/${id}`,
       );
+      closeDocument();
       resume(detail);
     },
-    [resume],
+    [resume, closeDocument],
   );
 
   if (sessionLoading) {
@@ -250,6 +283,37 @@ export default function VideoWorkspace() {
             : "Loading…"}
         </span>
       }
+      documentControl={
+        reading && readingMinimized ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-w-56"
+            aria-label={`Restore ${reading.title} at page ${pdfPage}`}
+            title={reading.title}
+            onClick={() => setReadingMinimized(false)}
+          >
+            <PanelRightOpen aria-hidden />
+            <span className="hidden max-w-32 truncate lg:inline">
+              {reading.title}
+            </span>
+            <span className="text-muted-foreground">p. {pdfPage}</span>
+          </Button>
+        ) : null
+      }
+      aside={
+        reading && !readingMinimized ? (
+          <PdfViewer
+            target={reading}
+            page={pdfPage}
+            onPageChange={setPdfPage}
+            zoom={pdfZoom}
+            onZoomChange={setPdfZoom}
+            onMinimize={() => setReadingMinimized(true)}
+            onClose={closeDocument}
+          />
+        ) : null
+      }
       account={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -278,7 +342,14 @@ export default function VideoWorkspace() {
             <ArrowLeft aria-hidden className="size-4" />
             All videos
           </Link>
-          <Button variant="outline" size="sm" onClick={reset}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              closeDocument();
+              reset();
+            }}
+          >
             <MessageSquarePlus aria-hidden />
             New conversation
           </Button>

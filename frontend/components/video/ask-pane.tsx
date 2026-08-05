@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
 import type {
   VideoChapter,
-  VideoCitationRef,
+  VideoDocumentTarget,
   VideoTurn,
 } from "@/lib/video-types";
 
@@ -42,7 +42,7 @@ interface AskPaneProps {
   onStop(): void;
   onRetry(): void;
   onSeek(milliseconds: number): void;
-  onOpenDocument(citation: VideoCitationRef): void;
+  onOpenDocument(target: VideoDocumentTarget): void;
 }
 
 export function AskPane({

@@ -126,6 +126,19 @@ export interface VideoCitationRef {
   resource_id: string | null;
 }
 
+/**
+ * A request to open a linked document at a particular page.
+ *
+ * Carries the excerpt as well as the page because the viewer highlights the
+ * cited passage, and a slide page can hold several claims — landing on the
+ * right page still leaves the reader hunting for the sentence.
+ */
+export interface VideoDocumentTarget {
+  resourceId: string;
+  page: number;
+  excerpt?: string | null;
+}
+
 export interface VideoVisualCard {
   evidence_rank: number;
   frame_id: number | null;

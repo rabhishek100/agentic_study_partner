@@ -5,21 +5,27 @@ import type { PdfTarget } from "@/components/pdf/target";
 
 const pdfHarness = vi.hoisted(() => ({
   onRenderTextLayerSuccess: null as null | (() => void),
+  file: null as unknown,
 }));
 const apiFetch = vi.hoisted(() => vi.fn());
+const accessToken = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/api", () => ({ apiFetch }));
+vi.mock("@/lib/api", () => ({ apiFetch, API_BASE: "/api" }));
+vi.mock("@/lib/supabase", () => ({ accessToken }));
 vi.mock("react-pdf", async () => {
   const React = await import("react");
   return {
     pdfjs: { GlobalWorkerOptions: { workerSrc: "" } },
     Document: ({
       children,
+      file,
       onLoadSuccess,
     }: {
       children: React.ReactNode;
+      file: unknown;
       onLoadSuccess: (value: { numPages: number }) => void;
     }) => {
+      pdfHarness.file = file;
       const loaded = React.useRef(false);
       React.useEffect(() => {
         if (loaded.current) return;
@@ -61,8 +67,8 @@ import { PdfViewer } from "@/components/pdf/pdf-viewer";
 
 const defaultResizeObserver = globalThis.ResizeObserver;
 const target: PdfTarget = {
-  bookId: 7,
-  bookTitle: "A technical book",
+  document: { kind: "book", bookId: 7 },
+  title: "A technical book",
   page: 4,
   excerpt: "target passage",
 };
@@ -78,7 +84,9 @@ const viewerProps = {
 
 beforeEach(() => {
   apiFetch.mockReset().mockResolvedValue({ url: "https://example.test/book.pdf" });
+  accessToken.mockReset().mockResolvedValue("a-token");
   pdfHarness.onRenderTextLayerSuccess = null;
+  pdfHarness.file = null;
   vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(600);
   vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
@@ -114,6 +122,34 @@ afterEach(() => {
 });
 
 describe("PdfViewer", () => {
+  it("carries the bearer token for a lecture's linked document", async () => {
+    render(
+      <PdfViewer
+        {...viewerProps}
+        target={{
+          document: {
+            kind: "video-resource",
+            videoId: "video-1",
+            resourceId: "resource-1",
+          },
+          title: "Lecture 1 slides",
+          page: 4,
+          excerpt: "target passage",
+        }}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    // A signed-URL round trip is the book path; this endpoint authorizes by
+    // header, and downloading the file into a blob first would break ranges.
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(pdfHarness.file).toEqual({
+      url: "/api/videos/video-1/resources/resource-1/content",
+      httpHeaders: { Authorization: "Bearer a-token" },
+    });
+    expect(screen.getByText("Lecture 1 slides")).toBeVisible();
+  });
+
   it("shows an explicit loading status while the document source is fetched", async () => {
     let resolveSource: ((value: { url: string }) => void) | undefined;
     apiFetch.mockReturnValue(
@@ -181,7 +217,11 @@ describe("PdfViewer", () => {
     rerender(
       <PdfViewer
         {...viewerProps}
-        target={{ ...target, bookId: 9, bookTitle: "Another book" }}
+        target={{
+          ...target,
+          document: { kind: "book", bookId: 9 },
+          title: "Another book",
+        }}
       />,
     );
     await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(2));
