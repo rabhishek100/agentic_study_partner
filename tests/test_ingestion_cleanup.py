@@ -240,6 +240,66 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual(summary.orphaned_objects_deleted, 0)
         self.assertGreaterEqual(summary.deletions_failed, 1)
 
+    def test_an_object_already_gone_is_not_a_failure(self):
+        """The prod failure: a sweep repeating the same deletion every hour.
+
+        Storage answers a deletion of a missing object with 400 and a
+        `not_found` body. Read as an outage, that counted one absent file as a
+        failed deletion on every pass — for months, invisibly, because only
+        the total was logged.
+        """
+
+        self.bucket_contains([f"{self.owner}/{uuid4()}/original.pdf"])
+        self.delete_object.side_effect = None
+        self.delete_object.return_value = False
+
+        with connection(self.database_url) as database:
+            summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.deletions_failed, 0)
+        # Nor is it a success: nothing was reclaimed, and reporting one would
+        # be the same lie in the opposite direction.
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+
+    def test_a_failed_orphan_deletion_names_the_object(self):
+        self.bucket_contains([f"{self.owner}/{uuid4()}/original.pdf"])
+        self.delete_object.side_effect = IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE, detail="delete returned 403: denied"
+        )
+
+        with connection(self.database_url) as database:
+            with self.assertLogs(
+                "study_partner.ingestion.cleanup", level="WARNING"
+            ) as logs:
+                summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.deletions_failed, 1)
+        # The key and the response body, not just a count: a permanently
+        # failing deletion cannot be diagnosed from a total.
+        named = [line for line in logs.output if "original.pdf" in line]
+        self.assertTrue(named)
+        self.assertIn("403", " ".join(named))
+
+    def test_a_pass_with_failures_is_reported_above_a_pass_without(self):
+        self.bucket_contains([f"{self.owner}/{uuid4()}/original.pdf"])
+        self.delete_object.side_effect = IngestionError(
+            ErrorCode.STORAGE_UNAVAILABLE, detail="denied"
+        )
+
+        with connection(self.database_url) as database:
+            with self.assertLogs(
+                "study_partner.ingestion.cleanup", level="WARNING"
+            ) as logs:
+                run_cleanup(database, limits=LIMITS)
+
+        summaries = [
+            record
+            for record in logs.records
+            if "deletions failed" in record.getMessage()
+        ]
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(summaries[0].levelname, "WARNING")
+
     def test_storage_failures_leave_the_job_eligible_for_the_next_pass(self):
         self.delete_object.side_effect = IngestionError(
             ErrorCode.STORAGE_UNAVAILABLE
