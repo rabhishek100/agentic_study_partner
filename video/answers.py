@@ -63,6 +63,10 @@ class AnswerDraft:
     visual_cards: list[VisualCard]
     cost_usd: float
     image_count: int
+    # Whole-lecture routes report what fraction of the lecture they cited;
+    # a retrieval answer has no such notion and leaves this unset.
+    coverage: str | None = None
+    warnings: tuple[str, ...] = ()
 
 
 def retrieve_turn_evidence(
@@ -155,7 +159,11 @@ def synthesize_answer(
             video_title=video_title,
             images=images,
             conversation_context=(
-                conversation_context(state.recent_messages(turns=2))
+                # The same three turns the router saw when it rewrote the
+                # question. Showing the answerer less than the rewriter means
+                # a follow-up can be resolved into a query whose answer then
+                # reads as if the exchange never happened.
+                conversation_context(state.recent_messages(turns=3))
                 if state.messages
                 else None
             ),
@@ -171,7 +179,7 @@ def synthesize_answer(
         text = "Insufficient evidence"
         if explanation:
             text += f": {explanation}"
-    citations = _citations(text, evidence)
+    citations = extract_citations(text, evidence)
     return AnswerDraft(
         answer=text,
         outcome="abstain" if insufficient else "answer",
@@ -182,7 +190,7 @@ def synthesize_answer(
     )
 
 
-def _citations(
+def extract_citations(
     answer: str, evidence: list[VideoEvidenceRef]
 ) -> list[VideoCitationRef]:
     """Keep only markers that point at evidence actually supplied."""
@@ -300,6 +308,7 @@ def _frame_images(
 
 __all__ = [
     "AnswerDraft",
+    "extract_citations",
     "RetrievedTurn",
     "VideoAnswerDependencies",
     "VideoNotReadyError",

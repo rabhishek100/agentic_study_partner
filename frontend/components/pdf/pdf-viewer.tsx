@@ -21,10 +21,11 @@ import { Document, Page, pdfjs } from "react-pdf";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { apiFetch } from "@/lib/api";
+import { API_BASE, apiFetch } from "@/lib/api";
 import { findExcerptRange } from "@/lib/pdf-match";
+import { accessToken } from "@/lib/supabase";
 import type { BookSourceResponse } from "@/lib/types";
-import type { PdfTarget } from "./target";
+import { documentKey, type PdfDocument, type PdfTarget } from "./target";
 import { cn } from "@/lib/utils";
 
 import "react-pdf/dist/Page/TextLayer.css";
@@ -37,6 +38,33 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 export const MIN_PDF_ZOOM = 0.5;
 export const MAX_PDF_ZOOM = 2;
 export const PDF_ZOOM_STEP = 0.25;
+
+/** What pdf.js is handed: a plain URL, or one with the headers to fetch it. */
+type DocumentSource = string | { url: string; httpHeaders: Record<string, string> };
+
+/**
+ * Resolve a document to something pdf.js can load.
+ *
+ * A book's original is in private storage and comes back as a short-lived
+ * signed URL, so it is fetched per book rather than cached. A lecture's linked
+ * document is served by the API itself and authenticates by bearer token,
+ * which a plain URL cannot carry — pdf.js takes the header instead, so the
+ * bytes stream and range requests still work. Downloading the whole file into
+ * a blob first would defeat both.
+ */
+async function resolveSource(document: PdfDocument): Promise<DocumentSource> {
+  if (document.kind === "book") {
+    const payload = await apiFetch<BookSourceResponse>(
+      `/books/${document.bookId}/source`,
+    );
+    return payload.url;
+  }
+  const token = await accessToken();
+  return {
+    url: `${API_BASE}/videos/${document.videoId}/resources/${document.resourceId}/content`,
+    httpHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+  };
+}
 
 function PdfLoadingState({ label = "Loading document…" }: { label?: string }) {
   return (
@@ -133,7 +161,7 @@ export function PdfViewer({
   onMinimize: () => void;
   onClose: () => void;
 }) {
-  const [source, setSource] = useState<string | null>(null);
+  const [source, setSource] = useState<DocumentSource | null>(null);
   const [error, setError] = useState("");
   const [pageCount, setPageCount] = useState(0);
   const [exactMatch, setExactMatch] = useState<boolean | null>(null);
@@ -145,7 +173,11 @@ export function PdfViewer({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // A signed URL is short-lived, so it is fetched per book rather than cached.
+  // Keyed by document identity, not by the target: moving between citations
+  // inside one document must not reload it.
+  const key = documentKey(target.document);
+  // Not named `document`: the keyboard handler below needs the global one.
+  const pdfDocument = target.document;
   useEffect(() => {
     let cancelled = false;
     setSource(null);
@@ -154,10 +186,8 @@ export function PdfViewer({
     setExactMatch(null);
     (async () => {
       try {
-        const payload = await apiFetch<BookSourceResponse>(
-          `/books/${target.bookId}/source`,
-        );
-        if (!cancelled) setSource(payload.url);
+        const resolved = await resolveSource(pdfDocument);
+        if (!cancelled) setSource(resolved);
       } catch (caught) {
         if (!cancelled) {
           const detail = (caught as Error).message ?? "";
@@ -166,7 +196,7 @@ export function PdfViewer({
           setError(
             detail && !detail.includes("http")
               ? detail
-              : "This book's original file could not be opened.",
+              : "This document's original file could not be opened.",
           );
         }
       }
@@ -174,11 +204,14 @@ export function PdfViewer({
     return () => {
       cancelled = true;
     };
-  }, [target.bookId]);
+    // `document` is recreated on every render by the caller; its identity is
+    // the key, so depending on the object itself would refetch continuously.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
   useEffect(() => {
     setExactMatch(null);
-  }, [target.bookId, target.page, target.excerpt]);
+  }, [key, target.page, target.excerpt]);
 
   // Render at the pane's width so the page fills it without horizontal scroll.
   //
@@ -279,7 +312,7 @@ export function PdfViewer({
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-card">
       <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{target.bookTitle}</p>
+          <p className="truncate text-sm font-medium">{target.title}</p>
         </div>
         <Button
           size="icon-sm"
@@ -391,7 +424,7 @@ export function PdfViewer({
         {error ? (
           <Alert variant="destructive">
             <AlertCircle aria-hidden />
-            <AlertTitle>Cannot open this book</AlertTitle>
+            <AlertTitle>Cannot open this document</AlertTitle>
             <AlertDescription className="break-words">{error}</AlertDescription>
           </Alert>
         ) : !source ? (

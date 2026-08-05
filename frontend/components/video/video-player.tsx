@@ -7,6 +7,10 @@ import type { VideoPlayback } from "@/lib/video-types";
 export interface VideoPlayerHandle {
   /** Seek without starting playback; the reader decides when to play. */
   seekTo(milliseconds: number): void;
+  /** Fill the screen with the picture, leaving the conversation behind. */
+  enterFullscreen(): void;
+  /** Whether there is anything to show full screen at all. */
+  canFullscreen(): boolean;
 }
 
 /** A citation lands slightly before its evidence so the moment is not missed. */
@@ -22,6 +26,9 @@ interface VideoPlayerProps {
  * otherwise. Seeking uses the embed's postMessage command API rather than
  * loading the IFrame Player script, which keeps this component free of an
  * external runtime dependency.
+ *
+ * Fullscreen is requested on the frame itself rather than on a wrapper, so the
+ * picture fills the screen instead of a letterboxed box inside a black page.
  */
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
   function VideoPlayer({ playback, title }, ref) {
@@ -43,6 +50,16 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
           }),
           "https://www.youtube-nocookie.com",
         );
+      },
+      enterFullscreen() {
+        const target = elementRef.current ?? frameRef.current;
+        // Not every browser resolves the promise form, and a rejection here
+        // (a permissions policy, an unattached element) must not surface as an
+        // unhandled rejection in the reader's console.
+        target?.requestFullscreen?.().catch(() => undefined);
+      },
+      canFullscreen() {
+        return Boolean(elementRef.current ?? frameRef.current);
       },
     }));
 

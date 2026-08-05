@@ -12,8 +12,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ConversationSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+/**
+ * The little a sidebar row needs to know about a conversation.
+ *
+ * Structural rather than the book's `ConversationSummary`, because a video
+ * conversation is the same thing in a sidebar — a title, a turn count, and a
+ * recency — and duplicating the rename and delete interactions to say so
+ * would mean maintaining two of every state this row can be in.
+ */
+export interface HistoryEntry {
+  conversation_id: string;
+  title: string;
+  turn_count: number;
+  updated_at: string;
+}
 
 /** Coarse recency buckets; exact timestamps are noise in a sidebar. */
 export function recencyGroup(updatedAt: string, now: Date): string {
@@ -39,10 +53,10 @@ export function recencyGroup(updatedAt: string, now: Date): string {
 }
 
 export function groupByRecency(
-  conversations: ConversationSummary[],
+  conversations: HistoryEntry[],
   now: Date,
-): { label: string; items: ConversationSummary[] }[] {
-  const groups = new Map<string, ConversationSummary[]>();
+): { label: string; items: HistoryEntry[] }[] {
+  const groups = new Map<string, HistoryEntry[]>();
   for (const conversation of conversations) {
     const label = recencyGroup(conversation.updated_at, now);
     const existing = groups.get(label);
@@ -61,7 +75,7 @@ function ConversationRow({
   onRename,
   onDelete,
 }: {
-  conversation: ConversationSummary;
+  conversation: HistoryEntry;
   isActive: boolean;
   onOpen: () => void;
   onRename: (title: string) => void;
@@ -188,7 +202,7 @@ function ConversationRow({
 }
 
 export interface ConversationHistoryProps {
-  conversations: ConversationSummary[];
+  conversations: HistoryEntry[];
   loaded: boolean;
   activeId: string | null;
   onOpen: (conversationId: string) => void;

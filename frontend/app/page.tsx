@@ -166,12 +166,14 @@ export default function Page() {
     (reference: EvidenceRef, page?: number) => {
       if (reference.book_id === null) return;
       const targetPage = page ?? reference.pages[0] ?? 1;
-      if (reading?.bookId !== reference.book_id) setPdfZoom(1);
+      const opened =
+        reading?.document.kind === "book" ? reading.document.bookId : null;
+      if (opened !== reference.book_id) setPdfZoom(1);
       setPdfPage(targetPage);
       setReadingMinimized(false);
       setReading({
-        bookId: reference.book_id,
-        bookTitle:
+        document: { kind: "book", bookId: reference.book_id },
+        title:
           reference.book_title ??
           books.find((book) => book.book_id === reference.book_id)?.title ??
           "This book",
@@ -182,7 +184,7 @@ export default function Page() {
         excerpt: reference.excerpt,
       });
     },
-    [books, reading?.bookId],
+    [books, reading?.document],
   );
 
   const handleNewConversation = useCallback(() => {
@@ -273,13 +275,13 @@ export default function Page() {
             variant="outline"
             size="sm"
             className="max-w-56"
-            aria-label={`Restore ${reading.bookTitle} at page ${pdfPage}`}
-            title={reading.bookTitle}
+            aria-label={`Restore ${reading.title} at page ${pdfPage}`}
+            title={reading.title}
             onClick={() => setReadingMinimized(false)}
           >
             <PanelRightOpen aria-hidden />
             <span className="hidden max-w-32 truncate lg:inline">
-              {reading.bookTitle}
+              {reading.title}
             </span>
             <span className="text-muted-foreground">p. {pdfPage}</span>
           </Button>

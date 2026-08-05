@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { formatTimestamp } from "@/lib/video-types";
 import type {
   VideoCitationRef,
+  VideoDocumentTarget,
   VideoEvidenceRef,
 } from "@/lib/video-types";
 
@@ -52,7 +53,7 @@ function renderAnswer(
   citations: VideoCitationRef[],
   handlers: {
     onSeek?: (ms: number) => void;
-    onOpenDocument?: (citation: VideoCitationRef) => void;
+    onOpenDocument?: (target: VideoDocumentTarget) => void;
   } = {},
 ) {
   return render(
@@ -120,7 +121,12 @@ describe("VideoAnswer", () => {
       name: "CME295 slides p. 12",
     });
     await userEvent.click(control);
-    expect(onOpenDocument).toHaveBeenCalledTimes(1);
+    // The passage to highlight comes from the evidence, not the marker.
+    expect(onOpenDocument).toHaveBeenCalledWith({
+      resourceId: "r-1",
+      page: 12,
+      excerpt: "Positional encoding",
+    });
   });
 
   it("leaves a marker as plain text when nothing backs it", () => {

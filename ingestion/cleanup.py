@@ -68,7 +68,10 @@ def _delete_source(connection: Connection, row) -> bool:
         # Storage being down must not fail the pass; the job stays eligible
         # and the next pass tries again.
         logger.warning(
-            "source deletion failed for job %s: %s", row["id"], error.code
+            "source deletion failed for job %s at %s: %s",
+            row["id"],
+            row["storage_path"],
+            error.detail or error.code.value,
         )
         return False
 
@@ -122,8 +125,14 @@ def cancel_abandoned_uploads(
     for row in rows:
         try:
             delete_object(row["storage_bucket"], row["storage_path"])
-        except IngestionError:
+        except IngestionError as error:
             failed += 1
+            logger.warning(
+                "abandoned upload %s could not be released at %s: %s",
+                row["id"],
+                row["storage_path"],
+                error.detail or error.code.value,
+            )
             continue
         connection.execute(
             """
@@ -282,18 +291,33 @@ def delete_orphaned_sources(
             if path in known or path in protected:
                 continue
             try:
-                delete_object(limits.source_bucket, path)
-                deleted += 1
-                # Logged individually: this is the one deletion path with no
-                # job row to attach an event to, so the log is the only record
-                # that it happened.
-                logger.warning(
-                    "deleted orphaned source object %s (no job or book "
-                    "references it)",
-                    path,
-                )
-            except IngestionError:
+                removed = delete_object(limits.source_bucket, path)
+            except IngestionError as error:
+                # Named, not counted. A deletion that fails every hour cannot
+                # be diagnosed from a total, and this sweep is the one caller
+                # with no job row to attach the failure to.
                 failed += 1
+                logger.warning(
+                    "orphan sweep could not delete %s: %s",
+                    path,
+                    error.detail or error.code.value,
+                )
+                continue
+            if not removed:
+                # The prefix exists but holds no source object. Nothing is
+                # billed for a path with no bytes behind it, and this pipeline
+                # writes exactly one name under a job prefix, so there is
+                # nothing here to reclaim and nothing to report.
+                continue
+            deleted += 1
+            # Logged individually: this is the one deletion path with no
+            # job row to attach an event to, so the log is the only record
+            # that it happened.
+            logger.warning(
+                "deleted orphaned source object %s (no job or book "
+                "references it)",
+                path,
+            )
     return deleted, failed
 
 
@@ -324,7 +348,11 @@ def run_cleanup(
         deletions_failed=cancel_failures + delete_failures + orphan_failures,
     )
     if summary.total or summary.deletions_failed:
-        logger.info(
+        # A failed deletion is now a real problem rather than an object that
+        # was simply already gone, so it is reported at a level that stands
+        # out from a pass that merely did work.
+        logger.log(
+            logging.WARNING if summary.deletions_failed else logging.INFO,
             "cleanup pass: %s abandoned uploads cancelled, %s expired sources "
             "deleted, %s orphaned objects deleted, %s deletions failed",
             summary.abandoned_uploads_cancelled,

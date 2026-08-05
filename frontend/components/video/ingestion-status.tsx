@@ -30,35 +30,76 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 const STAGE_ORDER = Object.keys(STAGE_LABEL);
+export const STAGE_COUNT = STAGE_ORDER.length;
 
+export function stageLabel(stage: string | null): string {
+  if (!stage) return "Queued for processing";
+  return STAGE_LABEL[stage] ?? stage;
+}
+
+/**
+ * How far along a job is, preferring what the worker reported.
+ *
+ * The stage index is the fallback, not the source: a stage that reports real
+ * progress (frames analysed, pages read) knows more than its position does.
+ */
+export function stagePercent(
+  stage: string | null,
+  reported?: number | null,
+): { step: number; percent: number } {
+  const position = stage ? STAGE_ORDER.indexOf(stage) : -1;
+  const step = position + 1;
+  const fromStage = position >= 0 ? Math.round((step / STAGE_COUNT) * 100) : 0;
+  return { step, percent: reported ?? fromStage };
+}
+
+/**
+ * The lecture's state in one phrase.
+ *
+ * "Degraded" is reported as ready, without a parenthetical. It is a published
+ * version that answers questions; which gate it missed is said in a sentence
+ * beside it, where there is room to say how much it missed by. A badge reading
+ * "Ready (partial)" spent the reader's attention on a worry it could not then
+ * explain.
+ */
 export function readinessLabel(
   readiness: VideoReadiness,
   ingestion?: VideoIngestion | null,
 ): string {
-  if (ingestion?.status === "awaiting_upload") return "Waiting for file";
-  if (ingestion?.status === "cancelled") return "Cancelled";
+  if (ingestion?.status === "awaiting_upload") return "Waiting for the file";
+  if (ingestion?.status === "cancelled" && readiness !== "ready") {
+    return "Cancelled";
+  }
   return {
     processing: "Processing",
     ready: "Ready",
-    degraded: "Ready (partial)",
-    failed: "Failed",
+    degraded: "Ready",
+    failed: "Could not be processed",
   }[readiness];
 }
 
 export function IngestionStatus({
   readiness,
   ingestion,
+  notes = [],
 }: {
   readiness: VideoReadiness;
   ingestion: VideoIngestion | null;
+  /** Measured reasons a published version is short of complete. */
+  notes?: string[];
 }) {
   if (readiness === "ready" || readiness === "degraded") {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <CheckCircle2 aria-hidden className="size-4 text-positive" />
-        {readiness === "degraded"
-          ? "Ready, with some evidence missing — answers say so when it matters."
-          : "Ready to answer questions."}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle2 aria-hidden className="size-4 text-positive" />
+          Ready to answer questions.
+        </div>
+        {notes.map((note) => (
+          <p key={note} className="pl-6 text-xs text-muted-foreground">
+            {note}
+          </p>
+        ))}
       </div>
     );
   }
@@ -67,11 +108,14 @@ export function IngestionStatus({
     return (
       <Alert variant="destructive">
         <AlertCircle aria-hidden />
-        <AlertTitle>Ingestion failed</AlertTitle>
-        <AlertDescription>
-          {ingestion.error.message}
-          {ingestion.retryable ? " You can retry it." : null}
-        </AlertDescription>
+        {/* The title used to restate the heading and the body used to restate
+            the title. The cause is the only thing worth the space. */}
+        <AlertTitle>{ingestion.error.message}</AlertTitle>
+        {ingestion.retryable ? (
+          <AlertDescription>
+            This can be retried — rebuilding reuses whatever finished.
+          </AlertDescription>
+        ) : null}
       </Alert>
     );
   }
@@ -101,21 +145,16 @@ export function IngestionStatus({
   }
 
   const stage = ingestion?.stage ?? null;
-  const position = stage ? STAGE_ORDER.indexOf(stage) : -1;
-  const percent =
-    ingestion?.progress.percent ??
-    (position >= 0 ? Math.round(((position + 1) / STAGE_ORDER.length) * 100) : 0);
+  const { step, percent } = stagePercent(stage, ingestion?.progress.percent);
 
   return (
     <div className="space-y-2" role="status" aria-live="polite">
       <div className="flex items-center gap-2 text-sm">
         <Loader2 aria-hidden className="size-4 animate-spin" />
-        <span>
-          {stage ? (STAGE_LABEL[stage] ?? stage) : "Queued for processing"}
-        </span>
-        {position >= 0 ? (
+        <span>{stageLabel(stage)}</span>
+        {step > 0 ? (
           <Badge variant="outline">
-            step {position + 1} of {STAGE_ORDER.length}
+            step {step} of {STAGE_COUNT}
           </Badge>
         ) : null}
       </div>

@@ -21,6 +21,7 @@ from video.jobs import (
     request_cancellation as request_video_cancellation,
     retry_job as retry_video_job,
 )
+from video.readiness import readiness_notes
 from video.repository import (
     UNSET,
     VideoAlreadyExistsError,
@@ -147,6 +148,11 @@ class ProgressView(ContractModel):
 
 class JobErrorView(ContractModel):
     code: str
+    # The worker writes a sentence written for a reader (video/errors.py keeps
+    # them in SAFE_MESSAGES). It was being dropped for a constant, so every
+    # failure — an unplayable file, an exhausted retry, a provider outage —
+    # read "Video ingestion failed" and told the reader nothing they could act
+    # on. The default now only covers a row that carries no message at all.
     message: str = "Video ingestion failed"
 
 
@@ -180,6 +186,12 @@ class VideoSummary(ContractModel):
     ready_for_qa: bool
     playback: PlaybackView
     latest_ingestion: VideoIngestionView | None
+    # Why a published version is "degraded", measured. Empty when it passed
+    # every gate, so an unexplained reservation is never shown.
+    readiness_notes: list[str] = Field(default_factory=list)
+    # Whether removal would succeed. Offering an action that 409s is worse
+    # than not offering it, and the reason it cannot is worth saying once.
+    deletable: bool = False
     created_at: datetime
     updated_at: datetime
     ready_at: datetime | None
@@ -333,6 +345,7 @@ def _job(row, *, prefix: str = "") -> VideoIngestionView | None:
         "progress_unit": value("progress_unit"),
     }
     error_code = value("last_error_code")
+    error_message = value("last_error_message")
     return VideoIngestionView(
         job_id=identifier,
         video_id=value("video_id"),
@@ -346,7 +359,14 @@ def _job(row, *, prefix: str = "") -> VideoIngestionView | None:
         cancellation_requested=value("cancellation_requested_at") is not None,
         actual_cost_usd=value("actual_cost_usd"),
         cost_cap_usd=value("cost_cap_usd"),
-        error=JobErrorView(code=error_code) if error_code else None,
+        error=(
+            JobErrorView(
+                code=error_code,
+                **({"message": error_message} if error_message else {}),
+            )
+            if error_code
+            else None
+        ),
         created_at=value("created_at"),
         started_at=value("started_at"),
         updated_at=value("updated_at"),
@@ -372,6 +392,8 @@ def _summary(row) -> VideoSummary:
         duration_ms=row["duration_ms"],
         readiness_status=row["readiness_status"],
         ready_for_qa=row["current_ingestion_version_id"] is not None,
+        readiness_notes=readiness_notes(row.get("quality_gates_json")),
+        deletable=bool(row.get("deletable")),
         playback=PlaybackView(
             kind="youtube" if row["source_kind"] == "youtube" else "local",
             youtube_video_id=row["youtube_video_id"],

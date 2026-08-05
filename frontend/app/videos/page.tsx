@@ -9,12 +9,8 @@ import { AuthGate } from "@/components/auth-gate";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AddVideo } from "@/components/video/add-video";
-import {
-  IngestionStatus,
-  readinessLabel,
-} from "@/components/video/ingestion-status";
+import { VideoCard } from "@/components/video/video-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -27,11 +23,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
-import {
-  formatTimestamp,
-  type VideoListResponse,
-  type VideoSummary,
-} from "@/lib/video-types";
+import { groupVideos, videoState } from "@/lib/video-state";
+import type { VideoListResponse, VideoSummary } from "@/lib/video-types";
 
 /** How often a processing library re-checks itself. */
 const POLL_INTERVAL_MS = 5_000;
@@ -58,8 +51,42 @@ export default function VideosPage() {
     if (session) load();
   }, [session, load]);
 
+  const retry = useCallback(
+    async (video: VideoSummary) => {
+      setError("");
+      try {
+        await apiFetch(`/videos/${video.video_id}/reingest`, {
+          method: "POST",
+          headers: { "Idempotency-Key": crypto.randomUUID() },
+        });
+        await load();
+      } catch (caught) {
+        setError((caught as Error).message || "Could not start processing again.");
+      }
+    },
+    [load],
+  );
+
+  const remove = useCallback(
+    async (video: VideoSummary) => {
+      setError("");
+      try {
+        await apiFetch(`/videos/${video.video_id}`, { method: "DELETE" });
+        await load();
+      } catch (caught) {
+        setError((caught as Error).message || "Could not remove that lecture.");
+      }
+    },
+    [load],
+  );
+
+  const groups = groupVideos(videos);
+  const readyCount = videos.filter((video) =>
+    ["ready", "partial"].includes(videoState(video)),
+  ).length;
+
   const processing = videos.some(
-    (video) => video.readiness_status === "processing",
+    (video) => videoState(video) === "processing",
   );
   useEffect(() => {
     if (!session || !processing) return;
@@ -91,7 +118,10 @@ export default function VideosPage() {
       nav={<SectionNav active="videos" />}
       status={
         <span>
-          {videos.length} {videos.length === 1 ? "video" : "videos"}
+          {/* What the page is for: lectures that can answer, not rows. */}
+          {readyCount} ready{videos.length > readyCount
+            ? ` · ${videos.length - readyCount} not ready`
+            : ""}
         </span>
       }
       account={
@@ -158,47 +188,36 @@ export default function VideosPage() {
             </p>
           </div>
         ) : (
-          <ul className="space-y-3">
-            {videos.map((video) => (
-              <li key={video.video_id}>
-                <Link
-                  href={`/videos/${video.video_id}`}
-                  className="block rounded-lg border border-border p-4 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate font-medium">
-                      {video.title}
+          <div className="space-y-8">
+            {groups.map((group) => (
+              <section key={group.key} aria-labelledby={`group-${group.key}`}>
+                <div className="mb-2">
+                  <h2
+                    id={`group-${group.key}`}
+                    className="font-heading text-sm font-medium"
+                  >
+                    {group.title}
+                    <span className="ml-2 text-xs font-normal text-muted-foreground tabular-nums">
+                      {group.videos.length}
                     </span>
-                    <Badge
-                      variant={
-                        video.readiness_status === "failed"
-                          ? "destructive"
-                          : "outline"
-                      }
-                    >
-                      {readinessLabel(video.readiness_status, video.latest_ingestion)}
-                    </Badge>
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {video.source_kind === "youtube" ? "YouTube" : "Uploaded"}
-                    {video.duration_ms
-                      ? ` · ${formatTimestamp(video.duration_ms)}`
-                      : null}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {group.description}
                   </p>
-                  {video.readiness_status === "processing" ||
-                  video.latest_ingestion?.error ||
-                  video.latest_ingestion?.status === "awaiting_upload" ? (
-                    <div className="mt-3">
-                      <IngestionStatus
-                        readiness={video.readiness_status}
-                        ingestion={video.latest_ingestion}
-                      />
-                    </div>
-                  ) : null}
-                </Link>
-              </li>
+                </div>
+                <ul className="space-y-2">
+                  {group.videos.map((video) => (
+                    <VideoCard
+                      key={video.video_id}
+                      video={video}
+                      onRetry={retry}
+                      onDelete={remove}
+                    />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </AppShell>

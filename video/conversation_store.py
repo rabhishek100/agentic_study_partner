@@ -16,10 +16,15 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
-from video.models import MAXIMUM_TURN_COST_USD
+from video.models import MAXIMUM_LECTURE_COST_USD, MAXIMUM_TURN_COST_USD
 
 
 MAXIMUM_TITLE_CHARACTERS = 80
+# Routes that read the whole lecture rather than a search of it.
+LECTURE_SCOPE_ROUTES = frozenset({"lecture_summary", "topic_inventory"})
+# What a conversation is called before anything has been asked in it. Kept as
+# a constant because the first turn has to recognize it to replace it.
+PLACEHOLDER_TITLE = "New conversation"
 
 
 class VideoConversationNotFoundError(LookupError):
@@ -30,10 +35,20 @@ class VideoTurnCostExceeded(RuntimeError):
     """The turn reported more spend than one answer is allowed to cost."""
 
 
+def cost_ceiling(route: str) -> float:
+    """The most one turn on this route is allowed to have cost."""
+
+    return (
+        MAXIMUM_LECTURE_COST_USD
+        if route in LECTURE_SCOPE_ROUTES
+        else MAXIMUM_TURN_COST_USD
+    )
+
+
 def derive_title(question: str) -> str:
     cleaned = " ".join(question.split())
     if len(cleaned) <= MAXIMUM_TITLE_CHARACTERS:
-        return cleaned or "New conversation"
+        return cleaned or PLACEHOLDER_TITLE
     return cleaned[: MAXIMUM_TITLE_CHARACTERS - 1].rstrip() + "…"
 
 
@@ -164,14 +179,22 @@ def append_turn(
     state: dict[str, Any],
     cost_usd: float | Decimal = 0,
     trace_id: str | None = None,
+    maximum_cost_usd: float = MAXIMUM_TURN_COST_USD,
 ) -> int:
-    """Record one settled turn and refresh the resume checkpoint."""
+    """Record one settled turn, refresh the checkpoint, and name the thread.
+
+    A video conversation is created before its first question is answered, so
+    it is born holding the placeholder title. The first turn to land replaces
+    it with the question, which is what the book conversations have always
+    been called. A conversation the reader has already named keeps that name,
+    and so does one whose title came from a client that supplied it.
+    """
 
     owner = parse_owner_id(owner_id)
     cost = Decimal(str(cost_usd)).quantize(Decimal("0.000001"))
-    if cost > Decimal(str(MAXIMUM_TURN_COST_USD)):
+    if cost > Decimal(str(maximum_cost_usd)):
         raise VideoTurnCostExceeded(
-            f"one video answer may not cost more than ${MAXIMUM_TURN_COST_USD}"
+            f"one video answer may not cost more than ${maximum_cost_usd}"
         )
     with connection.transaction():
         row = connection.execute(
@@ -203,15 +226,28 @@ def append_turn(
                 owner,
             ),
         ).fetchone()
+        turn_index = int(row["turn_index"])
         connection.execute(
             """
             update video.conversations
-            set state_json = %s, updated_at = now()
+            set state_json = %s,
+                title = case
+                    when %s = 0 and title = %s then %s
+                    else title
+                end,
+                updated_at = now()
             where id = %s and owner_id = %s
             """,
-            (Jsonb(state), UUID(str(conversation_id)), owner),
+            (
+                Jsonb(state),
+                turn_index,
+                PLACEHOLDER_TITLE,
+                derive_title(question),
+                UUID(str(conversation_id)),
+                owner,
+            ),
         )
-    return int(row["turn_index"])
+    return turn_index
 
 
 def rename_conversation(

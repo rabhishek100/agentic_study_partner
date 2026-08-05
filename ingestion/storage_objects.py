@@ -250,21 +250,35 @@ def list_prefix(bucket: str, prefix: str = "", *, limit: int = 100) -> list[str]
 
 
 def delete_object(bucket: str, path: str) -> bool:
-    """Remove one object. Returns False when it was already gone."""
+    """Remove one object. Returns False when it was already gone.
+
+    Uses `_reports_missing` for the same reason `object_info` and
+    `signed_object_url` do: Storage answers a missing object with 400 and a
+    `not_found` body, so a bare status check reads "already gone" as "Storage
+    is broken". This function claimed to return False for a deleted object and
+    raised instead, which made the retention sweep count one absent file as a
+    failed deletion on every pass, forever.
+    """
 
     with storage_client() as client:
         try:
             response = client.delete(f"/object/{bucket}/{path}")
         except httpx.HTTPError as error:
             raise IngestionError(
-                ErrorCode.STORAGE_UNAVAILABLE, detail=f"delete failed: {error!r}"
+                ErrorCode.STORAGE_UNAVAILABLE,
+                detail=f"delete of {bucket}/{path} failed: {error!r}",
             ) from error
-    if response.status_code == 404:
+    if _reports_missing(response):
         return False
     if response.status_code >= 400:
+        # The body is the only thing that distinguishes one 400 from another,
+        # and a deletion that fails every hour is unfixable without it.
         raise IngestionError(
             ErrorCode.STORAGE_UNAVAILABLE,
-            detail=f"delete returned {response.status_code}",
+            detail=(
+                f"delete of {bucket}/{path} returned {response.status_code}: "
+                f"{response.text[:200]}"
+            ),
         )
     return True
 

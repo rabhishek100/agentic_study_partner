@@ -35,6 +35,14 @@ from video.contracts import (
     VideoTurnDecision,
     VideoTurnResult,
 )
+from video.prompts import format_timestamp
+from video.lecture import (
+    NoTranscriptError,
+    inventory_topics,
+    load_chapters,
+    load_lecture_scope,
+    summarize_lecture,
+)
 
 
 DEFAULT_EVIDENCE_LIMIT = 8
@@ -117,7 +125,91 @@ def route_after_plan(state: VideoGraphState) -> str:
         return "clarify"
     if route == "prior_answer_transform":
         return "transform_prior"
+    if route in {"lecture_summary", "topic_inventory"}:
+        return "whole_lecture"
     return "retrieve_evidence"
+
+
+def whole_lecture(
+    state: VideoGraphState, runtime: Runtime[VideoTurnContext]
+) -> dict:
+    """Answer from the complete transcript rather than from a search of it.
+
+    Retrieval is skipped entirely here, so there is no sufficiency check to
+    make: the evidence is the whole lecture by construction, and the only way
+    it can be insufficient is for the lecture to have no transcript at all.
+    """
+
+    context = runtime.context
+    decision = state["decision"]
+    question = state["question"]
+    try:
+        scope = load_lecture_scope(
+            context.connection,
+            owner_id=context.owner_id,
+            video_id=context.video_id,
+        )
+    except NoTranscriptError as error:
+        return {
+            "result": VideoTurnResult(
+                question=question,
+                answer=f"Insufficient evidence: {error}.",
+                route=decision.route,
+                history_dependency=decision.history_dependency,
+                standalone_query=decision.standalone_query,
+                outcome="abstain",
+                retrieval_attempts=0,
+                routing_reason=decision.reason,
+                trace_id=_current_trace_id(),
+            )
+        }
+
+    chapters = load_chapters(
+        context.connection,
+        owner_id=context.owner_id,
+        video_id=context.video_id,
+    )
+    produce = (
+        summarize_lecture if decision.route == "lecture_summary" else inventory_topics
+    )
+    draft = produce(
+        question=question,
+        scope=scope,
+        video_title=context.video_title,
+        chapters=chapters,
+        dependencies=context.dependencies,
+        token_callback=context.token_callback,
+    )
+    # Only the windows the answer actually cited are carried as evidence. All
+    # of them were supplied, but listing two dozen transcript windows as
+    # "sources" would bury the handful a claim rests on.
+    cited = {citation.evidence_rank for citation in draft.citations}
+    return {
+        "result": VideoTurnResult(
+            question=question,
+            answer=draft.answer,
+            route=decision.route,
+            history_dependency=decision.history_dependency,
+            standalone_query=decision.standalone_query,
+            evidence=[
+                window for window in scope.windows if window.rank in cited
+            ],
+            citations=draft.citations,
+            visual_cards=draft.visual_cards,
+            outcome=draft.outcome,
+            ingestion_version_id=str(scope.version_id),
+            retrieval_attempts=0,
+            sufficiency_reason=(
+                f"The complete transcript, in {len(scope.windows)} windows "
+                f"across {format_timestamp(scope.duration_ms)}"
+                + (f" — {draft.coverage}." if draft.coverage else ".")
+            ),
+            warnings=list(draft.warnings),
+            routing_reason=decision.reason,
+            cost_usd=draft.cost_usd,
+            trace_id=_current_trace_id(),
+        )
+    }
 
 
 def retrieve_evidence(
@@ -286,6 +378,7 @@ def build_video_turn_graph():
         context_schema=VideoTurnContext,
     )
     builder.add_node("plan_turn", plan_turn)
+    builder.add_node("whole_lecture", whole_lecture)
     builder.add_node("retrieve_evidence", retrieve_evidence)
     builder.add_node("check_sufficiency", check_sufficiency)
     builder.add_node("synthesize", synthesize)
@@ -297,6 +390,7 @@ def build_video_turn_graph():
     builder.add_conditional_edges("plan_turn", route_after_plan)
     builder.add_edge("retrieve_evidence", "check_sufficiency")
     builder.add_conditional_edges("check_sufficiency", route_after_sufficiency)
+    builder.add_edge("whole_lecture", "record_turn")
     builder.add_edge("synthesize", "record_turn")
     builder.add_edge("transform_prior", "record_turn")
     builder.add_edge("clarify", "record_turn")

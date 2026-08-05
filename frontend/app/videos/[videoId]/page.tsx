@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowLeft, LogOut, MessageSquarePlus } from "lucide-react";
+import { ArrowLeft, LogOut, Maximize2, PanelRightOpen } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import { ConversationHistory } from "@/components/conversation-history";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AskPane } from "@/components/video/ask-pane";
@@ -20,6 +21,7 @@ import {
   VisualTimeline,
 } from "@/components/video/side-panels";
 import { AttachResource } from "@/components/video/attach-resource";
+import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { ResumeUpload } from "@/components/video/resume-upload";
 import {
   VideoPlayer,
@@ -37,22 +39,33 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useResizablePane } from "@/hooks/use-resizable-pane";
 import { useVideoChat } from "@/hooks/use-video-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
-import { accessToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import type {
-  VideoCitationRef,
   VideoConversationDetail,
   VideoConversationSummary,
   VideoDetail,
+  VideoDocumentTarget,
   VideoResource,
   VideoTimelineEntry,
 } from "@/lib/video-types";
 
 const POLL_INTERVAL_MS = 5_000;
 type Panel = "resources" | "timeline" | "chapters";
+
+// The lecture is the reference and the conversation is the work, so the
+// picture starts as the smaller column. Both limits are deliberate: below a
+// quarter the player is too small to read a slide from, and past two thirds
+// the conversation stops being the thing the page is for.
+const VIDEO_PANE = {
+  storageKey: "asp:video-pane-width",
+  defaultPercent: 42,
+  minPercent: 25,
+  maxPercent: 65,
+};
 
 export default function VideoWorkspace() {
   const parameters = useParams<{ videoId: string }>();
@@ -63,13 +76,23 @@ export default function VideoWorkspace() {
   const [conversations, setConversations] = useState<
     VideoConversationSummary[]
   >([]);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [panel, setPanel] = useState<Panel>("resources");
   const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState("");
+  const [reading, setReading] = useState<PdfTarget | null>(null);
+  const [readingMinimized, setReadingMinimized] = useState(false);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfZoom, setPdfZoom] = useState(1);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
-  const { turns, conversationId, isStreaming, send, stop, reset, resume } =
+  const { turns, conversationId, isStreaming, send, stop, retry, reset, resume } =
     useVideoChat(videoId);
+  const { percent, containerRef, separatorProps } = useResizablePane({
+    ...VIDEO_PANE,
+    edge: "left",
+    label: "Resize the lecture pane",
+  });
 
   const loadVideo = useCallback(async () => {
     try {
@@ -85,6 +108,7 @@ export default function VideoWorkspace() {
       conversations: VideoConversationSummary[];
     }>(`/videos/${videoId}/conversations`);
     setConversations(payload.conversations);
+    setConversationsLoaded(true);
   }, [videoId]);
 
   const loadTimeline = useCallback(async () => {
@@ -117,43 +141,59 @@ export default function VideoWorkspace() {
   }, []);
 
 
-  const openResource = useCallback(
-    async (resource?: VideoResource, page?: number) => {
-      if (!resource) return;
-      setPanel("resources");
-      const anchor =
-        page && resource.resource_kind === "pdf" ? `#page=${page}` : "";
-      if (resource.resource_kind === "external_link" && resource.source_url) {
-        window.open(resource.source_url, "_blank", "noopener");
-        return;
-      }
-      // The content endpoint authenticates by bearer token, which a plain
-      // link cannot carry, so the bytes are fetched and opened as a blob.
-      const token = await accessToken();
-      const response = await fetch(
-        `/api/videos/${videoId}/resources/${resource.resource_id}/content`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  const closeDocument = useCallback(() => {
+    setReading(null);
+    setReadingMinimized(false);
+    setPdfPage(1);
+    setPdfZoom(1);
+  }, []);
+
+  /**
+   * Open a linked document beside the conversation.
+   *
+   * This used to download the whole PDF and hand a blob URL to a new browser
+   * tab, which lost the reader's place in the lecture, could not highlight the
+   * cited passage, and left the answer behind. It is now the same docked
+   * viewer the book side uses, opened at the page the citation names.
+   */
+  const openDocument = useCallback(
+    (target: VideoDocumentTarget) => {
+      const resource = video?.resources.find(
+        (item) => item.resource_id === target.resourceId,
       );
-      if (!response.ok) {
+      if (!resource) return;
+      // A link is somewhere else on the web; there is nothing to render here.
+      if (resource.resource_kind === "external_link") {
         if (resource.source_url) {
-          window.open(`${resource.source_url}${anchor}`, "_blank", "noopener");
+          window.open(resource.source_url, "_blank", "noopener");
         }
         return;
       }
-      const url = URL.createObjectURL(await response.blob());
-      window.open(`${url}${anchor}`, "_blank", "noopener");
+      const opened =
+        reading?.document.kind === "video-resource"
+          ? reading.document.resourceId
+          : null;
+      if (opened !== resource.resource_id) setPdfZoom(1);
+      setPdfPage(target.page);
+      setReadingMinimized(false);
+      setReading({
+        document: {
+          kind: "video-resource",
+          videoId,
+          resourceId: resource.resource_id,
+        },
+        title: resource.title,
+        page: target.page,
+        excerpt: target.excerpt,
+      });
     },
-    [videoId],
+    [video, videoId, reading?.document],
   );
 
-  const openDocument = useCallback(
-    (citation: VideoCitationRef) => {
-      const resource = video?.resources.find(
-        (item) => item.resource_id === citation.resource_id,
-      );
-      openResource(resource, citation.page_number ?? undefined);
-    },
-    [video, openResource],
+  const openResource = useCallback(
+    (resource: VideoResource, page?: number) =>
+      openDocument({ resourceId: resource.resource_id, page: page ?? 1 }),
+    [openDocument],
   );
 
   const handleAsk = useCallback(
@@ -163,6 +203,11 @@ export default function VideoWorkspace() {
     },
     [send, loadConversations],
   );
+
+  const handleRetry = useCallback(async () => {
+    await retry();
+    loadConversations().catch(() => undefined);
+  }, [retry, loadConversations]);
 
   const rebuild = useCallback(async () => {
     if (rebuilding) return;
@@ -185,9 +230,40 @@ export default function VideoWorkspace() {
       await apiFetch(`/videos/${videoId}/resources/${resource.resource_id}`, {
         method: "DELETE",
       });
+      if (
+        reading?.document.kind === "video-resource" &&
+        reading.document.resourceId === resource.resource_id
+      ) {
+        closeDocument();
+      }
       await loadVideo();
     },
-    [videoId, loadVideo],
+    [videoId, loadVideo, reading?.document, closeDocument],
+  );
+
+  const renameConversation = useCallback(
+    async (id: string, title: string) => {
+      await apiFetch(`/video-conversations/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      });
+      await loadConversations();
+    },
+    [loadConversations],
+  );
+
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      await apiFetch(`/video-conversations/${id}`, { method: "DELETE" });
+      // Deleting the conversation on screen leaves nothing to continue, and
+      // its document pane nothing to belong to.
+      if (id === conversationId) {
+        closeDocument();
+        reset();
+      }
+      await loadConversations();
+    },
+    [conversationId, closeDocument, reset, loadConversations],
   );
 
   const openConversation = useCallback(
@@ -195,9 +271,10 @@ export default function VideoWorkspace() {
       const detail = await apiFetch<VideoConversationDetail>(
         `/video-conversations/${id}`,
       );
+      closeDocument();
       resume(detail);
     },
-    [resume],
+    [resume, closeDocument],
   );
 
   if (sessionLoading) {
@@ -228,6 +305,37 @@ export default function VideoWorkspace() {
             : "Loading…"}
         </span>
       }
+      documentControl={
+        reading && readingMinimized ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="max-w-56"
+            aria-label={`Restore ${reading.title} at page ${pdfPage}`}
+            title={reading.title}
+            onClick={() => setReadingMinimized(false)}
+          >
+            <PanelRightOpen aria-hidden />
+            <span className="hidden max-w-32 truncate lg:inline">
+              {reading.title}
+            </span>
+            <span className="text-muted-foreground">p. {pdfPage}</span>
+          </Button>
+        ) : null
+      }
+      aside={
+        reading && !readingMinimized ? (
+          <PdfViewer
+            target={reading}
+            page={pdfPage}
+            onPageChange={setPdfPage}
+            zoom={pdfZoom}
+            onZoomChange={setPdfZoom}
+            onMinimize={() => setReadingMinimized(true)}
+            onClose={closeDocument}
+          />
+        ) : null
+      }
       account={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -256,43 +364,34 @@ export default function VideoWorkspace() {
             <ArrowLeft aria-hidden className="size-4" />
             All videos
           </Link>
-          <Button variant="outline" size="sm" onClick={reset}>
-            <MessageSquarePlus aria-hidden />
-            New conversation
-          </Button>
-          <h2 className="font-heading text-sm font-medium">Conversations</h2>
-          {conversations.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Questions you ask about this lecture are saved here.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {conversations.map((item) => (
-                <li key={item.conversation_id}>
-                  <button
-                    type="button"
-                    onClick={() => openConversation(item.conversation_id)}
-                    aria-current={
-                      item.conversation_id === conversationId
-                        ? "true"
-                        : undefined
-                    }
-                    className={cn(
-                      "w-full truncate rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent/60",
-                      item.conversation_id === conversationId && "bg-accent",
-                    )}
-                  >
-                    {item.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ConversationHistory
+            conversations={conversations}
+            loaded={conversationsLoaded}
+            activeId={conversationId}
+            onOpen={openConversation}
+            onRename={renameConversation}
+            onDelete={deleteConversation}
+            onNew={() => {
+              closeDocument();
+              reset();
+            }}
+          />
         </div>
       }
     >
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto lg:pr-1">
+      <div
+        ref={containerRef}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden"
+      >
+        {/*
+          A share of the row on a wide screen, full width stacked below the
+          breakpoint. The width is carried as a custom property so the mobile
+          rule stays a plain class rather than an inline style fighting it.
+        */}
+        <div
+          className="flex min-h-0 w-full shrink-0 flex-col gap-3 p-4 lg:w-[var(--lecture-pane)] lg:overflow-y-auto"
+          style={{ "--lecture-pane": `${percent}%` } as React.CSSProperties}
+        >
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -300,15 +399,26 @@ export default function VideoWorkspace() {
           ) : null}
           {video ? (
             <>
-              <div>
-                <h1 className="font-heading text-base font-medium">
-                  {video.title}
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  {video.source_kind === "youtube" ? "YouTube" : "Uploaded"} ·{" "}
-                  {video.resources.length} linked{" "}
-                  {video.resources.length === 1 ? "resource" : "resources"}
-                </p>
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <h1 className="truncate font-heading text-base font-medium">
+                    {video.title}
+                  </h1>
+                  <p className="text-xs text-muted-foreground">
+                    {video.source_kind === "youtube" ? "YouTube" : "Uploaded"} ·{" "}
+                    {video.resources.length} linked{" "}
+                    {video.resources.length === 1 ? "resource" : "resources"}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Play full screen"
+                  title="Play full screen"
+                  onClick={() => playerRef.current?.enterFullscreen()}
+                >
+                  <Maximize2 aria-hidden />
+                </Button>
               </div>
               <div className="shrink-0">
                 <VideoPlayer
@@ -317,10 +427,13 @@ export default function VideoWorkspace() {
                   title={video.title}
                 />
               </div>
-              {video.ready_for_qa ? null : (
+              {/* A lecture that answers but missed a quality gate still owes
+                  the reader the reason, where they are working. */}
+              {video.ready_for_qa && video.readiness_notes.length === 0 ? null : (
                 <IngestionStatus
                   readiness={video.readiness_status}
                   ingestion={video.latest_ingestion}
+                  notes={video.readiness_notes}
                 />
               )}
               {video.latest_ingestion?.status === "awaiting_upload" ? (
@@ -389,13 +502,23 @@ export default function VideoWorkspace() {
           )}
         </div>
 
+        <div
+          {...separatorProps}
+          className={cn(
+            "hidden w-1 shrink-0 cursor-col-resize bg-border transition-colors lg:block",
+            "hover:bg-primary focus-visible:bg-primary",
+          )}
+        />
+
         <section
           aria-label="Ask this lecture"
-          className="flex min-h-[70vh] flex-col lg:h-full lg:min-h-0 lg:overflow-hidden"
+          className="flex min-h-[70vh] min-w-0 flex-1 flex-col border-t border-border lg:h-full lg:min-h-0 lg:overflow-hidden lg:border-t-0"
         >
           <AskPane
             videoId={videoId}
             turns={turns}
+            chapters={video?.chapters ?? []}
+            conversationId={conversationId}
             isStreaming={isStreaming}
             canAsk={video?.ready_for_qa ?? false}
             blockedReason={
@@ -405,6 +528,7 @@ export default function VideoWorkspace() {
             }
             onAsk={handleAsk}
             onStop={stop}
+            onRetry={handleRetry}
             onSeek={seek}
             onOpenDocument={openDocument}
           />

@@ -166,3 +166,50 @@ describe("ConversationHistory", () => {
     expect(screen.queryByText(/Nothing yet/)).toBeNull();
   });
 });
+
+describe("ConversationHistory over a video conversation", () => {
+  it("renames and deletes an entry that carries no book fields", async () => {
+    const onRename = vi.fn();
+    const onDelete = vi.fn();
+    const user = userEvent.setup();
+
+    // The video contract: no book_ids, no retrieval_mode. The row needs a
+    // title, a turn count, and a recency, and nothing else.
+    render(
+      <ConversationHistory
+        conversations={[
+          {
+            conversation_id: "video-conversation-1",
+            title: "what is a transformer",
+            turn_count: 3,
+            updated_at: new Date().toISOString(),
+          },
+        ]}
+        loaded
+        activeId={null}
+        onOpen={vi.fn()}
+        onRename={onRename}
+        onDelete={onDelete}
+        onNew={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for what is a transformer" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: /Rename/ }));
+    const field = screen.getByRole("textbox", { name: "Conversation title" });
+    await user.clear(field);
+    await user.type(field, "Transformers{Enter}");
+    expect(onRename).toHaveBeenCalledWith("video-conversation-1", "Transformers");
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for what is a transformer" }),
+    );
+    await user.click(screen.getByRole("menuitem", { name: /Delete/ }));
+    // Destructive and irreversible, so it asks first.
+    expect(onDelete).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalledWith("video-conversation-1");
+  });
+});

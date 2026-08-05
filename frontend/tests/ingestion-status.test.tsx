@@ -65,8 +65,9 @@ describe("IngestionStatus", () => {
       />,
     );
 
-    expect(screen.getByText(/Ingestion failed/i)).toBeTruthy();
-    expect(screen.getByText(/You can retry it/i)).toBeTruthy();
+    // The cause, not a restatement of the heading it sits under.
+    expect(screen.getByText("A provider failed.")).toBeTruthy();
+    expect(screen.getByText(/can be retried/i)).toBeTruthy();
   });
 });
 
@@ -74,9 +75,36 @@ describe("readinessLabel", () => {
   it("distinguishes an unfilled reservation from real progress", () => {
     expect(
       readinessLabel("processing", ingestion({ status: "awaiting_upload" })),
-    ).toBe("Waiting for file");
+    ).toBe("Waiting for the file");
     expect(readinessLabel("processing", ingestion())).toBe("Processing");
     expect(readinessLabel("ready", ingestion({ status: "ready" }))).toBe("Ready");
-    expect(readinessLabel("degraded", null)).toBe("Ready (partial)");
+  });
+
+  it("calls a degraded version ready, and explains it separately", () => {
+    // A published version answers questions. "Ready (partial)" spent the
+    // reader's attention on a worry the badge had no room to explain; the
+    // measured reason is shown beside it instead.
+    expect(readinessLabel("degraded", null)).toBe("Ready");
+  });
+
+  it("names the cause when processing could not finish", () => {
+    expect(readinessLabel("failed", null)).toBe("Could not be processed");
+  });
+});
+
+describe("IngestionStatus for a published version", () => {
+  it("states the reservation rather than hinting at one", () => {
+    render(
+      <IngestionStatus
+        readiness="degraded"
+        ingestion={ingestion({ status: "ready" })}
+        notes={["The transcript covers 94% of the lecture."]}
+      />,
+    );
+
+    expect(screen.getByText(/Ready to answer questions/i)).toBeTruthy();
+    expect(
+      screen.getByText("The transcript covers 94% of the lecture."),
+    ).toBeTruthy();
   });
 });

@@ -11,7 +11,9 @@ export type VideoRetrievalMethod =
   | "text_vector"
   | "image_vector"
   | "hybrid"
-  | "timeline_expansion";
+  | "timeline_expansion"
+  // Not a search: the complete published transcript, in order.
+  | "complete_transcript";
 
 export interface VideoPlayback {
   kind: "youtube" | "local";
@@ -56,6 +58,10 @@ export interface VideoSummary {
   ready_for_qa: boolean;
   playback: VideoPlayback;
   latest_ingestion: VideoIngestion | null;
+  /** Measured sentences for the quality gates a published version missed. */
+  readiness_notes: string[];
+  /** Whether removal would succeed; the server owns the constraint. */
+  deletable: boolean;
   created_at: string;
   updated_at: string;
   ready_at: string | null;
@@ -126,6 +132,19 @@ export interface VideoCitationRef {
   resource_id: string | null;
 }
 
+/**
+ * A request to open a linked document at a particular page.
+ *
+ * Carries the excerpt as well as the page because the viewer highlights the
+ * cited passage, and a slide page can hold several claims — landing on the
+ * right page still leaves the reader hunting for the sentence.
+ */
+export interface VideoDocumentTarget {
+  resourceId: string;
+  page: number;
+  excerpt?: string | null;
+}
+
 export interface VideoVisualCard {
   evidence_rank: number;
   frame_id: number | null;
@@ -139,7 +158,12 @@ export interface VideoVisualCard {
 export interface VideoTurnResult {
   question: string;
   answer: string;
-  route: "evidence_qa" | "prior_answer_transform" | "clarify";
+  route:
+    | "evidence_qa"
+    | "lecture_summary"
+    | "topic_inventory"
+    | "prior_answer_transform"
+    | "clarify";
   history_dependency: "independent" | "dependent" | "ambiguous";
   standalone_query: string | null;
   evidence: VideoEvidenceRef[];
