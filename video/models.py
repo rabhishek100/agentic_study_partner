@@ -16,6 +16,10 @@ from typing import Any, Protocol
 DEFAULT_ANSWER_MODEL = "openai/gpt-5.6-luna"
 DEFAULT_CONTROL_MODEL = "openai/gpt-5.6-luna"
 MAXIMUM_TURN_COST_USD = 0.05
+# A whole-lecture request reads the complete transcript instead of eight
+# passages, so it costs several times an ordinary turn by construction. One
+# ceiling for both would either reject every summary or stop capping QA.
+MAXIMUM_LECTURE_COST_USD = 0.40
 
 
 class VideoModelError(RuntimeError):

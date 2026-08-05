@@ -4,28 +4,31 @@ import { Button } from "@/components/ui/button";
 import type { VideoChapter } from "@/lib/video-types";
 
 const GENERIC_STARTERS = [
+  "Summarize this lecture",
+  "List the topics covered in this lecture",
   "What was drawn or written on the board?",
-  "What do the slides cover?",
-  "Explain the main idea of this lecture.",
 ];
 
 /**
  * Openers for a lecture with no conversation yet.
  *
- * A chapter title is a far better starter than anything generic, because it
- * names something this recording demonstrably contains — the lecturer's own
- * words for it, so the question retrieves rather than guesses. Chapters are
- * used when the source published them and the generic set is the fallback.
+ * The two whole-lecture requests come first because they are what a reader
+ * opening an unfamiliar recording actually wants, and the graph now answers
+ * them from the complete transcript rather than from a top-k sample.
  *
- * Everything here is answerable by retrieval today. Whole-lecture requests
- * ("summarize this video") are deliberately absent until the graph can serve
- * them from the full transcript rather than from a top-k sample.
+ * A chapter title makes a better third starter than anything generic: it
+ * names something this recording demonstrably contains, in the lecturer's own
+ * words, so the question retrieves rather than guesses.
  */
 export function videoStarters(chapters: VideoChapter[]): string[] {
   const fromChapters = chapters
-    .slice(0, 2)
+    .slice(0, 1)
     .map((chapter) => `Explain ${chapter.title}`);
-  return [...fromChapters, ...GENERIC_STARTERS].slice(0, 3);
+  return [
+    ...GENERIC_STARTERS.slice(0, 2),
+    ...fromChapters,
+    GENERIC_STARTERS[2]!,
+  ].slice(0, 3);
 }
 
 export function VideoWelcome({

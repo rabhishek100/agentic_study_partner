@@ -171,7 +171,7 @@ def synthesize_answer(
         text = "Insufficient evidence"
         if explanation:
             text += f": {explanation}"
-    citations = _citations(text, evidence)
+    citations = extract_citations(text, evidence)
     return AnswerDraft(
         answer=text,
         outcome="abstain" if insufficient else "answer",
@@ -182,7 +182,7 @@ def synthesize_answer(
     )
 
 
-def _citations(
+def extract_citations(
     answer: str, evidence: list[VideoEvidenceRef]
 ) -> list[VideoCitationRef]:
     """Keep only markers that point at evidence actually supplied."""
@@ -300,6 +300,7 @@ def _frame_images(
 
 __all__ = [
     "AnswerDraft",
+    "extract_citations",
     "RetrievedTurn",
     "VideoAnswerDependencies",
     "VideoNotReadyError",

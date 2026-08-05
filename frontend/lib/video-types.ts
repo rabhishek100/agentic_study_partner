@@ -11,7 +11,9 @@ export type VideoRetrievalMethod =
   | "text_vector"
   | "image_vector"
   | "hybrid"
-  | "timeline_expansion";
+  | "timeline_expansion"
+  // Not a search: the complete published transcript, in order.
+  | "complete_transcript";
 
 export interface VideoPlayback {
   kind: "youtube" | "local";
@@ -152,7 +154,12 @@ export interface VideoVisualCard {
 export interface VideoTurnResult {
   question: string;
   answer: string;
-  route: "evidence_qa" | "prior_answer_transform" | "clarify";
+  route:
+    | "evidence_qa"
+    | "lecture_summary"
+    | "topic_inventory"
+    | "prior_answer_transform"
+    | "clarify";
   history_dependency: "independent" | "dependent" | "ambiguous";
   standalone_query: string | null;
   evidence: VideoEvidenceRef[];

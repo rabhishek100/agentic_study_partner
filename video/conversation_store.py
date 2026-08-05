@@ -16,10 +16,12 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
-from video.models import MAXIMUM_TURN_COST_USD
+from video.models import MAXIMUM_LECTURE_COST_USD, MAXIMUM_TURN_COST_USD
 
 
 MAXIMUM_TITLE_CHARACTERS = 80
+# Routes that read the whole lecture rather than a search of it.
+LECTURE_SCOPE_ROUTES = frozenset({"lecture_summary", "topic_inventory"})
 # What a conversation is called before anything has been asked in it. Kept as
 # a constant because the first turn has to recognize it to replace it.
 PLACEHOLDER_TITLE = "New conversation"
@@ -31,6 +33,16 @@ class VideoConversationNotFoundError(LookupError):
 
 class VideoTurnCostExceeded(RuntimeError):
     """The turn reported more spend than one answer is allowed to cost."""
+
+
+def cost_ceiling(route: str) -> float:
+    """The most one turn on this route is allowed to have cost."""
+
+    return (
+        MAXIMUM_LECTURE_COST_USD
+        if route in LECTURE_SCOPE_ROUTES
+        else MAXIMUM_TURN_COST_USD
+    )
 
 
 def derive_title(question: str) -> str:
@@ -167,6 +179,7 @@ def append_turn(
     state: dict[str, Any],
     cost_usd: float | Decimal = 0,
     trace_id: str | None = None,
+    maximum_cost_usd: float = MAXIMUM_TURN_COST_USD,
 ) -> int:
     """Record one settled turn, refresh the checkpoint, and name the thread.
 
@@ -179,9 +192,9 @@ def append_turn(
 
     owner = parse_owner_id(owner_id)
     cost = Decimal(str(cost_usd)).quantize(Decimal("0.000001"))
-    if cost > Decimal(str(MAXIMUM_TURN_COST_USD)):
+    if cost > Decimal(str(maximum_cost_usd)):
         raise VideoTurnCostExceeded(
-            f"one video answer may not cost more than ${MAXIMUM_TURN_COST_USD}"
+            f"one video answer may not cost more than ${maximum_cost_usd}"
         )
     with connection.transaction():
         row = connection.execute(

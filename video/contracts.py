@@ -12,14 +12,28 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-VideoRoute = Literal["evidence_qa", "prior_answer_transform", "clarify"]
+VideoRoute = Literal[
+    "evidence_qa",
+    "lecture_summary",
+    "topic_inventory",
+    "prior_answer_transform",
+    "clarify",
+]
 VideoOutcome = Literal["answer", "clarify", "abstain", "error"]
 HistoryDependency = Literal["independent", "dependent", "ambiguous"]
 VideoModality = Literal[
     "transcript", "visual_frame", "visual_event", "resource_page"
 ]
 RetrievalMethod = Literal[
-    "fts", "text_vector", "image_vector", "hybrid", "timeline_expansion"
+    "fts",
+    "text_vector",
+    "image_vector",
+    "hybrid",
+    "timeline_expansion",
+    # Not a search at all: the complete published transcript, in order. A
+    # whole-lecture request is answered from all of it, and the inspector must
+    # not imply that eight passages were ranked and chosen.
+    "complete_transcript",
 ]
 
 

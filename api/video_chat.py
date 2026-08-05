@@ -35,6 +35,7 @@ from video.conversation_store import (
     VideoConversationNotFoundError,
     VideoTurnCostExceeded,
     append_turn,
+    cost_ceiling,
     create_conversation,
     delete_conversation,
     list_conversations,
@@ -354,6 +355,7 @@ def _run_turn(
                 state=updated.model_dump(mode="json"),
                 cost_usd=result.cost_usd,
                 trace_id=result.trace_id,
+                maximum_cost_usd=cost_ceiling(result.route),
             )
     return AskResponse(conversation_id=conversation_id, result=result)
 

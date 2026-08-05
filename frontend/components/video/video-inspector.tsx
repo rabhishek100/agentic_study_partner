@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 const ROUTE_LABELS: Record<VideoTurnResult["route"], string> = {
   evidence_qa: "Retrieval question answering",
+  lecture_summary: "Complete-transcript summary",
+  topic_inventory: "Topic inventory",
   prior_answer_transform: "Transform of the previous answer",
   clarify: "Clarification",
 };
@@ -95,7 +97,13 @@ export function VideoInspector({ result }: { result: VideoTurnResult }) {
             </Row>
           )}
           {result.sufficiency_reason && (
-            <Row term="Sufficiency">{result.sufficiency_reason}</Row>
+            <Row
+              term={
+                result.retrieval_attempts === 0 ? "Evidence read" : "Sufficiency"
+              }
+            >
+              {result.sufficiency_reason}
+            </Row>
           )}
           <Row term="Outcome">
             <Badge
