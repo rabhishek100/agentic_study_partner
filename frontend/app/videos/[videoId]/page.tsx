@@ -1,18 +1,13 @@
 "use client";
 
-import {
-  ArrowLeft,
-  LogOut,
-  Maximize2,
-  MessageSquarePlus,
-  PanelRightOpen,
-} from "lucide-react";
+import { ArrowLeft, LogOut, Maximize2, PanelRightOpen } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import { ConversationHistory } from "@/components/conversation-history";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AskPane } from "@/components/video/ask-pane";
@@ -81,6 +76,7 @@ export default function VideoWorkspace() {
   const [conversations, setConversations] = useState<
     VideoConversationSummary[]
   >([]);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [panel, setPanel] = useState<Panel>("resources");
   const [rebuilding, setRebuilding] = useState(false);
   const [error, setError] = useState("");
@@ -112,6 +108,7 @@ export default function VideoWorkspace() {
       conversations: VideoConversationSummary[];
     }>(`/videos/${videoId}/conversations`);
     setConversations(payload.conversations);
+    setConversationsLoaded(true);
   }, [videoId]);
 
   const loadTimeline = useCallback(async () => {
@@ -244,6 +241,31 @@ export default function VideoWorkspace() {
     [videoId, loadVideo, reading?.document, closeDocument],
   );
 
+  const renameConversation = useCallback(
+    async (id: string, title: string) => {
+      await apiFetch(`/video-conversations/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      });
+      await loadConversations();
+    },
+    [loadConversations],
+  );
+
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      await apiFetch(`/video-conversations/${id}`, { method: "DELETE" });
+      // Deleting the conversation on screen leaves nothing to continue, and
+      // its document pane nothing to belong to.
+      if (id === conversationId) {
+        closeDocument();
+        reset();
+      }
+      await loadConversations();
+    },
+    [conversationId, closeDocument, reset, loadConversations],
+  );
+
   const openConversation = useCallback(
     async (id: string) => {
       const detail = await apiFetch<VideoConversationDetail>(
@@ -342,45 +364,18 @@ export default function VideoWorkspace() {
             <ArrowLeft aria-hidden className="size-4" />
             All videos
           </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
+          <ConversationHistory
+            conversations={conversations}
+            loaded={conversationsLoaded}
+            activeId={conversationId}
+            onOpen={openConversation}
+            onRename={renameConversation}
+            onDelete={deleteConversation}
+            onNew={() => {
               closeDocument();
               reset();
             }}
-          >
-            <MessageSquarePlus aria-hidden />
-            New conversation
-          </Button>
-          <h2 className="font-heading text-sm font-medium">Conversations</h2>
-          {conversations.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Questions you ask about this lecture are saved here.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {conversations.map((item) => (
-                <li key={item.conversation_id}>
-                  <button
-                    type="button"
-                    onClick={() => openConversation(item.conversation_id)}
-                    aria-current={
-                      item.conversation_id === conversationId
-                        ? "true"
-                        : undefined
-                    }
-                    className={cn(
-                      "w-full truncate rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent/60",
-                      item.conversation_id === conversationId && "bg-accent",
-                    )}
-                  >
-                    {item.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          />
         </div>
       }
     >
