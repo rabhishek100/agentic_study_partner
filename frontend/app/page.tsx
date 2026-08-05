@@ -9,6 +9,7 @@ import { AuthGate } from "@/components/auth-gate";
 import { ConversationView } from "@/components/conversation/conversation-view";
 import { LibraryRail } from "@/components/library-rail";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
+import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -233,6 +234,7 @@ export default function Page() {
 
   return (
     <AppShell
+      nav={<SectionNav active="books" />}
       status={
         <span className="flex items-center gap-1.5">
           <span

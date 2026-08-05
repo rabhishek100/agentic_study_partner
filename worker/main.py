@@ -43,6 +43,7 @@ from ingestion.pipeline import (
 )
 from ingestion.states import Status, is_terminal
 from storage.database import close_pools, connection as database_connection
+from video.worker import VideoWorker as StandaloneVideoWorker
 
 
 logger = logging.getLogger("study_partner.worker")
@@ -66,6 +67,7 @@ class JsonFormatter(logging.Formatter):
             "job_id",
             "owner_id",
             "book_id",
+            "video_id",
             "stage",
             "status",
             "attempt",
@@ -152,6 +154,7 @@ class Worker:
         database_url: str | None = None,
         dependencies: PipelineDependencies | None = None,
         temporary_root: Path | None = None,
+        video_worker: StandaloneVideoWorker | None = None,
     ) -> None:
         self.limits = limits or load_limits()
         self.worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:8]}"
@@ -161,6 +164,12 @@ class Worker:
             os.getenv("INGESTION_TEMP_ROOT") or tempfile.gettempdir()
         )
         self._stopping = threading.Event()
+        self.video_worker = video_worker or StandaloneVideoWorker(
+            worker_id=self.worker_id,
+            database_url=self.database_url,
+            temporary_root=self.temporary_root,
+        )
+        self._prefer_video = False
         # Force the first loop iteration to run a retention pass, so a worker
         # that restarts daily still cleans up even with long intervals.
         self._last_cleanup = -float(self.limits.cleanup_interval_seconds)
@@ -342,12 +351,31 @@ class Worker:
         """Claim and run at most one job. True when work was done."""
 
         self.recover_abandoned_jobs()
+        self.video_worker.recover_abandoned_jobs()
         self.run_retention_pass()
-        job = self.claim()
-        if job is None:
-            return False
-        self.process(job)
-        return True
+        if self._prefer_video:
+            video_job = self.video_worker.claim()
+            if video_job is not None:
+                self.video_worker.process(video_job)
+                self._prefer_video = False
+                return True
+            job = self.claim()
+            if job is not None:
+                self.process(job)
+                self._prefer_video = True
+                return True
+        else:
+            job = self.claim()
+            if job is not None:
+                self.process(job)
+                self._prefer_video = True
+                return True
+            video_job = self.video_worker.claim()
+            if video_job is not None:
+                self.video_worker.process(video_job)
+                self._prefer_video = False
+                return True
+        return False
 
     def run(self) -> None:
         """Poll until asked to stop."""

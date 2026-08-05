@@ -16,6 +16,7 @@ RUN apt-get update \
         libglib2.0-0 \
         libmagic1 \
         libxcb1 \
+        ffmpeg \
         poppler-utils \
         tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
@@ -29,11 +30,12 @@ COPY retrieval ./retrieval
 # import time on the deployed service rather than in CI.
 COPY storage ./storage
 COPY study ./study
+COPY video ./video
 COPY worker ./worker
 # Operational commands the runbook refers to, and the parse benchmark, need
 # to be runnable inside the deployed image rather than only from a laptop.
 COPY scripts/__init__.py scripts/benchmark_parse.py scripts/compare_extraction.py \
-    ./scripts/
+    scripts/serve.py ./scripts/
 
 ENV PATH="/app/.venv/bin:$PATH"
 
@@ -55,8 +57,10 @@ ENV BUILD_REVISION=$BUILD_REVISION \
 # worker's extra toolchain is the only difference in content.
 EXPOSE 8000
 
-# One image, two roles. START_COMMAND selects the worker; without it the
-# container serves the API. Shell form so a platform-injected $PORT is
-# honoured, and exec so the process still receives SIGTERM directly, which
-# the worker relies on to stop claiming new jobs.
+# One image, three roles. START_COMMAND selects the worker
+# (`python -m worker.main`) or the combined service (`python -m scripts.serve`,
+# which runs the API and worker together so they share one media volume);
+# without it the container serves the API alone. Shell form so a
+# platform-injected $PORT is honoured, and exec so the process still receives
+# SIGTERM directly, which the worker relies on to stop claiming new jobs.
 CMD ["sh", "-c", "if [ -n \"$START_COMMAND\" ]; then exec sh -c \"$START_COMMAND\"; fi; exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

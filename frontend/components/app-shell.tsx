@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 export interface AppShellProps {
   /** Library, upload, and settings. Shown as a rail, or a sheet on mobile. */
   rail: React.ReactNode;
+  /** Switches between the library's sections; books and videos are peers. */
+  nav?: React.ReactNode;
   /** Short status line for the current conversation. */
   status: React.ReactNode;
   /** Account controls, right-aligned in the header. */
@@ -32,6 +34,7 @@ export interface AppShellProps {
 
 export function AppShell({
   rail,
+  nav,
   status,
   account,
   documentControl,
@@ -86,6 +89,7 @@ export function AppShell({
         </div>
 
         <div className="ml-auto flex items-center gap-1.5">
+          {nav ? <div className="hidden sm:block">{nav}</div> : null}
           {documentControl}
           <ThemeToggle />
           {account}

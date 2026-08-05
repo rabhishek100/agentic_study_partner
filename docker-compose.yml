@@ -7,10 +7,13 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
+      VIDEO_MEDIA_ROOT: /var/lib/agentic-study-partner/video-media
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
+    volumes:
+      - video-media:/var/lib/agentic-study-partner/video-media
     healthcheck:
       test:
         - CMD
@@ -36,10 +39,13 @@ services:
       START_COMMAND: python -m worker.main
       DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
       SUPABASE_URL: ${DOCKER_SUPABASE_URL:-${SUPABASE_URL:-http://host.docker.internal:54321}}
+      VIDEO_MEDIA_ROOT: /var/lib/agentic-study-partner/video-media
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # No published port: the worker polls Postgres and serves no traffic.
     restart: unless-stopped
+    volumes:
+      - video-media:/var/lib/agentic-study-partner/video-media
 
   web:
     build:
@@ -58,3 +64,6 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
+
+volumes:
+  video-media:

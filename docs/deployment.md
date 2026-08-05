@@ -1,12 +1,12 @@
 # Deployment: Railway + hosted Supabase
 
-Three Railway services against one hosted Supabase project.
+Two Railway services against one hosted Supabase project.
 
 ```text
 Railway project
-  web      Next.js standalone            public
-  api      FastAPI                       public
-  worker   ingestion worker              no ingress, no sleep
+  web      Next.js standalone                    public
+  app      FastAPI + ingestion worker, one       public
+           container, one attached volume        no sleep
 
 Supabase project (usuulfckhbeypjxwjpfn)
   Auth (ES256 access tokens, JWKS)
@@ -14,8 +14,43 @@ Supabase project (usuulfckhbeypjxwjpfn)
   private book-sources bucket
 ```
 
-The API and worker share the repository-root `Dockerfile` and differ only by
-start command. The web service builds from `frontend/Dockerfile`.
+The app service runs `python -m scripts.serve`, which supervises uvicorn and
+the worker in one container and exits if either of them does.
+
+**Why they share a container.** Video ingestion writes canonical sources,
+frames, and diagram crops to a filesystem media root, and the API reads those
+same bytes back to serve frame images and linked PDFs. A Railway volume mounts
+to exactly one service, so two services cannot share one media root — an
+upload accepted by a separate API would be invisible to the worker. Supabase
+Storage is not an alternative here: the free plan caps an object at 50 MB and
+the project at 1 GB, while a 1080p lecture is 1–3 GB. One service with one
+volume is the arrangement that actually works, and it is the tradeoff
+`AGENTS.md` asks for by name.
+
+Books alone do not need the volume — their sources live in Supabase Storage —
+so `railway.api.json` and `railway.worker.json` remain valid for a books-only
+deployment split across two services. Video requires the combined service.
+
+The app and web services share nothing but the API URL: the app builds from
+the repository-root `Dockerfile`, the web service from `frontend/Dockerfile`.
+
+## The media volume
+
+Attach a Railway volume to the app service and point the media root at it:
+
+| Setting | Value |
+|---|---|
+| Mount path | `/var/lib/agentic-study-partner/video-media` |
+| `VIDEO_MEDIA_ROOT` | the same path |
+
+Size it for the videos you intend to keep: the canonical copy of a 100-minute
+1080p lecture is 1–3 GB, and its frames, previews, and crops add roughly
+50–150 MB. Derived objects are rebuildable, so a volume that fills can be
+pruned back to canonical sources without losing anything permanently.
+
+Without `VIDEO_MEDIA_ROOT`, the media store falls back to a path inside the
+container, which is wiped on every deploy. Video ingestion would then appear
+to work and lose its frames on the next redeploy.
 
 ## Status
 
@@ -25,12 +60,13 @@ owner-scoped policies are applied, and the existing book is backfilled as
 `ready` with 332/332 compatible embeddings. Canonical row counts were
 unchanged by the migration.
 
-All three services are deployed and verified end to end.
+The books half of the app service and the web service are deployed and
+verified end to end. The video half is verified locally; deploying it needs
+the media volume described above.
 
 ## Connection choice
 
-Use the Supabase **session pooler** connection string as `DATABASE_URL` for
-both API and worker. The direct connection is IPv6-only, and the transaction
+Use the Supabase **session pooler** connection string as `DATABASE_URL`. The direct connection is IPv6-only, and the transaction
 pooler does not support the prepared statements psycopg uses by default. Keep
 the direct connection for migrations only (`MIGRATION_DATABASE_URL`, run from
 a laptop, never set on a Railway service).
@@ -42,23 +78,27 @@ in Railway's service settings (Settings → Config-as-code):
 
 | Service | Root directory | Config file |
 |---|---|---|
-| api | `/` | `railway.api.json` |
-| worker | `/` | `railway.worker.json` |
+| app | `/` | `railway.app.json` |
 | web | `/frontend` | `railway.json` |
 
-`railway.api.json` sets the `/api/health` health check;
-`railway.worker.json` sets `restartPolicyType: ALWAYS` and no health check,
-because the worker serves no traffic.
+`railway.app.json` starts `python -m scripts.serve`, keeps the `/api/health`
+health check, and restarts always. `railway.api.json` and
+`railway.worker.json` are retained for a books-only two-service split; do not
+use them for video, which needs one volume shared by both processes.
 
-**Disable App Sleeping on the worker.** A sleeping worker stops polling
-Postgres, and queued jobs would sit until something else woke the service.
+**Disable App Sleeping on the app service.** A sleeping service stops polling
+Postgres, and queued jobs would sit until a request woke it.
+
+**One process failing takes the container down.** The supervisor stops the
+other process and exits non-zero, so Railway restarts a known state rather
+than leaving a service that answers health checks with a dead queue behind it.
 
 ## Variables
 
-Set `PORT=8000` explicitly on the api service so private networking has a
+Set `PORT=8000` explicitly on the app service so private networking has a
 deterministic target.
 
-### api
+### app
 
 | Variable | Value |
 |---|---|
@@ -72,12 +112,15 @@ deterministic target.
 | `SUMMARY_CONTEXT_WINDOW_TOKENS`, `SUMMARY_MAX_OUTPUT_TOKENS`, `SUMMARY_SAFETY_MARGIN_TOKENS` | copy from `.env` |
 | `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` | optional tracing |
 
-### worker
+### app, ingestion half
 
-Everything the api has except `PORT` and `CORS_ALLOWED_ORIGINS`, plus:
+The same service, plus the variables only the worker reads:
 
 | Variable | Value |
 |---|---|
+| `VIDEO_MEDIA_ROOT` | the volume mount path |
+| `OPENROUTER_VIDEO_VISION_MODEL`, `OPENROUTER_AUDIO_MODEL` | copy from `.env` |
+| `OPENROUTER_VIDEO_TEXT_EMBEDDING_MODEL`, `OPENROUTER_VIDEO_IMAGE_EMBEDDING_MODEL` | copy from `.env` |
 | `INGESTION_MAX_PAGES` | `1000` |
 | `INGESTION_MAX_SOURCE_BYTES` | `52428800` |
 | `INGESTION_MAX_QUEUED_JOBS_PER_OWNER` | `3` |
@@ -88,14 +131,14 @@ Everything the api has except `PORT` and `CORS_ALLOWED_ORIGINS`, plus:
 | `INGESTION_CLEANUP_INTERVAL_SECONDS` | `3600` |
 
 `DEFAULT_OWNER_ID` is for local CLI and evaluation commands only. Do not set
-it on either service; request handlers derive the owner from the verified
-token and the worker uses the owner on the claimed job.
+it in production; request handlers derive the owner from the verified token
+and the worker uses the owner on the claimed job.
 
 ### web
 
 | Variable | Value |
 |---|---|
-| `BACKEND_URL` | `http://api.railway.internal:8000` |
+| `BACKEND_URL` | `http://app.railway.internal:8000` |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://usuulfckhbeypjxwjpfn.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable anon key |
 
@@ -104,7 +147,7 @@ time and are declared as `ARG` in `frontend/Dockerfile`, so Railway supplies
 them during the build. The service-role key must never appear here.
 
 After the web service gets its public URL, set `CORS_ALLOWED_ORIGINS` on the
-api service to that origin and redeploy the api. Then add the same URL to
+app service to that origin and redeploy it. Then add the same URL to
 Supabase → Authentication → URL Configuration (Site URL and redirect URLs).
 
 ## Resources and cost
@@ -160,11 +203,10 @@ which claims one job, finishes it, and exits. Railway skips a scheduled run
 while the previous one is still active, which matches the one-job-at-a-time
 lease model.
 
-The shared image carries Torch and the parser toolchain, so builds are slow
-and the image is multiple gigabytes on both api and worker. Splitting a slim
-api image is the documented next optimisation; it would cut the api service's
-image pull, not its memory, since the parser is no longer imported there
-either.
+The image carries Torch, the parser toolchain, ffmpeg, and Tesseract, so
+builds are slow and the image is multiple gigabytes. Combining the API and
+worker removes the second pull of it. Splitting a slim API image is no longer
+available as an optimisation while the two halves share a volume.
 
 Set a spending alert and a hard budget limit on the Railway project before
 sending it any real traffic.
@@ -180,8 +222,7 @@ railway init            # or: railway link  (existing project)
 Then per service, from the repository root:
 
 ```bash
-scripts/deploy.sh api
-scripts/deploy.sh worker
+scripts/deploy.sh app
 scripts/deploy.sh web
 ```
 
@@ -196,8 +237,7 @@ it by habit.
 The underlying commands, if the script is not used:
 
 ```bash
-railway up --service api
-railway up --service worker
+railway up --service app
 railway up ./frontend --path-as-root --service web
 ```
 
@@ -211,9 +251,9 @@ is what makes `frontend/` the archive root, so `frontend/railway.json` and
 without the flag treats the path as a filter prefix and fails with
 `prefix not found`.
 
-None of the three services has a root directory set in Railway (verify with
-`railway status --json`); the api and worker are correct only because the
-Dockerfile they want happens to be the one at the repository root.
+Neither service has a root directory set in Railway (verify with
+`railway status --json`); the app service is correct only because the
+Dockerfile it wants happens to be the one at the repository root.
 
 If a deploy puts the wrong image on a service, the fastest recovery is the
 Railway dashboard — Deployments → the last good one → Redeploy. The CLI's

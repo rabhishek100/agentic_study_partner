@@ -4,6 +4,24 @@ import { accessToken } from "./supabase";
 
 export const API_BASE = "/api";
 
+/**
+ * Where binary uploads go.
+ *
+ * Same-origin requests are proxied by Next, which buffers the whole request
+ * body in memory and caps it at 10MB. A 220MB lecture was silently truncated
+ * there and the connection reset, so the upload never reached the API at all.
+ * Bytes therefore address the API directly when an origin is configured;
+ * ordinary JSON stays same-origin, where the proxy is an asset.
+ */
+export const API_ORIGIN = (
+  process.env.NEXT_PUBLIC_API_ORIGIN ?? ""
+).replace(/\/$/, "");
+
+export function uploadUrl(path: string): string {
+  const suffix = path.startsWith("/api") ? path : `${API_BASE}${path}`;
+  return `${API_ORIGIN}${suffix}`;
+}
+
 async function detail(response: Response): Promise<string> {
   const raw = await response.text();
   try {

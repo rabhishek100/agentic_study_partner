@@ -19,6 +19,23 @@ from tests.test_ingestion_pipeline import (
 from worker.main import Worker
 
 
+class FakeVideoWorker:
+    def __init__(self, jobs=()):
+        self.jobs = list(jobs)
+        self.processed = []
+        self.recovery_calls = 0
+
+    def recover_abandoned_jobs(self):
+        self.recovery_calls += 1
+        return 0
+
+    def claim(self):
+        return self.jobs.pop(0) if self.jobs else None
+
+    def process(self, job):
+        self.processed.append(job)
+
+
 class WorkerTests(PipelineFixture):
     def setUp(self):
         super().setUp()
@@ -39,6 +56,24 @@ class WorkerTests(PipelineFixture):
 
     def test_an_idle_worker_reports_that_it_did_nothing(self):
         self.assertFalse(self.worker.run_once())
+
+    def test_existing_worker_process_can_service_the_independent_video_queue(self):
+        video_job = object()
+        videos = FakeVideoWorker([video_job])
+        worker = Worker(
+            worker_id="combined-worker",
+            limits=LIMITS,
+            database_url=self.database_url,
+            dependencies=PipelineDependencies(
+                embedder_factory=DeterministicEmbedder
+            ),
+            temporary_root=self.directory / "combined-work",
+            video_worker=videos,
+        )
+
+        self.assertTrue(worker.run_once())
+        self.assertEqual(videos.processed, [video_job])
+        self.assertEqual(videos.recovery_calls, 1)
 
     def test_a_queued_job_runs_to_a_ready_book(self):
         job = self.queued_job(structured_pdf(self.directory / "book.pdf"))
