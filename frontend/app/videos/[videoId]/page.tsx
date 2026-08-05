@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, LogOut, MessageSquarePlus } from "lucide-react";
+import { ArrowLeft, LogOut, Maximize2, MessageSquarePlus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useResizablePane } from "@/hooks/use-resizable-pane";
 import { useVideoChat } from "@/hooks/use-video-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
@@ -54,6 +55,17 @@ import type {
 const POLL_INTERVAL_MS = 5_000;
 type Panel = "resources" | "timeline" | "chapters";
 
+// The lecture is the reference and the conversation is the work, so the
+// picture starts as the smaller column. Both limits are deliberate: below a
+// quarter the player is too small to read a slide from, and past two thirds
+// the conversation stops being the thing the page is for.
+const VIDEO_PANE = {
+  storageKey: "asp:video-pane-width",
+  defaultPercent: 42,
+  minPercent: 25,
+  maxPercent: 65,
+};
+
 export default function VideoWorkspace() {
   const parameters = useParams<{ videoId: string }>();
   const videoId = parameters.videoId;
@@ -70,6 +82,11 @@ export default function VideoWorkspace() {
 
   const { turns, conversationId, isStreaming, send, stop, reset, resume } =
     useVideoChat(videoId);
+  const { percent, containerRef, separatorProps } = useResizablePane({
+    ...VIDEO_PANE,
+    edge: "left",
+    label: "Resize the lecture pane",
+  });
 
   const loadVideo = useCallback(async () => {
     try {
@@ -291,8 +308,19 @@ export default function VideoWorkspace() {
         </div>
       }
     >
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto lg:pr-1">
+      <div
+        ref={containerRef}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden"
+      >
+        {/*
+          A share of the row on a wide screen, full width stacked below the
+          breakpoint. The width is carried as a custom property so the mobile
+          rule stays a plain class rather than an inline style fighting it.
+        */}
+        <div
+          className="flex min-h-0 w-full shrink-0 flex-col gap-3 p-4 lg:w-[var(--lecture-pane)] lg:overflow-y-auto"
+          style={{ "--lecture-pane": `${percent}%` } as React.CSSProperties}
+        >
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -300,15 +328,26 @@ export default function VideoWorkspace() {
           ) : null}
           {video ? (
             <>
-              <div>
-                <h1 className="font-heading text-base font-medium">
-                  {video.title}
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  {video.source_kind === "youtube" ? "YouTube" : "Uploaded"} ·{" "}
-                  {video.resources.length} linked{" "}
-                  {video.resources.length === 1 ? "resource" : "resources"}
-                </p>
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <h1 className="truncate font-heading text-base font-medium">
+                    {video.title}
+                  </h1>
+                  <p className="text-xs text-muted-foreground">
+                    {video.source_kind === "youtube" ? "YouTube" : "Uploaded"} ·{" "}
+                    {video.resources.length} linked{" "}
+                    {video.resources.length === 1 ? "resource" : "resources"}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Play full screen"
+                  title="Play full screen"
+                  onClick={() => playerRef.current?.enterFullscreen()}
+                >
+                  <Maximize2 aria-hidden />
+                </Button>
               </div>
               <div className="shrink-0">
                 <VideoPlayer
@@ -389,13 +428,22 @@ export default function VideoWorkspace() {
           )}
         </div>
 
+        <div
+          {...separatorProps}
+          className={cn(
+            "hidden w-1 shrink-0 cursor-col-resize bg-border transition-colors lg:block",
+            "hover:bg-primary focus-visible:bg-primary",
+          )}
+        />
+
         <section
           aria-label="Ask this lecture"
-          className="flex min-h-[70vh] flex-col lg:h-full lg:min-h-0 lg:overflow-hidden"
+          className="flex min-h-[70vh] min-w-0 flex-1 flex-col border-t border-border lg:h-full lg:min-h-0 lg:overflow-hidden lg:border-t-0"
         >
           <AskPane
             videoId={videoId}
             turns={turns}
+            conversationId={conversationId}
             isStreaming={isStreaming}
             canAsk={video?.ready_for_qa ?? false}
             blockedReason={
