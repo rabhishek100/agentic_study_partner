@@ -18,6 +18,7 @@ import threading
 from typing import Any
 from uuid import UUID
 
+import fitz
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import Field
@@ -63,6 +64,9 @@ VIDEO_NOT_FOUND = HTTPException(status_code=404, detail="video not found")
 IMAGE_NOT_FOUND = HTTPException(status_code=404, detail="frame not found")
 IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 MAXIMUM_IMAGE_BYTES = 8 * 1024 * 1024
+# Enough to read a slide's axis labels beside the conversation without paying
+# for a print-resolution render of a page nobody zooms into.
+RESOURCE_PAGE_DPI = 110
 HEARTBEAT_INTERVAL_SECONDS = 15
 STREAM_CHUNK_BYTES = 512 * 1024
 _STREAM_DONE = object()
@@ -600,6 +604,95 @@ async def resource_content(
         content=payload,
         media_type="application/pdf",
         headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@chat_router.get(
+    "/api/videos/{video_id}/resources/{resource_id}/pages/{page_number}/image"
+)
+async def resource_page_image(
+    video_id: UUID,
+    resource_id: UUID,
+    page_number: int,
+    request: Request,
+    owner_id: UUID = Depends(current_owner),
+) -> Response:
+    """Render one page of a linked document so a cited page can be shown.
+
+    A book's figures are extracted and captioned at ingest, because a figure
+    sits inside a page of prose and has to be found. A slide is usually the
+    figure, so the page itself is the image worth showing — and rendering it on
+    demand keeps every attached deck out of a re-ingest it would otherwise
+    need. The render is deterministic, so the stored content hash identifies it
+    and repeat views settle on a 304 rather than re-rasterizing.
+    """
+
+    def load() -> tuple[bytes, str]:
+        with database_connection(readonly=True) as connection:
+            row = connection.execute(
+                """
+                select resource.storage_key, resource.content_hash,
+                       resource.page_count
+                from video.video_resources as link
+                join video.resources as resource
+                  on resource.id = link.resource_id
+                 and resource.owner_id = link.owner_id
+                where link.owner_id = %s and link.video_id = %s
+                  and link.resource_id = %s
+                  and resource.resource_kind = 'pdf'
+                  and resource.storage_key is not null
+                """,
+                (owner_id, video_id, resource_id),
+            ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="resource not found")
+        if page_number < 1 or (
+            row["page_count"] and page_number > int(row["page_count"])
+        ):
+            raise HTTPException(
+                status_code=404, detail="page is outside this document"
+            )
+        try:
+            path = FilesystemMediaStore().open_path(
+                owner_id=owner_id, storage_key=row["storage_key"]
+            )
+        except (MediaStoreError, OSError) as error:
+            raise HTTPException(
+                status_code=404, detail="resource content not found"
+            ) from error
+
+        try:
+            with fitz.open(path) as document:
+                if page_number > document.page_count:
+                    raise HTTPException(
+                        status_code=404, detail="page is outside this document"
+                    )
+                pixmap = document.load_page(page_number - 1).get_pixmap(
+                    dpi=RESOURCE_PAGE_DPI
+                )
+                payload = pixmap.tobytes("jpeg")
+        except HTTPException:
+            raise
+        except Exception as error:  # noqa: BLE001 - any fitz failure is unreadable
+            logger.warning("Could not render resource page: %s", error)
+            raise HTTPException(
+                status_code=404, detail="page could not be rendered"
+            ) from error
+        # The bytes are a pure function of the file, the page, and the render
+        # settings, so the stored hash identifies them without hashing output.
+        identity = f"{row['content_hash']}-{page_number}-{RESOURCE_PAGE_DPI}"
+        return payload, f'"{hashlib.sha256(identity.encode()).hexdigest()[:32]}"'
+
+    payload, etag = await run_in_threadpool(load)
+    if request.headers.get("if-none-match") == etag:
+        return Response(
+            status_code=304,
+            headers={"ETag": etag, "Cache-Control": IMAGE_CACHE_CONTROL},
+        )
+    return Response(
+        content=payload,
+        media_type="image/jpeg",
+        headers={"ETag": etag, "Cache-Control": IMAGE_CACHE_CONTROL},
     )
 
 

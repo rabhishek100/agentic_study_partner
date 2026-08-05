@@ -3,6 +3,7 @@
 import { AlertCircle, Check, Copy, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { DocumentPages } from "@/components/video/document-pages";
 import { VisualEvidence } from "@/components/video/evidence-cards";
 import { VideoAnswer } from "@/components/video/video-answer";
 import { VideoInspector } from "@/components/video/video-inspector";
@@ -127,6 +128,15 @@ export function VideoTurnView({
             videoId={videoId}
             cards={result.visual_cards}
             onSeek={onSeek}
+          />
+        )}
+
+        {result && (
+          <DocumentPages
+            videoId={videoId}
+            evidence={result.evidence}
+            citations={result.citations}
+            onOpen={onOpenDocument}
           />
         )}
 

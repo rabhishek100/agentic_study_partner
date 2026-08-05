@@ -1,9 +1,14 @@
 """HTTP contracts for asking a video questions and reading the answer back."""
 
 import json
+import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
-from uuid import uuid4
+from unittest import mock
+from uuid import uuid4, UUID
 
+import fitz
 from httpx import ASGITransport, AsyncClient
 
 from api.auth import current_owner
@@ -25,6 +30,13 @@ class VideoChatApiTests(unittest.IsolatedAsyncioTestCase):
                     (owner, f"{owner}@video-chat-api.test"),
                 )
             self.video = publish_video_with_evidence(database, owner_id=self.owner)
+        # The page renderer reads bytes through the media store, which needs a
+        # root; without one it would fall back to a container path.
+        self.media = TemporaryDirectory()
+        self._media_environment = mock.patch.dict(
+            os.environ, {"VIDEO_MEDIA_ROOT": self.media.name}
+        )
+        self._media_environment.start()
         self.client = AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         )
@@ -48,6 +60,8 @@ class VideoChatApiTests(unittest.IsolatedAsyncioTestCase):
         self._module._answer_dependencies = self._original
         app.dependency_overrides.clear()
         await self.client.aclose()
+        self._media_environment.stop()
+        self.media.cleanup()
         with connection(self.database_url) as database:
             database.execute(
                 "delete from auth.users where id = any(%s)",
@@ -162,6 +176,92 @@ class VideoChatApiTests(unittest.IsolatedAsyncioTestCase):
             f"/api/video-conversations/{conversation_id}"
         )
         self.assertEqual(missing.status_code, 404)
+
+    def _attach_deck(self, *, pages: int = 3) -> UUID:
+        """Link a real, readable PDF to this video and return its id."""
+
+        storage_key = f"{self.owner}/canonical/resources/deck.pdf"
+        target = Path(self.media.name) / storage_key
+        target.parent.mkdir(parents=True, exist_ok=True)
+        document = fitz.open()
+        for index in range(pages):
+            page = document.new_page(width=720, height=540)
+            page.insert_text((60, 90), f"Slide {index + 1}", fontsize=34)
+        document.save(target)
+        document.close()
+
+        resource_id = uuid4()
+        with connection(self.database_url) as database:
+            database.execute(
+                """
+                insert into video.resources (
+                    id, owner_id, resource_kind, origin, status, title,
+                    original_filename, storage_backend, storage_key,
+                    content_hash, size_bytes, media_type, page_count
+                ) values (
+                    %s, %s, 'pdf', 'upload', 'ready', 'Lecture slides',
+                    'deck.pdf', 'filesystem', %s, %s, %s,
+                    'application/pdf', %s
+                )
+                """,
+                (
+                    resource_id,
+                    self.owner,
+                    storage_key,
+                    "c" * 64,
+                    target.stat().st_size,
+                    pages,
+                ),
+            )
+            database.execute(
+                """
+                insert into video.video_resources (
+                    owner_id, video_id, resource_id, role, required
+                ) values (%s, %s, %s, 'slides', false)
+                """,
+                (self.owner, self.video.video_id, resource_id),
+            )
+        return resource_id
+
+    async def test_renders_a_cited_document_page_as_an_image(self) -> None:
+        resource_id = self._attach_deck()
+        base = f"/api/videos/{self.video.video_id}/resources/{resource_id}/pages"
+
+        response = await self.client.get(f"{base}/2/image")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["content-type"], "image/jpeg")
+        self.assertTrue(response.content.startswith(b"\xff\xd8"))
+
+        # The render is a pure function of the file, page, and settings, so a
+        # second view must settle rather than rasterize the page again.
+        etag = response.headers["etag"]
+        repeated = await self.client.get(
+            f"{base}/2/image", headers={"If-None-Match": etag}
+        )
+        self.assertEqual(repeated.status_code, 304)
+
+        # A different page is a different image.
+        other = await self.client.get(f"{base}/1/image")
+        self.assertNotEqual(other.headers["etag"], etag)
+
+    async def test_rejects_a_page_outside_the_document(self) -> None:
+        resource_id = self._attach_deck(pages=3)
+        base = f"/api/videos/{self.video.video_id}/resources/{resource_id}/pages"
+
+        for page in (0, 4, 900):
+            response = await self.client.get(f"{base}/{page}/image")
+            self.assertEqual(response.status_code, 404, page)
+
+    async def test_another_owner_cannot_render_a_linked_page(self) -> None:
+        resource_id = self._attach_deck()
+        app.dependency_overrides[current_owner] = lambda: self.other_owner
+
+        response = await self.client.get(
+            f"/api/videos/{self.video.video_id}"
+            f"/resources/{resource_id}/pages/1/image"
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     async def test_timeline_lists_published_frames_with_image_links(self) -> None:
         response = await self.client.get(
