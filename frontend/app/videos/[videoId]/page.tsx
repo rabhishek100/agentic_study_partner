@@ -291,8 +291,8 @@ export default function VideoWorkspace() {
         </div>
       }
     >
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto lg:pr-1">
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -330,69 +330,85 @@ export default function VideoWorkspace() {
                   onUploaded={loadVideo}
                 />
               ) : null}
-              <AskPane
-                videoId={videoId}
-                turns={turns}
-                isStreaming={isStreaming}
-                canAsk={video.ready_for_qa}
-                blockedReason={
-                  video.ready_for_qa
-                    ? null
-                    : "Questions unlock when this lecture finishes processing."
-                }
-                onAsk={handleAsk}
-                onStop={stop}
-                onSeek={seek}
-                onOpenDocument={openDocument}
-              />
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                <div
+                  className="flex gap-1"
+                  role="tablist"
+                  aria-label="Lecture panels"
+                >
+                  {(["resources", "timeline", "chapters"] as Panel[]).map(
+                    (key) => (
+                      <Button
+                        key={key}
+                        role="tab"
+                        aria-selected={panel === key}
+                        variant={panel === key ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setPanel(key)}
+                        className="capitalize"
+                      >
+                        {key}
+                        {key === "chapters" && video.chapters.length ? (
+                          <Badge variant="outline">
+                            {video.chapters.length}
+                          </Badge>
+                        ) : null}
+                      </Button>
+                    ),
+                  )}
+                </div>
+                <div className="min-h-48 flex-1 overflow-y-auto rounded-lg border border-border p-3">
+                  {panel === "resources" ? (
+                    <ResourcePanel
+                      resources={video.resources}
+                      onOpen={(resource, page) => openResource(resource, page)}
+                      onRebuild={video.ready_for_qa ? rebuild : undefined}
+                      onDetach={detachResource}
+                      rebuilding={rebuilding}
+                      attach={
+                        <AttachResource
+                          videoId={videoId}
+                          onAttached={loadVideo}
+                        />
+                      }
+                    />
+                  ) : panel === "timeline" ? (
+                    <VisualTimeline
+                      videoId={videoId}
+                      entries={timeline}
+                      onSeek={seek}
+                    />
+                  ) : (
+                    <ChapterList chapters={video.chapters} onSeek={seek} />
+                  )}
+                </div>
+              </div>
             </>
           ) : (
             <Skeleton className="aspect-video w-full" />
           )}
         </div>
 
-        <aside className="flex min-h-0 flex-col gap-2 lg:overflow-hidden">
-          <div className="flex gap-1" role="tablist" aria-label="Lecture panels">
-            {(["resources", "timeline", "chapters"] as Panel[]).map((key) => (
-              <Button
-                key={key}
-                role="tab"
-                aria-selected={panel === key}
-                variant={panel === key ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setPanel(key)}
-                className="capitalize"
-              >
-                {key}
-                {key === "chapters" && video?.chapters.length ? (
-                  <Badge variant="outline">{video.chapters.length}</Badge>
-                ) : null}
-              </Button>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border p-3">
-            {panel === "resources" ? (
-              <ResourcePanel
-                resources={video?.resources ?? []}
-                onOpen={(resource, page) => openResource(resource, page)}
-                onRebuild={video?.ready_for_qa ? rebuild : undefined}
-                onDetach={detachResource}
-                rebuilding={rebuilding}
-                attach={
-                  <AttachResource videoId={videoId} onAttached={loadVideo} />
-                }
-              />
-            ) : panel === "timeline" ? (
-              <VisualTimeline
-                videoId={videoId}
-                entries={timeline}
-                onSeek={seek}
-              />
-            ) : (
-              <ChapterList chapters={video?.chapters ?? []} onSeek={seek} />
-            )}
-          </div>
-        </aside>
+        <section
+          aria-label="Ask this lecture"
+          className="flex min-h-[70vh] flex-col lg:h-full lg:min-h-0 lg:overflow-hidden"
+        >
+          <AskPane
+            videoId={videoId}
+            turns={turns}
+            isStreaming={isStreaming}
+            canAsk={video?.ready_for_qa ?? false}
+            blockedReason={
+              video?.ready_for_qa
+                ? null
+                : "Questions unlock when this lecture finishes processing."
+            }
+            onAsk={handleAsk}
+            onStop={stop}
+            onSeek={seek}
+            onOpenDocument={openDocument}
+          />
+        </section>
       </div>
     </AppShell>
   );
