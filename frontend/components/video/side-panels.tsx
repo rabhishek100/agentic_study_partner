@@ -1,6 +1,12 @@
 "use client";
 
-import { ExternalLink, FileText, RefreshCw, Search } from "lucide-react";
+import {
+  ExternalLink,
+  FileText,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useAuthenticatedImage } from "@/hooks/use-authenticated-image";
@@ -26,12 +32,16 @@ export function ResourcePanel({
   resources,
   onOpen,
   onRebuild,
+  onDetach,
   rebuilding,
+  attach,
 }: {
   resources: VideoResource[];
   onOpen(resource: VideoResource, page?: number): void;
   onRebuild?: () => void;
+  onDetach?: (resource: VideoResource) => void;
   rebuilding?: boolean;
+  attach?: React.ReactNode;
 }) {
   // A document attached after ingestion finished is not searchable until the
   // lecture is rebuilt against it, so say that plainly rather than leaving a
@@ -59,20 +69,23 @@ export function ResourcePanel({
 
   if (resources.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No slides or links are attached to this lecture yet.
-      </p>
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          No slides or links are attached to this lecture yet.
+        </p>
+        {attach}
+      </div>
     );
   }
   return (
     <ul className="space-y-2">
       {rebuild ? <li>{rebuild}</li> : null}
       {resources.map((resource) => (
-        <li key={resource.resource_id}>
+        <li key={resource.resource_id} className="flex items-start gap-1">
           <button
             type="button"
             onClick={() => onOpen(resource)}
-            className="flex w-full items-start gap-2 rounded-md border border-border p-2 text-left hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-md border border-border p-2 text-left hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {resource.resource_kind === "pdf" ? (
               <FileText aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -94,8 +107,19 @@ export function ResourcePanel({
               </span>
             </span>
           </button>
+          {onDetach ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Remove ${resource.title}`}
+              onClick={() => onDetach(resource)}
+            >
+              <Trash2 aria-hidden className="size-4" />
+            </Button>
+          ) : null}
         </li>
       ))}
+      {attach ? <li className="pt-1">{attach}</li> : null}
     </ul>
   );
 }

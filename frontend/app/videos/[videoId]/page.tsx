@@ -19,6 +19,7 @@ import {
   ResourcePanel,
   VisualTimeline,
 } from "@/components/video/side-panels";
+import { AttachResource } from "@/components/video/attach-resource";
 import { ResumeUpload } from "@/components/video/resume-upload";
 import {
   VideoPlayer,
@@ -178,6 +179,16 @@ export default function VideoWorkspace() {
       setRebuilding(false);
     }
   }, [rebuilding, videoId, loadVideo]);
+
+  const detachResource = useCallback(
+    async (resource: VideoResource) => {
+      await apiFetch(`/videos/${videoId}/resources/${resource.resource_id}`, {
+        method: "DELETE",
+      });
+      await loadVideo();
+    },
+    [videoId, loadVideo],
+  );
 
   const openConversation = useCallback(
     async (id: string) => {
@@ -365,7 +376,11 @@ export default function VideoWorkspace() {
                 resources={video?.resources ?? []}
                 onOpen={(resource, page) => openResource(resource, page)}
                 onRebuild={video?.ready_for_qa ? rebuild : undefined}
+                onDetach={detachResource}
                 rebuilding={rebuilding}
+                attach={
+                  <AttachResource videoId={videoId} onAttached={loadVideo} />
+                }
               />
             ) : panel === "timeline" ? (
               <VisualTimeline
