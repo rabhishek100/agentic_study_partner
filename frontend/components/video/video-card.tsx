@@ -125,8 +125,8 @@ function Decision({
         </Button>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Its video file is already stored, so removing it would leave the file
-          behind. Clearing those is not automated yet.
+          It is being processed right now. Removing it will be possible once
+          this run finishes.
         </p>
       )}
     </div>
@@ -145,8 +145,8 @@ function Confirm({
   return (
     <div className="mt-3 space-y-1.5 rounded-md border border-destructive/40 p-2.5">
       <p className="text-xs">
-        Remove “{video.title}”? Its transcript, frames, and conversations go
-        with it, and this cannot be undone.
+        Remove “{video.title}”? Its stored video file, transcript, frames, and
+        conversations go with it, and this cannot be undone.
       </p>
       <div className="flex gap-1.5">
         <Button size="xs" variant="destructive" onClick={onConfirm}>

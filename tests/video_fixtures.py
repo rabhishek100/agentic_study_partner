@@ -108,6 +108,7 @@ def publish_video_with_evidence(
     owner_id: UUID,
     title: str = "Attention lecture",
     readiness: str = "ready",
+    url: str = "https://youtu.be/abcdefghijk",
 ) -> PublishedVideo:
     """Create one video whose published version has real, mixed evidence."""
 
@@ -115,7 +116,7 @@ def publish_video_with_evidence(
         database,
         owner_id=owner_id,
         idempotency_key=uuid4(),
-        url="https://youtu.be/abcdefghijk",
+        url=url,
         title=title,
     )
     database.execute(

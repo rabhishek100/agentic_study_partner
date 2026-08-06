@@ -147,22 +147,24 @@ describe("VideoCard", () => {
   });
 
   it("says why a lecture cannot be removed instead of failing on the attempt", () => {
+    // The only remaining reason: a run holds a lease and writes into the rows
+    // a removal would delete underneath it. An acquired source is no longer a
+    // reason, because deletion now removes the media it leaves unreferenced.
     render(
       card({
         deletable: false,
         readiness_status: "failed",
         ready_for_qa: false,
         latest_ingestion: job({
-          status: "failed",
-          error: { code: "invalid_media", message: "Not playable." },
+          status: "running",
+          stage: "visual_analysis",
         }),
       }),
     );
 
     expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
-    // Explains the constraint rather than offering a button that would 409.
     expect(
-      screen.getByText(/removing it would leave the file behind/),
+      screen.getByText(/being processed right now/),
     ).toBeInTheDocument();
   });
 
@@ -185,6 +187,7 @@ describe("VideoCard", () => {
 
     await user.click(screen.getByRole("button", { name: /Remove/ }));
     expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByText(/stored video file/)).toBeInTheDocument();
     expect(screen.getByText(/cannot be undone/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Remove" }));

@@ -32,7 +32,7 @@ from video.repository import (
     confirm_resource_suggestion,
     create_url_resource,
     create_youtube_video,
-    delete_unacquired_video,
+    delete_video,
     detach_video_resource,
     dismiss_resource_suggestion,
     initialize_resource_upload,
@@ -564,19 +564,53 @@ async def patch_video(
 
 
 @videos_router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_video(video_id: UUID, owner_id: UUID = Depends(current_owner)) -> Response:
+async def remove_video(video_id: UUID, owner_id: UUID = Depends(current_owner)) -> Response:
+    """Delete a lecture, then unlink the media nothing else references.
+
+    The rows go first and commit; the bytes go afterwards. Unlinking first
+    would delete an object a surviving row still points at if the transaction
+    then rolled back, and canonical media is content-addressed, so that object
+    can belong to another lecture. Bytes stranded by the reverse failure are
+    recoverable — they are still on the volume, with a key nothing names.
+    """
+
     def remove():
         with database_connection() as database:
-            exists = load_standalone_video(database, video_id, owner_id=owner_id)
-            if exists is None:
-                return None
-            return delete_unacquired_video(database, video_id, owner_id=owner_id)
-    removed = await run_in_threadpool(remove)
-    if removed is None:
+            if load_standalone_video(database, video_id, owner_id=owner_id) is None:
+                return "missing"
+            return delete_video(database, video_id, owner_id=owner_id)
+
+    deletion = await run_in_threadpool(remove)
+    if deletion == "missing":
         raise VIDEO_NOT_FOUND
-    if not removed:
-        raise HTTPException(status_code=409, detail="video cannot be deleted while acquired or running")
+    if deletion is None:
+        raise HTTPException(
+            status_code=409, detail="video cannot be deleted while it is being processed"
+        )
+    if deletion.orphaned_keys:
+        await run_in_threadpool(_unlink_media, owner_id, deletion.orphaned_keys)
     return Response(status_code=204)
+
+
+def _unlink_media(owner_id: UUID, storage_keys: tuple[str, ...]) -> None:
+    """Best effort, and logged rather than raised.
+
+    The lecture is already gone as far as the reader is concerned, so failing
+    the request here would report a deletion that did happen as an error. What
+    survives a failure is an object with no row naming it, which is a cost on
+    the volume rather than a loss of anything.
+    """
+
+    try:
+        store = FilesystemMediaStore()
+    except MediaStoreError:
+        logger.warning("No media root configured; %s objects left on disk", len(storage_keys))
+        return
+    for storage_key in storage_keys:
+        try:
+            store.remove(owner_id=owner_id, storage_key=storage_key)
+        except (MediaStoreError, OSError):
+            logger.exception("Could not remove video media object")
 
 
 @videos_router.put("/{video_id}/captions")

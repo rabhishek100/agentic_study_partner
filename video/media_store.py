@@ -124,6 +124,52 @@ class FilesystemMediaStore:
             raise FileNotFoundError("video media object not found")
         return path
 
+    def remove(self, *, owner_id: str | UUID, storage_key: str) -> bool:
+        """Unlink one stored object, reporting whether it was there to unlink.
+
+        Deliberately idempotent. The only caller deletes a set of keys *after*
+        committing the rows that named them, so a partial failure leaves keys
+        that are already gone and keys that are not, and running it again must
+        finish the job rather than raise on the first one.
+
+        Canonical objects are content-addressed, so one key can be the bytes of
+        several rows. Deciding that a key is unreferenced is the caller's job
+        and it is not second-guessed here — but a key still in use must never
+        reach this method, because nothing about a hash path reveals who else
+        is pointing at it.
+        """
+
+        path = self._checked_path(owner_id=owner_id, storage_key=storage_key)
+        if path.is_symlink():
+            raise InvalidStorageKey("video storage target is not a regular file")
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        except IsADirectoryError as error:
+            raise InvalidStorageKey("video storage key names a directory") from error
+        self._prune(path.parent, owner_id=owner_id)
+        return True
+
+    def _prune(self, directory: Path, *, owner_id: str | UUID) -> None:
+        """Remove the directories the deleted object leaves empty behind it.
+
+        The sha256 fan-out gives every canonical object two directories of its
+        own. Left alone they accumulate on a volume sized for video, where the
+        whole point of deleting is to get space back.
+        """
+
+        boundary = self.root / str(parse_owner_id(owner_id))
+        current = directory
+        while current != boundary and boundary in current.parents:
+            try:
+                current.rmdir()
+            except OSError:
+                # Not empty, or gone already. Either way there is nothing
+                # above it worth trying.
+                return
+            current = current.parent
+
     def verify_object(
         self,
         *,
