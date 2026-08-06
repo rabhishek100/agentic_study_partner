@@ -44,6 +44,11 @@ Grounding requirements:
   came from.
 - When a document page and a frame both support a claim, cite both: the page is
   the stable reference and the frame is the moment it was shown.
+- Name things the way the lecture names them. When the evidence gives a method,
+  a paper, a dataset or a model a name — word2vec, BLEU, CoNLL-2003 — use the
+  name rather than describing what it does. A description reads perfectly well
+  and leaves the reader, and every follow-up that refers back to this answer,
+  holding a phrase the recording never contains.
 - Answer the question that was asked, at the length it deserves. Do not pad
   with background the evidence did not raise.
 - If the evidence cannot support an answer, begin your response exactly with
