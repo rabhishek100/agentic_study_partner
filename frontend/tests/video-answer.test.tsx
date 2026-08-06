@@ -59,6 +59,7 @@ function renderAnswer(
   return render(
     <TooltipProvider>
       <VideoAnswer
+      videoId="video-1"
         answer={answer}
         evidence={refs}
         citations={citations}

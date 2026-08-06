@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { DocumentPages } from "@/components/video/document-pages";
 import { VisualEvidence } from "@/components/video/evidence-cards";
-import { VideoAnswer } from "@/components/video/video-answer";
+import { VideoAnswer, citedFrameIds } from "@/components/video/video-answer";
 import { VideoInspector } from "@/components/video/video-inspector";
 import { VideoReferences } from "@/components/video/video-references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -108,6 +108,7 @@ export function VideoTurnView({
         {turn.answer &&
           (result ? (
             <VideoAnswer
+              videoId={videoId}
               answer={turn.answer}
               evidence={result.evidence}
               citations={result.citations}
@@ -124,9 +125,18 @@ export function VideoTurnView({
           ))}
 
         {result && (
+          // Only what the answer did not already show beside its own prose.
+          // A frame illustrating a claim and repeated in a strip below is the
+          // same picture twice; what is left here is visual evidence the
+          // retrieval found and the answer never cited, which is worth
+          // offering and worth keeping distinct from what it did.
           <VisualEvidence
             videoId={videoId}
-            cards={result.visual_cards}
+            cards={result.visual_cards.filter(
+              (card) =>
+                !card.frame_id ||
+                !citedFrameIds(result.citations).has(card.frame_id),
+            )}
             onSeek={onSeek}
           />
         )}
