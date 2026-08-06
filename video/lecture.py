@@ -215,6 +215,53 @@ def load_lecture_scope(
     )
 
 
+def restrict_scope(
+    scope: LectureScope, *, start_ms: int, end_ms: int
+) -> LectureScope:
+    """The same lecture, narrowed to the windows a requested stretch touches.
+
+    Window ranks are the ones assigned over the whole recording and are kept.
+    A marker therefore means the same moment whether the reader asked about all
+    of the lecture or twenty minutes of it, so citations stay comparable across
+    turns of one conversation — which is the whole reason ranks exist rather
+    than positions in whatever list was last supplied.
+
+    `duration_ms` stays the length of the lecture. The recording did not get
+    shorter because the request did, and the summary prompt says how long it is.
+    """
+
+    windows = [
+        window
+        for window in scope.windows
+        if window.start_ms is not None
+        and window.start_ms < end_ms
+        and (window.end_ms or window.start_ms) > start_ms
+    ]
+    return LectureScope(
+        version_id=scope.version_id,
+        windows=windows,
+        duration_ms=scope.duration_ms,
+    )
+
+
+def restrict_chapters(
+    chapters: list[dict[str, Any]], *, start_ms: int, end_ms: int
+) -> list[dict[str, Any]]:
+    """Only the chapters the requested stretch actually reaches.
+
+    The outline is given to the prompt as the shape to follow. Handing over
+    the whole lecture's chapters while supplying twenty minutes of transcript
+    invites a summary of chapters whose evidence was never supplied.
+    """
+
+    return [
+        chapter
+        for chapter in chapters
+        if int(chapter["start_ms"]) < end_ms
+        and int(chapter["end_ms"] or chapter["start_ms"]) > start_ms
+    ]
+
+
 def load_chapters(
     connection: Connection, *, owner_id: str | UUID, video_id: str | UUID
 ) -> list[dict[str, Any]]:
@@ -355,6 +402,7 @@ def summarize_lecture(
     chapters: list[dict[str, Any]],
     dependencies: VideoAnswerDependencies,
     token_callback: TokenCallback | None = None,
+    stretch: str | None = None,
 ) -> AnswerDraft:
     """Summarize the complete transcript, then check it actually covered it.
 
@@ -379,6 +427,7 @@ def summarize_lecture(
         chapters=chapters,
         units=units,
         dependencies=dependencies,
+        stretch=stretch,
     )
 
     coverage = evaluate_coverage(text, units)
@@ -445,6 +494,7 @@ def _draft_summary(
     chapters: list[dict[str, Any]],
     units: tuple[CoverageUnit, ...],
     dependencies: VideoAnswerDependencies,
+    stretch: str | None = None,
 ) -> tuple[str, float]:
     """One summary of the supplied windows, mapped and reduced if needed."""
 
@@ -459,6 +509,7 @@ def _draft_summary(
                 chapters=chapters,
                 duration_ms=scope.duration_ms,
                 units=units,
+                stretch=stretch,
             ),
             dependencies=dependencies,
             token_callback=None,
@@ -482,6 +533,7 @@ def _draft_summary(
                     for unit in units
                     if any(rank in ranks for rank in unit.window_ranks)
                 ),
+                stretch=stretch,
                 part=(index, len(batches)),
             ),
             dependencies=dependencies,
@@ -580,6 +632,8 @@ def _window_at(
 
 __all__ = [
     "LectureScope",
+    "restrict_chapters",
+    "restrict_scope",
     "NoTranscriptError",
     "inventory_topics",
     "load_chapters",

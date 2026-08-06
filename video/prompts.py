@@ -247,6 +247,7 @@ def build_summary_messages(
     chapters: list[dict[str, Any]],
     duration_ms: int,
     units=(),
+    stretch: str | None = None,
     part: tuple[int, int] | None = None,
 ) -> list[dict[str, Any]]:
     """One summarization request over a consecutive stretch of the lecture."""
@@ -255,6 +256,18 @@ def build_summary_messages(
         LOCKED_SUMMARY_PROMPT,
         f"Lecture: {video_title} ({format_timestamp(duration_ms)} long)",
     ]
+    if stretch:
+        # The locked prompt says "the whole lecture" because that is the usual
+        # request. When the reader asked for part of it, only that part's
+        # windows are supplied, and the model must be told so — otherwise
+        # "cover the whole lecture" reads as licence to describe the rest of it
+        # from nothing.
+        system.append(
+            f"The reader asked about {stretch} only. The supplied windows are "
+            f"that stretch, and they are all of it. Treat 'the whole lecture' "
+            "above as meaning this stretch: cover it end to end, and say "
+            "nothing about the parts of the recording outside it."
+        )
     required = render_coverage(units)
     if required:
         system.append(f"Required coverage:\n{required}")

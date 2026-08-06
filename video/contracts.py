@@ -100,11 +100,54 @@ class VisualCard(ContractModel):
     kind: Literal["frame", "transition"]
 
 
+class VideoTimeScope(ContractModel):
+    """A stretch of the lecture, named the way the reader named it.
+
+    "The first half" is a proportion and "the last twenty minutes" is a
+    duration, so both are carried and whichever was given wins. Ratios are
+    resolved against the recording only when its length is known, which keeps
+    routing a decision about the message rather than a database lookup.
+    """
+
+    label: str = Field(min_length=1)
+    start_ratio: float | None = Field(default=None, ge=0, le=1)
+    end_ratio: float | None = Field(default=None, ge=0, le=1)
+    start_ms: int | None = Field(default=None, ge=0)
+    end_ms: int | None = Field(default=None, ge=0)
+    # "The last twenty minutes" is measured backwards from an end the router
+    # does not know yet, which neither a ratio nor an offset from zero can say.
+    tail_ms: int | None = Field(default=None, gt=0)
+
+    def resolve(self, duration_ms: int) -> tuple[int, int]:
+        """The stretch in milliseconds, clamped inside the recording."""
+
+        if self.tail_ms is not None:
+            return max(0, duration_ms - self.tail_ms), duration_ms
+        start = (
+            self.start_ms
+            if self.start_ms is not None
+            else round(duration_ms * (self.start_ratio or 0.0))
+        )
+        end = (
+            self.end_ms
+            if self.end_ms is not None
+            else round(
+                duration_ms
+                * (self.end_ratio if self.end_ratio is not None else 1.0)
+            )
+        )
+        end = min(max(end, 1), duration_ms)
+        return max(0, min(start, end - 1)), end
+
+
 class VideoTurnDecision(ContractModel):
     route: VideoRoute
     history_dependency: HistoryDependency
     standalone_query: str | None = None
     clarification_question: str | None = None
+    # Set only when the reader asked for part of the lecture rather than all
+    # of it. A summary route with no time scope means the whole recording.
+    time_scope: VideoTimeScope | None = None
     reason: str = Field(min_length=1)
 
 
