@@ -17,6 +17,36 @@ from video.states import Stage
 
 EVIDENCE_FORMAT_VERSION = "video-evidence-v1"
 
+# The longest stretch of lecture a transcript may leave untranscribed before it
+# stops being a transcript of the whole lecture.
+#
+# The gate this replaces summed cue occupancy and required 95%. The published
+# lecture scored 93.84% and was published degraded with every other gate
+# passing. Measuring what the missing 6.16% actually was: 376.7 seconds spread
+# across 2,325 separate gaps, of which 2,212 are under one second, the largest
+# anywhere is 26 seconds, and the cues run from 9.1 seconds in to 2.6 seconds
+# before the end. Nothing is missing. The lecturer breathes.
+#
+# That is the same objection the ASR branch below already records — silence
+# lowers cue occupancy without indicating missing transcription — and it
+# applies to any cue-timed source, not only to hosted ASR. A caption file has
+# no cues during silence either. What a reader actually loses is a *contiguous*
+# hole, because that is the stretch where a question finds nothing, which is
+# why the visual modality is already gated on its longest gap rather than on
+# the fraction of the timeline holding frames.
+#
+# Two minutes is roughly five times the longest genuine pause observed and
+# small enough that a missing stretch is caught. It is calibrated against one
+# lecture; the measurement is recorded in `maximum_transcript_gap_ms` on every
+# version so a second lecture can revise it with evidence rather than taste.
+TRANSCRIPT_GAP_LIMIT_MS = 120_000
+# What makes a transcript not a transcript of this lecture at all, rather than
+# a thin one. Publication is a higher bar to block than a quality reservation
+# is to raise, and the occupancy floor this replaces sat at 90% — which the
+# published lecture cleared by 3.8 points, meaning a lecture with a little more
+# silence in it would have been refused outright for having none missing.
+TRANSCRIPT_HARD_GAP_LIMIT_MS = 600_000
+
 
 class VideoEvidenceConflictError(RuntimeError):
     pass
@@ -384,6 +414,13 @@ def evaluate_quality_gates(
             (job["owner_id"], job["video_id"], job["target_version_id"]),
         ).fetchone()
 
+        transcript_gap_ms = _maximum_transcript_gap(
+            connection,
+            owner_id=job["owner_id"],
+            video_id=job["video_id"],
+            transcript_id=transcript_id,
+            duration_ms=duration_ms,
+        )
         frame_count = len(frame_rows)
         success_count = len(successful_timestamps)
         first_ms = int(frame_rows[0]["timestamp_ms"]) if frame_rows else None
@@ -391,17 +428,24 @@ def evaluate_quality_gates(
         coverage = float(source["coverage_ratio"] or 0.0)
         provenance = source["provenance_json"] or {}
         processed_duration_ms = int(provenance.get("processed_duration_ms") or 0)
+        hosted_asr = source["source_kind"] == "openrouter_transcription"
         completeness = (
-            min(1.0, processed_duration_ms / duration_ms)
-            if source["source_kind"] == "openrouter_transcription"
-            else coverage
+            min(1.0, processed_duration_ms / duration_ms) if hosted_asr else coverage
         )
         gates = {
             "canonical_source": source["source_status"] == "ready",
-            # ASR timestamps describe speech, so silence lowers cue occupancy
-            # without indicating missing transcription. For hosted ASR, the
-            # processed audio duration is therefore the completeness signal.
-            "transcript_complete": completeness >= 0.95,
+            # Hosted ASR reports how much audio it processed, which answers the
+            # question directly and is believed. Every other source is cue-timed
+            # and reveals only when someone was speaking, so completeness is
+            # judged on the longest untranscribed stretch instead of on summed
+            # occupancy — see TRANSCRIPT_GAP_LIMIT_MS for what that decision
+            # cost before it was measured.
+            "transcript_complete": (
+                completeness >= 0.95
+                if hosted_asr
+                else transcript_gap_ms is not None
+                and transcript_gap_ms <= TRANSCRIPT_GAP_LIMIT_MS
+            ),
             "timeline_frames": bool(
                 frame_rows
                 and first_ms is not None
@@ -439,6 +483,11 @@ def evaluate_quality_gates(
             "transcript_source_kind": source["source_kind"],
             "transcript_coverage_ratio": round(coverage, 6),
             "transcript_completeness_ratio": round(completeness, 6),
+            # Kept alongside the ratio rather than replacing it: the ratio still
+            # describes how much of the recording is speech, which is worth
+            # knowing. It is no longer mistaken for how much was transcribed.
+            "maximum_transcript_gap_ms": transcript_gap_ms,
+            "transcript_gap_limit_ms": TRANSCRIPT_GAP_LIMIT_MS,
             "transcript_segment_count": segment_count,
             "frame_count": frame_count,
             "successful_visual_observation_count": success_count,
@@ -458,7 +507,12 @@ def evaluate_quality_gates(
         }
         hard = (
             gates["canonical_source"]
-            and completeness >= 0.90
+            and (
+                completeness >= 0.90
+                if hosted_asr
+                else transcript_gap_ms is not None
+                and transcript_gap_ms <= TRANSCRIPT_HARD_GAP_LIMIT_MS
+            )
             and gates["transcript_evidence_complete"]
             and frame_count > 0
             and success_count > 0
@@ -468,6 +522,48 @@ def evaluate_quality_gates(
             raise VideoQualityGateError(metrics)
         readiness = "ready" if all(gates.values()) else "degraded"
         return QualityGateResult(readiness=readiness, metrics=metrics)
+
+
+def _maximum_transcript_gap(
+    connection: Connection,
+    *,
+    owner_id: Any,
+    video_id: Any,
+    transcript_id: Any,
+    duration_ms: int,
+) -> int | None:
+    """The longest stretch of the recording no transcript cue covers.
+
+    Head and tail count as gaps like any other. A transcript that starts ten
+    minutes into the lecture has no interior gap at all and is missing ten
+    minutes, which is exactly the failure a gate on interior gaps alone would
+    wave through.
+
+    Cues may overlap or nest, so coverage is tracked as a high-water mark
+    rather than by comparing each cue with the one before it. Returns None when
+    there is no transcript; the caller treats that as a failed gate rather than
+    as a passing zero.
+    """
+
+    if transcript_id is None:
+        return None
+    rows = connection.execute(
+        """
+        select start_ms, end_ms from video.transcript_segments
+        where owner_id = %s and video_id = %s and transcript_source_id = %s
+        order by start_ms
+        """,
+        (owner_id, video_id, transcript_id),
+    ).fetchall()
+    if not rows:
+        return None
+    largest = 0
+    covered_to = 0
+    for row in rows:
+        start = int(row["start_ms"])
+        largest = max(largest, start - covered_to)
+        covered_to = max(covered_to, int(row["end_ms"] or start))
+    return max(largest, duration_ms - covered_to)
 
 
 def persist_quality_gates(

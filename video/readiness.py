@@ -35,9 +35,27 @@ def _minutes(milliseconds: float) -> str:
 
 
 def _transcript_note(metrics: dict[str, Any]) -> str:
+    """Name the stretch that is missing, not the percentage that is not.
+
+    A cue-timed transcript fails this gate on its longest untranscribed
+    stretch, so that is what the note reports: a reader can tell whether the
+    hole sits over what they were about to ask about. The old note quoted
+    summed cue occupancy, which for a lecture with ordinary pauses in it
+    reported "the transcript covers 94% of the lecture" about a transcript
+    that was missing nothing at all.
+    """
+
+    gap = _ratio(metrics, "maximum_transcript_gap_ms")
+    if gap is not None:
+        return (
+            f"One stretch of {_minutes(gap)} has no transcript over it, so "
+            "questions about what was said then may find nothing."
+        )
     ratio = _ratio(metrics, "transcript_completeness_ratio")
     if ratio is None:
         return "The transcript does not cover the whole lecture."
+    # Hosted ASR reports how much audio it processed, which is a share rather
+    # than a place, so there is no stretch to name.
     duration = _ratio(metrics, "duration_ms") or 0
     missing = duration * (1 - ratio)
     covered = f"The transcript covers {ratio:.0%} of the lecture"
