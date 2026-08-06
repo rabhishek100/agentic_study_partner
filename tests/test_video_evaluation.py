@@ -340,6 +340,17 @@ class GoldSetTests(unittest.TestCase):
                 )
                 for anchor in anchors:
                     with self.subTest(turn=turn["turn_id"]):
+                        if anchor.get("resource_pages"):
+                            # The deck has no timestamps, so its anchors name
+                            # pages. Nothing aligns a page with a moment, and
+                            # ingestion deliberately refuses to invent one.
+                            self.assertTrue(
+                                all(
+                                    page >= 1
+                                    for page in anchor["resource_pages"]
+                                )
+                            )
+                            continue
                         self.assertLess(anchor["start_ms"], anchor["end_ms"])
                         self.assertLessEqual(anchor["end_ms"], duration)
 

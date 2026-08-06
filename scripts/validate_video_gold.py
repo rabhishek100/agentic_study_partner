@@ -88,9 +88,27 @@ def _structural(dataset: dict) -> list[str]:
                 )
             if not turn.get("reference_answer", "").strip():
                 problems.append(f"{where}: no reference answer")
+            if turn.get("requires_document_evidence") and not any(
+                anchor.get("resource_pages") for anchor in anchors
+            ):
+                problems.append(
+                    f"{where}: marked as needing the linked document but no "
+                    "page anchor"
+                )
             for anchor in anchors + (turn.get("near_miss_evidence") or []):
-                if anchor["start_ms"] >= anchor["end_ms"]:
-                    problems.append(f"{where}: anchor span is empty or reversed")
+                pages = anchor.get("resource_pages")
+                if pages is None:
+                    if anchor["start_ms"] >= anchor["end_ms"]:
+                        problems.append(
+                            f"{where}: anchor span is empty or reversed"
+                        )
+                elif not pages or any(page < 1 for page in pages):
+                    problems.append(f"{where}: page anchor names no usable page")
+                elif set(anchor["modalities"]) != {"resource_page"}:
+                    problems.append(
+                        f"{where}: a page anchor can only be satisfied by the "
+                        "linked document, so it must name that modality alone"
+                    )
                 unknown = set(anchor["modalities"]) - MODALITIES
                 if unknown:
                     problems.append(
@@ -137,6 +155,30 @@ def _canonical(dataset: dict, *, owner_id, database_url: str | None) -> list[str
                     turn.get("near_miss_evidence") or []
                 )
                 for anchor in anchors:
+                    if anchor.get("resource_pages"):
+                        reachable = database.execute(
+                            """
+                            select count(*) as count
+                            from video.evidence_units
+                            where owner_id = %s and video_id = %s
+                              and ingestion_version_id = %s
+                              and modality = 'resource_page'
+                              and page_number = any(%s)
+                            """,
+                            (
+                                owner_id,
+                                lecture["video_id"],
+                                version_id,
+                                list(anchor["resource_pages"]),
+                            ),
+                        ).fetchone()["count"]
+                        if reachable != len(set(anchor["resource_pages"])):
+                            problems.append(
+                                f"{turn['turn_id']}: pages "
+                                f"{anchor['resource_pages']} are not all "
+                                "indexed for this version"
+                            )
+                        continue
                     if anchor["end_ms"] > video["duration_ms"]:
                         problems.append(
                             f"{turn['turn_id']}: anchor ends after the lecture does"

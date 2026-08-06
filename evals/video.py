@@ -109,10 +109,19 @@ class VideoProjectRunner:
 
 
 def _overlaps(item: VideoEvidenceRef, anchor: dict[str, Any]) -> bool:
-    """Does this evidence item come from the stretch the anchor names?"""
+    """Does this evidence item come from the place the anchor names?
+
+    A moment for anything on the timeline, and a page for the linked document —
+    a slide deck has no timestamps, and inventing an alignment between its
+    pages and the lecture is exactly what the ingestion pipeline refuses to do.
+    So an anchor names whichever locator its modality actually has.
+    """
 
     if item.modality not in set(anchor["modalities"]):
         return False
+    pages = anchor.get("resource_pages")
+    if pages is not None:
+        return item.page_number in set(pages)
     if item.start_ms is None:
         return False
     start, end = int(anchor["start_ms"]), int(anchor["end_ms"])
@@ -339,7 +348,10 @@ def evaluate_retrieval_only(
     for conversation in conversations:
         for turn in conversation["turns"]:
             anchors = turn.get("expected_evidence") or []
-            if not anchors:
+            # Whole-lecture routes never search: they load the complete
+            # transcript. Scoring them here would measure a retrieval that
+            # production does not perform for these questions.
+            if not anchors or turn["expected_route"] != "evidence_qa":
                 continue
             if on_turn:
                 on_turn(turn["turn_id"])
@@ -364,8 +376,11 @@ def evaluate_retrieval_only(
                     ],
                     "wanted": [
                         {
-                            "start_ms": anchor["start_ms"],
-                            "end_ms": anchor["end_ms"],
+                            "where": (
+                                f"pages {anchor['resource_pages']}"
+                                if anchor.get("resource_pages")
+                                else f"{anchor['start_ms']}-{anchor['end_ms']}ms"
+                            ),
                             "modalities": anchor["modalities"],
                             "hit": any(
                                 _overlaps(item, anchor) for item in evidence

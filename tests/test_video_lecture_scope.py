@@ -121,13 +121,34 @@ class LectureRoutingTests(unittest.TestCase):
         for question in (
             # Narrowed to one topic: a question that mentions a stretch.
             "summarize what he said about attention in the first half",
-            # No summary verb at all.
-            "what happened in the first half?",
             # Not a stretch anyone can name.
             "summarize the middle half",
+            # A stretch with no request attached to it.
+            "was the first half recorded?",
         ):
             with self.subTest(question=question):
                 self.assertIsNone(lecture_scope_route(question))
+
+    def test_asking_what_is_in_a_stretch_is_asking_for_its_summary(self) -> None:
+        """The verb varies; the request does not.
+
+        "What is described between 20:00 and 40:00" and "what happens in the
+        first half" both ask for an account of a stretch of lecture. Answering
+        either from eight retrieved passages is the same failure as answering
+        "summarize this" that way.
+        """
+
+        for question in (
+            "What is described between 20:00 and 24:00?",
+            "what happens in the first half?",
+            "What does he discuss in the last 20 minutes?",
+            "What is covered from 20:00 to 40:00?",
+        ):
+            with self.subTest(question=question):
+                matched = lecture_scope_route(question)
+                self.assertIsNotNone(matched)
+                self.assertEqual(matched[0], "lecture_summary")
+                self.assertIsNotNone(matched[2])
 
     def test_routes_without_calling_the_control_model(self) -> None:
         state = new_video_conversation_state(video_id=uuid4())

@@ -22,6 +22,7 @@ from video.retrieval import (
     TRANSCRIPT_PASSAGE_CHARACTERS,
     _balanced_direct,
     _kind,
+    _per_modality,
 )
 
 
@@ -104,6 +105,38 @@ class ModalityBudgetTests(unittest.TestCase):
 
     def test_the_shares_add_up_to_the_whole_evidence_set(self) -> None:
         self.assertAlmostEqual(sum(MODALITY_SHARE.values()), 1.0)
+
+
+class ShortlistTests(unittest.TestCase):
+    """Which candidates the budget gets to choose between.
+
+    A shortlist cut globally hands itself to whichever modality embeds best,
+    which for this corpus is always the frames: 258 paragraph-length
+    descriptions against 2,436 caption fragments and 135 short deck pages. The
+    budget downstream then has a share to fill and nothing to fill it from —
+    measured on the gold set as questions naming the deck coming back with no
+    deck page in them at all.
+    """
+
+    def test_each_modality_keeps_its_own_best(self) -> None:
+        candidates = ranked(
+            *(["visual_frame"] * 30 + ["resource_page"] * 5 + ["transcript"] * 5)
+        )
+        kept = _per_modality(candidates, limit=4)
+        counts = {
+            kind: sum(1 for item in kept if _kind(item) == kind)
+            for kind in ("visual", "resource_page", "transcript")
+        }
+        self.assertEqual(counts, {"visual": 4, "resource_page": 4, "transcript": 4})
+
+    def test_ranking_inside_a_modality_is_untouched(self) -> None:
+        candidates = ranked("visual_frame", "transcript", "visual_frame", "transcript")
+        kept = _per_modality(candidates, limit=1)
+        self.assertEqual([item.id for item in kept], ["c0", "c1"])
+
+    def test_a_modality_with_less_than_its_share_keeps_what_it_has(self) -> None:
+        kept = _per_modality(ranked("transcript", "visual_frame"), limit=10)
+        self.assertEqual(len(kept), 2)
 
 
 class TranscriptPassageTests(unittest.TestCase):

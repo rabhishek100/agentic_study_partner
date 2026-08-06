@@ -28,8 +28,15 @@ RRF_RANK_CONSTANT = 60
 # Asking about the deck should put the deck in front of the model. Frames of a
 # screen-shared slide carry richer text than the page itself, so without this
 # a question naming the document is answered almost entirely from frames.
+#
+# "Slide" is deliberately absent. In a lecture it almost always means the thing
+# on the screen — "what is shown on the slide", "the slide he was on" — and
+# treating it as a request for the attached file spends three of eight evidence
+# slots on pages when the reader asked what was projected. A reader who wants
+# the file says deck, PDF, document, handout, or page. "Slide deck" still
+# matches, on "deck".
 DOCUMENT_FOCUS = re.compile(
-    r"\b(slide|slides|deck|pdf|document|handout|notes|page)\b", re.IGNORECASE
+    r"\b(deck|pdf|document|handout|notes|page|pages)\b", re.IGNORECASE
 )
 DOCUMENT_FOCUS_FLOOR = 3
 # The share of an answer's evidence each modality is guaranteed when it has
@@ -122,6 +129,10 @@ def retrieve_video_evidence(
         raise VideoNotReadyError("video has no published evidence")
     version_id = version["id"]
 
+    # Four times the answer's size. Eight was measured and is worse: a longer
+    # shortlist lets more weakly-matching frames into the fusion, and the
+    # budget then spends its visual share on them instead of on the frames the
+    # ranking actually liked.
     candidate_limit = limit * 4
     lexical = _lexical_query(cleaned)
     rows = (
@@ -129,16 +140,25 @@ def retrieve_video_evidence(
             """
             with query as (
                 select to_tsquery('english', %s) as value
+            ),
+            scored as (
+                select evidence.*,
+                       ts_rank_cd(evidence.search_vector, query.value, 32)
+                           as score,
+                       row_number() over (
+                           partition by evidence.modality
+                           order by ts_rank_cd(
+                               evidence.search_vector, query.value, 32
+                           ) desc, evidence.start_ms nulls last, evidence.id
+                       ) as position
+                from video.evidence_units as evidence
+                cross join query
+                where evidence.owner_id = %s and evidence.video_id = %s
+                  and evidence.ingestion_version_id = %s
+                  and evidence.search_vector @@ query.value
             )
-            select evidence.*,
-                   ts_rank_cd(evidence.search_vector, query.value, 32) as score
-            from video.evidence_units as evidence
-            cross join query
-            where evidence.owner_id = %s and evidence.video_id = %s
-              and evidence.ingestion_version_id = %s
-              and evidence.search_vector @@ query.value
-            order by score desc, evidence.start_ms nulls last, evidence.id
-            limit %s
+            select * from scored where position <= %s
+            order by score desc, start_ms nulls last, id
             """,
             (lexical, owner, video, version_id, candidate_limit),
         ).fetchall()
@@ -179,7 +199,7 @@ def retrieve_video_evidence(
     direct = (
         _reciprocal_rank_fusion(ranked, limit=candidate_limit)
         if len(ranked) > 1
-        else ranked[0]
+        else ranked[0][:candidate_limit]
     )
     selected = _balanced_direct(
         direct,
@@ -352,12 +372,24 @@ def _expand_transcript(
     order = {item.id: position for position, item in enumerate(items)}
     kept.sort(key=lambda item: order.get(item.id, limit))
     chosen = {item.id for item in kept}
+    covered = [(item.start_ms, item.end_ms) for item in expanded]
     for item in candidates:
         if len(kept) >= limit:
             break
-        if item.id not in chosen and item.modality != "transcript":
-            kept.append(item)
-            chosen.add(item.id)
+        if item.id in chosen:
+            continue
+        if item.modality == "transcript":
+            # A cue already inside a passage would return the same words a
+            # second time. One from elsewhere in the lecture is a real source,
+            # and preferring a frame over it just because merging freed the
+            # slot would undo the balance the budget was for.
+            if item.start_ms is None or any(
+                item.start_ms < end and (item.end_ms or item.start_ms) > start
+                for start, end in covered
+            ):
+                continue
+        kept.append(item)
+        chosen.add(item.id)
     return kept[:limit]
 
 
@@ -428,13 +460,46 @@ def _vector_candidates(
     ).fetchall()
     candidates = [_evidence(row, method=method) for row in rows]
     candidates.sort(key=lambda item: (-item.score, item.start_ms or 0, item.id))
-    return candidates[:limit]
+    return _per_modality(candidates, limit=limit)
+
+
+def _per_modality(
+    candidates: list[VideoEvidence], *, limit: int
+) -> list[VideoEvidence]:
+    """Keep the best `limit` of each modality rather than the best overall.
+
+    A global cut hands the shortlist to whichever modality embeds best, which
+    for this corpus is always the frames: 258 paragraph-length descriptions
+    against 2,436 caption fragments and 135 short deck pages. The modality
+    budget downstream then has a share to fill and nothing to fill it from —
+    measured on the gold set as questions naming the deck coming back with no
+    deck page in them at all.
+
+    Ranking within a modality is untouched; only the cut is per modality.
+    """
+
+    kept: list[VideoEvidence] = []
+    taken: dict[str, int] = {}
+    for item in candidates:
+        kind = _kind(item)
+        if taken.get(kind, 0) >= limit:
+            continue
+        taken[kind] = taken.get(kind, 0) + 1
+        kept.append(item)
+    return kept
 
 
 def _reciprocal_rank_fusion(
     ranked_lists: list[list[VideoEvidence]], *, limit: int
 ) -> list[VideoEvidence]:
-    """Fuse rankings from incomparable scoring spaces by rank position."""
+    """Fuse rankings from incomparable scoring spaces by rank position.
+
+    The cut here is global, and stays global. Cutting it per modality as well
+    was tried — the shortlists feeding it already are — and cost 3 points of
+    anchor recall, because the fused order is what tells the budget which
+    frames are the *right* frames. Per-modality shortlists get every modality
+    into the pool; the fused ranking is what orders them once they are there.
+    """
 
     scores: dict[str, float] = {}
     best: dict[str, VideoEvidence] = {}

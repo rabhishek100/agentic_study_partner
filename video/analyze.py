@@ -39,9 +39,19 @@ SUMMARY_REQUEST = re.compile(
 )
 # The verbs that ask for a summary, without requiring the whole-lecture noun
 # that SUMMARY_REQUEST needs. A time scope supplies the scope by itself.
+#
+# The second group is wider than "summarize" on purpose. "What is described
+# between 20:00 and 40:00" and "what happens in the first half" are requests
+# for an account of a stretch of lecture, and answering either from eight
+# retrieved passages is the same failure the whole-lecture routes exist to
+# prevent — it is only the verb that differs. These are matched solely when a
+# time scope is also present, so an unscoped "what happens" stays a question.
 SUMMARY_VERB = re.compile(
     r"\b(?:summari[sz]e|summary|recap|overview|tl;?dr|sum\s+up|"
-    r"walk\s+me\s+through|go\s+(?:back\s+)?(?:over|through))\b",
+    r"walk\s+me\s+through|go\s+(?:back\s+)?(?:over|through)|"
+    r"describ(?:e[sd]?|ing)|discuss(?:e[sd]|es)?|cover(?:ed|s)?|"
+    r"happen(?:ed|s)?|talk(?:ed|s)?\s+about|goes?\s+on|"
+    r"what(?:'s|\s+is|\s+was)\s+in)\b",
     re.IGNORECASE,
 )
 ORDINALS: dict[str, int | None] = {

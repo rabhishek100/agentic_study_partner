@@ -1,6 +1,6 @@
 {
   "dataset_id": "video-gold-v1",
-  "version": 1,
+  "version": 2,
   "review": {
     "status": "transcript_authored_pending_human_review",
     "note": "Every anchor was read off the canonical transcript of the published ingestion version rather than recalled or inferred, and every span was checked to contain the claim it is cited for. That makes the anchors stronger than a knowledge-authored seed and weaker than a human relevance judgment: no second reader has confirmed that the listed span is the narrowest or the only stretch that answers its question. Do not report these numbers as human-verified.",
@@ -9,7 +9,16 @@
       "ingestion_version_id": "07657e9f-1c4d-4d2c-89b5-4d25d6c27a0f",
       "version_number": 4,
       "transcript_segment_count": 2436
-    }
+    },
+    "coverage_note": "Version 2 adds the question types a reader actually asks of a lecture with a deck attached: content from the linked document by page, sections listed and explained where the source published no chapters, stretches named by the clock, and one thread followed across transcript, screen and deck in turn. Deck anchors are pages rather than moments because the deck has no timestamps — and because that content is also on screen, what a page anchor tests is that naming the deck returns the deck, with a page a reader can open.",
+    "corrections": [
+      {
+        "turn_id": "vc-008-t3",
+        "version": 2,
+        "change": "Widened the required span from 78:29–79:03 to 78:29–80:05.",
+        "reason": "The original span ended at a sentence boundary that falls in the middle of the explanation. The lecturer states what masking is called before 79:03 and why it is masked after it, so a retrieval that returned the reason was being scored as a miss."
+      }
+    ]
   },
   "judgment_policy": {
     "unit": "A moment in the lecture — a millisecond span plus the set of modalities that can satisfy it — not an evidence-unit row.",
@@ -658,11 +667,11 @@
             {
               "role": "required",
               "start_ms": 4709000,
-              "end_ms": 4743000,
+              "end_ms": 4805000,
               "modalities": [
                 "transcript"
               ],
-              "why": "It only looks at the tokens translated so far, never at tokens to the right of the one being predicted."
+              "why": "It only looks at the tokens translated so far. The span was originally cut at 79:03, which is mid-explanation: the reason follows in the next breath — \"it does not look at tokens that were not translated ... there's no way like on the right side of the token that you're trying to predict\" — and a reader given only the first clause has been told what masking is called, not why. Corrected in version 2 against the transcript, not against a run."
             }
           ],
           "reference_answer": "Because it attends only to the tokens decoded so far. There is nothing to the right of the token being predicted — those words have not been produced yet — so the attention is masked to prevent looking at them."
@@ -686,6 +695,327 @@
             }
           ],
           "reference_answer": "Larger. This is the opposite of word2vec, where the hidden layer is smaller than the input and output; here a bigger hidden layer gives the model more degrees of freedom to complexify the features it learns."
+        }
+      ]
+    },
+    {
+      "id": "vc-009",
+      "title": "The linked deck, asked for by name",
+      "purpose": "Questions a reader expects to be answered from the attached document. The content is also on screen — these were the slides, after all — so the anchors are pages rather than moments: what is tested is that naming the deck returns the deck, with a page a reader can open.",
+      "turns": [
+        {
+          "turn_id": "vc-009-t1",
+          "user": "Which datasets does the slide deck list for named entity recognition?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "requires_document_evidence": true,
+          "expected_standalone_query": "Which datasets does the slide deck list for named entity recognition?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "resource_pages": [
+                23
+              ],
+              "modalities": [
+                "resource_page"
+              ],
+              "why": "The NER slide lists the annotated Reuters newspaper corpora CoNLL-2003 and CoNLL++. The lecturer never says any of these names out loud."
+            }
+          ],
+          "reference_answer": "The annotated Reuters newspaper datasets — CoNLL-2003 and CoNLL++."
+        },
+        {
+          "turn_id": "vc-009-t2",
+          "user": "And what year does it give for LSTM?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "requires_document_evidence": true,
+          "expected_standalone_query": "What year does the slide deck give for LSTM?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "resource_pages": [
+                26,
+                63
+              ],
+              "modalities": [
+                "resource_page"
+              ],
+              "why": "The timeline slide dates LSTM to 1997 and the LSTM slide cites the 1997 paper. The lecturer only ever says 'the nineties'."
+            }
+          ],
+          "reference_answer": "1997 — the deck's timeline dates LSTM to that year and the LSTM slide cites the 1997 paper 'Long short-term memory'."
+        },
+        {
+          "turn_id": "vc-009-t3",
+          "user": "Which subword tokenizers does it name?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "requires_document_evidence": true,
+          "expected_standalone_query": "Which subword tokenizers does the slide deck name?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "resource_pages": [
+                33
+              ],
+              "modalities": [
+                "resource_page"
+              ],
+              "why": "The tokenization summary table gives WordPiece and BPE as the subword-level examples. Neither is spoken."
+            }
+          ],
+          "reference_answer": "WordPiece and BPE, given on the tokenization summary slide as examples of subword-level tokenization."
+        },
+        {
+          "turn_id": "vc-009-t4",
+          "user": "What did he actually say about subword tokenization?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "What did the lecturer say about subword tokenization?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1528000,
+              "end_ms": 1621000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Subword tokenizers leverage the roots of words so that bear and bears share a particle; the cost is a longer sequence, and model complexity is a function of sequence length."
+            }
+          ],
+          "reference_answer": "That subword tokenizers work from the roots of words, so 'bear' and 'bears' share a particle instead of being unrelated tokens. The pro is leveraging the root; the con is a longer sequence, and these models' complexity is a function of sequence length."
+        }
+      ]
+    },
+    {
+      "id": "vc-010",
+      "title": "Sections: list them, then explain one",
+      "purpose": "The lecture publishes no chapters, so its sections exist only as the deck's agenda and as the shape of the transcript. A reader asking for them should still get them.",
+      "turns": [
+        {
+          "turn_id": "vc-010-t1",
+          "user": "List the sections of this lecture.",
+          "expected_route": "topic_inventory",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "List the sections of this lecture.",
+          "expected_evidence": [],
+          "reference_answer": "An ordered list of the lecture's parts: logistics, NLP overview and task categories, tokenization, word representation, RNNs and LSTMs, the attention and self-attention mechanism, the Transformer architecture, and the end-to-end worked example."
+        },
+        {
+          "turn_id": "vc-010-t2",
+          "user": "Explain the word representation section.",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "Explain the word representation section.",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1815000,
+              "end_ms": 2010000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Token representation is introduced here: the naive one-hot vector, cosine similarity as the way tokens are compared, and the orthogonality problem that makes one-hot useless for it."
+            }
+          ],
+          "reference_answer": "Once text is cut into tokens, each token needs a representation a model can use. The naive choice is a one-hot vector per token. Tokens are compared with cosine similarity, which measures the angle between vectors, and one-hot vectors are all orthogonal — so every pair looks equally unrelated. That failure motivates learning embeddings from data."
+        },
+        {
+          "turn_id": "vc-010-t3",
+          "user": "What does the section after it introduce?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "What does the section after word representation introduce?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 3234000,
+              "end_ms": 3330000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Recurrent neural networks: a hidden representation of the sentence so far, updated one token at a time, so that word order counts."
+            }
+          ],
+          "reference_answer": "Recurrent neural networks. Averaging word representations loses order and context, so RNNs keep a hidden state of the sentence so far and consume tokens one at a time, which makes word order count."
+        }
+      ]
+    },
+    {
+      "id": "vc-011",
+      "title": "Stretches of the lecture named by the clock",
+      "purpose": "A request for an account of a stretch is a summary of that stretch whatever verb it uses. Answering it from eight retrieved passages is the failure the whole-lecture routes exist to prevent.",
+      "turns": [
+        {
+          "turn_id": "vc-011-t1",
+          "user": "What is described between 20:00 and 24:00?",
+          "expected_route": "lecture_summary",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "What is described between 20:00 and 24:00?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1200000,
+              "end_ms": 1440000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Reference-based metrics and their cost, perplexity, and the high-level timeline from 1980s RNNs through word2vec to the 2017 Transformer."
+            }
+          ],
+          "reference_answer": "Why reference-based metrics like BLEU and ROUGE need labels and why labels are expensive, perplexity as a reference-free alternative measuring how surprised a model is, and the field's timeline: RNNs in the eighties, LSTMs in the nineties, word2vec, then the 2017 Transformer and the scaling that produced LLMs."
+        },
+        {
+          "turn_id": "vc-011-t2",
+          "user": "Summarize the last 20 minutes.",
+          "expected_route": "lecture_summary",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "Summarize the last 20 minutes.",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4918760,
+              "end_ms": 6118760,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "The end-to-end worked example: tokenization with BOS and EOS, position-aware embeddings, the QK^T computation and its scaling, multi-head concatenation, and decoding to the EOS token."
+            }
+          ],
+          "reference_answer": "The end-to-end walkthrough: the example sentence is tokenized with BOS and EOS markers, each token gets a learned embedding plus a sinusoidal position embedding, the encoder projects to queries, keys and values and applies softmax(QK^T/sqrt(d_k))V, multi-head outputs are concatenated and projected by W_O, and the decoder produces one token at a time until EOS."
+        },
+        {
+          "turn_id": "vc-011-t3",
+          "user": "What happens in the first half?",
+          "expected_route": "lecture_summary",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "What happens in the first half?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 600000,
+              "end_ms": 3059380,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Everything up to the midpoint: logistics, the three NLP task categories and their metrics, tokenization, and the start of token representation."
+            }
+          ],
+          "reference_answer": "Course logistics and grading, then NLP framed as three task buckets — classification, multi-classification and generation — with their datasets and metrics, then tokenization at word, subword and character level with the OOV trade-off, and the beginning of token representation."
+        }
+      ]
+    },
+    {
+      "id": "vc-012",
+      "title": "One thread, followed across all three sources",
+      "purpose": "The same subject pursued from what was said, to what was on screen, to the page of the deck that carries it — each turn naming its referent only through the turn before it.",
+      "turns": [
+        {
+          "turn_id": "vc-012-t1",
+          "user": "Why does the Transformer need positional encodings?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "Why does the Transformer need positional encodings?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4805000,
+              "end_ms": 4870000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Direct links between tokens destroy the sense of order an RNN got from processing one at a time, so position encodings are added to carry the position of a word in the sequence."
+            }
+          ],
+          "reference_answer": "Because attention gives every token a direct link to every other one, which throws away the ordering an RNN got for free by processing the sequence one step at a time. Position encodings are added to carry where each word sits in the sequence."
+        },
+        {
+          "turn_id": "vc-012-t2",
+          "user": "What was on screen while he explained that?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "requires_visual_evidence": true,
+          "expected_standalone_query": "What was on screen while positional encodings were explained?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4780000,
+              "end_ms": 4900000,
+              "modalities": [
+                "visual_frame",
+                "visual_event"
+              ],
+              "why": "The Transformer architecture slide is displayed through this stretch, with positional encoding listed among the components."
+            }
+          ],
+          "reference_answer": "The Transformer architecture slide, which lists the attention layers, the feed-forward network and positional encoding as the components of the architecture."
+        },
+        {
+          "turn_id": "vc-012-t3",
+          "user": "Which page of the deck covers it?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "requires_document_evidence": true,
+          "expected_standalone_query": "Which page of the slide deck covers positional encoding?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "resource_pages": [
+                80,
+                82
+              ],
+              "modalities": [
+                "resource_page"
+              ],
+              "why": "The deck's positional-encoding pages, which a reader asking for a page expects to be sent to."
+            }
+          ],
+          "reference_answer": "The positional encoding pages of the deck, around pages 80 and 82, where it appears as a component of the Transformer architecture."
+        },
+        {
+          "turn_id": "vc-012-t4",
+          "user": "Who introduced attention, according to the deck?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "requires_document_evidence": true,
+          "expected_standalone_query": "Who introduced attention, according to the deck?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "resource_pages": [
+                66,
+                67
+              ],
+              "modalities": [
+                "resource_page"
+              ],
+              "why": "The history-of-attention slides cite Bahdanau et al., 'Neural Machine Translation by Jointly Learning to Align and Translate'. The lecturer gives the year but never the authors."
+            }
+          ],
+          "reference_answer": "Bahdanau and co-authors, in 'Neural Machine Translation by Jointly Learning to Align and Translate'. The lecture says attention was introduced in 2014 but never names the authors; only the deck does."
         }
       ]
     }
