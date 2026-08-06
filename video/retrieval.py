@@ -510,11 +510,13 @@ def _reciprocal_rank_fusion(
 ) -> list[VideoEvidence]:
     """Fuse rankings from incomparable scoring spaces by rank position.
 
-    The cut here is global, and stays global. Cutting it per modality as well
-    was tried — the shortlists feeding it already are — and cost 3 points of
-    anchor recall, because the fused order is what tells the budget which
-    frames are the *right* frames. Per-modality shortlists get every modality
-    into the pool; the fused ranking is what orders them once they are there.
+    The cut here is global, and stays global. Two alternatives were measured
+    and neither earned its place: cutting per modality as well — the shortlists
+    feeding it already are — cost 3 points of anchor recall, because the fused
+    order is what tells the budget which frames are the *right* frames; and
+    topping each modality up to a floor after the global cut changed which
+    turns failed without changing how many. Per-modality shortlists get every
+    modality into the pool; the fused ranking orders them once they are there.
     """
 
     scores: dict[str, float] = {}
