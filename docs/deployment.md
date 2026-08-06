@@ -5,8 +5,11 @@ Two Railway services against one hosted Supabase project.
 ```text
 Railway project
   web      Next.js standalone                    public
-  app      FastAPI + ingestion worker, one       public
+  api      FastAPI + ingestion worker, one       public
            container, one attached volume        no sleep
+  worker   vestigial: no deployment. Kept from
+           the books-only split; deploy nothing
+           to it while video needs one volume.
 
 Supabase project (usuulfckhbeypjxwjpfn)
   Auth (ES256 access tokens, JWKS)
@@ -14,8 +17,18 @@ Supabase project (usuulfckhbeypjxwjpfn)
   private book-sources bucket
 ```
 
-The app service runs `python -m scripts.serve`, which supervises uvicorn and
-the worker in one container and exits if either of them does.
+**Nothing here deploys itself.** No Railway service is connected to a GitHub
+repository — `railway status --json` reports `source: {image: null, repo: null}`
+for every one of them — so merging to `main` deploys nothing at all. Every
+deployment is a `railway up` from a laptop, per service, and `main` and
+production drift apart the moment either moves without the other. Check which
+commit is actually serving with `/api/health`, never by reading the git log.
+
+The `api` service runs *both halves*: `python -m scripts.serve` supervises
+uvicorn and the ingestion worker in one container and exits if either of them
+does. The name is left over from the books-only split, when the API and the
+worker were separate services; it has run the combined container since video
+shipped.
 
 **Why they share a container.** Video ingestion writes canonical sources,
 frames, and diagram crops to a filesystem media root, and the API reads those
@@ -29,14 +42,15 @@ volume is the arrangement that actually works, and it is the tradeoff
 
 Books alone do not need the volume — their sources live in Supabase Storage —
 so `railway.api.json` and `railway.worker.json` remain valid for a books-only
-deployment split across two services. Video requires the combined service.
+deployment split across two services. Video requires the combined service,
+which is why the `worker` service currently has nothing deployed to it.
 
-The app and web services share nothing but the API URL: the app builds from
-the repository-root `Dockerfile`, the web service from `frontend/Dockerfile`.
+The `api` and `web` services share nothing but the API URL: `api` builds from
+the repository-root `Dockerfile`, `web` from `frontend/Dockerfile`.
 
 ## The media volume
 
-Attach a Railway volume to the app service and point the media root at it:
+Attach a Railway volume to the `api` service and point the media root at it:
 
 | Setting | Value |
 |---|---|
@@ -60,9 +74,20 @@ owner-scoped policies are applied, and the existing book is backfilled as
 `ready` with 332/332 compatible embeddings. Canonical row counts were
 unchanged by the migration.
 
-The books half of the app service and the web service are deployed and
-verified end to end. The video half is verified locally; deploying it needs
-the media volume described above.
+Both halves are deployed and serving. The media volume is attached, and one
+102-minute lecture is ingested and answering questions in production — book
+ingestion, book question answering, video ingestion, and lecture conversations
+have all run end to end against the hosted stack.
+
+Because nothing deploys itself, this section says nothing about what is *in*
+production. Ask the service:
+
+```bash
+curl -s https://<web-domain>/api/health
+```
+
+`build_revision` is the commit the running image was built from, which is the
+only trustworthy answer — `main` moving does not move it.
 
 ## Connection choice
 
@@ -78,15 +103,16 @@ in Railway's service settings (Settings → Config-as-code):
 
 | Service | Root directory | Config file |
 |---|---|---|
-| app | `/` | `railway.app.json` |
+| api | `/` | `railway.app.json` |
 | web | `/frontend` | `railway.json` |
 
-`railway.app.json` starts `python -m scripts.serve`, keeps the `/api/health`
-health check, and restarts always. `railway.api.json` and
+`railway.app.json` — the file name, not a service name — starts
+`python -m scripts.serve`, keeps the `/api/health` health check, and restarts
+always. `railway.api.json` and
 `railway.worker.json` are retained for a books-only two-service split; do not
 use them for video, which needs one volume shared by both processes.
 
-**Disable App Sleeping on the app service.** A sleeping service stops polling
+**Disable App Sleeping on the `api` service.** A sleeping service stops polling
 Postgres, and queued jobs would sit until a request woke it.
 
 **One process failing takes the container down.** The supervisor stops the
@@ -95,10 +121,10 @@ than leaving a service that answers health checks with a dead queue behind it.
 
 ## Variables
 
-Set `PORT=8000` explicitly on the app service so private networking has a
+Set `PORT=8000` explicitly on the `api` service so private networking has a
 deterministic target.
 
-### app
+### api
 
 | Variable | Value |
 |---|---|
@@ -112,7 +138,7 @@ deterministic target.
 | `SUMMARY_CONTEXT_WINDOW_TOKENS`, `SUMMARY_MAX_OUTPUT_TOKENS`, `SUMMARY_SAFETY_MARGIN_TOKENS` | copy from `.env` |
 | `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` | optional tracing |
 
-### app, ingestion half
+### api, ingestion half
 
 The same service, plus the variables only the worker reads:
 
@@ -138,7 +164,7 @@ and the worker uses the owner on the claimed job.
 
 | Variable | Value |
 |---|---|
-| `BACKEND_URL` | `http://app.railway.internal:8000` |
+| `BACKEND_URL` | `http://api.railway.internal:8000` |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://usuulfckhbeypjxwjpfn.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable anon key |
 
@@ -147,7 +173,7 @@ time and are declared as `ARG` in `frontend/Dockerfile`, so Railway supplies
 them during the build. The service-role key must never appear here.
 
 After the web service gets its public URL, set `CORS_ALLOWED_ORIGINS` on the
-app service to that origin and redeploy it. Then add the same URL to
+`api` service to that origin and redeploy it. Then add the same URL to
 Supabase → Authentication → URL Configuration (Site URL and redirect URLs).
 
 ## Resources and cost
@@ -219,10 +245,11 @@ railway login
 railway init            # or: railway link  (existing project)
 ```
 
-Then per service, from the repository root:
+Then per service, from the repository root. **Both, every time a change spans
+both** — there is no trigger that will do the other one for you:
 
 ```bash
-scripts/deploy.sh app
+scripts/deploy.sh api
 scripts/deploy.sh web
 ```
 
@@ -237,7 +264,7 @@ it by habit.
 The underlying commands, if the script is not used:
 
 ```bash
-railway up --service app
+railway up --service api
 railway up ./frontend --path-as-root --service web
 ```
 
@@ -252,7 +279,7 @@ without the flag treats the path as a filter prefix and fails with
 `prefix not found`.
 
 Neither service has a root directory set in Railway (verify with
-`railway status --json`); the app service is correct only because the
+`railway status --json`); the `api` service is correct only because the
 Dockerfile it wants happens to be the one at the repository root.
 
 If a deploy puts the wrong image on a service, the fastest recovery is the
