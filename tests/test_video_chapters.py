@@ -266,6 +266,44 @@ class ReplaceDerivedChaptersTests(unittest.TestCase):
 
         self.assertEqual([row["title"] for row in rows], ["Only", "Two"])
 
+    def test_frame_selection_ignores_a_derived_outline(self) -> None:
+        """The feedback loop that made a re-ingest re-pay for vision.
+
+        Frame selection hashes the chapter list, because chapters tell it
+        which stretches need a frame. A derived outline is computed *from* the
+        frames it selects, so feeding it back makes the stage depend on its own
+        output: the run after a derivation sees chapters that did not exist
+        before, misses its cache, re-selects frames, and invalidates the visual
+        analysis behind it — the single most expensive stage in the pipeline.
+
+        Observed in production: writing 21 derived chapters caused the next
+        re-ingest to re-run the vision model over all 258 frames.
+        """
+
+        with connection(self.database_url) as database:
+            replace_derived_chapters(
+                database,
+                owner_id=self.owner,
+                video_id=self.video.video_id,
+                chapters=self.derived("Tokenization", "Attention"),
+            )
+            seen = database.execute(
+                """
+                select count(*) as count from video.chapters
+                where owner_id = %s and video_id = %s
+                  and chapter_kind <> 'derived'
+                """,
+                (self.owner, self.video.video_id),
+            ).fetchone()["count"]
+            total = database.execute(
+                "select count(*) as count from video.chapters where video_id = %s",
+                (self.video.video_id,),
+            ).fetchone()["count"]
+
+        # The stage reads the first number; the outline has the second.
+        self.assertEqual(seen, 0)
+        self.assertEqual(total, 2)
+
     def test_the_api_can_serve_a_derived_outline(self) -> None:
         """Widening the database without widening the contract breaks reading.
 

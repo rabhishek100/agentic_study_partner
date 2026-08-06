@@ -857,6 +857,14 @@ def _run_frame_selection(
         attempt_count=job.attempt_count,
         stage=Stage.FRAME_SELECTION,
     )
+    # Only chapters the source published. A derived outline is computed from
+    # the frames this stage selects, so feeding it back in makes frame
+    # selection depend on its own output: the first run has no chapters and
+    # picks frames, the second sees the chapters those frames produced and
+    # picks different ones, and the third differs again. It also invalidates
+    # this stage's cache forever, which is what re-ran the vision model — the
+    # single most expensive thing in the pipeline — on a re-ingest that was
+    # supposed to reuse it.
     chapters = tuple(
         Chapter(
             index=int(row["chapter_index"]),
@@ -867,7 +875,8 @@ def _run_frame_selection(
         for row in connection.execute(
             """
             select chapter_index, title, start_ms, end_ms
-            from video.chapters where owner_id = %s and video_id = %s
+            from video.chapters
+            where owner_id = %s and video_id = %s and chapter_kind <> 'derived'
             order by chapter_index
             """,
             (job.owner_id, job.video_id),
