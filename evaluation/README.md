@@ -206,6 +206,131 @@ exact comparison only as a debugging aid; retrieval coverage and the optional
 answer judge are the semantic signals. Python-enforced schemas and canonical
 scope selection remain the safety boundary.
 
+## Video lecture conversation set
+
+`video_gold.json` is the video half's first gold set: 8 conversations and 29
+turns over the published Stanford CME 295 Lecture 1, covering whole-lecture
+summary and topic inventory, answer transformation, exact-term and paraphrased
+retrieval, questions that can only be answered from what was on screen, and
+three requests the lecture does not answer.
+
+Until it existed, every video feature was verified as working and none as
+better. That is the gap `AGENTS.md` calls non-negotiable, and it is why this
+set was built before anything further was added to the video path.
+
+### What a judgment is
+
+The unit is **a stretch of lecture** — a millisecond span plus the modalities
+that can satisfy it — not an evidence-unit row. Evidence unit ids are derived
+data and change on every rebuild, exactly as chunk ids do for books; the book
+set judges TOC nodes for that reason, and the video equivalent of a node is
+the moment a claim comes from. An anchor is satisfied when a retrieved item of
+a listed modality overlaps the span at all, because retrieval windows and
+caption cues are cut on different boundaries.
+
+Anchors were read off the canonical transcript rather than recalled. A pooling
+pass over the first run's results then added visual modalities to eight anchors
+whose slide is on screen inside their own span and genuinely carries the answer
+— the Tokenization summary table lists the cons of character-level tokenization
+in as many words. Anchors were left transcript-only wherever the slide did not
+carry the claim. No span was widened to reach a slide and no anchor was changed
+because a run had failed it.
+
+### The two behaviours that were failing silently
+
+**Summary coverage meant cited, not covered.** `video.lecture.evaluate_coverage`
+counts a stretch satisfied when any marker points at it, so "the lecture then
+moves on [S12]" satisfies window 12 and the runtime reports "24 of 24 required
+stretches cited". `evals/video_coverage.py` measures the second thing: whether
+the claim carrying the marker shares the distinctive vocabulary of that stretch,
+where distinctive is TF-IDF computed across the lecture's own windows so a term
+earns its place by being concentrated rather than frequent.
+
+**Follow-up rewriting had no replay.** Every dependent follow-up is now
+retrieved three ways against the same version and the same anchors — as the
+reader typed it, as the router rewrote it, and as the gold rewrite — so the
+only thing that differs between arms is the query.
+
+### First measured baseline
+
+29 turns, hosted database, hybrid retrieval, no answer judge:
+
+| Measurement | Value |
+|---|---:|
+| Route accuracy | 1.000 |
+| History-dependency accuracy | 0.862 |
+| Outcome accuracy | 0.931 |
+| Required-evidence recall | 0.750 |
+| Cited-evidence recall | 0.385 |
+| Citation validity | 1.000 |
+| Visual evidence present, where required | 1.000 |
+
+Summary coverage on the whole-lecture summary: **24 of 24 stretches cited, 24
+of 24 substantive, 0 vacuous citations.** The suspected failure is not
+occurring on this lecture. The measurement that would catch it now exists, and
+its unit tests prove it separates a vacuous citation from a real one.
+
+The rewriting replay, over 10 follow-ups the router rewrote in all 10 cases:
+
+| Query sent to retrieval | Mean anchor recall |
+|---|---:|
+| As the reader typed it | 0.500 |
+| As the router rewrote it | 0.650 |
+| The gold rewrite | 0.650 |
+
+Rewriting helped 4 follow-ups, hurt 2, and changed nothing for 4. It captured
+**100% of the recall the gold rewrite shows was available**, which is the first
+evidence that the rewriting call earns its cost rather than merely resolving
+a pronoun.
+
+### Reading these numbers honestly
+
+- The set is **transcript-authored and pending human review**. Anchors were
+  read from canonical content, not recalled, but no second reader has confirmed
+  that each listed span is the narrowest or the only stretch that answers its
+  question.
+- **A laptop run has no frame images.** They live on the deployed volume, so
+  visual evidence arrives as its OCR and description text without the image
+  production attaches. Both outcome misses in the baseline are abstentions on
+  turns whose evidence was a slide, and are expected to behave differently in
+  production. The runner logs a warning when this is the case.
+- The four history-dependency misses are all turns labelled independent and
+  classified dependent. One is arguably the dataset's fault — "which of the
+  three" has no antecedent inside its own conversation — and one exposes a real
+  over-trigger: the deterministic history-reference rule fires on "its" in
+  "compared with its input", where the pronoun refers inside the sentence.
+- Cited-evidence recall being roughly half of retrieval recall says the answer
+  cites fewer of the retrieved stretches than it reaches. That is a measured
+  gap, not yet a diagnosed one.
+
+### Running it
+
+Validate the set before trusting a run. The canonical pass checks that every
+anchor has evidence of a listed modality actually existing inside its span, so
+a dataset that asks for the unreachable fails loudly instead of scoring zero:
+
+```bash
+uv run python -m scripts.validate_video_gold --owner-id "$VIDEO_OWNER_ID"
+```
+
+Run the smoke set — one rewriting thread and the three abstentions — before a
+complete baseline:
+
+```bash
+uv run python -m scripts.evaluate_video --smoke --owner-id "$VIDEO_OWNER_ID"
+```
+
+```bash
+uv run python -m scripts.evaluate_video --all --owner-id "$VIDEO_OWNER_ID"
+```
+
+`--judge-answers` adds the optional semantic rubric, and
+`--no-rewrite-ablation` skips the two extra retrievals per probe. Runs write
+`results.json` and a filterable `report.html` under
+`evaluation/runs/video/<timestamp>/` and are gitignored. The owner is supplied
+explicitly because the lecture belongs to a real account rather than to the
+local bootstrap owner.
+
 ## Seed set
 
 `retrieval_gold_seed.json` is the first retrieval-only gold set. It is

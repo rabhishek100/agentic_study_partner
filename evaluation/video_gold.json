@@ -1,0 +1,693 @@
+{
+  "dataset_id": "video-gold-v1",
+  "version": 1,
+  "review": {
+    "status": "transcript_authored_pending_human_review",
+    "note": "Every anchor was read off the canonical transcript of the published ingestion version rather than recalled or inferred, and every span was checked to contain the claim it is cited for. That makes the anchors stronger than a knowledge-authored seed and weaker than a human relevance judgment: no second reader has confirmed that the listed span is the narrowest or the only stretch that answers its question. Do not report these numbers as human-verified.",
+    "pooling": "The first anchors were transcript-only, because the transcript is what was read to author them. A TREC-style pooling pass over the first retrieval run's results then reviewed the visual candidates it returned, and eight anchors were found to have a slide on screen inside their own span that genuinely carries the answer — the Tokenization summary table lists the cons of character-level tokenization and the OOV risk of each method in as many words. Those anchors gained visual modalities. Anchors were reviewed one at a time against the frame's own text and were left transcript-only wherever the slide did not carry the claim: the Transformer architecture slide lists the attention layers without ever using the word masked, and the Class communications slide on screen during the grading discussion says nothing about grades. Spans were never widened to reach a slide, and no anchor was changed because a run had failed it.",
+    "authored_against": {
+      "ingestion_version_id": "07657e9f-1c4d-4d2c-89b5-4d25d6c27a0f",
+      "version_number": 4,
+      "transcript_segment_count": 2436
+    }
+  },
+  "judgment_policy": {
+    "unit": "A moment in the lecture — a millisecond span plus the set of modalities that can satisfy it — not an evidence-unit row.",
+    "why": "Evidence unit ids are derived data and change on every rebuild, exactly as chunk ids do for books. The book gold set judges TOC nodes rather than chunks for that reason; the video equivalent of a node is the stretch of lecture a claim comes from, because that is what survives a re-ingest and what a citation actually points a reader at.",
+    "satisfied_when": "A retrieved evidence item whose modality is listed overlaps the span by any amount. Overlap rather than containment: retrieval windows and transcript cues are cut on different boundaries, and an item that covers half the stretch is still the evidence a reader would use.",
+    "required_coverage": "A turn is fully covered only when every anchor with role 'required' is matched. Partial coverage is reported separately so it is never mistaken for a hit.",
+    "unanswerable": "expected_evidence is empty and near_miss_evidence records the stretches a lexical retriever will plausibly return anyway. The correct behaviour is to state that the lecture does not contain it, not to answer from model knowledge."
+  },
+  "lecture": {
+    "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+    "title": "cme295-lecture1-h264.mp4",
+    "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+    "duration_ms": 6118760,
+    "transcript_source_kind": "uploaded_caption",
+    "chapter_count": 0,
+    "coverage_unit_kind": "transcript_window",
+    "resource": {
+      "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+      "title": "fall25-cme295-lecture1",
+      "page_count": 135
+    }
+  },
+  "conversations": [
+    {
+      "id": "vc-001",
+      "title": "Whole-lecture requests and reshaping what came back",
+      "purpose": "The two routes that skip retrieval entirely, plus the transform that must not introduce a new fact.",
+      "turns": [
+        {
+          "turn_id": "vc-001-t1",
+          "user": "Summarize this lecture.",
+          "expected_route": "lecture_summary",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "Summarize this lecture.",
+          "expected_evidence": [],
+          "measures_summary_coverage": true,
+          "reference_answer": "An end-to-end summary of the whole 102-minute lecture: course logistics, the three buckets of NLP tasks and their metrics, tokenization at word, subword and character level, one-hot encoding and its orthogonality problem, word2vec and its proxy tasks, RNNs and LSTMs and the vanishing-gradient problem, attention, and the Transformer's encoder-decoder architecture with self-attention, cross-attention, masked attention, multi-head attention and label smoothing, closing with an end-to-end worked example."
+        },
+        {
+          "turn_id": "vc-001-t2",
+          "user": "What topics does it cover?",
+          "expected_route": "topic_inventory",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "What topics does it cover?",
+          "expected_evidence": [],
+          "reference_answer": "An ordered list of what the recording covers, with timestamps: logistics, NLP task categories, tokenization, word representations, RNNs and LSTMs, attention, the Transformer architecture, and the worked example."
+        },
+        {
+          "turn_id": "vc-001-t3",
+          "user": "Make that shorter.",
+          "expected_route": "prior_answer_transform",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "expected_standalone_query": "Make the previous list of topics shorter.",
+          "expected_evidence": [],
+          "reference_answer": "The same topic list, condensed, with no topic that was not already in the previous answer and no new fact introduced."
+        },
+        {
+          "turn_id": "vc-001-t4",
+          "user": "What did he say about the vanishing gradient problem?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "What did he say about the vanishing gradient problem?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 3651000,
+              "end_ms": 3778000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Backpropagation through time produces a product of quantities; greater than one explodes, less than one vanishes toward zero, so updates stall."
+            }
+          ],
+          "reference_answer": "Predicting the last word depends on every hidden state before it, so backpropagating through time multiplies many quantities together. A product of terms above one explodes and a product of terms below one vanishes to zero, which is why an RNN struggles to carry information from far back in the sequence."
+        }
+      ]
+    },
+    {
+      "id": "vc-002",
+      "title": "Tokenization, followed three times without naming it again",
+      "purpose": "The rewriting replay: every turn after the first refers back with a pronoun or a bare phrase, so retrieval on the raw message and retrieval on the rewrite can be compared directly.",
+      "turns": [
+        {
+          "turn_id": "vc-002-t1",
+          "user": "What is tokenization?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "What is tokenization?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1399000,
+              "end_ms": 1467000,
+              "modalities": [
+                "transcript",
+                "visual_frame",
+                "visual_event"
+              ],
+              "why": "Cutting the text into arbitrary units of text; the unit is called a token, which is why the method is called tokenization."
+            }
+          ],
+          "reference_answer": "Models work on numbers rather than text, so the sentence is first cut into units with respect to some arbitrary unit of text. Each unit is called a token, which is where the name comes from."
+        },
+        {
+          "turn_id": "vc-002-t2",
+          "user": "What are the three levels he compares?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "What are the three levels of tokenization compared in the lecture?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1467000,
+              "end_ms": 1590000,
+              "modalities": [
+                "transcript",
+                "visual_frame",
+                "visual_event"
+              ],
+              "why": "Word-level tokenization and the move to subword tokenizers that leverage the roots of words. The word-level tokenization slide is on screen throughout."
+            },
+            {
+              "role": "required",
+              "start_ms": 1621000,
+              "end_ms": 1685000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Character-level tokenization as the third category."
+            }
+          ],
+          "reference_answer": "Word level, subword level, and character level. Word level is simple but treats 'bear' and 'bears' as unrelated tokens; subword tokenizers share the common root at the cost of a longer sequence; character level is robust to misspellings but makes sequences much longer still."
+        },
+        {
+          "turn_id": "vc-002-t3",
+          "user": "What's the downside of the last one?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "What is the downside of character-level tokenization?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1621000,
+              "end_ms": 1716000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Character-level sequences are much longer, so processing is slower, and it is very hard to say what the representation of a single letter means. The Tokenization summary table is on screen from 28:18 and lists character-level cons as slower computation and uninterpretable embeddings."
+            }
+          ],
+          "reference_answer": "Sequences become much longer, so the model takes far more time to process them and inference cost rises. It is also very hard to say what the representation of a single character means."
+        },
+        {
+          "turn_id": "vc-002-t4",
+          "user": "And how does OOV fit into that?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "How does out-of-vocabulary risk relate to the tokenization levels?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1716000,
+              "end_ms": 1778000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "A word unseen at training time must be marked unknown — out of vocabulary — and subword tokenization lowers that risk. The same summary table lists the OOV risk of each method."
+            }
+          ],
+          "reference_answer": "A token not seen at training time has to be marked unknown, which is what out-of-vocabulary means. Word-level tokenization has the highest OOV risk, subword tokenization lowers it by sharing roots, and character level essentially removes it."
+        }
+      ]
+    },
+    {
+      "id": "vc-003",
+      "title": "From one-hot vectors to learned embeddings",
+      "purpose": "A paraphrased opening question, then three follow-ups whose referent is only in the history.",
+      "turns": [
+        {
+          "turn_id": "vc-003-t1",
+          "user": "Why is representing every token as a one-hot vector a poor choice?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "Why is representing every token as a one-hot vector a poor choice?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1907000,
+              "end_ms": 2002000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Cosine similarity compares the angle between vectors, and one-hot vectors are all orthogonal to one another, so no two tokens can be similar. The Token representations slide naming naive one-hot encoding is on screen."
+            }
+          ],
+          "reference_answer": "Similarity between tokens is usually measured with cosine similarity, which looks at the angle between the vectors. One-hot vectors are all orthogonal to each other, so every pair of tokens looks equally unrelated and the representation carries no meaning."
+        },
+        {
+          "turn_id": "vc-003-t2",
+          "user": "What does he suggest instead?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "What is suggested instead of one-hot encoding for representing tokens?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 2276000,
+              "end_ms": 2337000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Learn the embeddings from data; word2vec is named as the influential example, with the king/queen and Paris/France analogies. The Word2vec overview slide is on screen."
+            }
+          ],
+          "reference_answer": "Learning the embeddings from data rather than assigning them. word2vec is the example given, made popular because its embeddings supported interpretable analogies such as king is to queen as Paris is to France."
+        },
+        {
+          "turn_id": "vc-003-t3",
+          "user": "What are its two variants?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "What are the two variants of word2vec?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 2307000,
+              "end_ms": 2401000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Continuous bag of words predicts a target word from its surrounding context; skip-gram predicts the surrounding words from the target. The Word2vec slide names both CBOW and skip-gram as proxy tasks."
+            }
+          ],
+          "reference_answer": "Continuous bag of words, which predicts a target word from the words around it, and skip-gram, which goes the other way and predicts the surrounding words from the target."
+        },
+        {
+          "turn_id": "vc-003-t4",
+          "user": "Why is that called a proxy task?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "Why is the word2vec training objective called a proxy task?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 2369000,
+              "end_ms": 2431000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "What is wanted is not the next-word prediction but the representation learned along the way, so the prediction task is a proxy for it. The same slide labels them proxy tasks in as many words."
+            }
+          ],
+          "reference_answer": "Because predicting the word is not the goal. The goal is a meaningful representation, and a model that can predict from context must have learned something about how language works; the prediction task is a stand-in for the objective that is actually wanted."
+        }
+      ]
+    },
+    {
+      "id": "vc-004",
+      "title": "Attention and the Transformer",
+      "purpose": "Exact-term retrieval, a paraphrase, and a detail that appears only in the second half of the lecture.",
+      "turns": [
+        {
+          "turn_id": "vc-004-t1",
+          "user": "When was the Transformer introduced and in what paper?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "When was the Transformer introduced and in what paper?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4028000,
+              "end_ms": 4089000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Introduced in 2017 in the paper 'Attention Is All You Need'."
+            }
+          ],
+          "reference_answer": "In 2017, in the paper 'Attention Is All You Need' — a title chosen because the authors wanted to rely on the attention mechanism alone."
+        },
+        {
+          "turn_id": "vc-004-t2",
+          "user": "What problem was attention introduced to solve?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "What problem was attention introduced to solve?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 3902000,
+              "end_ms": 3996000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "A direct link between what is being predicted and something earlier, addressing the long-range dependency problem; introduced in 2014. The History of attention slide states the 2014 introduction and the long-term dependency motivation."
+            }
+          ],
+          "reference_answer": "The long-range dependency problem of recurrent models. Attention gives a direct link between what is being predicted and any earlier part of the input, rather than forcing everything through a single hidden state. It was introduced in 2014."
+        },
+        {
+          "turn_id": "vc-004-t3",
+          "user": "Explain query, key and value.",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "Explain query, key and value.",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4152000,
+              "end_ms": 4248000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "The query is compared against every key to quantify similarity, and the corresponding values are weighted by that similarity."
+            }
+          ],
+          "reference_answer": "To express one token in terms of the others, it is treated as a query and compared against the key of every other token. The comparison scores how similar the query is to each key, and those scores weight the corresponding values, which are the vectors actually combined. All three are learned projections."
+        },
+        {
+          "turn_id": "vc-004-t4",
+          "user": "Why is that dot product divided by a square root?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "Why is the query-key dot product scaled by the square root of the key dimension?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 5627000,
+              "end_ms": 5658000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "The dot product grows with the dimension of keys and queries, so it is normalized by the square root of that dimension."
+            }
+          ],
+          "reference_answer": "Because the dot product tends to grow as the dimension of the queries and keys grows, so it is normalized by the square root of that dimension to keep the scale stable. The matrix multiplication forces the query and key dimensions to be equal, so either can be used."
+        }
+      ]
+    },
+    {
+      "id": "vc-005",
+      "title": "Questions about what was on the screen",
+      "purpose": "The modality-aware sufficiency check: these need visual evidence, and transcript-only retrieval must be judged insufficient rather than answered confidently.",
+      "turns": [
+        {
+          "turn_id": "vc-005-t1",
+          "user": "What is shown on the slide when he introduces tokenization?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "requires_visual_evidence": true,
+          "expected_standalone_query": "What is shown on the slide when he introduces tokenization?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1399000,
+              "end_ms": 1470000,
+              "modalities": [
+                "visual_frame",
+                "visual_event"
+              ],
+              "why": "The Tokenization slide showing the sentence 'A cute teddy bear is reading.', first without token boundaries and then with boxed tokens."
+            }
+          ],
+          "reference_answer": "A slide titled Tokenization showing the running example sentence 'A cute teddy bear is reading.' — first plain, then with boxes drawn around the arbitrary token units A, cute, teddy bear, is, reading and the period."
+        },
+        {
+          "turn_id": "vc-005-t2",
+          "user": "What changes on that slide next?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "requires_visual_evidence": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "What changes on the tokenization slide after the sentence is first shown?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 1400000,
+              "end_ms": 1500000,
+              "modalities": [
+                "visual_event",
+                "visual_frame"
+              ],
+              "why": "The transition that adds the arbitrary tokenization beneath the sentence as boxed token boundaries."
+            }
+          ],
+          "reference_answer": "Token boundaries appear: boxes are drawn around A, cute, teddy bear, is, reading and the period, labelled as an arbitrary segmentation."
+        },
+        {
+          "turn_id": "vc-005-t3",
+          "user": "What does the board show when the self-attention formula is written out?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "requires_visual_evidence": true,
+          "expected_standalone_query": "What does the board show when the self-attention formula is written out?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 5620000,
+              "end_ms": 5700000,
+              "modalities": [
+                "visual_frame",
+                "visual_event"
+              ],
+              "why": "The slide showing the QK^T inner-product matrix and its expansion to QK^T V, with query-key inner products as entries."
+            }
+          ],
+          "reference_answer": "A slide showing the QK-transpose matrix, whose entries are query-key inner products over the example tokens, and then the same matrix multiplied through by the value vectors."
+        }
+      ]
+    },
+    {
+      "id": "vc-006",
+      "title": "Requests the lecture does not answer",
+      "purpose": "Plausible near-misses. Each of these has adjacent evidence a lexical retriever will happily return, so the failure mode being tested is false confidence, not empty retrieval.",
+      "turns": [
+        {
+          "turn_id": "vc-006-t1",
+          "user": "What BLEU score did the Transformer paper report?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": false,
+          "expected_standalone_query": "What BLEU score did the Transformer paper report?",
+          "expected_evidence": [],
+          "near_miss_evidence": [
+            {
+              "start_ms": 1146000,
+              "end_ms": 1206000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "BLEU is defined here as a reference-based translation metric, with no number attached."
+            },
+            {
+              "start_ms": 5210000,
+              "end_ms": 5272000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Label smoothing is said to improve metrics like BLEU, again with no number."
+            }
+          ],
+          "reference_answer": "The lecture explains what BLEU measures and mentions that label smoothing tends to improve it, but never states a score from the Transformer paper. The correct response says so rather than supplying a remembered number."
+        },
+        {
+          "turn_id": "vc-006-t2",
+          "user": "How many attention heads did the original Transformer use?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": false,
+          "expected_standalone_query": "How many attention heads did the original Transformer use?",
+          "expected_evidence": [],
+          "near_miss_evidence": [
+            {
+              "start_ms": 4991000,
+              "end_ms": 5084000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Heads are defined as the projection matrices producing query, key and value, and the count is written lowercase h — a symbol, not a value."
+            }
+          ],
+          "reference_answer": "The lecture defines what a head is and says the number of heads is written lowercase h, but never gives the number used in the paper. The correct response says the lecture does not contain it."
+        },
+        {
+          "turn_id": "vc-006-t3",
+          "user": "What does he say about reinforcement learning from human feedback?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": false,
+          "expected_standalone_query": "What does he say about reinforcement learning from human feedback?",
+          "expected_evidence": [],
+          "near_miss_evidence": [
+            {
+              "start_ms": 2652000,
+              "end_ms": 2714000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Cross-entropy loss and weight updates are discussed here, which is the nearest training-procedure material in the lecture."
+            }
+          ],
+          "reference_answer": "This lecture covers tokenization, embeddings, RNNs and the Transformer architecture. It does not discuss reinforcement learning from human feedback at all, and the correct response says so."
+        }
+      ]
+    },
+    {
+      "id": "vc-007",
+      "title": "Course logistics, then a follow-up with no noun in it",
+      "purpose": "Short factual retrieval, then the hardest rewriting case in the set: a four-word message whose referent exists but is never named.",
+      "turns": [
+        {
+          "turn_id": "vc-007-t1",
+          "user": "How is the grade weighted?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "How is the grade weighted?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 522000,
+              "end_ms": 584000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "No homework; 50% midterm and 50% final."
+            }
+          ],
+          "reference_answer": "There is no homework. The midterm is worth 50% and the final exam is worth 50%."
+        },
+        {
+          "turn_id": "vc-007-t2",
+          "user": "When is the midterm?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "When is the midterm?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 290000,
+              "end_ms": 352000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "The midterm falls in the fifth session, October 24th; the final is in the week of December 8th with the date still to be confirmed."
+            }
+          ],
+          "reference_answer": "During the fifth session, on October 24th."
+        },
+        {
+          "turn_id": "vc-007-t3",
+          "user": "And the other one?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "When is the final exam?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 290000,
+              "end_ms": 352000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "The same stretch states the final exam is in the week of December 8th, date to be determined."
+            }
+          ],
+          "reference_answer": "The final exam is in the week of December 8th; the exact date was still to be determined at the time of the lecture."
+        }
+      ]
+    },
+    {
+      "id": "vc-008",
+      "title": "Inside the architecture",
+      "purpose": "Detail questions whose evidence sits in the last quarter of the lecture, where a top-k retriever biased toward the introduction tends to miss.",
+      "turns": [
+        {
+          "turn_id": "vc-008-t1",
+          "user": "How is the Transformer split between encoder and decoder?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "How is the Transformer split between encoder and decoder?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4461000,
+              "end_ms": 4523000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "Encoder on the left takes the source text, decoder on the right produces the target language."
+            }
+          ],
+          "reference_answer": "Two parts: the encoder on the left, which takes the input text in the source language and computes rich representations of its tokens, and the decoder on the right, which produces the target language one token at a time using those representations."
+        },
+        {
+          "turn_id": "vc-008-t2",
+          "user": "In cross-attention, which of the three comes from the decoder?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "In cross-attention, which of the three comes from the decoder?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4586000,
+              "end_ms": 4709000,
+              "modalities": [
+                "transcript",
+                "visual_frame"
+              ],
+              "why": "The arrow from the decoder is the query; keys and values come from the encoder."
+            }
+          ],
+          "reference_answer": "The query. It comes from the decoder, because the query is what you are trying to figure out; the keys and values come from the encoder, that is, from the input sequence."
+        },
+        {
+          "turn_id": "vc-008-t3",
+          "user": "Why is the other one called masked?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "dependent",
+          "answerable": true,
+          "rewrite_probe": true,
+          "expected_standalone_query": "Why is the decoder's self-attention layer called masked?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 4709000,
+              "end_ms": 4743000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "It only looks at the tokens translated so far, never at tokens to the right of the one being predicted."
+            }
+          ],
+          "reference_answer": "Because it attends only to the tokens decoded so far. There is nothing to the right of the token being predicted — those words have not been produced yet — so the attention is masked to prevent looking at them."
+        },
+        {
+          "turn_id": "vc-008-t4",
+          "user": "How big is the feed-forward hidden layer compared with its input?",
+          "expected_route": "evidence_qa",
+          "history_dependency": "independent",
+          "answerable": true,
+          "expected_standalone_query": "How big is the feed-forward hidden layer compared with its input?",
+          "expected_evidence": [
+            {
+              "role": "required",
+              "start_ms": 5847000,
+              "end_ms": 5909000,
+              "modalities": [
+                "transcript"
+              ],
+              "why": "Unlike word2vec, the feed-forward network's hidden layer is larger than its input and output, to give the model more degrees of freedom."
+            }
+          ],
+          "reference_answer": "Larger. This is the opposite of word2vec, where the hidden layer is smaller than the input and output; here a bigger hidden layer gives the model more degrees of freedom to complexify the features it learns."
+        }
+      ]
+    }
+  ]
+}
