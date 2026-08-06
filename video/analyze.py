@@ -30,9 +30,25 @@ from video.models import control_model
 # wrong. Anything not matched here falls through to the control model.
 THIS_LECTURE = r"(?:this|the|his|her|their)\s+(?:whole\s+|entire\s+|full\s+)?" \
     r"(?:video|lecture|talk|recording|session|class)"
+# Every verb a reader uses to ask for the whole thing. "Summarize" was the only
+# one matched, so "explain the lecture in full detail" fell through to top-k
+# retrieval, which found eight passages and correctly reported that it could
+# not explain a hundred minutes from them. The abstention was right and the
+# route was wrong: a reader had asked for the whole lecture and been told the
+# lecture could not be described.
+WHOLE_LECTURE_VERB = (
+    r"summari[sz]e|summary\s+of|recap|overview\s+of|tl;?dr(?:\s+of)?|sum\s+up|"
+    r"walk\s+me\s+through|take\s+me\s+through|run\s+through|"
+    r"go\s+(?:back\s+)?(?:over|through)|explain|describe|break\s+down|"
+    r"tell\s+me\s+about"
+)
 SUMMARY_REQUEST = re.compile(
-    rf"\b(?:summari[sz]e|summary\s+of|recap|overview\s+of|tl;?dr(?:\s+of)?|"
-    rf"sum\s+up|walk\s+me\s+through)\b[^?.]*?\b{THIS_LECTURE}\b"
+    # At most two words between the verb and the recording, so the recording is
+    # what the verb acts on. "Explain the attention mechanism in this lecture"
+    # names a topic and happens to end by saying where it lives; the looser gap
+    # this replaces would have summarized the whole lecture in reply.
+    rf"\b(?:{WHOLE_LECTURE_VERB})\b\W+(?:\w+\W+){{0,2}}?{THIS_LECTURE}\b"
+    rf"|\bwhat(?:'s|\s+is|\s+was)\s+{THIS_LECTURE}\s+about\b"
     rf"|^\s*(?:give\s+me\s+)?(?:a\s+)?(?:short\s+|brief\s+|quick\s+)?"
     rf"(?:summary|recap|overview|tl;?dr)\s*[?.!]*\s*$",
     re.IGNORECASE,
@@ -93,8 +109,13 @@ INVENTORY_REQUEST = re.compile(
 )
 # "Summarize what he said about attention" is a retrieval question wearing a
 # summary verb: it is about one topic, not about the recording.
+#
+# Unless the thing it is about *is* the recording. "Tell me about this lecture"
+# and "what is this video about" are whole-lecture requests that happen to
+# contain the word, and reading them as narrowed sent both to retrieval.
 NARROWED = re.compile(
-    r"\b(?:about|regarding|concerning|on\s+the\s+topic\s+of)\b", re.IGNORECASE
+    rf"\b(?:about|regarding|concerning|on\s+the\s+topic\s+of)\s+(?!{THIS_LECTURE}\b)",
+    re.IGNORECASE,
 )
 # Words that point at something an earlier turn established. Their presence
 # does not decide the route, but a question containing one cannot honestly be

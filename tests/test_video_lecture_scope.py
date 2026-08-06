@@ -71,6 +71,52 @@ class LectureRoutingTests(unittest.TestCase):
                 self.assertIsNotNone(matched)
                 self.assertEqual(matched[0], "topic_inventory")
 
+    def test_every_verb_a_reader_uses_for_the_whole_lecture(self) -> None:
+        """"Explain the lecture in full detail" went to top-k retrieval.
+
+        It came back saying the lecture could not be described from the
+        evidence — a correct abstention over a wrong route, which is the worst
+        combination: the machinery is behaving and the reader is told no.
+        Only "summarize" was ever matched; the verb varies far more than the
+        request does.
+        """
+
+        for question in (
+            "explain the lecture in full detail",
+            "explain this lecture",
+            "describe this video",
+            "tell me about this lecture",
+            "What is this lecture about?",
+            "what is this video about",
+            "go through the whole lecture",
+            "break down this lecture",
+            "take me through this recording",
+            "walk me through the whole talk",
+        ):
+            with self.subTest(question=question):
+                matched = lecture_scope_route(question)
+                self.assertIsNotNone(matched)
+                self.assertEqual(matched[0], "lecture_summary")
+                self.assertIsNone(matched[2])
+
+    def test_a_topic_that_says_where_it_lives_is_still_a_topic(self) -> None:
+        """The boundary the widened verbs must not cross.
+
+        "Explain the attention mechanism in this lecture" names a topic and
+        happens to end by saying where it is. Summarizing a hundred minutes in
+        reply would be the same failure in the other direction.
+        """
+
+        for question in (
+            "explain the attention mechanism in this lecture",
+            "describe the QK matrix",
+            "tell me about word2vec",
+            "explain the tokenization section",
+            "summarize what he said about attention in this lecture",
+        ):
+            with self.subTest(question=question):
+                self.assertIsNone(lecture_scope_route(question))
+
     def test_leaves_questions_about_one_topic_to_retrieval(self) -> None:
         for question in (
             # A summary verb narrowed to one topic is still a question.
