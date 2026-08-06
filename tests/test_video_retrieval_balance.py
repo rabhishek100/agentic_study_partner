@@ -10,8 +10,9 @@ question. And the one transcript slot that survived held six words, which is
 not evidence a claim can rest on.
 """
 
+from itertools import combinations
 import unittest
-
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 from storage.database import connection, resolve_database_url
@@ -19,8 +20,10 @@ from tests.video_fixtures import publish_video_with_evidence
 from video.answers import VideoAnswerDependencies, retrieve_turn_evidence
 from video.retrieval import (
     MODALITY_SHARE,
+    VideoEvidence,
     TRANSCRIPT_PASSAGE_CHARACTERS,
     _balanced_direct,
+    _expand_transcript,
     _kind,
     _per_modality,
 )
@@ -137,6 +140,48 @@ class ShortlistTests(unittest.TestCase):
     def test_a_modality_with_less_than_its_share_keeps_what_it_has(self) -> None:
         kept = _per_modality(ranked("transcript", "visual_frame"), limit=10)
         self.assertEqual(len(kept), 2)
+
+
+class PassageMergeTests(unittest.TestCase):
+    """Merging happens in time order, not in the order cues arrived."""
+
+    def expand(self, cues):
+        rows = [
+            {"start_ms": t, "end_ms": t + 1000, "retrieval_text": f"cue at {t}"}
+            for t in range(0, 120_000, 1000)
+        ]
+        connection = MagicMock()
+        connection.execute.return_value.fetchall.return_value = rows
+        items = [
+            VideoEvidence(
+                id=f"e{index}", modality="transcript", text="x",
+                start_ms=start, end_ms=start + 1000, page_number=None,
+                transcript_segment_id=None, frame_id=None, visual_event_id=None,
+                resource_page_id=None, score=1.0, retrieval_method="fts",
+            )
+            for index, start in enumerate(cues)
+        ]
+        return _expand_transcript(
+            connection, items, owner="o", video="v", version_id="ver",
+            candidates=[], limit=8,
+        )
+
+    def test_a_cue_bridging_two_passages_joins_them_all(self) -> None:
+        """The third cue overlaps both of the first two.
+
+        Merging it into whichever window it met first leaves those two
+        overlapping each other — the duplication the merge exists to prevent,
+        reappearing only when the cues arrive in an awkward order.
+        """
+
+        spans = [(item.start_ms, item.end_ms) for item in self.expand([0, 72_000, 40_000])]
+        self.assertEqual(len(spans), 1)
+        for first, second in combinations(spans, 2):
+            self.assertFalse(first[0] < second[1] and first[1] > second[0])
+
+    def test_cues_far_apart_stay_separate_passages(self) -> None:
+        spans = [(item.start_ms, item.end_ms) for item in self.expand([0, 100_000])]
+        self.assertEqual(len(spans), 2)
 
 
 class TranscriptPassageTests(unittest.TestCase):

@@ -299,20 +299,36 @@ def _expand_transcript(
         return items
 
     half = TRANSCRIPT_PASSAGE_MS // 2
+    ordered = sorted(
+        (
+            (
+                max(0, (item.start_ms + (item.end_ms or item.start_ms)) // 2 - half),
+                (item.start_ms + (item.end_ms or item.start_ms)) // 2 + half,
+                position,
+                item,
+            )
+            for position, item in enumerate(spoken)
+            if item.start_ms is not None
+        ),
+    )
+    if not ordered:
+        return items
+
+    # Coalesce in time order rather than pairwise on arrival: a window can
+    # overlap two earlier ones and merging it into whichever it met first
+    # would leave those two overlapping each other, which is the duplication
+    # this exists to prevent. The best-ranked cue in each run stays as its
+    # representative, so the passage keeps the fused position that earned it.
     windows: list[tuple[int, int, VideoEvidence]] = []
-    for item in spoken:
-        if item.start_ms is None:
-            continue
-        middle = (item.start_ms + (item.end_ms or item.start_ms)) // 2
-        start, end = max(0, middle - half), middle + half
-        for index, (existing_start, existing_end, _) in enumerate(windows):
-            if start < existing_end and end > existing_start:
-                windows[index] = (
-                    min(start, existing_start),
-                    max(end, existing_end),
-                    windows[index][2],
-                )
-                break
+    for start, end, position, item in ordered:
+        if windows and start < windows[-1][1]:
+            previous_start, previous_end, previous_item = windows[-1]
+            best = (
+                previous_item
+                if spoken.index(previous_item) <= position
+                else item
+            )
+            windows[-1] = (previous_start, max(previous_end, end), best)
         else:
             windows.append((start, end, item))
 

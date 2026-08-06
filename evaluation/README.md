@@ -208,11 +208,24 @@ scope selection remain the safety boundary.
 
 ## Video lecture conversation set
 
-`video_gold.json` is the video half's first gold set: 8 conversations and 29
-turns over the published Stanford CME 295 Lecture 1, covering whole-lecture
-summary and topic inventory, answer transformation, exact-term and paraphrased
-retrieval, questions that can only be answered from what was on screen, and
-three requests the lecture does not answer.
+`video_gold.json` is the video half's gold set: 12 conversations and 43 turns
+over the published Stanford CME 295 Lecture 1. It covers the question types a
+reader actually asks of a lecture that has a slide deck attached to it:
+
+| Kind | Where |
+|---|---|
+| Whole-lecture summary and topic inventory | vc-001 |
+| Answer transformation, with no new facts | vc-001 |
+| Exact-term and paraphrased retrieval from the transcript | vc-002, vc-003, vc-004 |
+| Follow-ups whose referent is only in the history | throughout; 13 rewrite probes |
+| Questions about what was on screen | vc-005, vc-012 |
+| Requests the lecture does not answer | vc-006 |
+| Course logistics, and a four-word follow-up | vc-007 |
+| Detail from the last quarter of the lecture | vc-008 |
+| Content from the linked document, by page | vc-009, vc-012 |
+| Sections listed, and one explained | vc-010 |
+| Stretches named by the clock | vc-011 |
+| One thread across transcript, screen and deck | vc-012 |
 
 Until it existed, every video feature was verified as working and none as
 better. That is the gap `AGENTS.md` calls non-negotiable, and it is why this
@@ -227,6 +240,14 @@ set judges TOC nodes for that reason, and the video equivalent of a node is
 the moment a claim comes from. An anchor is satisfied when a retrieved item of
 a listed modality overlaps the span at all, because retrieval windows and
 caption cues are cut on different boundaries.
+
+The linked document is the exception, and names **pages** instead. A slide deck
+has no timestamps, and ingestion deliberately refuses to invent an alignment
+between its pages and the lecture, so an anchor names whichever locator its
+modality actually has. That content is also on screen — these were the slides —
+so what a page anchor tests is not that the fact is exclusive to the file, but
+that a reader who names the deck is answered from the deck, with a page they
+can open.
 
 Anchors were read off the canonical transcript rather than recalled. A pooling
 pass over the first run's results then added visual modalities to eight anchors
@@ -282,6 +303,45 @@ Rewriting helped 4 follow-ups, hurt 2, and changed nothing for 4. It captured
 **100% of the recall the gold rewrite shows was available**, which is the first
 evidence that the rewriting call earns its cost rather than merely resolving
 a pronoun.
+
+### What the set found, and what it cost to fix
+
+Retrieval changes are iterated in `--retrieval-only`, which scores anchor
+recall from each turn's gold rewrite with nothing generated — one query
+embedding per turn. Routing, answering and conversation state are held still,
+so a change in the number is a change in retrieval and nothing else. Every row
+below is one run of it.
+
+The first diagnosis came from the modality mix rather than from the recall.
+Across the set, **133 of 184 evidence slots went to frames** and almost exactly
+one per answer went to the transcript — and that one held six words. The cause
+is mechanical, not editorial: a frame's description runs to about 1,600
+characters, a caption cue to about 30, so the frame wins on lexical and vector
+scores nearly regardless of the question.
+
+| Change | Anchor recall |
+|---|---:|
+| Baseline, 8 conversations | 0.761 |
+| A share of the evidence per modality | 0.804 |
+| Retrieved cues widened into passages | 0.848 |
+| *Expanded to 12 conversations, harder questions* | *0.736* |
+| Shortlist cut per modality instead of globally | **0.879** |
+
+Two changes were tried and reverted because the measurement disagreed with the
+theory. Cutting the **fused** ranking per modality as well — the shortlists
+feeding it already are — cost 3 points: the fused order is what tells the
+budget which frames are the *right* frames. And a longer shortlist at
+`limit * 8` cost 6 points, by letting weakly-matching frames into the fusion
+for the budget to then spend its visual share on. Both are recorded next to
+the constants they concern, so nobody re-runs them.
+
+Four turns still miss, and they are kept rather than tuned away:
+
+- **vc-005-t3** and **vc-010-t3** ask for something adjacent to what retrieval
+  lands on — the slide before the one returned, and "the section *after* word
+  representation", which needs a section index the lecture does not publish.
+- **vc-008-t3** and **vc-012-t1** reach the right region and stop just short of
+  the anchor.
 
 ### Reading these numbers honestly
 
