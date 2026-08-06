@@ -94,6 +94,16 @@ from video.visual_store import (
 )
 
 
+# A stage's version is what makes a cached result stale. Every stage stores a
+# dependency hash built from this constant and its inputs, and a rebuild that
+# hashes the same is reused rather than re-run — so changing what a stage
+# *does* without changing its version leaves every existing video holding the
+# old answer, and re-ingesting it changes nothing at all.
+#
+# Indexing went to v2 when it began deriving chapters, and quality gates went
+# to v2 when transcript completeness stopped being summed cue occupancy and
+# became the longest untranscribed stretch. Both rules changed underneath a
+# version that said they had not.
 METADATA_STAGE_VERSION = "video-media-metadata-v1"
 TRANSCRIPT_STAGE_VERSION = "video-transcript-prefer-caption-v2"
 RESOURCES_STAGE_VERSION = "video-resource-pdf-pages-v1"
@@ -101,9 +111,9 @@ FRAME_STAGE_VERSION = "video-frame-selection-v1"
 OCR_STAGE_VERSION = "video-frame-ocr-v1"
 VISUAL_STAGE_VERSION = "video-visual-analysis-v1"
 SPATIAL_STAGE_VERSION = "video-spatial-regions-v1"
-INDEX_STAGE_VERSION = "video-evidence-index-v1"
+INDEX_STAGE_VERSION = "video-evidence-index-v2"
 EMBEDDING_STAGE_VERSION = "video-evidence-embeddings-v1"
-QUALITY_STAGE_VERSION = "video-quality-gates-v1"
+QUALITY_STAGE_VERSION = "video-quality-gates-v2"
 PUBLISH_STAGE_VERSION = "video-publish-v1"
 MediaProbe = Callable[[Path], MediaMetadata]
 FrameSelector = Callable[..., tuple[Any, ...]]
