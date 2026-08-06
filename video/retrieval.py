@@ -602,8 +602,11 @@ def _balanced_direct(
             selected.append(item)
             chosen.add(item.id)
     # Back into fused-rank order: the budget decides what is present, not what
-    # the model reads first.
-    selected.sort(key=lambda item: candidates.index(item))
+    # the model reads first. Ordered by evidence id rather than by `.index`,
+    # which compares dataclasses field by field — two items carrying the same
+    # values would resolve to whichever came first and sort to the wrong place.
+    order = {item.id: position for position, item in enumerate(candidates)}
+    selected.sort(key=lambda item: order.get(item.id, len(candidates)))
     return selected[:limit]
 
 

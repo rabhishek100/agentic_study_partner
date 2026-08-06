@@ -217,7 +217,7 @@ reader actually asks of a lecture that has a slide deck attached to it:
 | Whole-lecture summary and topic inventory | vc-001 |
 | Answer transformation, with no new facts | vc-001 |
 | Exact-term and paraphrased retrieval from the transcript | vc-002, vc-003, vc-004 |
-| Follow-ups whose referent is only in the history | throughout; 13 rewrite probes |
+| Follow-ups whose referent is only in the history | throughout; 16 rewrite probes |
 | Questions about what was on screen | vc-005, vc-012 |
 | Requests the lecture does not answer | vc-006 |
 | Course logistics, and a four-word follow-up | vc-007 |
