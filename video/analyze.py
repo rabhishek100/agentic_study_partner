@@ -244,8 +244,14 @@ Routes:
 For evidence_qa, return one standalone query that is understandable with no
 chat history. Replace pronouns and vague labels — "that diagram", "the one he
 drew after", "it" — with the named referent from the earlier turns, keeping
-any timestamp or topic context that identifies it. Do not expand the question,
-invent search terms, or write an answer.
+any timestamp or topic context that identifies it.
+
+Use the name the earlier turn used, not a description of it. If the previous
+answer said word2vec, the rewrite says word2vec — not "learned embeddings for
+token representations". The retrieval index holds what the lecturer actually
+said, so a paraphrase searches for words the recording may never contain.
+
+Do not expand the question, invent search terms, or write an answer.
 
 Prefer evidence_qa. A question naming a real technical concept is never
 clarify, even if the lecture might cover it in several places. Use clarify

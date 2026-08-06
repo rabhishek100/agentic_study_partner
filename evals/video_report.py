@@ -57,15 +57,28 @@ def _anchor_rows(gold):
         return "<p class='muted'>No anchors: this turn is judged on behaviour.</p>"
     cells = "".join(
         f"<tr><td>{escape(str(anchor.get('role', 'required')))}</td>"
-        f"<td>{_timestamp(anchor['start_ms'])}–{_timestamp(anchor['end_ms'])}</td>"
+        f"<td>{_where(anchor)}</td>"
         f"<td>{escape(', '.join(anchor['modalities']))}</td>"
         f"<td>{escape(anchor['why'])}</td></tr>"
         for anchor in anchors
     )
     return (
-        "<table><thead><tr><th>Role</th><th>Stretch</th><th>Modalities</th>"
+        "<table><thead><tr><th>Role</th><th>Where</th><th>Modalities</th>"
         f"<th>Why it is evidence</th></tr></thead><tbody>{cells}</tbody></table>"
     )
+
+
+def _where(anchor):
+    """A moment for the timeline, a page for the deck.
+
+    The linked document has no timestamps and ingestion refuses to invent an
+    alignment for it, so its anchors name pages and the column has to say both.
+    """
+
+    pages = anchor.get("resource_pages")
+    if pages:
+        return "page " + ", ".join(str(page) for page in pages)
+    return f"{_timestamp(anchor['start_ms'])}–{_timestamp(anchor['end_ms'])}"
 
 
 def _rewrite_panel(arms):

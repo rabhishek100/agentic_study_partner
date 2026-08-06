@@ -327,21 +327,32 @@ scores nearly regardless of the question.
 | *Expanded to 12 conversations, harder questions* | *0.736* |
 | Shortlist cut per modality instead of globally | **0.879** |
 
-Two changes were tried and reverted because the measurement disagreed with the
-theory. Cutting the **fused** ranking per modality as well — the shortlists
-feeding it already are — cost 3 points: the fused order is what tells the
-budget which frames are the *right* frames. And a longer shortlist at
+Three changes were tried and reverted because the measurement disagreed with
+the theory. Cutting the **fused** ranking per modality as well — the
+shortlists feeding it already are — cost 3 points: the fused order is what
+tells the budget which frames are the *right* frames. A longer shortlist at
 `limit * 8` cost 6 points, by letting weakly-matching frames into the fusion
-for the budget to then spend its visual share on. Both are recorded next to
-the constants they concern, so nobody re-runs them.
+for the budget to then spend its visual share on. And topping each modality up
+to a floor after the global cut changed which turns failed without changing
+how many. All three are recorded next to the constants they concern, so nobody
+re-runs them.
 
-Four turns still miss, and they are kept rather than tuned away:
+The ablation then found a defect the recall number could not, because it only
+appears when the *router's* rewrite is used rather than the gold one. Asked
+"what are its two variants?" after an answer about word2vec, the router
+rewrote it as "the two variants of learned embeddings for token
+representations" — a correct paraphrase of a name the recording never says.
+Retrieval missed and the turn abstained. The prompt now says to use the name
+the earlier turn used rather than a description of it, since the index holds
+what the lecturer actually said.
 
-- **vc-005-t3** and **vc-010-t3** ask for something adjacent to what retrieval
-  lands on — the slide before the one returned, and "the section *after* word
-  representation", which needs a section index the lecture does not publish.
-- **vc-008-t3** and **vc-012-t1** reach the right region and stop just short of
-  the anchor.
+Three turns still miss, and they are kept rather than tuned away:
+
+- **vc-005-t3** and **vc-012-t1** reach the right region and stop just short of
+  the anchor — the slide after the one wanted, the minute after the claim.
+- **vc-010-t3** asks what "the section *after* word representation" introduces,
+  which needs a section index the lecture does not publish. Its gold rewrite
+  fails too, so this is a limitation rather than a rewriting fault.
 
 ### Reading these numbers honestly
 
