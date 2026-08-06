@@ -18,7 +18,8 @@
         "change": "Widened the required span from 78:29–79:03 to 78:29–80:05.",
         "reason": "The original span ended at a sentence boundary that falls in the middle of the explanation. The lecturer states what masking is called before 79:03 and why it is masked after it, so a retrieval that returned the reason was being scored as a miss."
       }
-    ]
+    ],
+    "chapter_note": "The lecture's source published no chapters, so summary coverage was originally checked against 24 equal transcript windows. It now has 21 chapters derived from the slide titles on screen, and coverage is checked against those instead — a topic rather than a time slice, which is the unit the book workflow uses and the one this set's judgment policy is written around. No question or anchor changed; the coverage measurement simply has a better segmentation to measure against."
   },
   "judgment_policy": {
     "unit": "A moment in the lecture — a millisecond span plus the set of modalities that can satisfy it — not an evidence-unit row.",
@@ -33,13 +34,14 @@
     "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
     "duration_ms": 6118760,
     "transcript_source_kind": "uploaded_caption",
-    "chapter_count": 0,
-    "coverage_unit_kind": "transcript_window",
+    "chapter_count": 21,
+    "coverage_unit_kind": "derived_chapter",
     "resource": {
       "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
       "title": "fall25-cme295-lecture1",
       "page_count": 135
-    }
+    },
+    "chapter_kind": "derived"
   },
   "conversations": [
     {

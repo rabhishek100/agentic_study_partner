@@ -11,6 +11,8 @@ from uuid import UUID
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from video.chapters import derive_chapters
+from video.repository import replace_derived_chapters
 from video.resources import page_evidence_text
 from video.states import Stage
 
@@ -99,6 +101,44 @@ def _owned_stage(
     return row
 
 
+def rebuild_derived_chapters(
+    connection: Connection,
+    *,
+    owner_id: Any,
+    video_id: Any,
+    ingestion_version_id: Any,
+    duration_ms: int,
+) -> int:
+    """Work out the lecture's own outline from the slides it showed.
+
+    Runs with the rest of the derived rebuild, because that is what it is: no
+    model call, no new evidence, just the segmentation already implied by the
+    frames. Returns the number of chapters written, 0 when the lecture showed
+    nothing readable, and -1 when the source published an outline of its own —
+    which is left alone, since deriving is what happens in the absence of a
+    list rather than a correction of one.
+    """
+
+    observations = connection.execute(
+        """
+        select frame.timestamp_ms, observation.visible_text
+        from video.visual_observations as observation
+        join video.frames as frame
+          on frame.id = observation.frame_id
+         and frame.owner_id = observation.owner_id
+        where observation.owner_id = %s and observation.video_id = %s
+          and observation.ingestion_version_id = %s
+          and observation.status = 'success'
+        order by frame.timestamp_ms
+        """,
+        (owner_id, video_id, ingestion_version_id),
+    ).fetchall()
+    chapters = derive_chapters(observations, duration_ms=duration_ms)
+    return replace_derived_chapters(
+        connection, owner_id=owner_id, video_id=video_id, chapters=chapters
+    )
+
+
 def rebuild_evidence(
     connection: Connection,
     *,
@@ -129,6 +169,17 @@ def rebuild_evidence(
             raise VideoEvidenceConflictError(
                 "selected transcript does not belong to this video"
             )
+        duration = connection.execute(
+            "select duration_ms from video.videos where owner_id = %s and id = %s",
+            (job["owner_id"], job["video_id"]),
+        ).fetchone()
+        rebuild_derived_chapters(
+            connection,
+            owner_id=job["owner_id"],
+            video_id=job["video_id"],
+            ingestion_version_id=job["target_version_id"],
+            duration_ms=int((duration or {}).get("duration_ms") or 0),
+        )
         connection.execute(
             """
             delete from video.evidence_units

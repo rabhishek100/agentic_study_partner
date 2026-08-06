@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -703,6 +704,71 @@ def _carry_forward(
         "carried_events": events,
         "carried_stages": len(checkpoints),
     }
+
+
+def replace_derived_chapters(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    chapters: Sequence[Any],
+) -> int:
+    """Replace this video's derived outline, leaving any other kind alone.
+
+    Returns the number written, or -1 when the source published its own
+    chapters and nothing was done. A list the source shipped, or one a person
+    typed, is not ours to replace with a guess — deriving is what happens when
+    there is no such list, not a correction of one.
+    """
+
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    source = connection.execute(
+        """
+        select id from video.video_sources
+        where owner_id = %s and video_id = %s and is_primary
+        """,
+        (owner, video),
+    ).fetchone()
+    if source is None:
+        raise VideoNotFoundError("video has no primary source")
+
+    authored = connection.execute(
+        """
+        select count(*) as count from video.chapters
+        where owner_id = %s and video_id = %s and chapter_kind <> 'derived'
+        """,
+        (owner, video),
+    ).fetchone()["count"]
+    if authored:
+        return -1
+
+    connection.execute(
+        """
+        delete from video.chapters
+        where owner_id = %s and video_id = %s and chapter_kind = 'derived'
+        """,
+        (owner, video),
+    )
+    for chapter in chapters:
+        connection.execute(
+            """
+            insert into video.chapters (
+                owner_id, video_id, video_source_id, chapter_index,
+                chapter_kind, title, start_ms, end_ms, provenance_json
+            ) values (%s, %s, %s, %s, 'derived', %s, %s, %s, %s)
+            """,
+            (
+                owner,
+                video,
+                source["id"],
+                chapter.index,
+                chapter.title,
+                chapter.start_ms,
+                chapter.end_ms,
+                Jsonb(chapter.provenance()),
+            ),
+        )
+    return len(chapters)
 
 
 VIDEO_SELECT = """

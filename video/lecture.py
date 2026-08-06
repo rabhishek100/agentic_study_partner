@@ -267,7 +267,7 @@ def load_chapters(
 ) -> list[dict[str, Any]]:
     return connection.execute(
         """
-        select chapter_index, title, start_ms, end_ms
+        select chapter_index, chapter_kind, title, start_ms, end_ms
         from video.chapters
         where owner_id = %s and video_id = %s
         order by chapter_index
@@ -578,10 +578,22 @@ def inventory_topics(
             lines.append(
                 f"- **{format_timestamp(start)}** — {chapter['title']}{marker}"
             )
+        # Where the outline came from is part of the answer. A list the source
+        # published is the lecturer's own; one worked out from the slide titles
+        # on screen is this system's reading of the lecture, and a reader
+        # deciding whether to trust a heading needs to know which they have.
+        derived = all(
+            chapter.get("chapter_kind") == "derived" for chapter in chapters
+        )
+        provenance = (
+            "worked out from the slide titles on screen"
+            if derived
+            else "in the order the source published them"
+        )
         text = (
             f"{video_title} covers {len(chapters)} "
             f"{'topic' if len(chapters) == 1 else 'topics'}, "
-            "in the order the source published them:\n\n" + "\n".join(lines)
+            f"{provenance}:\n\n" + "\n".join(lines)
         )
         return AnswerDraft(
             answer=text,
