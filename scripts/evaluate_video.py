@@ -9,7 +9,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from evals.judge import OpenRouterAnswerJudge
-from evals.video import VideoProjectRunner, evaluate_video_conversations
+from evals.video import (
+    VideoProjectRunner,
+    evaluate_retrieval_only,
+    evaluate_video_conversations,
+)
 from evals.video_report import render_video_report
 from storage.database import connection, environment_owner_id, parse_owner_id
 from video.answers import VideoAnswerDependencies
@@ -44,6 +48,15 @@ def _arguments():
         "--judge-answers",
         action="store_true",
         help="Add the optional semantic rubric (extra calls and cost).",
+    )
+    parser.add_argument(
+        "--retrieval-only",
+        action="store_true",
+        help=(
+            "Score retrieval against the anchors using each turn's gold "
+            "rewrite. No generation, no routing: one query embedding per turn. "
+            "This is the loop to iterate retrieval changes in."
+        ),
     )
     parser.add_argument(
         "--no-rewrite-ablation",
@@ -129,6 +142,24 @@ def main():
             video_title=lecture["title"],
             dependencies=_dependencies(),
         )
+        if args.retrieval_only:
+            evaluation = evaluate_retrieval_only(
+                selected,
+                runner,
+                on_turn=lambda turn_id: print(f"{turn_id}...", flush=True),
+            )
+            output.joinpath("retrieval.json").write_text(
+                json.dumps(evaluation, indent=2), encoding="utf-8"
+            )
+            print(json.dumps(evaluation["summary"], indent=2))
+            for row in evaluation["turns"]:
+                if row["recall"] < 1.0:
+                    print(
+                        f"  {row['turn_id']:12s} recall={row['recall']:.2f} "
+                        f"{row['modalities']}"
+                    )
+            print(f"Results: {output / 'retrieval.json'}")
+            return
         evaluation = evaluate_video_conversations(
             selected,
             runner,

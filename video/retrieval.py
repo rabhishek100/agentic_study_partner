@@ -32,6 +32,16 @@ DOCUMENT_FOCUS = re.compile(
     r"\b(slide|slides|deck|pdf|document|handout|notes|page)\b", re.IGNORECASE
 )
 DOCUMENT_FOCUS_FLOOR = 3
+# The share of an answer's evidence each modality is guaranteed when it has
+# candidates to fill it. Weighted towards the transcript because that is what
+# the lecture *is*; the rest supports it. See `_balanced_direct`.
+MODALITY_SHARE = {"transcript": 0.5, "visual": 0.375, "resource_page": 0.125}
+# How much lecture a retrieved caption cue is widened to. Long enough to carry
+# a complete thought at speaking pace — roughly a paragraph of speech — and
+# short enough that the citation still lands the reader on the claim rather
+# than somewhere in the vicinity of it.
+TRANSCRIPT_PASSAGE_MS = 45_000
+TRANSCRIPT_PASSAGE_CHARACTERS = 900
 QUERY_TOKEN = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
 
 
@@ -226,9 +236,129 @@ def retrieve_video_evidence(
             existing.add(row["id"])
 
     selected = _trim_mixed(selected, limit=limit)
+    selected = _expand_transcript(
+        connection,
+        selected,
+        owner=owner,
+        video=video,
+        version_id=version_id,
+        candidates=direct,
+        limit=limit,
+    )
     return version_id, tuple(
         replace(item, rank=index) for index, item in enumerate(selected, start=1)
     )
+
+
+def _expand_transcript(
+    connection: Connection,
+    items: list[VideoEvidence],
+    *,
+    owner: UUID,
+    video: UUID,
+    version_id: UUID,
+    candidates: list[VideoEvidence],
+    limit: int,
+) -> list[VideoEvidence]:
+    """Widen each retrieved caption cue into the passage around it.
+
+    A cue averages thirty characters — "models.", "in the back." — because a
+    caption file is cut for reading speed, not for meaning. Retrieval uses it
+    to find the right moment and then hands the answer six words as the
+    evidence for a claim, which is not evidence at all. Match on the cue,
+    return the passage: the same small-to-big move the book pipeline gets for
+    free by chunking, which the transcript never had done to it.
+
+    Cues whose passages overlap are merged instead of both being returned, and
+    the slot that frees goes to the next-best candidate — so reading further
+    around a moment never costs the answer a distinct source.
+    """
+
+    spoken = [item for item in items if item.modality == "transcript"]
+    if not spoken:
+        return items
+
+    half = TRANSCRIPT_PASSAGE_MS // 2
+    windows: list[tuple[int, int, VideoEvidence]] = []
+    for item in spoken:
+        if item.start_ms is None:
+            continue
+        middle = (item.start_ms + (item.end_ms or item.start_ms)) // 2
+        start, end = max(0, middle - half), middle + half
+        for index, (existing_start, existing_end, _) in enumerate(windows):
+            if start < existing_end and end > existing_start:
+                windows[index] = (
+                    min(start, existing_start),
+                    max(end, existing_end),
+                    windows[index][2],
+                )
+                break
+        else:
+            windows.append((start, end, item))
+
+    rows = connection.execute(
+        """
+        select start_ms, end_ms, retrieval_text
+        from video.evidence_units
+        where owner_id = %s and video_id = %s and ingestion_version_id = %s
+          and modality = 'transcript' and start_ms is not null
+          and start_ms < %s and coalesce(end_ms, start_ms) > %s
+        order by start_ms
+        """,
+        (
+            owner,
+            video,
+            version_id,
+            max(end for _, end, _ in windows),
+            min(start for start, _, _ in windows),
+        ),
+    ).fetchall()
+
+    expanded: list[VideoEvidence] = []
+    for start, end, anchor in windows:
+        inside = [
+            row
+            for row in rows
+            if row["start_ms"] < end and (row["end_ms"] or row["start_ms"]) > start
+        ]
+        if not inside:
+            expanded.append(anchor)
+            continue
+        text, used = [], 0
+        for row in inside:
+            piece = " ".join((row["retrieval_text"] or "").split())
+            if used + len(piece) > TRANSCRIPT_PASSAGE_CHARACTERS and text:
+                break
+            text.append(piece)
+            used += len(piece) + 1
+        covered = inside[: len(text)]
+        expanded.append(
+            replace(
+                anchor,
+                text=" ".join(text),
+                start_ms=int(covered[0]["start_ms"]),
+                end_ms=int(covered[-1]["end_ms"] or covered[-1]["start_ms"]),
+                # One cue no longer stands for the passage, so the pointer to a
+                # single segment row would be a claim about which cue mattered.
+                transcript_segment_id=(
+                    anchor.transcript_segment_id if len(covered) == 1 else None
+                ),
+            )
+        )
+
+    kept = [item for item in items if item.modality != "transcript"] + expanded
+    # `replace` keeps each passage's id, so the original fused order survives
+    # the widening and the merge.
+    order = {item.id: position for position, item in enumerate(items)}
+    kept.sort(key=lambda item: order.get(item.id, limit))
+    chosen = {item.id for item in kept}
+    for item in candidates:
+        if len(kept) >= limit:
+            break
+        if item.id not in chosen and item.modality != "transcript":
+            kept.append(item)
+            chosen.add(item.id)
+    return kept[:limit]
 
 
 def _lexical_query(query: str) -> str:
@@ -332,30 +462,65 @@ def _reciprocal_rank_fusion(
     return fused[:limit]
 
 
+def _kind(item: VideoEvidence) -> str:
+    """The modality for budgeting: frames and events are one thing to a reader."""
+
+    return "visual" if item.is_visual else item.modality
+
+
 def _balanced_direct(
     candidates: list[VideoEvidence], *, limit: int, document_floor: int = 1
 ) -> list[VideoEvidence]:
+    """Give each modality a share of the answer's evidence, then rank the rest.
+
+    A lecture is a spoken artifact: what the lecturer said is the evidence, and
+    what was on screen supports it. Ranking alone inverts that for a mechanical
+    reason rather than a helpful one — a frame's description runs to about
+    1,600 characters and a caption cue to about 30, so the frame wins on
+    lexical and vector scores almost regardless of the question.
+
+    The rule this replaces guaranteed one item of each modality and gave every
+    remaining slot to the ranking. Measured over the gold set, that sent 133 of
+    184 evidence slots to frames and left almost exactly one transcript cue per
+    answer — six words, from which no claim can honestly be built.
+
+    A share a modality cannot fill goes back to the ranking, so a question
+    about something drawn still comes back mostly visual when that is what the
+    lecture has. The shares are floors against starvation, not a fixed recipe.
+    """
+
+    quotas = {
+        name: max(1, round(limit * share)) for name, share in MODALITY_SHARE.items()
+    }
+    quotas["resource_page"] = max(quotas["resource_page"], document_floor)
+    # Whatever the reader named goes first, so its floor survives a limit too
+    # small to satisfy every quota at once.
+    order = (
+        ("resource_page", "transcript", "visual")
+        if document_floor > 1
+        else ("transcript", "visual", "resource_page")
+    )
+
     selected: list[VideoEvidence] = []
-    for predicate in (
-        lambda item: item.modality == "transcript",
-        lambda item: item.is_visual,
-        lambda item: item.modality == "resource_page",
-    ):
-        match = next((item for item in candidates if predicate(item)), None)
-        if match is not None and match not in selected:
-            selected.append(match)
+    chosen: set[str] = set()
+    for kind in order:
+        taken = 0
+        for item in candidates:
+            if len(selected) >= limit or taken >= quotas.get(kind, 0):
+                break
+            if _kind(item) == kind and item.id not in chosen:
+                selected.append(item)
+                chosen.add(item.id)
+                taken += 1
     for item in candidates:
-        if len(
-            [value for value in selected if value.modality == "resource_page"]
-        ) >= document_floor:
-            break
-        if item.modality == "resource_page" and item not in selected:
-            selected.append(item)
-    for item in candidates:
-        if item not in selected:
-            selected.append(item)
         if len(selected) >= limit:
             break
+        if item.id not in chosen:
+            selected.append(item)
+            chosen.add(item.id)
+    # Back into fused-rank order: the budget decides what is present, not what
+    # the model reads first.
+    selected.sort(key=lambda item: candidates.index(item))
     return selected[:limit]
 
 

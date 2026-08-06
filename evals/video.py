@@ -28,6 +28,7 @@ Evidence is matched on time, not identity. See `judgment_policy` in
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -315,6 +316,88 @@ def _coverage_summary(rows: list[dict]) -> dict[str, Any]:
     }
 
 
+def evaluate_retrieval_only(
+    conversations: list[dict[str, Any]],
+    runner: VideoProjectRunner,
+    *,
+    on_turn: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Retrieval alone, scored against the anchors, with nothing generated.
+
+    Every turn is retrieved with its gold rewrite rather than the router's, so
+    routing, answering and conversation state are all held still and a change
+    in this number is a change in retrieval and nothing else. One query
+    embedding per turn is the entire cost, which is what makes it the loop
+    worth iterating in — the full run is for confirming, not for exploring.
+
+    The modality mix is reported alongside recall because it is the diagnostic
+    that found the first defect: eight evidence slots of which exactly one
+    could ever hold transcript.
+    """
+
+    rows: list[dict[str, Any]] = []
+    for conversation in conversations:
+        for turn in conversation["turns"]:
+            anchors = turn.get("expected_evidence") or []
+            if not anchors:
+                continue
+            if on_turn:
+                on_turn(turn["turn_id"])
+            query = turn.get("expected_standalone_query") or turn["user"]
+            evidence = runner.retrieve(query)
+            counts = Counter(item.modality for item in evidence)
+            rows.append(
+                {
+                    "turn_id": turn["turn_id"],
+                    "query": query,
+                    "recall": anchor_recall(anchors, evidence),
+                    "modalities": dict(counts),
+                    "retrieved": [
+                        {
+                            "rank": item.rank,
+                            "modality": item.modality,
+                            "start_ms": item.start_ms,
+                            "method": item.retrieval_method,
+                            "excerpt": item.excerpt[:160],
+                        }
+                        for item in evidence
+                    ],
+                    "wanted": [
+                        {
+                            "start_ms": anchor["start_ms"],
+                            "end_ms": anchor["end_ms"],
+                            "modalities": anchor["modalities"],
+                            "hit": any(
+                                _overlaps(item, anchor) for item in evidence
+                            ),
+                        }
+                        for anchor in anchors
+                        if anchor.get("role") == "required"
+                    ],
+                }
+            )
+
+    total = Counter()
+    for row in rows:
+        total.update(row["modalities"])
+    return {
+        "summary": {
+            "turns": len(rows),
+            "anchor_recall": round(
+                sum(row["recall"] for row in rows) / len(rows), 4
+            )
+            if rows
+            else 0.0,
+            "turns_fully_covered": sum(1 for row in rows if row["recall"] == 1.0),
+            "turns_missing_everything": sum(
+                1 for row in rows if row["recall"] == 0.0
+            ),
+            "retrieved_modality_mix": dict(total),
+        },
+        "turns": rows,
+    }
+
+
 def evaluate_video_conversations(
     conversations: list[dict[str, Any]],
     runner: VideoProjectRunner,
@@ -414,6 +497,7 @@ def evaluate_video_conversations(
 
 __all__ = [
     "REWRITE_ARMS",
+    "evaluate_retrieval_only",
     "VideoProjectRunner",
     "anchor_recall",
     "evaluate_video_conversations",

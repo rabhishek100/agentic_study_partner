@@ -109,6 +109,7 @@ def publish_video_with_evidence(
     title: str = "Attention lecture",
     readiness: str = "ready",
     url: str = "https://youtu.be/abcdefghijk",
+    transcript_vtt: str | None = None,
 ) -> PublishedVideo:
     """Create one video whose published version has real, mixed evidence."""
 
@@ -144,8 +145,12 @@ def publish_video_with_evidence(
         storage_backend="filesystem",
         storage_key=f"{owner_id}/canonical/transcripts/c.vtt",
         content_hash="b" * 64,
+        # A real caption file is a long run of short cues. Tests about how
+        # much lecture a retrieved cue carries need that shape and can supply
+        # it; everything else keeps the one-line transcript.
         cues=parse_webvtt(
-            f"WEBVTT\n\n00:00.000 --> 00:10.000\n{TRANSCRIPT_TEXT}\n"
+            transcript_vtt
+            or f"WEBVTT\n\n00:00.000 --> 00:10.000\n{TRANSCRIPT_TEXT}\n"
         ),
     )
     frame_ids = []
