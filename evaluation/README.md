@@ -338,13 +338,28 @@ how many. All three are recorded next to the constants they concern, so nobody
 re-runs them.
 
 The ablation then found a defect the recall number could not, because it only
-appears when the *router's* rewrite is used rather than the gold one. Asked
-"what are its two variants?" after an answer about word2vec, the router
-rewrote it as "the two variants of learned embeddings for token
-representations" — a correct paraphrase of a name the recording never says.
-Retrieval missed and the turn abstained. The prompt now says to use the name
-the earlier turn used rather than a description of it, since the index holds
-what the lecturer actually said.
+appears when the *router's* rewrite is used rather than the gold one — and
+tracing it properly took two attempts, which is worth recording.
+
+Asked what the lecturer suggests instead of one-hot encoding, the answer
+retrieved the word2vec stretch — anchor recall 1.0 — and described it as
+"learning dense embedding vectors for the tokens from data" without ever
+writing *word2vec*. The follow-up "what are its two variants?" was then
+rewritten faithfully, by copying the only name the history contained, into a
+query for a phrase the recording does not say. Retrieval missed and the turn
+abstained.
+
+The first fix went to the rewriting prompt, and one sample made it look like it
+had worked. It had not: the router was already doing what it was told, and
+there was simply no name in the history to copy. The real fix is in the answer
+prompt, which now asks for the lecture's own names — word2vec, BLEU,
+CoNLL-2003 — rather than descriptions of what they do. A description reads
+perfectly well and leaves both the reader and every follow-up holding a phrase
+that is not in the index.
+
+The lesson generalises past this bug: in a multi-turn system an answer is also
+an input, so a vague answer degrades every question that follows it, and the
+damage shows up somewhere other than where it was caused.
 
 Three turns still miss, and they are kept rather than tuned away:
 
