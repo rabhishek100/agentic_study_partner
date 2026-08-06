@@ -21,9 +21,12 @@ const GENERIC_STARTERS = [
  * words, so the question retrieves rather than guesses.
  */
 export function videoStarters(chapters: VideoChapter[]): string[] {
-  const fromChapters = chapters
-    .slice(0, 1)
-    .map((chapter) => `Explain ${chapter.title}`);
+  // From the middle rather than the front. A recording opens on a title card,
+  // branding and logistics — "Explain Stanford ENGINEERING" is a starter that
+  // teaches a reader the feature does not work — and closes on a wrap-up. The
+  // middle is where the lecture is about what it is about.
+  const middle = chapters[Math.floor(chapters.length / 2)];
+  const fromChapters = middle ? [`Explain ${middle.title}`] : [];
   return [
     ...GENERIC_STARTERS.slice(0, 2),
     ...fromChapters,

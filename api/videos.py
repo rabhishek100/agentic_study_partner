@@ -211,7 +211,9 @@ class SourceView(ContractModel):
 
 class ChapterView(ContractModel):
     chapter_index: int
-    chapter_kind: Literal["youtube", "manual"]
+    # "derived" is an outline the pipeline worked out from the slides,
+    # for a source that published none. The reader is told which it is.
+    chapter_kind: Literal["youtube", "manual", "derived"]
     title: str
     start_ms: int
     end_ms: int

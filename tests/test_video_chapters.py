@@ -266,6 +266,29 @@ class ReplaceDerivedChaptersTests(unittest.TestCase):
 
         self.assertEqual([row["title"] for row in rows], ["Only", "Two"])
 
+    def test_the_api_can_serve_a_derived_outline(self) -> None:
+        """Widening the database without widening the contract breaks reading.
+
+        `ChapterView.chapter_kind` was a Literal of the two kinds that existed.
+        Deriving a third and writing it to the database left the detail
+        endpoint unable to serialise its own rows — the video page 500s, and
+        every test that never wrote a derived chapter still passes.
+        """
+
+        from api.videos import ChapterView
+
+        with connection(self.database_url) as database:
+            replace_derived_chapters(
+                database,
+                owner_id=self.owner,
+                video_id=self.video.video_id,
+                chapters=self.derived("Tokenization"),
+            )
+            rows = self.outline(database)
+
+        view = ChapterView(**rows[0])
+        self.assertEqual(view.chapter_kind, "derived")
+
     def test_an_outline_the_source_published_is_never_overwritten(self) -> None:
         """Deriving is what happens without a list, not a correction of one."""
 

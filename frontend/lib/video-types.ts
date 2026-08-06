@@ -81,7 +81,7 @@ export interface VideoResource {
 
 export interface VideoChapter {
   chapter_index: number;
-  chapter_kind: "youtube" | "manual";
+  chapter_kind: "youtube" | "manual" | "derived";
   title: string;
   start_ms: number;
   end_ms: number;
