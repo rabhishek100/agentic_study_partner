@@ -272,37 +272,52 @@ retrieved three ways against the same version and the same anchors — as the
 reader typed it, as the router rewrote it, and as the gold rewrite — so the
 only thing that differs between arms is the query.
 
-### First measured baseline
+### Measured results
 
-29 turns, hosted database, hybrid retrieval, no answer judge:
+43 turns, hosted database, hybrid retrieval, no answer judge. "First" is the
+baseline the set was built against; "current" is after the retrieval and prompt
+changes described below, on the expanded set.
 
-| Measurement | Value |
-|---|---:|
-| Route accuracy | 1.000 |
-| History-dependency accuracy | 0.862 |
-| Outcome accuracy | 0.931 |
-| Required-evidence recall | 0.750 |
-| Cited-evidence recall | 0.385 |
-| Citation validity | 1.000 |
-| Visual evidence present, where required | 1.000 |
+| Measurement | First (29 turns) | Current (43 turns) |
+|---|---:|---:|
+| Route accuracy | 1.000 | 1.000 |
+| History-dependency accuracy | 0.862 | 0.953 |
+| Outcome accuracy | 0.931 | 1.000 |
+| Required-evidence recall | 0.750 | 0.900 |
+| Cited-evidence recall | 0.385 | 0.775 |
+| Citation validity | 1.000 | 1.000 |
+| Visual evidence present, where required | 1.000 | 1.000 |
+| Execution errors | 0 | 0 |
 
-Summary coverage on the whole-lecture summary: **24 of 24 stretches cited, 24
-of 24 substantive, 0 vacuous citations.** The suspected failure is not
-occurring on this lecture. The measurement that would catch it now exists, and
-its unit tests prove it separates a vacuous citation from a real one.
+The two figures are not strictly comparable — the current set is larger and
+harder, containing document, section and time-range questions the first did
+not. Both directions of that matter: the recall gain is understated because
+the questions got harder, and no single number should be quoted without the
+set version beside it.
 
-The rewriting replay, over 10 follow-ups the router rewrote in all 10 cases:
+Summary coverage on the whole-lecture summary: **24 of 24 stretches cited, 23
+of 24 substantive, 1 vacuous citation.** The one flagged is a window straddling
+the end of the historical timeline and the start of tokenization, where the
+summary reported the timeline and said nothing about the tokenization half. A
+borderline case, and the right call: the stretch was cited and only partly
+covered. Earlier runs scored 24 of 24, so this varies run to run.
+
+The rewriting replay, over 16 follow-ups the router rewrote in all 16 cases:
 
 | Query sent to retrieval | Mean anchor recall |
 |---|---:|
-| As the reader typed it | 0.500 |
-| As the router rewrote it | 0.650 |
-| The gold rewrite | 0.650 |
+| As the reader typed it | 0.563 |
+| As the router rewrote it | 0.875 |
+| The gold rewrite | 0.938 |
 
-Rewriting helped 4 follow-ups, hurt 2, and changed nothing for 4. It captured
-**100% of the recall the gold rewrite shows was available**, which is the first
-evidence that the rewriting call earns its cost rather than merely resolving
-a pronoun.
+Rewriting helped 7 follow-ups, hurt 2, and changed nothing for 7, capturing
+**83% of the recall the gold rewrite shows was available**. That is the
+evidence that the rewriting call earns its cost rather than merely resolving a
+pronoun — and the two it hurts are stable across three runs, so the tail is
+real rather than noise.
+
+Retrieval alone, scored from the gold rewrites with nothing generated:
+**anchor recall 0.909, 30 of 33 turns fully covered.**
 
 ### What the set found, and what it cost to fix
 
@@ -377,17 +392,24 @@ Three turns still miss, and they are kept rather than tuned away:
   question.
 - **A laptop run has no frame images.** They live on the deployed volume, so
   visual evidence arrives as its OCR and description text without the image
-  production attaches. Both outcome misses in the baseline are abstentions on
-  turns whose evidence was a slide, and are expected to behave differently in
-  production. The runner logs a warning when this is the case.
-- The four history-dependency misses are all turns labelled independent and
-  classified dependent. One is arguably the dataset's fault — "which of the
-  three" has no antecedent inside its own conversation — and one exposes a real
-  over-trigger: the deterministic history-reference rule fires on "its" in
-  "compared with its input", where the pronoun refers inside the sentence.
-- Cited-evidence recall being roughly half of retrieval recall says the answer
-  cites fewer of the retrieved stretches than it reaches. That is a measured
-  gap, not yet a diagnosed one.
+  production attaches. Visual turns are therefore weaker here than in
+  production, and the runner logs a warning when this is the case.
+- **The linked deck's extracted text is damaged.** Roughly half its pages have
+  lost most lowercase `s` characters — "Hi tory of attention", "Preci ion",
+  "Data et" — which is a font-encoding problem in PDF extraction, not OCR
+  noise. It degrades both lexical and vector search over the document, so the
+  document-anchored turns are scoring against a handicapped index. Fixing it
+  needs a resource re-ingest and has not been done.
+- The two remaining history-dependency misses are turns labelled independent
+  and classified dependent. One exposes a real over-trigger: the deterministic
+  history-reference rule fires on "its" in "compared with its input", where the
+  pronoun refers inside its own sentence rather than to an earlier turn.
+- Cited-evidence recall (0.775) sits below retrieval recall (0.900): the answer
+  cites fewer of the stretches it was given than it reached. Narrowed by the
+  work above, from a gap of more than two to one, but not closed.
+- **Nothing here is deployed.** Quality gates and evidence are derived data, so
+  the published lecture keeps whatever it was last built with until it is
+  re-ingested, and deploys are `railway up` per service.
 
 ### Running it
 
