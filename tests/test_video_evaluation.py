@@ -60,8 +60,8 @@ def scope() -> LectureScope:
 
 
 UNITS = (
-    CoverageUnit(key="window:1", label="0:00–5:00", window_ranks=(1,), required=True),
-    CoverageUnit(key="window:2", label="5:00–10:00", window_ranks=(2,), required=True),
+    CoverageUnit(key="window:1", label="0:00–5:00", ranks=(1,), window_ranks=(1,), required=True),
+    CoverageUnit(key="window:2", label="5:00–10:00", ranks=(2,), window_ranks=(2,), required=True),
 )
 
 

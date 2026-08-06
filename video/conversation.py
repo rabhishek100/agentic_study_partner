@@ -221,7 +221,7 @@ def whole_lecture(
             history_dependency=decision.history_dependency,
             standalone_query=decision.standalone_query,
             evidence=[
-                window for window in scope.windows if window.rank in cited
+                item for item in scope.citable if item.rank in cited
             ],
             citations=draft.citations,
             visual_cards=draft.visual_cards,

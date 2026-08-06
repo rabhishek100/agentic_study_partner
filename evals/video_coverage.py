@@ -189,6 +189,9 @@ def _terms(text: str) -> list[str]:
 
 
 def _unit_text(unit: CoverageUnit, scope: LectureScope) -> str:
+    # Transcript only. A slide's description was written by a model, and
+    # scoring a summary against its vocabulary would reward echoing that
+    # description rather than reporting the lecture.
     wanted = set(unit.window_ranks)
     return " ".join(
         window.excerpt for window in scope.windows if window.rank in wanted
@@ -279,7 +282,7 @@ def measure_summary_substance(
 
     measured: list[UnitSubstance] = []
     for unit in units:
-        ranks = set(unit.window_ranks)
+        ranks = set(unit.ranks)
         terms = set(vocabulary.get(unit.key, ()))
         citing = [item for item in prepared if item[1] in ranks]
         matched: set[str] = set()

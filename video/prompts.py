@@ -226,6 +226,16 @@ def render_windows(windows: list[VideoEvidenceRef]) -> str:
     )
 
 
+def render_slides(slides: list[VideoEvidenceRef]) -> str:
+    """Number every slide the same way the windows are numbered."""
+
+    return "\n\n".join(
+        f"[S{slide.rank}] Slide on screen at "
+        f"{format_timestamp(slide.start_ms)}\n{slide.excerpt}"
+        for slide in slides
+    )
+
+
 def _outline(chapters: list[dict[str, Any]]) -> str:
     return "\n".join(
         f"- {format_timestamp(int(chapter['start_ms']))} {chapter['title']}"
@@ -252,6 +262,7 @@ def build_summary_messages(
     chapters: list[dict[str, Any]],
     duration_ms: int,
     units=(),
+    slides: list[VideoEvidenceRef] | None = None,
     stretch: str | None = None,
     part: tuple[int, int] | None = None,
 ) -> list[dict[str, Any]]:
@@ -289,6 +300,16 @@ def build_summary_messages(
             f"This is stretch {index} of {total}. Summarize only what is "
             "supplied; another pass combines the stretches afterwards."
         )
+    if slides:
+        # Named as slides, not as more transcript: the model must not report
+        # something it read off a slide as something the lecturer said.
+        system.append(
+            "One slide per section is supplied alongside the transcript. Cite "
+            "a slide marker where the section is about what was on screen, so "
+            "the reader is shown it. Cite the transcript for what was said. "
+            "A slide is not speech: never write that the lecturer said "
+            "something because a slide states it."
+        )
     return [
         {"role": "system", "content": "\n\n".join(system)},
         {
@@ -296,6 +317,7 @@ def build_summary_messages(
             "content": (
                 f"Request: {question}\n\n"
                 f"Transcript windows:\n{render_windows(windows)}"
+                + (f"\n\nSlides:\n{render_slides(slides)}" if slides else "")
             ),
         },
     ]
