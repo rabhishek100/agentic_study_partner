@@ -66,6 +66,30 @@ Without `VIDEO_MEDIA_ROOT`, the media store falls back to a path inside the
 container, which is wiped on every deploy. Video ingestion would then appear
 to work and lose its frames on the next redeploy.
 
+### What reclaims space
+
+The worker runs `video.cleanup.run_video_cleanup` on the same interval as the
+book retention pass (`INGESTION_CLEANUP_INTERVAL_SECONDS`). It releases four
+things, none of which anything else ever reclaimed:
+
+| Released | When | Window |
+|---|---|---|
+| The staging copy of an uploaded source | The job reached `ready` and the canonical object is present | immediate |
+| A reserved upload that never completed | The job is still `awaiting_upload` | `VIDEO_ABANDONED_UPLOAD_HOURS` (24) |
+| A failed or cancelled job's upload | Retry would no longer be attempted | `VIDEO_STAGING_RETENTION_DAYS` (7) |
+| Objects no surviving row names | Any file on the volume outside the reference set | `VIDEO_MEDIA_ORPHAN_GRACE_HOURS` (24) |
+
+The first row is the one that matters on an existing volume: the acquisition
+stage copies an uploaded file into canonical storage and left the staging copy
+in place, so every uploaded lecture has occupied the volume twice. The grace
+window on the last row is not tunable downward without care — media is written
+before the row that names it commits, and the window is what stops the sweep
+racing a running ingest.
+
+One sweep deletes at most 500 orphaned objects and logs what it left, so a
+worker pointed at the wrong database prunes a bounded amount visibly rather
+than emptying a volume quietly.
+
 ## Status
 
 The hosted database is migrated and serving: the ingestion schema, book

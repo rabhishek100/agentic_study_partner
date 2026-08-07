@@ -43,6 +43,7 @@ from ingestion.pipeline import (
 )
 from ingestion.states import Status, is_terminal
 from storage.database import close_pools, connection as database_connection
+from video.cleanup import run_video_cleanup
 from video.worker import VideoWorker as StandaloneVideoWorker
 
 
@@ -346,6 +347,14 @@ class Worker:
                 run_cleanup(connection, limits=self.limits)
         except Exception:
             logger.exception("retention pass failed")
+        # Separate attempt: the two domains keep different objects in different
+        # backends, and books failing to reach Storage must not be the reason
+        # a volume sized for video never gets swept.
+        try:
+            with database_connection(self.database_url) as connection:
+                run_video_cleanup(connection)
+        except Exception:
+            logger.exception("video retention pass failed")
 
     def run_once(self) -> bool:
         """Claim and run at most one job. True when work was done."""
