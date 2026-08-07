@@ -347,10 +347,22 @@ snapshotted when a conversation starts, so changing a default does not silently
 change an existing study history. The answer inspector records the selected
 archetype, resolved depth, routing reason, and prompt-profile version.
 
+A **side chat** is a small conversation anchored to a passage of another one, so
+an intermediate question can be asked beside the paragraph that prompted it
+instead of at the bottom of the main thread. The passages a reader highlights
+are the side chat's priority context: the book chunks their citation markers
+name are pinned to the front of that turn's evidence, and the quoted text
+itself is passed as focus, never as something an answer may cite. Surrounding
+main-conversation context is included under a token budget, and every turn
+records what did not fit. See
+[`docs/floating-side-chats-spec.md`](docs/floating-side-chats-spec.md).
+
 The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
 `POST /api/chat/stream`, `GET/PATCH /api/prompt-settings`, prompt preview,
-conversation CRUD, and the `/api/ingestions` lifecycle. Everything except health
-requires a Supabase bearer token.
+conversation CRUD, side chats (`POST|GET /api/conversations/{id}/side-chats`,
+`PATCH /api/side-chats/{id}`, `POST /api/side-chats/{id}/turns/stream`), and the
+`/api/ingestions` lifecycle. Everything except health requires a Supabase bearer
+token.
 
 Health reports infrastructure readiness only: it returns 503 when the canonical
 or retrieval schema is missing, and stays healthy while a book is being

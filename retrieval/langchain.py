@@ -9,6 +9,7 @@ from pydantic import Field
 
 from storage.database import connection
 
+from .postgres import SearchResult
 from .reranker import DEFAULT_RERANKER_MODEL, Reranker, build_reranker
 from .search import RetrievalMode, retrieve
 from .vector import (
@@ -41,6 +42,32 @@ def warm_models(*, include_reranker: bool = False) -> None:
         _cached_reranker(
             os.getenv("OPENROUTER_RERANKER_MODEL") or DEFAULT_RERANKER_MODEL
         )
+
+
+def document_from_result(result: SearchResult) -> Document:
+    """Render one search result as the document shape answering expects.
+
+    Shared with the anchored-chunk path in `study.query`, which loads chunks by
+    id rather than by search: an answer must not be able to tell a pinned chunk
+    from a retrieved one by the metadata it carries.
+    """
+
+    return Document(
+        page_content=result.text,
+        metadata={
+            "chunk_id": result.chunk_id,
+            "book_id": result.source_book_id,
+            "node_id": result.source_node_id,
+            "chunk_index": result.chunk_index,
+            "section": result.section_title,
+            "path": result.path_text,
+            "start_page": result.start_page,
+            "end_page": result.end_page,
+            "content_types": list(result.content_types),
+            "score": result.score,
+            "retrieval_method": result.retrieval_method,
+        },
+    )
 
 
 class BookRetriever(BaseRetriever):
@@ -86,22 +113,4 @@ class BookRetriever(BaseRetriever):
                 embedder=embedder,
                 reranker=reranker,
             )
-        return [
-            Document(
-                page_content=result.text,
-                metadata={
-                    "chunk_id": result.chunk_id,
-                    "book_id": result.source_book_id,
-                    "node_id": result.source_node_id,
-                    "chunk_index": result.chunk_index,
-                    "section": result.section_title,
-                    "path": result.path_text,
-                    "start_page": result.start_page,
-                    "end_page": result.end_page,
-                    "content_types": list(result.content_types),
-                    "score": result.score,
-                    "retrieval_method": result.retrieval_method,
-                },
-            )
-            for result in results
-        ]
+        return [document_from_result(result) for result in results]
