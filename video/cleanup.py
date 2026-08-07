@@ -26,6 +26,13 @@ Every deletion a job can be attached to is recorded on that job, as an event
 and as a provenance marker, because a missing object must be explainable
 afterwards. The orphan sweep has no job to attach to and logs each key
 individually instead, for the same reason.
+
+Two things make the orphan pass safe to run unattended, which is how it runs:
+its reference set includes objects named only inside a stage's own manifest —
+see `CHECKPOINT_MEDIA_KEYS`, without which it would delete a YouTube
+download's metadata and its unselected caption tracks — and
+`VIDEO_CLEANUP_DRY_RUN` makes a pass report what it would remove and remove
+nothing, so a volume can be inspected before it is pruned rather than after.
 """
 
 from __future__ import annotations
@@ -67,6 +74,23 @@ MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP = 500
 # when a worker is killed mid-write.
 PARTIAL_SUFFIX = ".part"
 PARTIAL_PREFIX = "."
+
+
+def dry_run_requested() -> bool:
+    """Whether this deployment wants the sweep to report instead of delete.
+
+    The first pass on an existing volume is the one nobody can preview: it
+    runs unattended, minutes after a deploy, against bytes no test fixture
+    stands in for. `VIDEO_CLEANUP_DRY_RUN=1` makes that pass log exactly what
+    it would remove and remove nothing, so the answer arrives before the
+    deletions do rather than after.
+    """
+
+    return os.getenv("VIDEO_CLEANUP_DRY_RUN", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 
 def _hours(name: str, fallback: int) -> int:
@@ -116,6 +140,7 @@ class VideoCleanupSummary:
     partial_uploads_deleted: int = 0
     bytes_reclaimed: int = 0
     deletions_failed: int = 0
+    dry_run: bool = False
 
     @property
     def total(self) -> int:
@@ -135,6 +160,7 @@ def _release_staging(
     *,
     event_type: str,
     message: str,
+    dry_run: bool,
 ) -> tuple[bool, int]:
     """Unlink one job's staging object and record that it happened.
 
@@ -146,6 +172,14 @@ def _release_staging(
     size = _size_of(
         store, owner_id=row["owner_id"], storage_key=row["staging_storage_key"]
     )
+    if dry_run:
+        logger.info(
+            "would release staging object %s for job %s (%s bytes)",
+            row["staging_storage_key"],
+            row["id"],
+            size,
+        )
+        return True, size
     try:
         store.remove(
             owner_id=row["owner_id"], storage_key=row["staging_storage_key"]
@@ -196,6 +230,7 @@ def cancel_abandoned_uploads(
     store: FilesystemMediaStore,
     *,
     limits: VideoRetentionLimits,
+    dry_run: bool = False,
 ) -> tuple[int, int, int]:
     """Cancel reservations whose upload never completed.
 
@@ -225,6 +260,16 @@ def cancel_abandoned_uploads(
         size = _size_of(
             store, owner_id=row["owner_id"], storage_key=row["staging_storage_key"]
         )
+        if dry_run:
+            logger.info(
+                "would cancel abandoned upload %s and release %s (%s bytes)",
+                row["id"],
+                row["staging_storage_key"],
+                size,
+            )
+            cancelled += 1
+            reclaimed += size
+            continue
         try:
             store.remove(
                 owner_id=row["owner_id"], storage_key=row["staging_storage_key"]
@@ -287,6 +332,8 @@ def cancel_abandoned_uploads(
 def delete_promoted_staging(
     connection: Connection,
     store: FilesystemMediaStore,
+    *,
+    dry_run: bool = False,
 ) -> tuple[int, int, int]:
     """Remove staging copies whose bytes now live in canonical storage.
 
@@ -356,6 +403,7 @@ def delete_promoted_staging(
                 "The uploaded file was released after it was stored "
                 "canonically."
             ),
+            dry_run=dry_run,
         )
         if settled:
             deleted += 1
@@ -370,6 +418,7 @@ def delete_expired_staging(
     store: FilesystemMediaStore,
     *,
     limits: VideoRetentionLimits,
+    dry_run: bool = False,
 ) -> tuple[int, int, int]:
     """Remove staging objects of failed and cancelled jobs past retention.
 
@@ -406,6 +455,7 @@ def delete_expired_staging(
             row,
             event_type="staging_source_deleted",
             message="The uploaded file was removed by the retention policy.",
+            dry_run=dry_run,
         )
         if settled:
             deleted += 1
@@ -415,16 +465,47 @@ def delete_expired_staging(
     return deleted, reclaimed, failed
 
 
+# Objects a stage recorded producing, named nowhere else. The acquisition
+# stage stores a YouTube download's `info.json` and *every* caption track it
+# found, then writes a row only for the caption the transcript stage went on
+# to select — so the metadata file and the rejected caption tracks are named
+# only here, in the manifest of the stage that made them.
+#
+# They are not spare copies. `CARRIED_STAGES` reuses `acquire_source` on a
+# re-ingest, so a later version reads this manifest and expects the objects to
+# still be there, and re-fetching them means going back to YouTube for a video
+# that may no longer be available.
+#
+# `$.**` rather than a fixed path: a manifest is a stage's own shape, and a
+# reference set that had to be updated whenever a stage added an object would
+# fail by deleting rather than by erroring.
+CHECKPOINT_MEDIA_KEYS = """
+    select distinct jsonb_array_elements_text(
+        jsonb_path_query_array(output_manifest_json, 'lax $.**.storage_key')
+    ) as key
+    from video.ingestion_stage_checkpoints
+    where owner_id = %(owner)s
+"""
+
+
 def _referenced_keys(connection: Connection, *, owner_id: UUID) -> set[str]:
     """Every storage key this owner still has a row for."""
 
-    return {
+    keys = {
         row["key"]
         for row in connection.execute(
             OWNER_MEDIA_KEYS, {"owner": owner_id}
         ).fetchall()
         if row["key"]
     }
+    keys.update(
+        row["key"]
+        for row in connection.execute(
+            CHECKPOINT_MEDIA_KEYS, {"owner": owner_id}
+        ).fetchall()
+        if row["key"]
+    )
+    return keys
 
 
 def _owner_directories(root: Path) -> list[Path]:
@@ -451,6 +532,7 @@ def delete_orphaned_media(
     store: FilesystemMediaStore,
     *,
     limits: VideoRetentionLimits,
+    dry_run: bool = False,
 ) -> tuple[int, int, int, int]:
     """Remove volume objects that no surviving row names.
 
@@ -497,6 +579,21 @@ def delete_orphaned_media(
                 skipped += 1
                 continue
             size = path.stat().st_size if path.exists() else 0
+            if dry_run:
+                logger.warning(
+                    "would delete %s video object %s (%s bytes; no row "
+                    "references it)",
+                    "partial" if is_partial else "orphaned",
+                    key,
+                    size,
+                )
+                if is_partial:
+                    partials += 1
+                else:
+                    deleted += 1
+                reclaimed += size
+                budget -= 1
+                continue
             if is_partial:
                 # Not a storage key, so the store cannot address it. An
                 # interrupted write leaves one of these behind and nothing
@@ -555,28 +652,36 @@ def run_video_cleanup(
     *,
     store: FilesystemMediaStore | None = None,
     limits: VideoRetentionLimits | None = None,
+    dry_run: bool | None = None,
 ) -> VideoCleanupSummary:
-    """Run one full video retention pass. Safe to repeat and to interrupt."""
+    """Run one full video retention pass. Safe to repeat and to interrupt.
+
+    `dry_run` reports what every pass would do and changes nothing — see
+    `dry_run_requested`. Left as None it comes from the environment, so a
+    deployment can watch a pass before letting it delete without shipping a
+    different build to do it.
+    """
 
     limits = limits or load_retention_limits()
     store = store or FilesystemMediaStore()
+    dry_run = dry_run_requested() if dry_run is None else dry_run
 
     with connection.transaction():
         cancelled, cancelled_bytes, cancel_failures = cancel_abandoned_uploads(
-            connection, store, limits=limits
+            connection, store, limits=limits, dry_run=dry_run
         )
     with connection.transaction():
         promoted, promoted_bytes, promoted_failures = delete_promoted_staging(
-            connection, store
+            connection, store, dry_run=dry_run
         )
     with connection.transaction():
         expired, expired_bytes, expired_failures = delete_expired_staging(
-            connection, store, limits=limits
+            connection, store, limits=limits, dry_run=dry_run
         )
     # Runs last so anything the job-driven passes just released is already
     # absent from the rows this sweep compares the volume against.
     orphans, partials, orphan_bytes, orphan_failures = delete_orphaned_media(
-        connection, store, limits=limits
+        connection, store, limits=limits, dry_run=dry_run
     )
 
     summary = VideoCleanupSummary(
@@ -594,11 +699,14 @@ def run_video_cleanup(
             + expired_failures
             + orphan_failures
         ),
+        dry_run=dry_run,
     )
     if summary.total or summary.deletions_failed:
         logger.log(
             logging.WARNING if summary.deletions_failed else logging.INFO,
-            "video cleanup pass: %s abandoned uploads cancelled, %s promoted "
+            ("video cleanup pass (DRY RUN, nothing deleted): " if dry_run
+             else "video cleanup pass: ")
+            + "%s abandoned uploads cancelled, %s promoted "
             "staging objects deleted, %s expired staging objects deleted, %s "
             "orphaned objects deleted, %s partial uploads deleted, %s bytes "
             "reclaimed, %s deletions failed",

@@ -90,6 +90,22 @@ One sweep deletes at most 500 orphaned objects and logs what it left, so a
 worker pointed at the wrong database prunes a bounded amount visibly rather
 than emptying a volume quietly.
 
+**Deploy this once in observe mode.** The worker runs inside the `api` service
+(`scripts.serve`), and its first retention pass fires on the first loop
+iteration — minutes after the deploy, unattended, against a volume no test
+fixture stands in for. Set `VIDEO_CLEANUP_DRY_RUN=1` for that deploy:
+
+```bash
+railway variables --set VIDEO_CLEANUP_DRY_RUN=1 --service api
+```
+
+Every pass then logs `would release …` / `would delete …` lines and a
+`video cleanup pass (DRY RUN, nothing deleted)` summary. Read them, confirm
+the only staging object it names is the uploaded lecture's duplicate and that
+nothing under `canonical/` is listed that should survive, then remove the
+variable and redeploy. A dry run predicts exactly what the real pass does —
+there is a test for that — so the second deploy holds no surprises.
+
 ## Status
 
 The hosted database is migrated and serving: the ingestion schema, book

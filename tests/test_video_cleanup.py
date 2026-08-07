@@ -14,6 +14,8 @@ import unittest
 from unittest.mock import patch
 from uuid import uuid4
 
+from psycopg.types.json import Jsonb
+
 from storage.database import connection, resolve_database_url
 from video.cleanup import (
     MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP,
@@ -122,9 +124,34 @@ class VideoCleanupTests(unittest.TestCase):
             return False
         return True
 
-    def sweep(self, database, *, limits: VideoRetentionLimits | None = None):
+    def sweep(
+        self,
+        database,
+        *,
+        limits: VideoRetentionLimits | None = None,
+        dry_run: bool = False,
+    ):
         return run_video_cleanup(
-            database, store=self.store, limits=limits or LIMITS
+            database,
+            store=self.store,
+            limits=limits or LIMITS,
+            dry_run=dry_run,
+        )
+
+    def checkpoint(self, database, *, version_id, manifest: dict) -> None:
+        """One completed stage, recording the objects it produced."""
+
+        database.execute(
+            """
+            insert into video.ingestion_stage_checkpoints (
+                owner_id, video_id, ingestion_version_id, stage, status,
+                dependency_hash, output_manifest_json, completed_at
+            )
+            select %s, v.video_id, v.id, 'acquire_source', 'complete', %s, %s,
+                   now()
+            from video.ingestion_versions v where v.id = %s
+            """,
+            (self.owner, "f" * 64, Jsonb(manifest), version_id),
         )
 
     # --- abandoned uploads --------------------------------------------
@@ -386,6 +413,138 @@ class VideoCleanupTests(unittest.TestCase):
                 database.execute(
                     "delete from auth.users where id = %s", (stranger,)
                 )
+
+    # --- objects a stage names and no table does ------------------------
+
+    def test_media_named_only_in_a_stage_manifest_is_not_an_orphan(self) -> None:
+        """The acquisition stage stores a YouTube download's metadata and every
+        caption track it found, then writes a row only for the caption the
+        transcript stage selected. The rest are named in that stage's manifest
+        and nowhere else — and a re-ingest carries `acquire_source` forward and
+        expects to find them, so deleting them means going back to YouTube for
+        a video that may no longer be there.
+        """
+
+        info = f"{self.owner}/canonical/metadata/sha256/1a/2b/1a2b.json"
+        rejected = f"{self.owner}/canonical/transcripts/sha256/3c/4d/3c4d.vtt"
+        with connection(self.database_url) as database:
+            job = self.upload_job(database, created_interval="1 hour")
+            version = database.execute(
+                "select target_version_id from video.ingestion_jobs where id = %s",
+                (job.job_id,),
+            ).fetchone()["target_version_id"]
+            self.checkpoint(
+                database,
+                version_id=version,
+                manifest={
+                    "metadata": {"storage_key": info},
+                    "captions": [{"storage_key": rejected}],
+                },
+            )
+            for key in (info, rejected):
+                self.write(key)
+                self.age(key)
+
+            summary = self.sweep(database)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+        self.assertTrue(self.exists(info))
+        self.assertTrue(self.exists(rejected))
+
+    def test_media_a_deleted_version_named_becomes_reclaimable(self) -> None:
+        """Checkpoints cascade with their version, so retiring one releases
+        exactly the objects it was protecting and nothing else."""
+
+        info = f"{self.owner}/canonical/metadata/sha256/5e/6f/5e6f.json"
+        with connection(self.database_url) as database:
+            job = self.upload_job(database, created_interval="1 hour")
+            version = database.execute(
+                "select target_version_id from video.ingestion_jobs where id = %s",
+                (job.job_id,),
+            ).fetchone()["target_version_id"]
+            self.checkpoint(
+                database,
+                version_id=version,
+                manifest={"metadata": {"storage_key": info}},
+            )
+            self.write(info)
+            self.age(info)
+            self.assertEqual(self.sweep(database).orphaned_objects_deleted, 0)
+
+            database.execute(
+                "delete from video.ingestion_stage_checkpoints"
+                " where ingestion_version_id = %s",
+                (version,),
+            )
+            summary = self.sweep(database)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 1)
+        self.assertFalse(self.exists(info))
+
+    # --- watching a pass before letting it delete ------------------------
+
+    def test_a_dry_run_reports_everything_and_removes_nothing(self) -> None:
+        """The first pass on an existing volume runs unattended minutes after
+        a deploy. This is how its answer arrives before its deletions do."""
+
+        canonical = f"{self.owner}/canonical/videos/sha256/7a/8b/7a8b.mp4"
+        orphan = f"{self.owner}/canonical/frames/sha256/9c/0d/9c0d.webp"
+        with connection(self.database_url) as database:
+            ready = self.upload_job(
+                database,
+                status="ready",
+                created_interval="5 days",
+                completed_interval="5 days",
+                canonical_key=canonical,
+            )
+            abandoned = self.upload_job(database, created_interval="2 days")
+            self.write(ready.upload_storage_key)
+            self.write(canonical)
+            self.write(abandoned.upload_storage_key)
+            self.write(orphan, payload=b"stranded")
+            self.age(orphan)
+
+            planned = self.sweep(database, dry_run=True)
+            settled = get_job(database, owner_id=self.owner, job_id=ready.job_id)
+            still_waiting = get_job(
+                database, owner_id=self.owner, job_id=abandoned.job_id
+            )
+
+        self.assertTrue(planned.dry_run)
+        self.assertEqual(planned.promoted_staging_deleted, 1)
+        self.assertEqual(planned.abandoned_uploads_cancelled, 1)
+        self.assertEqual(planned.orphaned_objects_deleted, 1)
+        # Every byte still there, and no row moved.
+        self.assertTrue(self.exists(ready.upload_storage_key))
+        self.assertTrue(self.exists(abandoned.upload_storage_key))
+        self.assertTrue(self.exists(orphan))
+        self.assertNotIn("staging_deleted_at", settled.provenance)
+        self.assertEqual(still_waiting.status, Status.AWAITING_UPLOAD)
+
+    def test_a_dry_run_predicts_what_the_real_pass_then_does(self) -> None:
+        """A preview nobody can trust is worse than none."""
+
+        canonical = f"{self.owner}/canonical/videos/sha256/ba/dc/badc.mp4"
+        orphan = f"{self.owner}/canonical/frames/sha256/ef/12/ef12.webp"
+        with connection(self.database_url) as database:
+            ready = self.upload_job(
+                database,
+                status="ready",
+                created_interval="5 days",
+                completed_interval="5 days",
+                canonical_key=canonical,
+            )
+            self.write(ready.upload_storage_key)
+            self.write(canonical)
+            self.write(orphan, payload=b"stranded")
+            self.age(orphan)
+
+            planned = self.sweep(database, dry_run=True)
+            applied = self.sweep(database)
+
+        self.assertEqual(planned.total, applied.total)
+        self.assertEqual(planned.bytes_reclaimed, applied.bytes_reclaimed)
+        self.assertFalse(applied.dry_run)
 
 
 class RetentionLimitTests(unittest.TestCase):
