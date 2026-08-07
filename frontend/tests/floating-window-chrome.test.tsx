@@ -109,6 +109,59 @@ describe("FloatingWindow", () => {
     );
   });
 
+  it("keeps dragging after a re-render hands it a new callback", () => {
+    // The bug this covers: the pointer listeners used to live in an effect
+    // keyed on `onRectChange`, and the layer builds a new callback every
+    // render. The first move re-rendered, the effect tore down, and its
+    // cleanup dropped the drag — so windows could not be dragged at all.
+    const first = vi.fn();
+    const { rerender } = render(
+      <FloatingWindow
+        title="the gap compounds"
+        rect={RECT}
+        zIndex={30}
+        onRectChange={first}
+        onMinimize={vi.fn()}
+        onClose={vi.fn()}
+        onFocus={vi.fn()}
+      >
+        <p>body</p>
+      </FloatingWindow>,
+    );
+
+    fireEvent.pointerDown(moveHandle(), {
+      button: 0,
+      pointerId: 1,
+      clientX: 100,
+      clientY: 100,
+    });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 120, clientY: 100 });
+    expect(first).toHaveBeenCalledTimes(1);
+
+    // A render mid-drag, with a fresh callback, exactly as the layer produces.
+    const second = vi.fn();
+    rerender(
+      <FloatingWindow
+        title="the gap compounds"
+        rect={RECT}
+        zIndex={30}
+        onRectChange={second}
+        onMinimize={vi.fn()}
+        onClose={vi.fn()}
+        onFocus={vi.fn()}
+      >
+        <p>body</p>
+      </FloatingWindow>,
+    );
+
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 160, clientY: 130 });
+
+    // The drag survived, and the move went to the current callback.
+    expect(second).toHaveBeenCalledWith(
+      expect.objectContaining({ x: RECT.x + 60, y: RECT.y + 30 }),
+    );
+  });
+
   it("stops moving once the pointer is released", () => {
     const props = renderWindow();
 

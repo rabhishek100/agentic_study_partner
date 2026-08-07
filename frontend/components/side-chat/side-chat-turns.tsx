@@ -19,14 +19,14 @@ import type { ChatTurn, EvidenceRef, QuoteAnchor } from "@/lib/types";
 export function AnchorChips({ anchors }: { anchors: QuoteAnchor[] }) {
   if (anchors.length === 0) return null;
   return (
-    <ul className="shrink-0 space-y-1 border-b border-border bg-muted/30 px-3 py-2">
+    <ul className="shrink-0 space-y-1.5 border-b border-border bg-muted/30 px-3 py-2">
       {anchors.map((anchor) => (
         <li key={anchor.anchor_id} className="flex gap-1.5">
           <Quote
             aria-hidden
-            className="mt-0.5 size-3 shrink-0 text-muted-foreground"
+            className="mt-[0.2em] size-[1em] shrink-0 text-muted-foreground"
           />
-          <blockquote className="line-clamp-3 text-xs italic leading-snug text-muted-foreground">
+          <blockquote className="side-chat-ui line-clamp-3 italic leading-snug text-muted-foreground">
             {anchor.quoted_text}
           </blockquote>
         </li>
@@ -57,7 +57,7 @@ export function SideChatTurns({
 }: SideChatTurnsProps) {
   if (isLoading && turns.length === 0) {
     return (
-      <p className="px-3 py-4 text-xs text-muted-foreground" role="status">
+      <p className="side-chat-ui px-3 py-4 text-muted-foreground" role="status">
         Loading this side chat…
       </p>
     );
@@ -65,7 +65,7 @@ export function SideChatTurns({
 
   if (turns.length === 0) {
     return (
-      <p className="px-3 py-4 text-xs text-muted-foreground">
+      <p className="side-chat-ui px-3 py-4 leading-relaxed text-muted-foreground">
         Ask about the highlighted passage. Answers are grounded in the same
         books as the main conversation, so this can go beyond what the passage
         itself says.
@@ -74,10 +74,12 @@ export function SideChatTurns({
   }
 
   return (
-    <div className="space-y-4 px-3 py-3">
+    <div className="space-y-5 px-3 py-3">
       {turns.map((turn) => (
-        <article key={turn.id} className="space-y-2">
-          <p className="rounded-lg rounded-br-sm bg-secondary px-2.5 py-1.5 text-xs text-secondary-foreground">
+        <article key={turn.id} className="space-y-2.5">
+          {/* The reader's own question, mirroring the main conversation's
+              right-aligned bubble at this window's scale. */}
+          <p className="side-chat-ui ml-auto w-fit max-w-[92%] rounded-xl rounded-br-sm bg-secondary px-2.5 py-1.5 leading-snug text-secondary-foreground">
             {turn.question}
           </p>
 
@@ -86,15 +88,13 @@ export function SideChatTurns({
           )}
 
           {turn.answer && (
-            <div className="text-[0.8rem]">
-              <Answer
-                text={turn.answer}
-                evidence={turn.result?.evidence ?? []}
-                citations={turn.result?.citations ?? []}
-                figures={turn.result?.figures ?? []}
-                onOpenReference={onOpenReference}
-              />
-            </div>
+            <Answer
+              text={turn.answer}
+              evidence={turn.result?.evidence ?? []}
+              citations={turn.result?.citations ?? []}
+              figures={turn.result?.figures ?? []}
+              onOpenReference={onOpenReference}
+            />
           )}
 
           {turn.result && turn.result.evidence.length > 0 && (
@@ -106,7 +106,7 @@ export function SideChatTurns({
           )}
 
           {turn.status === "stopped" && (
-            <p className="text-[0.7rem] text-muted-foreground">
+            <p className="side-chat-ui text-muted-foreground">
               Stopped before the answer finished, so this turn was not recorded.
             </p>
           )}
@@ -114,7 +114,7 @@ export function SideChatTurns({
           {turn.status === "failed" && turn.error && (
             <Alert variant="destructive">
               <AlertCircle aria-hidden />
-              <AlertDescription className="text-xs">
+              <AlertDescription className="side-chat-ui">
                 {turn.error}
               </AlertDescription>
             </Alert>

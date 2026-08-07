@@ -14,7 +14,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { ResponseDepth } from "@/lib/types";
 
-const MAX_TEXTAREA_HEIGHT_PX = 120;
+/**
+ * Room for about three lines before scrolling.
+ *
+ * A side question is short, but the first version gave it a single 36px line,
+ * which made typing anything longer than a few words feel like writing in a
+ * slot. The floor matters more than the ceiling here.
+ */
+const MIN_TEXTAREA_HEIGHT_PX = 60;
+const MAX_TEXTAREA_HEIGHT_PX = 168;
 
 export interface SideChatComposerProps {
   isStreaming: boolean;
@@ -51,7 +59,7 @@ export function SideChatComposer({
     if (!textarea) return;
     textarea.style.height = "auto";
     textarea.style.height = `${Math.min(
-      textarea.scrollHeight,
+      Math.max(textarea.scrollHeight, MIN_TEXTAREA_HEIGHT_PX),
       MAX_TEXTAREA_HEIGHT_PX,
     )}px`;
   }
@@ -65,15 +73,21 @@ export function SideChatComposer({
   }
 
   return (
-    <div className="shrink-0 border-t border-border bg-background p-2">
-      <div className="flex items-end gap-1.5">
+    <div className="shrink-0 border-t border-border bg-background p-2.5">
+      {/*
+        One bordered field containing the input and its controls, rather than a
+        small input with buttons floating beside it: at this width every pixel
+        of horizontal room belongs to the text being typed.
+      */}
+      <div className="rounded-xl border border-input bg-transparent transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
         <Textarea
           ref={textareaRef}
           value={value}
-          rows={1}
+          rows={2}
           aria-label={`Ask a question in the ${label} side chat`}
           placeholder="Ask about this…"
-          className="min-h-9 resize-none py-2 text-xs"
+          style={{ minHeight: MIN_TEXTAREA_HEIGHT_PX }}
+          className="side-chat-ui resize-none rounded-none border-0 bg-transparent px-2.5 py-2 leading-snug shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
           onChange={(event) => {
             setValue(event.target.value);
             resize();
@@ -85,44 +99,48 @@ export function SideChatComposer({
             }
           }}
         />
-        {isStreaming ? (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Stop generating this answer"
-            onClick={onStop}
+        <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
+          <Select
+            value={responseDepth}
+            onValueChange={(depth) =>
+              onResponseDepthChange(depth as ResponseDepth)
+            }
           >
-            <Square aria-hidden />
-          </Button>
-        ) : (
-          <Button
-            size="icon-sm"
-            aria-label="Send this question"
-            disabled={!value.trim()}
-            onClick={submit}
-          >
-            <ArrowUp aria-hidden />
-          </Button>
-        )}
-      </div>
+            <SelectTrigger
+              size="sm"
+              className="side-chat-ui h-7 border-0 bg-transparent px-1.5 text-muted-foreground shadow-none"
+              aria-label={`Answer depth for the ${label} side chat`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="quick">Quick answer</SelectItem>
+              <SelectItem value="interview">Interview answer</SelectItem>
+              <SelectItem value="deep">Deep dive</SelectItem>
+            </SelectContent>
+          </Select>
 
-      <Select
-        value={responseDepth}
-        onValueChange={(depth) => onResponseDepthChange(depth as ResponseDepth)}
-      >
-        <SelectTrigger
-          size="sm"
-          className="mt-1.5 h-7 border-0 bg-transparent px-1.5 text-[0.7rem] text-muted-foreground shadow-none"
-          aria-label={`Answer depth for the ${label} side chat`}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="quick">Quick answer</SelectItem>
-          <SelectItem value="interview">Interview answer</SelectItem>
-          <SelectItem value="deep">Deep dive</SelectItem>
-        </SelectContent>
-      </Select>
+          {isStreaming ? (
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label="Stop generating this answer"
+              onClick={onStop}
+            >
+              <Square aria-hidden />
+            </Button>
+          ) : (
+            <Button
+              size="icon-sm"
+              aria-label="Send this question"
+              disabled={!value.trim()}
+              onClick={submit}
+            >
+              <ArrowUp aria-hidden />
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

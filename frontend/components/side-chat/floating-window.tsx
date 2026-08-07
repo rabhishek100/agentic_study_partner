@@ -66,6 +66,15 @@ export function FloatingWindow({
     originY: number;
     start: WindowRect;
   } | null>(null);
+  // The pointer listeners are attached once, and read the current callback from
+  // here. Keying their effect on `onRectChange` instead made dragging
+  // impossible: the layer builds a new callback on every render, so the first
+  // move re-rendered, the effect tore down, and its cleanup dropped the drag
+  // that was in progress.
+  const onRectChangeRef = useRef(onRectChange);
+  useEffect(() => {
+    onRectChangeRef.current = onRectChange;
+  }, [onRectChange]);
 
   const beginDrag = useCallback(
     (mode: "move" | "resize") => (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -104,7 +113,7 @@ export function FloatingWindow({
               width: drag.start.width + dx,
               height: drag.start.height + dy,
             };
-      onRectChange(snapRect(next, viewport()));
+      onRectChangeRef.current(snapRect(next, viewport()));
     };
     const onUp = () => {
       if (!dragRef.current) return;
@@ -120,12 +129,15 @@ export function FloatingWindow({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
-      // A window unmounted mid-drag must not leave the whole page unselectable.
+      // Only runs on unmount now, which is when it matters: a window closed
+      // mid-drag must not leave the whole page unselectable.
       dragRef.current = null;
       document.body.style.removeProperty("user-select");
       document.body.style.removeProperty("cursor");
     };
-  }, [onRectChange]);
+    // Attached once for the window's lifetime. See `onRectChangeRef`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleKeys = useCallback(
     (mode: "move" | "resize") => (event: React.KeyboardEvent) => {

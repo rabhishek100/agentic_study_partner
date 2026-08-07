@@ -77,29 +77,34 @@ export function SideChatWindow({
   }, [state.minimized, turns.length, scrollToBottom]);
 
   const body = (
-    <>
-      <AnchorChips anchors={sideChat.anchors} />
-      <div
-        ref={viewportRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-      >
-        <div ref={contentRef}>
-          <SideChatTurns
-            turns={turns}
-            isLoading={isLoading}
-            onOpenReference={onOpenReference}
-          />
+    // The window is its own typographic context: `side-chat-body` is the query
+    // container and `side-chat-type` carries the scale, so the prose and the
+    // chrome inside both follow the size the reader dragged it to.
+    <div className="side-chat-body flex min-h-0 flex-1 flex-col">
+      <div className="side-chat-type flex min-h-0 flex-1 flex-col">
+        <AnchorChips anchors={sideChat.anchors} />
+        <div
+          ref={viewportRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
+          <div ref={contentRef}>
+            <SideChatTurns
+              turns={turns}
+              isLoading={isLoading}
+              onOpenReference={onOpenReference}
+            />
+          </div>
         </div>
+        <SideChatComposer
+          isStreaming={isStreaming}
+          responseDepth={responseDepth}
+          onResponseDepthChange={setResponseDepth}
+          onSubmit={(question) => send(question, responseDepth)}
+          onStop={stop}
+          label={sideChat.title}
+        />
       </div>
-      <SideChatComposer
-        isStreaming={isStreaming}
-        responseDepth={responseDepth}
-        onResponseDepthChange={setResponseDepth}
-        onSubmit={(question) => send(question, responseDepth)}
-        onStop={stop}
-        label={sideChat.title}
-      />
-    </>
+    </div>
   );
 
   if (docked) {

@@ -35,8 +35,16 @@ export const SNAP_THRESHOLD = 16;
 export const KEYBOARD_STEP = 16;
 export const KEYBOARD_LARGE_STEP = 64;
 
-/** Kept on screen: a window dragged fully out of view cannot be dragged back. */
-const MINIMUM_VISIBLE = 96;
+/**
+ * A window is kept wholly on screen rather than allowed to hang off an edge.
+ *
+ * A desktop window manager lets you push a window half off the screen, but
+ * those windows have no fixed internal layout. This one does: its composer sits
+ * at the bottom, so a window hanging off the bottom edge is a window the reader
+ * cannot type into, and one hanging off the side loses the answer text. With a
+ * dock for getting windows out of the way, there is nothing to gain from
+ * letting them leave the viewport.
+ */
 
 /**
  * The app header's height, which windows stay clear of.
@@ -77,17 +85,13 @@ export function clampRect(rect: WindowRect, viewport: Viewport): WindowRect {
   return {
     width,
     height,
-    x: clamp(
-      Math.round(rect.x),
-      MINIMUM_VISIBLE - width,
-      Math.max(0, viewport.width - MINIMUM_VISIBLE),
-    ),
-    // Never under the app header, and never so low that the window's own
-    // header — its only move and close controls — leaves the viewport.
+    x: clamp(Math.round(rect.x), 0, Math.max(0, viewport.width - width)),
+    // Never under the app header, and never past the bottom edge: the composer
+    // lives down there.
     y: clamp(
       Math.round(rect.y),
       HEADER_INSET,
-      Math.max(HEADER_INSET, viewport.height - MINIMUM_VISIBLE),
+      Math.max(HEADER_INSET, viewport.height - height),
     ),
   };
 }

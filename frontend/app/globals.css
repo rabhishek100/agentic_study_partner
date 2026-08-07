@@ -228,13 +228,22 @@
     /*
      * Answer prose. This is long-form reading material, so it uses the serif
      * stack and a wider line height than the interface chrome around it.
+     *
+     * Every size and space below is expressed in `em`, against one custom
+     * property, so the whole block scales as a unit wherever it is rendered.
+     * That is what a side chat needs: the same answer has to read correctly in
+     * a 300px window and in a 700px one, and a fixed 0.975rem body with fixed
+     * rem headings looked oversized in the narrow case no matter what the
+     * wrapper asked for. The ratios reproduce the previous fixed sizes exactly
+     * at the default, so the main conversation is unchanged.
      */
     .answer-prose {
-        @apply font-serif text-[0.975rem] leading-[1.75] text-foreground;
+        font-size: var(--answer-size, 0.975rem);
+        @apply font-serif leading-[1.75] text-foreground;
     }
 
     .answer-prose > * + * {
-        @apply mt-4;
+        margin-top: 1.0256em;
     }
 
     .answer-prose h1,
@@ -244,30 +253,40 @@
         @apply font-sans font-semibold tracking-tight text-foreground;
     }
 
+    /* Heading margins are relative to the heading, hence the different ratios. */
     .answer-prose h1 {
-        @apply mt-6 text-xl;
+        font-size: 1.2821em;
+        margin-top: 1.2em;
     }
 
     .answer-prose h2 {
-        @apply mt-6 text-lg;
+        font-size: 1.1538em;
+        margin-top: 1.3333em;
     }
 
     .answer-prose h3,
     .answer-prose h4 {
-        @apply mt-5 text-base;
+        font-size: 1.0256em;
+        margin-top: 1.25em;
     }
 
     .answer-prose ul {
-        @apply list-disc space-y-1.5 pl-5;
+        padding-left: 1.2821em;
+        @apply list-disc;
     }
 
     .answer-prose ol {
-        @apply list-decimal space-y-1.5 pl-5;
+        padding-left: 1.2821em;
+        @apply list-decimal;
+    }
+
+    .answer-prose li + li {
+        margin-top: 0.3846em;
     }
 
     .answer-prose li > ul,
     .answer-prose li > ol {
-        @apply mt-1.5;
+        margin-top: 0.3846em;
     }
 
     .answer-prose a {
@@ -279,15 +298,19 @@
     }
 
     .answer-prose blockquote {
-        @apply border-l-2 border-citation/40 pl-4 italic text-muted-foreground;
+        padding-left: 1.0256em;
+        @apply border-l-2 border-citation/40 italic text-muted-foreground;
     }
 
     .answer-prose code {
-        @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+        padding-inline: 0.3846em;
+        padding-block: 0.1282em;
+        @apply rounded bg-muted font-mono text-[0.85em];
     }
 
     .answer-prose pre {
-        @apply overflow-x-auto rounded-lg bg-foreground p-4 text-background;
+        padding: 1.0256em;
+        @apply overflow-x-auto rounded-lg bg-foreground text-background;
     }
 
     .answer-prose pre code {
@@ -295,12 +318,15 @@
     }
 
     .answer-prose table {
-        @apply w-full border-collapse text-sm;
+        font-size: 0.8974em;
+        @apply w-full border-collapse;
     }
 
     .answer-prose th,
     .answer-prose td {
-        @apply border border-border px-3 py-2 text-left align-top;
+        padding-inline: 0.7692em;
+        padding-block: 0.5128em;
+        @apply border border-border text-left align-top;
     }
 
     .answer-prose th {
@@ -309,5 +335,49 @@
 
     .answer-prose hr {
         @apply border-border;
+    }
+
+    /*
+     * A side chat window is its own typographic context: the reader resizes it,
+     * and the type has to follow. The window body is the query container; the
+     * scale steps live on a descendant because a container cannot query itself.
+     *
+     * Two properties carry the whole scale — `--answer-size` for answer prose,
+     * `--side-ui` for the window's own chrome — so nothing inside the window
+     * needs its own breakpoints.
+     */
+    .side-chat-body {
+        container-type: inline-size;
+    }
+
+    .side-chat-type {
+        --answer-size: 0.8125rem;
+        --side-ui: 0.7188rem;
+    }
+
+    @container (min-width: 23rem) {
+        .side-chat-type {
+            --answer-size: 0.875rem;
+            --side-ui: 0.75rem;
+        }
+    }
+
+    @container (min-width: 30rem) {
+        .side-chat-type {
+            --answer-size: 0.9375rem;
+            --side-ui: 0.8125rem;
+        }
+    }
+
+    @container (min-width: 40rem) {
+        .side-chat-type {
+            --answer-size: 0.975rem;
+            --side-ui: 0.875rem;
+        }
+    }
+
+    /* Window chrome that follows the same scale. */
+    .side-chat-ui {
+        font-size: var(--side-ui, 0.75rem);
     }
 }

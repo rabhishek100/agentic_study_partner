@@ -88,7 +88,14 @@ export function TurnView({
   const result = turn.result;
 
   return (
-    <article className="space-y-4" aria-labelledby={`question-${turn.id}`}>
+    <article
+      className="space-y-4"
+      aria-labelledby={`question-${turn.id}`}
+      // Lets a text selection be traced back to the turn it sits in, which is
+      // what a side chat anchors to. Absent for a turn the server never
+      // recorded, so a selection there offers nothing to anchor.
+      data-turn-index={turn.turnIndex ?? undefined}
+    >
       <div className="flex justify-end">
         <h3
           id={`question-${turn.id}`}

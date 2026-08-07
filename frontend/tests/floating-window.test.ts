@@ -24,17 +24,21 @@ const rect = (
 ) => ({ x: 100, y: 100, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT, ...overrides });
 
 describe("clampRect", () => {
-  it("keeps a grabbable strip on screen when dragged off the right edge", () => {
+  it("keeps the whole window on screen when dragged off the right edge", () => {
     const clamped = clampRect(rect({ x: 5000 }), VIEWPORT);
 
-    expect(clamped.x).toBeLessThanOrEqual(VIEWPORT.width - 96);
-    expect(clamped.x + clamped.width).toBeGreaterThan(0);
+    expect(clamped.x + clamped.width).toBe(VIEWPORT.width);
   });
 
-  it("keeps a grabbable strip on screen when dragged off the left edge", () => {
-    const clamped = clampRect(rect({ x: -5000 }), VIEWPORT);
+  it("keeps the whole window on screen when dragged off the left edge", () => {
+    expect(clampRect(rect({ x: -5000 }), VIEWPORT).x).toBe(0);
+  });
 
-    expect(clamped.x + clamped.width).toBeGreaterThanOrEqual(96);
+  it("keeps the composer on screen when dragged past the bottom edge", () => {
+    // A window hanging off the bottom is a window that cannot be typed into.
+    const clamped = clampRect(rect({ y: 5000 }), VIEWPORT);
+
+    expect(clamped.y + clamped.height).toBe(VIEWPORT.height);
   });
 
   it("keeps a window clear of the app header", () => {
