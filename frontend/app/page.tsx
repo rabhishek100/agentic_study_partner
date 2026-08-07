@@ -10,6 +10,8 @@ import { ConversationView } from "@/components/conversation/conversation-view";
 import { LibraryRail } from "@/components/library-rail";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SectionNav } from "@/components/section-nav";
+import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
+import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChat } from "@/hooks/use-chat";
 import { useConversations } from "@/hooks/use-conversations";
+import { useSideChats } from "@/hooks/use-side-chats";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import type {
@@ -60,6 +63,7 @@ export default function Page() {
     resume,
   } = useChat();
   const history = useConversations();
+  const sideChats = useSideChats(conversationId);
 
   const loadBooks = useCallback(async () => {
     setBooksError("");
@@ -269,6 +273,25 @@ export default function Page() {
           </DropdownMenuContent>
         </DropdownMenu>
       }
+      sideChatControl={
+        <SideChatMenu
+          sideChats={sideChats.available}
+          openIds={sideChats.openIds}
+          onOpen={sideChats.show}
+          onDelete={sideChats.remove}
+        />
+      }
+      overlay={
+        <SideChatLayer
+          windows={sideChats.windows}
+          onRectChange={sideChats.setRect}
+          onMinimize={sideChats.setMinimized}
+          onClose={sideChats.close}
+          onFocus={sideChats.focus}
+          onSettled={sideChats.noteSettled}
+          onOpenReference={openReference}
+        />
+      }
       documentControl={
         reading && readingMinimized ? (
           <Button
@@ -327,6 +350,9 @@ export default function Page() {
       <ConversationView
         books={books}
         onOpenReference={openReference}
+        onAskOnTheSide={(turnIndex, quotedText) => {
+          void sideChats.open({ parentTurnIndex: turnIndex, quotedText });
+        }}
         turns={turns}
         isStreaming={isStreaming}
         hasBooks={hasBooks}

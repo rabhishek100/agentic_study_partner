@@ -26,6 +26,9 @@ A side chat is the smallest fix that addresses all three: the question is asked
 
 | Decision | Choice | Reason |
 |---|---|---|
+| Window vertical bounds | Windows never cover the app header | Found by opening one: a window at the top of the viewport hid the navigation and account menu, so the application became unreachable while a side chat was open. |
+| Turn identity for anchors | The server returns the recorded `turn_index` on every turn | List position is not the turn index: a stopped turn is never recorded and a regenerated one is recorded twice. An anchor names a stored turn, so the client is told which one. |
+| Minimizing | Hides a still-mounted window | Unmounting would abort the answer being generated, which defeats asking several questions at once. Only closing tears the stream down. |
 | Side chat identity | A persisted child conversation (`parent_conversation_id`) | Conversation state is already server-authoritative and persisted; a browser-only side thread would vanish on refresh, could not be reopened after closing, and would be invisible to evaluation. |
 | Nesting | Depth 1, enforced by a database trigger | A quote inside a side answer opens a *sibling* of the same parent. A tree of side chats has no reading order and no sensible history rendering; the constraint is in SQL because that is where invariants in this schema live. |
 | Anchor contents | The reader's selection only: parent turn index plus quoted text | Markers, node ids, and chunk ids are all *derivable* from the parent turn's stored `result_json`. Storing them would duplicate canonical data and let an anchor drift from the turn it points at. Source vs. derived, applied to anchors. |
@@ -104,7 +107,11 @@ so resume already works) and `DELETE /api/conversations/{id}`.
 
 Changed: `ConversationDetail` gains `parent_conversation_id` and `anchors`;
 `ConversationSummary` gains `side_thread_count`; `TurnResult` gains an optional
-`side_context` report.
+`side_context` report; `ChatResponse` gains `turn_index`.
+
+The per-turn anchor button moved from stage 3 into stage 2, because without any
+way to open a window there is nothing in stage 2 to operate. Stage 3 keeps the
+selection popover, paste-in chips, and windows with several anchors.
 
 ## Delivery stages
 
@@ -113,8 +120,8 @@ Each stage is a reviewable commit that leaves the application working.
 | Stage | Content | Done when |
 |---|---|---|
 | 1 — Server foundation | Migration, contracts, context assembler, evidence pinning, seeded state, side-chat endpoints, tests | A side chat created over a real conversation answers a question, its answer cites the pinned chunks first, and the stored turn records what context was dropped |
-| 2 — Floating window layer | Window manager (geometry, z-order, minimize, dock), keyboard operation, remembered geometry, narrow-viewport sheet, wired to the book chat | Three windows can be opened, moved, resized, minimized, restored and closed with a pointer and with the keyboard alone |
-| 3 — Capture | Selection popover, per-turn anchor button, paste-into-window chips, chip removal | Highlighting a sentence opens a window anchored to it; a second reference can be pasted into that window |
+| 2 — Floating window layer | Window manager (geometry, z-order, minimize, dock), keyboard operation, remembered geometry, narrow-viewport sheet, per-turn anchor button, wired to the book chat | Three windows can be opened, moved, resized, minimized, restored and closed with a pointer and with the keyboard alone |
+| 3 — Capture | Selection popover, paste-into-window chips, chip removal, multi-anchor windows | Highlighting a sentence opens a window anchored to it; a second reference can be pasted into that window |
 | 4 — Parallelism | Concurrency cap with a visible queue state, per-window stop, independent streams | Three questions asked at once all answer, with the fourth visibly waiting |
 | 5 — Video parity | The same layer over the video chat, with the ingestion-version pin its turns require | A side chat on a lecture answers with timestamped evidence from the same published version as its parent |
 

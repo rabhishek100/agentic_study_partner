@@ -381,6 +381,38 @@ class SideChatApiTests(unittest.IsolatedAsyncioTestCase):
             str(SIDE_CHAT_ID),
         )
 
+    async def test_a_turn_reports_the_index_it_was_recorded_under(self):
+        """The client cannot derive it, and a side chat anchors to it."""
+
+        row = conversation_row(SIDE_CHAT_ID, parent=PARENT_ID, anchors=[ANCHOR])
+        turn = MagicMock(
+            return_value=(
+                TurnResult(
+                    question="What does that mean?",
+                    answer="It means this [S1]",
+                    route="retrieval_qa",
+                    history_dependency="dependent",
+                    standalone_query="What does that mean?",
+                    outcome="answer",
+                ),
+                ConversationState(conversation_id=str(SIDE_CHAT_ID)),
+            )
+        )
+        with (
+            patch("api.main._require_ready_books"),
+            patch("api.main.execute_conversation_turn", turn),
+            stubbed_side_chat_store(
+                load_conversation=MagicMock(return_value=row),
+                append_turn=MagicMock(return_value=4),
+            ),
+        ):
+            response = await self.client.post(
+                f"/api/side-chats/{SIDE_CHAT_ID}/turns/stream",
+                json={"question": "What does that mean?"},
+            )
+
+        self.assertIn('"turn_index":4', response.text.replace(" ", ""))
+
     async def test_a_side_turn_records_what_context_it_was_given(self):
         row = conversation_row(SIDE_CHAT_ID, parent=PARENT_ID, anchors=[ANCHOR])
 

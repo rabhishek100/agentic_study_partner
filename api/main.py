@@ -123,6 +123,11 @@ class ChatRequest(ContractModel):
 class ChatResponse(ContractModel):
     result: TurnResult
     state: ConversationState
+    # Which recorded turn this is. The client cannot derive it from its own
+    # list: a stopped turn is never recorded, and a regenerated one is recorded
+    # a second time, so list position and turn index diverge. A side chat has
+    # to name a turn index to anchor to, hence returning it here.
+    turn_index: int
 
 
 class ConversationSummary(ContractModel):
@@ -520,9 +525,11 @@ def _persist_turn(
     question: str,
     result: TurnResult,
     state: ConversationState,
-) -> None:
+) -> int:
+    """Record the turn and return the index it was recorded under."""
+
     with database_connection() as connection:
-        append_turn(
+        return append_turn(
             connection,
             conversation_id,
             owner_id=owner_id,
@@ -556,8 +563,8 @@ def _run_turn(
     # The stored conversation is the identity; a fresh state object from the
     # workflow must not invent a different one.
     updated = updated.model_copy(update={"conversation_id": str(conversation_id)})
-    _persist_turn(owner_id, conversation_id, question, result, updated)
-    return ChatResponse(result=result, state=updated)
+    turn_index = _persist_turn(owner_id, conversation_id, question, result, updated)
+    return ChatResponse(result=result, state=updated, turn_index=turn_index)
 
 
 SIDE_CHAT_NOT_FOUND = HTTPException(status_code=404, detail="side chat not found")
@@ -776,8 +783,8 @@ def _run_side_turn(
         side_context=build_side_context(anchors, parent_turns),
     )
     updated = updated.model_copy(update={"conversation_id": str(side_chat_id)})
-    _persist_turn(owner_id, side_chat_id, question, result, updated)
-    return ChatResponse(result=result, state=updated)
+    turn_index = _persist_turn(owner_id, side_chat_id, question, result, updated)
+    return ChatResponse(result=result, state=updated, turn_index=turn_index)
 
 
 @app.post(

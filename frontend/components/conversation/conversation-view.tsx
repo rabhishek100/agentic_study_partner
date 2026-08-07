@@ -46,6 +46,7 @@ export interface ConversationViewProps {
   /** What the next question will search, e.g. "All 3 books". */
   scopeSummary?: string | null;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
 }
 
 export function ConversationView({
@@ -62,6 +63,7 @@ export function ConversationView({
   books,
   scopeSummary,
   onOpenReference,
+  onAskOnTheSide,
 }: ConversationViewProps) {
   const { viewportRef, contentRef, isPinned, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
@@ -106,6 +108,7 @@ export function ConversationView({
                 canRetry={hasBooks && !isStreaming}
                 onRetry={onRetry}
                 onOpenReference={onOpenReference}
+                onAskOnTheSide={onAskOnTheSide}
               />
             ))
           )}

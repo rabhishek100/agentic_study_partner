@@ -165,6 +165,9 @@ export function useChat() {
                 answer: data.result.answer,
                 result: data.result,
                 status: "complete",
+                // Recorded server-side under this index, which is what a side
+                // chat anchors to.
+                turnIndex: data.turn_index,
               });
               break readLoop;
             } else if (event === "error") {
@@ -247,6 +250,7 @@ export function useChat() {
         status: "complete" as const,
         result: turn.result,
         error: null,
+        turnIndex: turn.turn_index,
       })),
     );
   }, []);
