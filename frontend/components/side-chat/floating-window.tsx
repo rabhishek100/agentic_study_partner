@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
+  clampRect,
   isMoveKey,
   moveByKey,
   resizeByKey,
@@ -113,7 +114,11 @@ export function FloatingWindow({
               width: drag.start.width + dx,
               height: drag.start.height + dy,
             };
-      onRectChangeRef.current(snapRect(next, viewport()));
+      // Snap first, then clamp, so the clamp always has the last word: a drag
+      // that would leave the viewport was previously only snapped, which let a
+      // window be dragged off the right edge and off the bottom.
+      const bounds = viewport();
+      onRectChangeRef.current(clampRect(snapRect(next, bounds), bounds));
     };
     const onUp = () => {
       if (!dragRef.current) return;

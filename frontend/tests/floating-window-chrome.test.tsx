@@ -162,6 +162,33 @@ describe("FloatingWindow", () => {
     );
   });
 
+  it("cannot be dragged off the edge of the viewport", () => {
+    // Found in the browser: the drag path snapped but never clamped, so a
+    // window could be dragged 68px past the right edge and stay there.
+    const props = renderWindow();
+
+    fireEvent.pointerDown(moveHandle(), {
+      button: 0,
+      pointerId: 1,
+      clientX: 300,
+      clientY: 300,
+    });
+    fireEvent.pointerMove(window, {
+      pointerId: 1,
+      clientX: 5000,
+      clientY: 5000,
+    });
+
+    const moved = props.onRectChange.mock.calls.at(-1)![0] as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    expect(moved.x + moved.width).toBeLessThanOrEqual(window.innerWidth);
+    expect(moved.y + moved.height).toBeLessThanOrEqual(window.innerHeight);
+  });
+
   it("stops moving once the pointer is released", () => {
     const props = renderWindow();
 
