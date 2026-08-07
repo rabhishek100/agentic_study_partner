@@ -414,6 +414,109 @@ class VideoCleanupTests(unittest.TestCase):
                     "delete from auth.users where id = %s", (stranger,)
                 )
 
+    # --- one object, several jobs ---------------------------------------
+
+    def test_a_shared_staging_object_waits_for_every_job_that_needs_it(self) -> None:
+        """A staging key is not a job's private property.
+
+        Re-ingesting a lecture makes a new job against the same reserved path,
+        so one upload ends up named by several jobs. Production has four on one
+        object — three ready and one failed inside its retry window — and that
+        retry re-runs acquisition, which reads staging rather than canonical.
+        """
+
+        canonical = f"{self.owner}/canonical/videos/sha256/aa/11/aa11.mp4"
+        with connection(self.database_url) as database:
+            done = self.upload_job(
+                database,
+                status="ready",
+                created_interval="5 days",
+                completed_interval="5 days",
+                canonical_key=canonical,
+            )
+            retryable = self.upload_job(
+                database,
+                status="failed",
+                created_interval="3 days",
+                completed_interval="2 days",
+            )
+            # Point the failed job at the same reserved upload.
+            database.execute(
+                """
+                update video.ingestion_jobs set staging_storage_key = %s
+                where id = %s
+                """,
+                (done.upload_storage_key, retryable.job_id),
+            )
+            self.write(done.upload_storage_key)
+            self.write(canonical)
+
+            held = self.sweep(database)
+
+            # Once the failed job ages out, both let go together.
+            database.execute(
+                """
+                update video.ingestion_jobs
+                set created_at = now() - interval '40 days',
+                    completed_at = now() - interval '30 days'
+                where id = %s
+                """,
+                (retryable.job_id,),
+            )
+            released = self.sweep(database)
+
+        self.assertEqual(held.promoted_staging_deleted, 0)
+        self.assertEqual(held.bytes_reclaimed, 0)
+        self.assertEqual(released.total, 1)
+        self.assertFalse(self.exists(done.upload_storage_key))
+
+    def test_one_object_named_by_several_jobs_is_counted_once(self) -> None:
+        """Three ready jobs over one upload are 342 MB, not a gigabyte."""
+
+        canonical = f"{self.owner}/canonical/videos/sha256/bb/22/bb22.mp4"
+        with connection(self.database_url) as database:
+            first = self.upload_job(
+                database,
+                status="ready",
+                created_interval="5 days",
+                completed_interval="5 days",
+                canonical_key=canonical,
+            )
+            others = [
+                self.upload_job(
+                    database,
+                    status="ready",
+                    created_interval="5 days",
+                    completed_interval="5 days",
+                    canonical_key=canonical,
+                )
+                for _ in range(2)
+            ]
+            for job in others:
+                database.execute(
+                    """
+                    update video.ingestion_jobs set staging_storage_key = %s
+                    where id = %s
+                    """,
+                    (first.upload_storage_key, job.job_id),
+                )
+            self.write(first.upload_storage_key)
+            self.write(canonical)
+
+            summary = self.sweep(database)
+            marked = [
+                get_job(database, owner_id=self.owner, job_id=job.job_id).provenance
+                for job in [first, *others]
+            ]
+            again = self.sweep(database)
+
+        self.assertEqual(summary.promoted_staging_deleted, 1)
+        self.assertEqual(summary.bytes_reclaimed, len(b"video-bytes"))
+        # Every job naming it is marked, or each pass reports it again.
+        for provenance in marked:
+            self.assertIn("staging_deleted_at", provenance)
+        self.assertEqual(again.total, 0)
+
     # --- objects a stage names and no table does ------------------------
 
     def test_media_named_only_in_a_stage_manifest_is_not_an_orphan(self) -> None:

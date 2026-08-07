@@ -74,6 +74,10 @@ MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP = 500
 # when a worker is killed mid-write.
 PARTIAL_SUFFIX = ".part"
 PARTIAL_PREFIX = "."
+# Directories a mounted filesystem puts at its own root. They are not owner
+# prefixes and never will be, and warning about them every hour trains a
+# reader to skim the one log line this sweep has for a real surprise.
+FILESYSTEM_ENTRIES = frozenset({"lost+found"})
 
 
 def dry_run_requested() -> bool:
@@ -161,15 +165,19 @@ def _release_staging(
     event_type: str,
     message: str,
     dry_run: bool,
+    already_released: bool = False,
 ) -> tuple[bool, int]:
     """Unlink one job's staging object and record that it happened.
 
     Returns whether the row was settled and how many bytes came back. A store
     that is unreachable must not fail the pass: the job keeps its marker-free
     provenance and the next pass tries again.
+
+    `already_released` is for the second and later jobs naming one object: the
+    bytes are gone, the row still needs its marker.
     """
 
-    size = _size_of(
+    size = 0 if already_released else _size_of(
         store, owner_id=row["owner_id"], storage_key=row["staging_storage_key"]
     )
     if dry_run:
@@ -181,9 +189,10 @@ def _release_staging(
         )
         return True, size
     try:
-        store.remove(
-            owner_id=row["owner_id"], storage_key=row["staging_storage_key"]
-        )
+        if not already_released:
+            store.remove(
+                owner_id=row["owner_id"], storage_key=row["staging_storage_key"]
+            )
     except MediaStoreError as error:
         logger.warning(
             "video staging deletion failed for job %s at %s: %s",
@@ -333,6 +342,8 @@ def delete_promoted_staging(
     connection: Connection,
     store: FilesystemMediaStore,
     *,
+    limits: VideoRetentionLimits,
+    released: set[str] | None = None,
     dry_run: bool = False,
 ) -> tuple[int, int, int]:
     """Remove staging copies whose bytes now live in canonical storage.
@@ -343,18 +354,25 @@ def delete_promoted_staging(
     retained copy — it is what the reader plays and what every rebuild reads —
     so the staging duplicate has no remaining purpose once it exists.
 
-    Only a job that reached ``ready`` qualifies, and there is no window: a
-    finished job will not read its staging object again. A failed job is left
-    to `delete_expired_staging` instead, because its retry re-runs the
-    acquisition stage, and that stage reads the staging object rather than the
-    canonical one.
+    A job reaching ``ready`` is not on its own enough, because a staging key is
+    not a job's private property: re-ingesting a lecture makes a new job
+    against the *same* reserved path, so one object can be named by several
+    jobs at once. The production lecture has four naming one upload, three
+    ready and one failed inside its retry window — and that failed job's retry
+    reads the staging object, not the canonical one. Releasing on the strength
+    of a ready job alone would delete the file out from under it, which is
+    precisely what `delete_expired_staging`'s window exists to prevent.
+
+    So the unit here is the object, not the job. A key is released once every
+    job naming it is done with it, every job naming it is then marked, and it
+    is counted once however many jobs pointed at it.
 
     Deleted only after confirming the canonical object is actually on the
     volume. The source row naming it is not enough: a row can outlive its bytes
     if a previous sweep or a manual mistake removed them, and in that case the
     staging copy is the only surviving version of the file.
 
-    Returns deleted count, bytes reclaimed, and failed-deletion count.
+    Returns objects deleted, bytes reclaimed, and failed-deletion count.
     """
 
     rows = connection.execute(
@@ -368,17 +386,48 @@ def delete_promoted_staging(
         where job.staging_storage_key is not null
           and source.storage_key is not null
           and source.storage_key <> job.staging_storage_key
-          and job.status = %s
+          and job.status = %(ready)s
           and not job.provenance_json ? 'staging_deleted_at'
+          -- No other job may still have a use for these bytes: one waiting to
+          -- receive them, one about to read them, or one whose retry would.
+          and not exists (
+              select 1 from video.ingestion_jobs as other
+              where other.owner_id = job.owner_id
+                and other.staging_storage_key = job.staging_storage_key
+                and other.id <> job.id
+                and (
+                    other.status in (
+                        %(awaiting)s, %(queued)s, %(running)s, %(retrying)s
+                    )
+                    or (
+                        other.status in (%(failed)s, %(cancelled)s)
+                        and (
+                            other.completed_at is null
+                            or other.completed_at
+                               > now() - make_interval(days => %(days)s)
+                        )
+                    )
+                )
+          )
         order by job.created_at
         for update of job skip locked
         """,
-        (str(Status.READY),),
+        {
+            "ready": str(Status.READY),
+            "awaiting": str(Status.AWAITING_UPLOAD),
+            "queued": str(Status.QUEUED),
+            "running": str(Status.RUNNING),
+            "retrying": str(Status.RETRY_SCHEDULED),
+            "failed": str(Status.FAILED),
+            "cancelled": str(Status.CANCELLED),
+            "days": limits.staging_retention_days,
+        },
     ).fetchall()
 
     deleted = 0
     reclaimed = 0
     failed = 0
+    released = set() if released is None else released
     for row in rows:
         try:
             store.open_path(
@@ -394,6 +443,10 @@ def delete_promoted_staging(
                 row["canonical_key"],
             )
             continue
+        # A key already released by an earlier row in this pass. Its remaining
+        # jobs still need their marker, or every future pass reports the same
+        # object again — but the object and its bytes are counted once.
+        repeat = row["staging_storage_key"] in released
         settled, size = _release_staging(
             connection,
             store,
@@ -404,12 +457,15 @@ def delete_promoted_staging(
                 "canonically."
             ),
             dry_run=dry_run,
+            already_released=repeat,
         )
-        if settled:
+        if not settled:
+            failed += 1
+            continue
+        if not repeat:
+            released.add(row["staging_storage_key"])
             deleted += 1
             reclaimed += size
-        else:
-            failed += 1
     return deleted, reclaimed, failed
 
 
@@ -418,6 +474,7 @@ def delete_expired_staging(
     store: FilesystemMediaStore,
     *,
     limits: VideoRetentionLimits,
+    released: set[str] | None = None,
     dry_run: bool = False,
 ) -> tuple[int, int, int]:
     """Remove staging objects of failed and cancelled jobs past retention.
@@ -448,7 +505,12 @@ def delete_expired_staging(
     deleted = 0
     reclaimed = 0
     failed = 0
+    released = set() if released is None else released
     for row in rows:
+        # A key an earlier pass already let go of. Several jobs can name one
+        # upload, so its remaining rows still need their marker while the
+        # object itself has already been counted.
+        repeat = row["staging_storage_key"] in released
         settled, size = _release_staging(
             connection,
             store,
@@ -456,12 +518,15 @@ def delete_expired_staging(
             event_type="staging_source_deleted",
             message="The uploaded file was removed by the retention policy.",
             dry_run=dry_run,
+            already_released=repeat,
         )
-        if settled:
+        if not settled:
+            failed += 1
+            continue
+        if not repeat:
+            released.add(row["staging_storage_key"])
             deleted += 1
             reclaimed += size
-        else:
-            failed += 1
     return deleted, reclaimed, failed
 
 
@@ -514,6 +579,8 @@ def _owner_directories(root: Path) -> list[Path]:
     directories = []
     for entry in sorted(root.iterdir()):
         if entry.is_symlink() or not entry.is_dir():
+            continue
+        if entry.name in FILESYSTEM_ENTRIES:
             continue
         try:
             parse_owner_id(entry.name)
@@ -665,6 +732,10 @@ def run_video_cleanup(
     limits = limits or load_retention_limits()
     store = store or FilesystemMediaStore()
     dry_run = dry_run_requested() if dry_run is None else dry_run
+    # One upload can be named by several jobs, and both staging passes can
+    # reach the same key. Shared so the object — and its bytes — are counted
+    # once however many rows point at it.
+    released: set[str] = set()
 
     with connection.transaction():
         cancelled, cancelled_bytes, cancel_failures = cancel_abandoned_uploads(
@@ -672,11 +743,11 @@ def run_video_cleanup(
         )
     with connection.transaction():
         promoted, promoted_bytes, promoted_failures = delete_promoted_staging(
-            connection, store, dry_run=dry_run
+            connection, store, limits=limits, released=released, dry_run=dry_run
         )
     with connection.transaction():
         expired, expired_bytes, expired_failures = delete_expired_staging(
-            connection, store, limits=limits, dry_run=dry_run
+            connection, store, limits=limits, released=released, dry_run=dry_run
         )
     # Runs last so anything the job-driven passes just released is already
     # absent from the rows this sweep compares the volume against.
