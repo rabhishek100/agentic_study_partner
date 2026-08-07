@@ -394,22 +394,101 @@ Three turns still miss, and they are kept rather than tuned away:
   visual evidence arrives as its OCR and description text without the image
   production attaches. Visual turns are therefore weaker here than in
   production, and the runner logs a warning when this is the case.
-- **The linked deck's extracted text is damaged.** Roughly half its pages have
-  lost most lowercase `s` characters — "Hi tory of attention", "Preci ion",
-  "Data et" — which is a font-encoding problem in PDF extraction, not OCR
-  noise. It degrades both lexical and vector search over the document, so the
-  document-anchored turns are scoring against a handicapped index. Fixing it
-  needs a resource re-ingest and has not been done.
+- ~~**The linked deck's extracted text is damaged.**~~ **Withdrawn — the deck
+  is intact and the document-anchored turns were never handicapped.** This
+  entry claimed that roughly half the deck's pages had lost most lowercase `s`
+  characters ("Hi tory of attention", "Preci ion", "Data et") to a
+  font-encoding fault, and that fixing it needed a resource re-ingest. Checked
+  before doing that re-ingest, it does not reproduce anywhere:
+
+  - Neither string, nor any of the others quoted, appears in any text or JSONB
+    column of the production database — the sweep covered the whole `video`
+    and `public` schemas, not just `resource_pages`.
+  - Page 65 of the stored deck reads `History of attention` and page 21 reads
+    `Datasets`, `Precision`, `observations` — the exact pages the quotes came
+    from, with their `s` intact.
+  - The stored text matches a fresh PyMuPDF parse of the source **exactly, on
+    all 135 pages**, and the file's sha256 matches the resource's recorded
+    `content_hash`, so the store is neither stale nor a parse of some other
+    file. Poppler's `pdftotext` extracts the same pages cleanly too, so this
+    is not one extractor's fallback covering for another's failure.
+  - Across the document `s` runs at 5.9% of letters against an English norm of
+    about 6.3%, no common letter is starved, and there are no U+FFFD
+    replacement characters. The deck's fonts are Identity-H subsets, which is
+    the family of font where this fault does occur — but not here.
+
+  The pages were written once, on 2026-08-05, before the runs this section
+  reports, and `persist_resource_pages` replaces rows outright, so no later
+  re-ingest could have quietly repaired them. Whatever produced the quoted
+  strings, it was not this index.
+
+  `scripts/check_resource_text.py` is what re-derives all of that, so the
+  correction is checkable rather than merely asserted, and so the next parse
+  that does degrade is caught as a parse rather than inferred from a score.
 - The two remaining history-dependency misses are turns labelled independent
   and classified dependent. One exposes a real over-trigger: the deterministic
   history-reference rule fires on "its" in "compared with its input", where the
   pronoun refers inside its own sentence rather than to an earlier turn.
-- Cited-evidence recall (0.775) sits below retrieval recall (0.900): the answer
-  cites fewer of the stretches it was given than it reached. Narrowed by the
-  work above, from a gap of more than two to one, but not closed.
+- Cited-evidence recall (0.775) sits below retrieval recall (0.900). That gap
+  now has a decomposition rather than a description; see below.
 - **Nothing here is deployed.** Quality gates and evidence are derived data, so
   the published lecture keeps whatever it was last built with until it is
   re-ingested, and deploys are `railway up` per service.
+
+### What the citation gap turns out to be
+
+Cited-evidence recall was read as one failure: the answer citing fewer of the
+stretches it reached than it should. Classifying every shortfall says that is
+not what the number is mostly reporting. Six required anchors, across five of
+43 turns, were reached and never cited — and **none of them were missed for
+want of a citation**:
+
+| Shape | Anchors | What it means |
+|---|---:|---|
+| `uncited` | 0 | The answer cited nothing, so no marker could land. |
+| `cited_adjacent` | 1 | A marker landed just outside the anchor's window. |
+| `cited_elsewhere` | 5 | Every marker is far away. |
+
+Every one is on the `evidence_qa` route. The summarising routes score 1.000
+because they cite structurally — the whole-lecture summary cites 24 of 24
+stretches — so the gap lives entirely in short factual answers, which cite 1.2
+of 8 supplied items on average against 4.5 for the turns with no gap.
+
+The single `cited_adjacent` case is the judgment boundary, not the answer:
+vc-003-t3 answers "what are its two variants?" with CBOW and skip-gram and
+cites the Word2vec slide at 40:22, while the anchor's window closes at 40:01.
+The frames are the same unchanged slide 21 seconds apart. Nothing is wrong
+with the answer; an anchor cut on the clock cannot express that.
+
+`cited_elsewhere` is where the two genuinely different cases hide, and no rule
+separates them, so they were read:
+
+- **Two are answers grounded in a stretch the anchor did not list.** vc-002-t2
+  names all three tokenization levels and cites the summary table — the frame
+  of it and page 33 of the deck — which states all three in as many words. The
+  anchors name the transcript stretches where he says them instead. The answer
+  is correct, grounded, and cited; the set asked for a different source of the
+  same fact. vc-008-t2 is the same shape.
+- **Two are wrong answers, and this is the real finding.** vc-005-t2 asks what
+  changes on that slide next and describes a slide ten minutes later;
+  vc-012-t2 asks what was on screen and describes one seventeen minutes away.
+  In both, retrieval had the right frames — at ranks 4 and 8, and at rank 2 —
+  and the answer used a different one.
+
+So the number is doing something other than what it was named for. Retrieval
+recall structurally cannot see the last two: the evidence was reached, so it
+scores 1.000, and only where the marker landed reveals that the answer was
+built from the wrong moment. That is worth keeping — but it means "cited
+recall trails retrieval recall" should not be read as a citation-discipline
+problem, and asking the prompt for more markers would move exactly zero of
+these six.
+
+The breakdown now ships in every run's `results.json` under `citation_gap`,
+and re-derives from any frozen run without paying for retrieval:
+
+```bash
+uv run python -m scripts.analyze_citation_gap evaluation/runs/video/final-v3/results.json
+```
 
 ### Running it
 
@@ -438,6 +517,20 @@ uv run python -m scripts.evaluate_video --all --owner-id "$VIDEO_OWNER_ID"
 `evaluation/runs/video/<timestamp>/` and are gitignored. The owner is supplied
 explicitly because the lecture belongs to a real account rather than to the
 local bootstrap owner.
+
+A document-anchored turn scoring badly can mean the retrieval missed or the
+index is degraded, and those call for opposite work. This settles which,
+without re-running anything, by re-parsing the source and comparing it to what
+is stored:
+
+```bash
+uv run python -m scripts.check_resource_text --resource-id "$RESOURCE_ID" --pdf path/to/deck.pdf
+```
+
+It exits non-zero on empty pages, unmappable glyphs, a common letter absent
+across the whole document, or any page that differs from a fresh parse. Drop
+`--pdf` when the source lives on a volume this machine cannot reach; the
+stored-quality checks still run.
 
 ## Seed set
 

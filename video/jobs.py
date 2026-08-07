@@ -120,7 +120,7 @@ class VideoIngestionJob:
         return self.cancellation_requested_at is not None
 
 
-def _event(
+def append_event(
     connection: Connection,
     *,
     owner_id: UUID,
@@ -217,7 +217,7 @@ def claim_next_job(
         if row is None:
             return None
         job = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=job.owner_id,
             job_id=job.id,
@@ -314,7 +314,7 @@ def request_cancellation(
             )
             event_type = "cancelled"
         job = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=owner,
             job_id=identifier,
@@ -358,7 +358,7 @@ def retry_job(
         if row is None:
             raise VideoJobConflictError("video ingestion moved before retry")
         job = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=owner,
             job_id=identifier,
@@ -531,7 +531,7 @@ def complete_stage_checkpoint(
             """,
             (Jsonb(output_manifest), cost, checkpoint["id"]),
         ).fetchone()
-        _event(
+        append_event(
             connection,
             owner_id=job.owner_id,
             job_id=job.id,
@@ -586,7 +586,7 @@ def advance_stage(
             (str(next_stage), identifier, job.owner_id, worker_id, attempt_count),
         ).fetchone()
         advanced = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=job.owner_id,
             job_id=job.id,
@@ -638,7 +638,7 @@ def release_claim(
         if row is None:
             raise VideoJobConflictError("video worker no longer owns this job")
         released = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=released.owner_id,
             job_id=released.id,
@@ -713,7 +713,7 @@ def finish_running_cancellation(
             (identifier, current.owner_id, worker_id, attempt_count),
         ).fetchone()
         cancelled = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=cancelled.owner_id,
             job_id=cancelled.id,
@@ -841,7 +841,7 @@ def record_stage_failure(
             )
             event_type = "failed"
         failed = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=failed.owner_id,
             job_id=failed.id,
@@ -928,7 +928,7 @@ def publish_job(
             (identifier, current.owner_id, worker_id, attempt_count),
         ).fetchone()
         published = VideoIngestionJob.from_row(row)
-        _event(
+        append_event(
             connection,
             owner_id=published.owner_id,
             job_id=published.id,
@@ -1032,7 +1032,7 @@ def reclaim_expired_leases(
                     (job.video_id, job.owner_id),
                 )
                 event_type, target = "failed", Status.FAILED
-            _event(
+            append_event(
                 connection,
                 owner_id=job.owner_id,
                 job_id=job.id,

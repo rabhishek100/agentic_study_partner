@@ -927,7 +927,7 @@ _VIDEO_MEDIA_KEYS = """
 # Canonical media is addressed by content hash, so two videos that were given
 # the same file share one object on disk — which is not a hypothetical: a
 # caption uploaded to two videos is one key with two referents.
-_OWNER_MEDIA_KEYS = """
+OWNER_MEDIA_KEYS = """
     select storage_key as key from video.video_sources
      where owner_id = %(owner)s and storage_key is not null
     union select storage_key from video.caption_uploads where owner_id = %(owner)s
@@ -1008,7 +1008,7 @@ def delete_video(
         {
             item["key"]
             for item in connection.execute(
-                f"select key from ({_OWNER_MEDIA_KEYS}) as referenced "
+                f"select key from ({OWNER_MEDIA_KEYS}) as referenced "
                 "where key = any(%(keys)s)",
                 parameters | {"keys": sorted(held)},
             ).fetchall()

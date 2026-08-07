@@ -36,6 +36,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from evals.video_citations import classify_citation_gaps
 from evals.video_coverage import SummarySubstance, measure_summary_substance
 from video.answers import (
     VideoAnswerDependencies,
@@ -504,6 +505,9 @@ def evaluate_video_conversations(
             "errors": len(errors),
         },
         "summary_coverage": _coverage_summary(rows),
+        # Reported beside the number it explains: the shortfall has three
+        # shapes and only one of them is answered by asking for more markers.
+        "citation_gap": classify_citation_gaps(rows),
         "rewrite_ablation": _rewrite_summary(rows),
         "turns": rows,
         "errors": errors,
