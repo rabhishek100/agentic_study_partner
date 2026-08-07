@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "@/lib/api";
 import { drainSseEvents } from "@/lib/sse";
 import { accessToken } from "@/lib/supabase";
+import { sideChatQueue } from "@/lib/turn-queue";
 import type {
   ChatResponse,
   ChatTurn,
@@ -30,6 +31,8 @@ export function useSideChat(sideChatId: string) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  // Sent, but waiting for one of the shared generation slots.
+  const [isQueued, setIsQueued] = useState(false);
 
   const controllerRef = useRef<AbortController | null>(null);
   const stoppedByUserRef = useRef(false);
@@ -91,6 +94,24 @@ export function useSideChat(sideChatId: string) {
       const controller = new AbortController();
       controllerRef.current = controller;
       stoppedByUserRef.current = false;
+
+      // Wait for a generation slot before opening the request, so several
+      // windows asking at once queue instead of firing together. The idle
+      // timeout starts after the slot is held: time spent queued is not the
+      // API failing to respond.
+      setIsQueued(true);
+      const release = await sideChatQueue.acquire(sideChatId);
+      setIsQueued(false);
+      if (stoppedByUserRef.current) {
+        // Stopped while queued: the turn never reached the server.
+        release();
+        patchTurn(id, { status: "stopped" });
+        controllerRef.current = null;
+        stoppedByUserRef.current = false;
+        setIsStreaming(false);
+        return;
+      }
+
       let idleTimer = setTimeout(
         () => controller.abort(),
         STREAM_IDLE_TIMEOUT_MS,
@@ -182,6 +203,7 @@ export function useSideChat(sideChatId: string) {
         }
       } finally {
         clearTimeout(idleTimer);
+        release();
         controllerRef.current = null;
         stoppedByUserRef.current = false;
         setIsStreaming(false);
@@ -193,17 +215,21 @@ export function useSideChat(sideChatId: string) {
   const stop = useCallback(() => {
     if (!controllerRef.current) return;
     stoppedByUserRef.current = true;
+    // A turn still queued has no request to abort; dropping it from the queue
+    // is what stopping means at that point.
+    sideChatQueue.cancel(sideChatId);
     controllerRef.current.abort();
-  }, []);
+  }, [sideChatId]);
 
   /** Abort an in-flight turn when the window goes away for good. */
   useEffect(
     () => () => {
+      sideChatQueue.cancel(sideChatId);
       controllerRef.current?.abort();
       controllerRef.current = null;
     },
-    [],
+    [sideChatId],
   );
 
-  return { turns, isStreaming, isLoading, send, stop };
+  return { turns, isStreaming, isQueued, isLoading, send, stop };
 }

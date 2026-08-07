@@ -73,6 +73,8 @@ const handlers = () => ({
   onClose: vi.fn(),
   onFocus: vi.fn(),
   onSettled: vi.fn(),
+  onAnchorsChange: vi.fn(),
+  resolveQuoteTurn: vi.fn(() => 0),
 });
 
 describe("SideChatLayer on a wide viewport", () => {

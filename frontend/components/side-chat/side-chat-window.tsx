@@ -2,16 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { AnchorEditor } from "@/components/side-chat/anchor-editor";
 import { FloatingWindow } from "@/components/side-chat/floating-window";
-import {
-  AnchorChips,
-  SideChatTurns,
-} from "@/components/side-chat/side-chat-turns";
+import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { SideChatComposer } from "@/components/side-chat/side-chat-composer";
 import { useSideChat } from "@/hooks/use-side-chat";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
-import type { EvidenceRef, ResponseDepth } from "@/lib/types";
+import type { EvidenceRef, QuoteAnchor, ResponseDepth } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 
 export interface SideChatWindowProps {
@@ -24,6 +22,8 @@ export interface SideChatWindowProps {
   /** `recorded` is false for a turn that failed or was stopped. */
   onSettled: (recorded: boolean) => void;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  onAnchorsChange: (anchors: QuoteAnchor[]) => void;
+  resolveQuoteTurn: (text: string) => number | null;
   /** Renders inside a docked sheet instead of a floating window. */
   docked?: boolean;
 }
@@ -45,10 +45,12 @@ export function SideChatWindow({
   onFocus,
   onSettled,
   onOpenReference,
+  onAnchorsChange,
+  resolveQuoteTurn,
   docked = false,
 }: SideChatWindowProps) {
   const { sideChat } = state;
-  const { turns, isStreaming, isLoading, send, stop } = useSideChat(
+  const { turns, isStreaming, isQueued, isLoading, send, stop } = useSideChat(
     sideChat.conversation_id,
   );
   const [responseDepth, setResponseDepth] = useState<ResponseDepth>("quick");
@@ -82,7 +84,11 @@ export function SideChatWindow({
     // chrome inside both follow the size the reader dragged it to.
     <div className="side-chat-body flex min-h-0 flex-1 flex-col">
       <div className="side-chat-type flex min-h-0 flex-1 flex-col">
-        <AnchorChips anchors={sideChat.anchors} />
+        <AnchorEditor
+          anchors={sideChat.anchors}
+          onChange={onAnchorsChange}
+          resolveTurn={resolveQuoteTurn}
+        />
         <div
           ref={viewportRef}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
@@ -91,6 +97,7 @@ export function SideChatWindow({
             <SideChatTurns
               turns={turns}
               isLoading={isLoading}
+              isQueued={isQueued}
               onOpenReference={onOpenReference}
             />
           </div>

@@ -38,6 +38,8 @@ export function AnchorChips({ anchors }: { anchors: QuoteAnchor[] }) {
 export interface SideChatTurnsProps {
   turns: ChatTurn[];
   isLoading: boolean;
+  /** Sent, but waiting for one of the shared generation slots. */
+  isQueued?: boolean;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
 }
 
@@ -53,6 +55,7 @@ export interface SideChatTurnsProps {
 export function SideChatTurns({
   turns,
   isLoading,
+  isQueued = false,
   onOpenReference,
 }: SideChatTurnsProps) {
   if (isLoading && turns.length === 0) {
@@ -83,9 +86,17 @@ export function SideChatTurns({
             {turn.question}
           </p>
 
-          {turn.status === "streaming" && !turn.answer && (
-            <ThinkingIndicator label="Checking the book…" />
-          )}
+          {turn.status === "streaming" &&
+            !turn.answer &&
+            // Says which of the two waits this is: a queued turn has not
+            // reached the API yet, and looks stuck if it claims otherwise.
+            (isQueued ? (
+              <p className="side-chat-ui text-muted-foreground" role="status">
+                Waiting for the other side chats to finish…
+              </p>
+            ) : (
+              <ThinkingIndicator label="Checking the book…" />
+            ))}
 
           {turn.answer && (
             <Answer

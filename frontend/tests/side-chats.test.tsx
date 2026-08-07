@@ -136,6 +136,60 @@ describe("useSideChats", () => {
     expect(api().windows).toHaveLength(0);
   });
 
+  it("replaces the anchors and keeps what the server returns", async () => {
+    apiFetch.mockResolvedValue({ side_chats: [summary("a")] });
+    const api = mount();
+    await waitFor(() => expect(api().available).toHaveLength(1));
+    act(() => api().show(summary("a")));
+
+    const replacement = [
+      {
+        anchor_id: "a-anchor",
+        parent_turn_index: 0,
+        quoted_text: "the gap",
+      },
+      {
+        anchor_id: "pending-1",
+        parent_turn_index: 2,
+        quoted_text: "a pasted passage",
+      },
+    ];
+    const settled = summary("a", {
+      anchors: replacement.map((item, index) => ({
+        ...item,
+        anchor_id: index === 1 ? "server-assigned" : item.anchor_id,
+      })),
+    });
+    apiFetch.mockResolvedValueOnce(settled);
+    await act(async () => {
+      await api().setAnchors("a", replacement);
+    });
+
+    const [path, options] = apiFetch.mock.calls.at(-1)!;
+    expect(path).toBe("/side-chats/a");
+    expect((options as RequestInit).method).toBe("PATCH");
+    // The id the server assigned replaces the placeholder the client invented.
+    expect(api().windows[0]?.sideChat.anchors[1]?.anchor_id).toBe(
+      "server-assigned",
+    );
+  });
+
+  it("puts the anchors back when the server refuses the change", async () => {
+    apiFetch.mockResolvedValue({ side_chats: [summary("a")] });
+    const api = mount();
+    await waitFor(() => expect(api().available).toHaveLength(1));
+    act(() => api().show(summary("a")));
+    const before = api().windows[0]!.sideChat.anchors;
+
+    apiFetch.mockRejectedValueOnce(new Error("turn 9 is not part of the parent"));
+    await act(async () => {
+      await api().setAnchors("a", []);
+    });
+
+    expect(api().windows[0]?.sideChat.anchors).toEqual(before);
+    expect(api().error).toBe("turn 9 is not part of the parent");
+  });
+
   it("clears a reported error when it is dismissed", async () => {
     apiFetch.mockResolvedValueOnce({ side_chats: [] });
     const api = mount();

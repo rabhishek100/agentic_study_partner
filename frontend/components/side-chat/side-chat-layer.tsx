@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import { FLOATING_MIN_VIEWPORT_WIDTH } from "@/lib/floating-window";
-import type { EvidenceRef } from "@/lib/types";
+import type { EvidenceRef, QuoteAnchor } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,8 @@ export interface SideChatLayerProps {
   onFocus: (sideChatId: string) => void;
   onSettled: (sideChatId: string, recorded: boolean) => void;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  onAnchorsChange: (sideChatId: string, anchors: QuoteAnchor[]) => void;
+  resolveQuoteTurn: (text: string) => number | null;
   /** Reported here because a side chat that failed to open has no window. */
   error?: string;
   onDismissError?: () => void;
@@ -95,6 +97,8 @@ export function SideChatLayer({
   onFocus,
   onSettled,
   onOpenReference,
+  onAnchorsChange,
+  resolveQuoteTurn,
   error,
   onDismissError,
 }: SideChatLayerProps) {
@@ -193,6 +197,8 @@ export function SideChatLayer({
                 onFocus={() => onFocus(id)}
                 onSettled={(recorded) => onSettled(id, recorded)}
                 onOpenReference={onOpenReference}
+                onAnchorsChange={(anchors) => onAnchorsChange(id, anchors)}
+                resolveQuoteTurn={resolveQuoteTurn}
               />
             </div>
           );
@@ -217,6 +223,8 @@ export function SideChatLayer({
             onFocus={() => onFocus(id)}
             onSettled={(recorded) => onSettled(id, recorded)}
             onOpenReference={onOpenReference}
+            onAnchorsChange={(anchors) => onAnchorsChange(id, anchors)}
+            resolveQuoteTurn={resolveQuoteTurn}
           />
         );
       })}

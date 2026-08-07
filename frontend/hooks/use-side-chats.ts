@@ -15,6 +15,7 @@ import {
   type WindowRect,
 } from "@/lib/floating-window";
 import type {
+  QuoteAnchor,
   SideChatListResponse,
   SideChatSummary,
 } from "@/lib/types";
@@ -31,6 +32,9 @@ export interface OpenSideChatRequest {
   parentTurnIndex: number;
   quotedText: string;
 }
+
+/** Mirrors `MAXIMUM_ANCHORS` on the server. */
+export const MAXIMUM_ANCHORS = 5;
 
 const OPEN_KEY_PREFIX = "side-chat:open:";
 
@@ -313,6 +317,66 @@ export function useSideChats(parentConversationId: string | null) {
     if (!minimized) focus(sideChatId);
   }, [focus]);
 
+  /**
+   * Replace the passages a side chat is anchored to.
+   *
+   * The whole set is sent, existing chips keeping their ids, because that is
+   * the contract the endpoint offers and because the client always knows the
+   * intended set — merging server-side would only add a way for two windows to
+   * disagree about it.
+   */
+  const setAnchors = useCallback(
+    async (sideChatId: string, anchors: QuoteAnchor[]) => {
+      const previous = { available, windows };
+      const apply = (chat: SideChatSummary) =>
+        chat.conversation_id === sideChatId ? { ...chat, anchors } : chat;
+      // Applied first so removing a chip feels immediate, and rolled back if
+      // the server refuses.
+      setAvailable((current) => current.map(apply));
+      setWindows((current) =>
+        current.map((entry) =>
+          entry.sideChat.conversation_id === sideChatId
+            ? { ...entry, sideChat: { ...entry.sideChat, anchors } }
+            : entry,
+        ),
+      );
+      try {
+        const updated = await apiFetch<SideChatSummary>(
+          `/side-chats/${sideChatId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              anchors: anchors.map((anchor) => ({
+                anchor_id: anchor.anchor_id,
+                parent_turn_index: anchor.parent_turn_index,
+                quoted_text: clampQuote(anchor.quoted_text),
+              })),
+            }),
+          },
+        );
+        setAvailable((current) =>
+          current.map((chat) =>
+            chat.conversation_id === sideChatId ? updated : chat,
+          ),
+        );
+        setWindows((current) =>
+          current.map((entry) =>
+            entry.sideChat.conversation_id === sideChatId
+              ? { ...entry, sideChat: updated }
+              : entry,
+          ),
+        );
+        return true;
+      } catch (caught) {
+        setError((caught as Error).message);
+        setAvailable(previous.available);
+        setWindows(previous.windows);
+        return false;
+      }
+    },
+    [available, windows],
+  );
+
   const setRect = useCallback((sideChatId: string, rect: WindowRect) => {
     setWindows((current) =>
       current.map((entry) =>
@@ -376,6 +440,7 @@ export function useSideChats(parentConversationId: string | null) {
     remove,
     setMinimized,
     setRect,
+    setAnchors,
     noteSettled,
     focus,
   };

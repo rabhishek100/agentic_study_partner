@@ -191,6 +191,29 @@ export default function Page() {
     [books, reading?.document],
   );
 
+  /**
+   * Which recorded turn a passage came from, matched against this
+   * conversation's answers.
+   *
+   * Derived rather than assumed: attributing a pasted passage to whichever turn
+   * the window happens to be anchored to would resolve its citation markers
+   * against the wrong evidence. Whitespace is normalized on both sides because
+   * copying out of rendered Markdown does not preserve the source's line breaks.
+   */
+  const resolveQuoteTurn = useCallback(
+    (text: string) => {
+      const flatten = (value: string) => value.replace(/\s+/g, " ").trim();
+      const needle = flatten(text);
+      if (!needle) return null;
+      const match = turns.find(
+        (turn) =>
+          turn.turnIndex != null && flatten(turn.answer).includes(needle),
+      );
+      return match?.turnIndex ?? null;
+    },
+    [turns],
+  );
+
   const handleNewConversation = useCallback(() => {
     closeDocument();
     reset();
@@ -290,6 +313,10 @@ export default function Page() {
           onFocus={sideChats.focus}
           onSettled={sideChats.noteSettled}
           onOpenReference={openReference}
+          onAnchorsChange={(sideChatId, anchors) => {
+            void sideChats.setAnchors(sideChatId, anchors);
+          }}
+          resolveQuoteTurn={resolveQuoteTurn}
           error={sideChats.error}
           onDismissError={sideChats.dismissError}
         />
