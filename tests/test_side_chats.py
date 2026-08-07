@@ -227,6 +227,40 @@ class SideChatApiTests(unittest.IsolatedAsyncioTestCase):
             "the gap compounds",
         )
 
+    async def test_a_whole_answer_is_long_enough_to_anchor(self):
+        """Answers average over 7,000 characters; the first limit was 4,000.
+
+        Rejecting them made "Ask on the side" fail on roughly half of real
+        answers, and the interface reported nothing at all.
+        """
+
+        with stubbed_side_chat_store() as store:
+            response = await self.client.post(
+                f"/api/conversations/{PARENT_ID}/side-chats",
+                json={
+                    "anchors": [
+                        {"parent_turn_index": 0, "quoted_text": "word " * 2_000}
+                    ]
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        anchors = store["create_conversation"].call_args.kwargs["anchors"]
+        self.assertEqual(len(anchors[0]["quoted_text"]), len("word " * 2_000) - 1)
+
+    async def test_a_quote_beyond_the_stored_limit_is_still_refused(self):
+        with stubbed_side_chat_store():
+            response = await self.client.post(
+                f"/api/conversations/{PARENT_ID}/side-chats",
+                json={
+                    "anchors": [
+                        {"parent_turn_index": 0, "quoted_text": "x" * 16_001}
+                    ]
+                },
+            )
+
+        self.assertEqual(response.status_code, 422)
+
     async def test_an_anchor_on_a_turn_the_parent_lacks_is_rejected(self):
         with stubbed_side_chat_store():
             response = await self.client.post(

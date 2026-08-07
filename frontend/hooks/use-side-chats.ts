@@ -34,6 +34,28 @@ export interface OpenSideChatRequest {
 
 const OPEN_KEY_PREFIX = "side-chat:open:";
 
+/**
+ * The longest quote the server stores, mirroring `MAXIMUM_QUOTE_CHARS`.
+ *
+ * Anchoring a whole answer can exceed it — the longest recorded answer is over
+ * 34,000 characters — so the client cuts the quote rather than sending a request
+ * that can only be rejected. What is kept is the opening of the answer, which is
+ * where its claim is stated; the rest of the turn still reaches the model as
+ * surrounding context.
+ */
+export const MAXIMUM_QUOTE_CHARS = 16_000;
+
+export function clampQuote(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= MAXIMUM_QUOTE_CHARS) return trimmed;
+  const clipped = trimmed.slice(0, MAXIMUM_QUOTE_CHARS - 1);
+  const boundary = clipped.lastIndexOf(" ");
+  return `${(boundary > MAXIMUM_QUOTE_CHARS / 2
+    ? clipped.slice(0, boundary)
+    : clipped
+  ).trimEnd()}…`;
+}
+
 interface StoredWindow {
   id: string;
   minimized: boolean;
@@ -98,6 +120,10 @@ function viewportSize(): Viewport {
 export function useSideChats(parentConversationId: string | null) {
   const [available, setAvailable] = useState<SideChatSummary[]>([]);
   const [windows, setWindows] = useState<SideChatWindow[]>([]);
+  // Surfaced by the interface. A side chat that fails to open leaves nothing on
+  // screen to attach a message to, so an unreported error here is a click that
+  // silently does nothing — which is exactly what happened when the quote
+  // length limit was too low.
   const [error, setError] = useState("");
   const [isOpening, setIsOpening] = useState(false);
   // Restoration must not immediately overwrite what it just restored.
@@ -232,7 +258,7 @@ export function useSideChats(parentConversationId: string | null) {
               anchors: [
                 {
                   parent_turn_index: request.parentTurnIndex,
-                  quoted_text: request.quotedText,
+                  quoted_text: clampQuote(request.quotedText),
                 },
               ],
             }),
@@ -335,11 +361,14 @@ export function useSideChats(parentConversationId: string | null) {
     [windows],
   );
 
+  const dismissError = useCallback(() => setError(""), []);
+
   return {
     available,
     windows,
     openIds,
     error,
+    dismissError,
     isOpening,
     open,
     show,

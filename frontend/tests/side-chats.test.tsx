@@ -2,7 +2,11 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TurnView } from "@/components/conversation/turn-view";
-import { useSideChats } from "@/hooks/use-side-chats";
+import {
+  MAXIMUM_QUOTE_CHARS,
+  clampQuote,
+  useSideChats,
+} from "@/hooks/use-side-chats";
 import { readGeometry } from "@/lib/floating-window";
 import type { ChatTurn, SideChatSummary, TurnResult } from "@/lib/types";
 
@@ -96,6 +100,28 @@ describe("useSideChats", () => {
     expect(screen.getByText("thread new")).toBeInTheDocument();
   });
 
+  it("anchors a whole answer without sending a request that must be rejected", async () => {
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("new"));
+    await act(async () => {
+      await api().open({
+        parentTurnIndex: 0,
+        // Longer than the stored limit: real answers reach 34,000 characters.
+        quotedText: "sentence ".repeat(4_000),
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    const sent = JSON.parse((options as RequestInit).body as string);
+    expect(sent.anchors[0].quoted_text.length).toBeLessThanOrEqual(
+      MAXIMUM_QUOTE_CHARS,
+    );
+    expect(sent.anchors[0].quoted_text.endsWith("…")).toBe(true);
+  });
+
   it("reports a failure to open rather than silently doing nothing", async () => {
     apiFetch.mockResolvedValueOnce({ side_chats: [] });
     const api = mount();
@@ -108,6 +134,21 @@ describe("useSideChats", () => {
 
     expect(api().error).toBe("turn 9 is not part of the parent");
     expect(api().windows).toHaveLength(0);
+  });
+
+  it("clears a reported error when it is dismissed", async () => {
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+    apiFetch.mockRejectedValueOnce(new Error("nope"));
+    await act(async () => {
+      await api().open({ parentTurnIndex: 0, quotedText: "x" });
+    });
+    expect(api().error).toBe("nope");
+
+    act(() => api().dismissError());
+
+    expect(api().error).toBe("");
   });
 
   it("closing a window keeps the thread available to reopen", async () => {
@@ -292,6 +333,26 @@ function turn(overrides: Partial<ChatTurn> = {}): ChatTurn {
     ...overrides,
   };
 }
+
+describe("clampQuote", () => {
+  it("leaves a normal quote exactly as it was", () => {
+    expect(clampQuote("  the gap compounds  ")).toBe("the gap compounds");
+  });
+
+  it("cuts an over-long quote on a word boundary and marks the cut", () => {
+    const clamped = clampQuote("sentence ".repeat(4_000));
+
+    expect(clamped.length).toBeLessThanOrEqual(MAXIMUM_QUOTE_CHARS);
+    expect(clamped.endsWith("…")).toBe(true);
+    expect(clamped).not.toMatch(/ …$/);
+  });
+
+  it("still cuts text that has no word boundary to cut on", () => {
+    const clamped = clampQuote("x".repeat(MAXIMUM_QUOTE_CHARS + 500));
+
+    expect(clamped.length).toBeLessThanOrEqual(MAXIMUM_QUOTE_CHARS);
+  });
+});
 
 describe("asking on the side from a turn", () => {
   it("anchors to the index the server recorded, not the position on screen", () => {

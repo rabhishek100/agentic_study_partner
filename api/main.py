@@ -59,6 +59,7 @@ from storage.postgres import list_books, ready_book
 from storage.preferences import load_prompt_profile, save_prompt_profile
 from study.analyze import ConversationDecisionError
 from study.contracts import (
+    MAXIMUM_QUOTE_CHARS,
     AnswerArchetype,
     ContractModel,
     ConversationState,
@@ -187,7 +188,8 @@ class SideChatAnchorInput(ContractModel):
 
     anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
     parent_turn_index: int = Field(ge=0)
-    quoted_text: str = Field(min_length=1, max_length=4_000)
+    # Matches the stored contract; see the note on `QuoteAnchor.quoted_text`.
+    quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
 
 
 # More than a handful of references in one small window stops being a focused

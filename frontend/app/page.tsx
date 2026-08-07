@@ -290,6 +290,8 @@ export default function Page() {
           onFocus={sideChats.focus}
           onSettled={sideChats.noteSettled}
           onOpenReference={openReference}
+          error={sideChats.error}
+          onDismissError={sideChats.dismissError}
         />
       }
       documentControl={

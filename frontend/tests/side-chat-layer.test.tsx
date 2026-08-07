@@ -86,6 +86,43 @@ describe("SideChatLayer on a wide viewport", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("reports a side chat that could not be opened, when there is no window", () => {
+    // The case that made a click look like it did nothing at all.
+    const onDismissError = vi.fn();
+    render(
+      <SideChatLayer
+        windows={[]}
+        {...handlers()}
+        error="turn 9 is not part of the parent conversation"
+        onDismissError={onDismissError}
+      />,
+    );
+
+    expect(
+      screen.getByText("turn 9 is not part of the parent conversation"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss this message" }),
+    );
+    expect(onDismissError).toHaveBeenCalled();
+  });
+
+  it("reports an error alongside the windows that are open", () => {
+    render(
+      <SideChatLayer
+        windows={[windowState("a")]}
+        {...handlers()}
+        error="Could not reach the study API."
+      />,
+    );
+
+    expect(
+      screen.getByText("Could not reach the study API."),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("window-a")).toBeInTheDocument();
+  });
+
   it("stacks later windows above earlier ones", () => {
     render(
       <SideChatLayer

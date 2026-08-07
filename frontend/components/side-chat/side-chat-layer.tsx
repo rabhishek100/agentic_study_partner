@@ -1,9 +1,10 @@
 "use client";
 
-import { MessageSquare, X } from "lucide-react";
+import { AlertCircle, MessageSquare, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { SideChatWindow } from "@/components/side-chat/side-chat-window";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import { FLOATING_MIN_VIEWPORT_WIDTH } from "@/lib/floating-window";
@@ -45,6 +46,38 @@ export interface SideChatLayerProps {
   onFocus: (sideChatId: string) => void;
   onSettled: (sideChatId: string, recorded: boolean) => void;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  /** Reported here because a side chat that failed to open has no window. */
+  error?: string;
+  onDismissError?: () => void;
+}
+
+function SideChatError({
+  error,
+  onDismiss,
+}: {
+  error: string;
+  onDismiss?: () => void;
+}) {
+  return (
+    <div className="fixed bottom-3 left-1/2 z-40 w-[min(90vw,28rem)] -translate-x-1/2">
+      <Alert variant="destructive" className="bg-card shadow-lg">
+        <AlertCircle aria-hidden />
+        <AlertDescription className="flex items-start gap-2">
+          <span className="min-w-0 flex-1">{error}</span>
+          {onDismiss && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Dismiss this message"
+              onClick={onDismiss}
+            >
+              <X aria-hidden />
+            </Button>
+          )}
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
 }
 
 /**
@@ -62,6 +95,8 @@ export function SideChatLayer({
   onFocus,
   onSettled,
   onOpenReference,
+  error,
+  onDismissError,
 }: SideChatLayerProps) {
   const floating = useFloatingCapable();
   const [activeDocked, setActiveDocked] = useState<string | null>(null);
@@ -75,7 +110,13 @@ export function SideChatLayer({
     windows.at(-1) ??
     null;
 
-  if (windows.length === 0) return null;
+  // An error with no windows is the important case: the side chat could not be
+  // opened at all, so this is the only thing the reader has to go on.
+  if (windows.length === 0) {
+    return error ? (
+      <SideChatError error={error} onDismiss={onDismissError} />
+    ) : null;
+  }
 
   if (!floating) {
     return (
@@ -162,6 +203,7 @@ export function SideChatLayer({
 
   return (
     <>
+      {error && <SideChatError error={error} onDismiss={onDismissError} />}
       {windows.map((entry, index) => {
         const id = entry.sideChat.conversation_id;
         return (

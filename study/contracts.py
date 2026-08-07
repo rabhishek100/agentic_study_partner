@@ -151,6 +151,11 @@ class FigureRef(ContractModel):
     evidence_rank: int | None = None
 
 
+# The longest passage a side chat will store as an anchor. Set from measured
+# answer lengths rather than guessed: whole-answer anchors are the common case.
+MAXIMUM_QUOTE_CHARS = 16_000
+
+
 class QuoteAnchor(ContractModel):
     """One passage a reader carried from a conversation into a side chat.
 
@@ -162,7 +167,13 @@ class QuoteAnchor(ContractModel):
 
     anchor_id: str = Field(min_length=1, max_length=64)
     parent_turn_index: int = Field(ge=0)
-    quoted_text: str = Field(min_length=1, max_length=4_000)
+    # Wide enough for a whole answer, because anchoring a whole answer is one of
+    # the two ways a side chat is opened. The first limit here was 4,000
+    # characters, which rejected roughly half of real answers — an interview or
+    # deep-dive answer averages over 7,000 — and the interface reported nothing.
+    # Length is not what protects the model's context: `build_side_context`
+    # truncates a long quote to its token budget and records that it did.
+    quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
 
 
 class SideContextReport(ContractModel):
