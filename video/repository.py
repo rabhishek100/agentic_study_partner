@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -705,6 +706,71 @@ def _carry_forward(
     }
 
 
+def replace_derived_chapters(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    chapters: Sequence[Any],
+) -> int:
+    """Replace this video's derived outline, leaving any other kind alone.
+
+    Returns the number written, or -1 when the source published its own
+    chapters and nothing was done. A list the source shipped, or one a person
+    typed, is not ours to replace with a guess — deriving is what happens when
+    there is no such list, not a correction of one.
+    """
+
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    source = connection.execute(
+        """
+        select id from video.video_sources
+        where owner_id = %s and video_id = %s and is_primary
+        """,
+        (owner, video),
+    ).fetchone()
+    if source is None:
+        raise VideoNotFoundError("video has no primary source")
+
+    authored = connection.execute(
+        """
+        select count(*) as count from video.chapters
+        where owner_id = %s and video_id = %s and chapter_kind <> 'derived'
+        """,
+        (owner, video),
+    ).fetchone()["count"]
+    if authored:
+        return -1
+
+    connection.execute(
+        """
+        delete from video.chapters
+        where owner_id = %s and video_id = %s and chapter_kind = 'derived'
+        """,
+        (owner, video),
+    )
+    for chapter in chapters:
+        connection.execute(
+            """
+            insert into video.chapters (
+                owner_id, video_id, video_source_id, chapter_index,
+                chapter_kind, title, start_ms, end_ms, provenance_json
+            ) values (%s, %s, %s, %s, 'derived', %s, %s, %s, %s)
+            """,
+            (
+                owner,
+                video,
+                source["id"],
+                chapter.index,
+                chapter.title,
+                chapter.start_ms,
+                chapter.end_ms,
+                Jsonb(chapter.provenance()),
+            ),
+        )
+    return len(chapters)
+
+
 VIDEO_SELECT = """
     select v.id, v.owner_id, v.title, v.description, v.source_kind, v.duration_ms,
            v.readiness_status, v.playback_json, v.created_at, v.updated_at,
@@ -732,19 +798,14 @@ VIDEO_SELECT = """
            latest_job.started_at as latest_job_started_at,
            latest_job.updated_at as latest_job_updated_at,
            latest_job.completed_at as latest_job_completed_at,
-           -- Mirrors `delete_unacquired_video`, so the interface offers
-           -- removal only where it would succeed rather than discovering the
-           -- constraint through a 409.
+           -- Mirrors `delete_video`, so the interface offers removal only
+           -- where it would succeed rather than discovering the constraint
+           -- through a 409. An acquired source no longer blocks it: the
+           -- delete now unlinks the media it leaves unreferenced.
            (
                not exists (
                    select 1 from video.course_lectures as lecture
                    where lecture.owner_id = v.owner_id and lecture.video_id = v.id
-               )
-               and not exists (
-                   select 1 from video.video_sources as acquired
-                   where acquired.owner_id = v.owner_id
-                     and acquired.video_id = v.id
-                     and acquired.status = 'ready'
                )
                and not exists (
                    select 1 from video.ingestion_jobs as running
@@ -839,21 +900,98 @@ def update_video_metadata(
     return load_standalone_video(connection, video_id, owner_id=owner_id)
 
 
-def delete_unacquired_video(
+# Every column naming a media object that belongs to one video. Resources are
+# deliberately absent: a document is attached to a video rather than owned by
+# it, outlives the video, and may be attached to another one.
+_VIDEO_MEDIA_KEYS = """
+    select storage_key as key from video.video_sources
+     where owner_id = %(owner)s and video_id = %(video)s and storage_key is not null
+    union select storage_key from video.caption_uploads
+     where owner_id = %(owner)s and video_id = %(video)s
+    union select storage_key from video.transcript_sources
+     where owner_id = %(owner)s and video_id = %(video)s and storage_key is not null
+    union select full_storage_key from video.frames
+     where owner_id = %(owner)s and video_id = %(video)s
+    union select preview_storage_key from video.frames
+     where owner_id = %(owner)s and video_id = %(video)s
+    union select region.crop_storage_key from video.visual_regions as region
+      join video.frames as frame
+        on frame.id = region.frame_id and frame.owner_id = region.owner_id
+     where region.owner_id = %(owner)s and frame.video_id = %(video)s
+    union select staging_storage_key from video.ingestion_jobs
+     where owner_id = %(owner)s and video_id = %(video)s
+       and staging_storage_key is not null
+"""
+
+# The same objects across everything this owner still has, resources included.
+# Canonical media is addressed by content hash, so two videos that were given
+# the same file share one object on disk — which is not a hypothetical: a
+# caption uploaded to two videos is one key with two referents.
+_OWNER_MEDIA_KEYS = """
+    select storage_key as key from video.video_sources
+     where owner_id = %(owner)s and storage_key is not null
+    union select storage_key from video.caption_uploads where owner_id = %(owner)s
+    union select storage_key from video.transcript_sources
+     where owner_id = %(owner)s and storage_key is not null
+    union select full_storage_key from video.frames where owner_id = %(owner)s
+    union select preview_storage_key from video.frames where owner_id = %(owner)s
+    union select crop_storage_key from video.visual_regions where owner_id = %(owner)s
+    union select staging_storage_key from video.ingestion_jobs
+     where owner_id = %(owner)s and staging_storage_key is not null
+    union select storage_key from video.resources
+     where owner_id = %(owner)s and storage_key is not null
+    union select render_storage_key from video.resource_pages
+     where owner_id = %(owner)s and render_storage_key is not null
+"""
+
+
+@dataclass(frozen=True)
+class VideoDeletion:
+    """What a deleted video left behind, and what may be deleted with it."""
+
+    video_id: UUID
+    orphaned_keys: tuple[str, ...]
+    retained_keys: tuple[str, ...]
+
+
+def delete_video(
     connection: Connection, video_id: str | UUID, *, owner_id: str | UUID
-) -> bool:
+) -> VideoDeletion | None:
+    """Delete a video and report which of its media objects are now unused.
+
+    A failed ingestion that acquired its source before failing used to be
+    undeletable, because removing the row would have stranded gigabytes on the
+    volume with nothing left pointing at them. Refusing was the safe answer
+    while nothing could delete media; it is the wrong one now that the reader
+    is left with a permanently stuck card on a volume sized for a handful of
+    lectures.
+
+    Media is not unlinked here. The keys are collected before the delete and
+    re-checked against everything the owner still has *after* it, inside the
+    same transaction, so the caller unlinks only once the rows that named them
+    are committed. That order can orphan bytes if the unlink then fails, and a
+    later sweep can find those. The other order deletes bytes a surviving row
+    still points at, and nothing can find those.
+
+    Returns None when there is no such video, or when it is a course lecture or
+    has a job running — a running job holds a lease and writes into rows this
+    would delete underneath it.
+    """
+
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    parameters = {"owner": owner, "video": video}
+    held = {
+        row["key"]
+        for row in connection.execute(_VIDEO_MEDIA_KEYS, parameters).fetchall()
+        if row["key"]
+    }
     row = connection.execute(
         """
         delete from video.videos as v
-        where v.owner_id = %s and v.id = %s
+        where v.owner_id = %(owner)s and v.id = %(video)s
           and not exists (
               select 1 from video.course_lectures as lecture
               where lecture.owner_id = v.owner_id and lecture.video_id = v.id
-          )
-          and not exists (
-              select 1 from video.video_sources as source
-              where source.owner_id = v.owner_id and source.video_id = v.id
-                and source.status = 'ready'
           )
           and not exists (
               select 1 from video.ingestion_jobs as job
@@ -862,9 +1000,27 @@ def delete_unacquired_video(
           )
         returning id
         """,
-        (parse_owner_id(owner_id), UUID(str(video_id))),
+        parameters,
     ).fetchone()
-    return row is not None
+    if row is None:
+        return None
+    retained = (
+        {
+            item["key"]
+            for item in connection.execute(
+                f"select key from ({_OWNER_MEDIA_KEYS}) as referenced "
+                "where key = any(%(keys)s)",
+                parameters | {"keys": sorted(held)},
+            ).fetchall()
+        }
+        if held
+        else set()
+    )
+    return VideoDeletion(
+        video_id=video,
+        orphaned_keys=tuple(sorted(held - retained)),
+        retained_keys=tuple(sorted(retained)),
+    )
 
 
 def list_job_events(

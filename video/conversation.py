@@ -41,6 +41,8 @@ from video.lecture import (
     inventory_topics,
     load_chapters,
     load_lecture_scope,
+    restrict_chapters,
+    restrict_scope,
     summarize_lecture,
 )
 
@@ -169,6 +171,32 @@ def whole_lecture(
         owner_id=context.owner_id,
         video_id=context.video_id,
     )
+    stretch = decision.time_scope.label if decision.time_scope else None
+    if decision.time_scope is not None:
+        start_ms, end_ms = decision.time_scope.resolve(scope.duration_ms)
+        narrowed = restrict_scope(scope, start_ms=start_ms, end_ms=end_ms)
+        if not narrowed.windows:
+            # A stretch the transcript never reaches. Saying so beats
+            # summarizing the whole lecture as though that were what was asked.
+            return {
+                "result": VideoTurnResult(
+                    question=question,
+                    answer=(
+                        f"Insufficient evidence: this lecture has no transcript "
+                        f"over {decision.time_scope.label}."
+                    ),
+                    route=decision.route,
+                    history_dependency=decision.history_dependency,
+                    standalone_query=decision.standalone_query,
+                    outcome="abstain",
+                    retrieval_attempts=0,
+                    routing_reason=decision.reason,
+                    trace_id=_current_trace_id(),
+                )
+            }
+        scope = narrowed
+        chapters = restrict_chapters(chapters, start_ms=start_ms, end_ms=end_ms)
+
     produce = (
         summarize_lecture if decision.route == "lecture_summary" else inventory_topics
     )
@@ -179,6 +207,7 @@ def whole_lecture(
         chapters=chapters,
         dependencies=context.dependencies,
         token_callback=context.token_callback,
+        **({"stretch": stretch} if decision.route == "lecture_summary" else {}),
     )
     # Only the windows the answer actually cited are carried as evidence. All
     # of them were supplied, but listing two dozen transcript windows as
@@ -192,7 +221,7 @@ def whole_lecture(
             history_dependency=decision.history_dependency,
             standalone_query=decision.standalone_query,
             evidence=[
-                window for window in scope.windows if window.rank in cited
+                item for item in scope.citable if item.rank in cited
             ],
             citations=draft.citations,
             visual_cards=draft.visual_cards,
@@ -200,8 +229,13 @@ def whole_lecture(
             ingestion_version_id=str(scope.version_id),
             retrieval_attempts=0,
             sufficiency_reason=(
-                f"The complete transcript, in {len(scope.windows)} windows "
-                f"across {format_timestamp(scope.duration_ms)}"
+                (
+                    f"The transcript of {stretch}, in {len(scope.windows)} "
+                    "windows"
+                    if stretch
+                    else f"The complete transcript, in {len(scope.windows)} "
+                    f"windows across {format_timestamp(scope.duration_ms)}"
+                )
                 + (f" — {draft.coverage}." if draft.coverage else ".")
             ),
             warnings=list(draft.warnings),

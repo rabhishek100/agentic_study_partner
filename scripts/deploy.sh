@@ -2,11 +2,14 @@
 #
 # Deploy one service, and record what was deployed.
 #
-#   scripts/deploy.sh app     API and ingestion worker, one container
+#   scripts/deploy.sh api     API and ingestion worker, one container
 #   scripts/deploy.sh web
 #
-# `api` and `worker` remain accepted for a books-only two-service split. Video
-# needs `app`, because both processes have to share one media volume.
+# The service is named `api` for historical reasons and runs both processes:
+# they have to share one media volume, and a Railway volume mounts to exactly
+# one service. `worker` exists in the project from the books-only split and has
+# nothing deployed to it; `app` is not a service in this project at all, and
+# deploying to it fails rather than doing anything surprising.
 #
 # Two things this exists for, both learned the hard way.
 #
@@ -25,7 +28,7 @@ set -euo pipefail
 
 service="${1:-}"
 if [[ -z "$service" ]]; then
-    echo "usage: scripts/deploy.sh <app|web|api|worker>" >&2
+    echo "usage: scripts/deploy.sh <api|web|worker>" >&2
     exit 2
 fi
 

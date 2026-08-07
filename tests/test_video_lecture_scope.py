@@ -18,6 +18,8 @@ from video.lecture import (
     inventory_topics,
     load_chapters,
     load_lecture_scope,
+    restrict_chapters,
+    restrict_scope,
     summarize_lecture,
 )
 from video.models import MAXIMUM_LECTURE_COST_USD, MAXIMUM_TURN_COST_USD
@@ -55,6 +57,7 @@ class LectureRoutingTests(unittest.TestCase):
                 matched = lecture_scope_route(question)
                 self.assertIsNotNone(matched)
                 self.assertEqual(matched[0], "lecture_summary")
+                self.assertIsNone(matched[2])
 
         for question in (
             "list the topics discussed in this video",
@@ -68,6 +71,52 @@ class LectureRoutingTests(unittest.TestCase):
                 self.assertIsNotNone(matched)
                 self.assertEqual(matched[0], "topic_inventory")
 
+    def test_every_verb_a_reader_uses_for_the_whole_lecture(self) -> None:
+        """"Explain the lecture in full detail" went to top-k retrieval.
+
+        It came back saying the lecture could not be described from the
+        evidence — a correct abstention over a wrong route, which is the worst
+        combination: the machinery is behaving and the reader is told no.
+        Only "summarize" was ever matched; the verb varies far more than the
+        request does.
+        """
+
+        for question in (
+            "explain the lecture in full detail",
+            "explain this lecture",
+            "describe this video",
+            "tell me about this lecture",
+            "What is this lecture about?",
+            "what is this video about",
+            "go through the whole lecture",
+            "break down this lecture",
+            "take me through this recording",
+            "walk me through the whole talk",
+        ):
+            with self.subTest(question=question):
+                matched = lecture_scope_route(question)
+                self.assertIsNotNone(matched)
+                self.assertEqual(matched[0], "lecture_summary")
+                self.assertIsNone(matched[2])
+
+    def test_a_topic_that_says_where_it_lives_is_still_a_topic(self) -> None:
+        """The boundary the widened verbs must not cross.
+
+        "Explain the attention mechanism in this lecture" names a topic and
+        happens to end by saying where it is. Summarizing a hundred minutes in
+        reply would be the same failure in the other direction.
+        """
+
+        for question in (
+            "explain the attention mechanism in this lecture",
+            "describe the QK matrix",
+            "tell me about word2vec",
+            "explain the tokenization section",
+            "summarize what he said about attention in this lecture",
+        ):
+            with self.subTest(question=question):
+                self.assertIsNone(lecture_scope_route(question))
+
     def test_leaves_questions_about_one_topic_to_retrieval(self) -> None:
         for question in (
             # A summary verb narrowed to one topic is still a question.
@@ -80,6 +129,72 @@ class LectureRoutingTests(unittest.TestCase):
         ):
             with self.subTest(question=question):
                 self.assertIsNone(lecture_scope_route(question))
+
+    def test_a_request_for_part_of_the_lecture_still_summarizes(self) -> None:
+        """"The first half" used to fall through to top-k retrieval.
+
+        Fifty minutes of lecture answered from eight passages reads exactly
+        like a summary and is not one, which is the failure the whole-lecture
+        routes exist to prevent. Asking for half of it should not bring it
+        back.
+        """
+
+        duration = 6_000_000
+        expected = {
+            "summarize the first half": (0, 3_000_000),
+            "give me a recap of the second half": (3_000_000, 6_000_000),
+            "walk me through the middle third": (2_000_000, 4_000_000),
+            "summarize the final quarter": (4_500_000, 6_000_000),
+            "summarize the first 15 minutes": (0, 900_000),
+            "summarize the last 20 minutes": (4_800_000, 6_000_000),
+            "summarize from 20:00 to 40:00": (1_200_000, 2_400_000),
+        }
+        for question, span in expected.items():
+            with self.subTest(question=question):
+                matched = lecture_scope_route(question)
+                self.assertIsNotNone(matched)
+                route, _, scope = matched
+                self.assertEqual(route, "lecture_summary")
+                self.assertIsNotNone(scope)
+                self.assertEqual(scope.resolve(duration), span)
+
+    def test_a_whole_lecture_summary_carries_no_stretch(self) -> None:
+        route, _, scope = lecture_scope_route("Summarize this lecture")
+        self.assertEqual(route, "lecture_summary")
+        self.assertIsNone(scope)
+
+    def test_a_time_phrase_alone_is_not_a_summary_request(self) -> None:
+        for question in (
+            # Narrowed to one topic: a question that mentions a stretch.
+            "summarize what he said about attention in the first half",
+            # Not a stretch anyone can name.
+            "summarize the middle half",
+            # A stretch with no request attached to it.
+            "was the first half recorded?",
+        ):
+            with self.subTest(question=question):
+                self.assertIsNone(lecture_scope_route(question))
+
+    def test_asking_what_is_in_a_stretch_is_asking_for_its_summary(self) -> None:
+        """The verb varies; the request does not.
+
+        "What is described between 20:00 and 40:00" and "what happens in the
+        first half" both ask for an account of a stretch of lecture. Answering
+        either from eight retrieved passages is the same failure as answering
+        "summarize this" that way.
+        """
+
+        for question in (
+            "What is described between 20:00 and 24:00?",
+            "what happens in the first half?",
+            "What does he discuss in the last 20 minutes?",
+            "What is covered from 20:00 to 40:00?",
+        ):
+            with self.subTest(question=question):
+                matched = lecture_scope_route(question)
+                self.assertIsNotNone(matched)
+                self.assertEqual(matched[0], "lecture_summary")
+                self.assertIsNotNone(matched[2])
 
     def test_routes_without_calling_the_control_model(self) -> None:
         state = new_video_conversation_state(video_id=uuid4())
@@ -95,6 +210,122 @@ class LectureRoutingTests(unittest.TestCase):
 
         self.assertEqual(decision.route, "lecture_summary")
         self.assertEqual(decision.history_dependency, "independent")
+
+
+class RestrictedScopeTests(unittest.TestCase):
+    """Summarizing part of a lecture from exactly that part of it."""
+
+    def scope(self) -> LectureScope:
+        return LectureScope(
+            version_id=uuid4(),
+            windows=[
+                VideoEvidenceRef(
+                    rank=rank,
+                    evidence_id=f"w{rank}",
+                    modality="transcript",
+                    # Long enough to count as substantive; a window under
+                    # SUBSTANTIVE_WINDOW_CHARACTERS is optional coverage.
+                    excerpt=f"window {rank} content " * 20,
+                    retrieval_method="complete_transcript",
+                    score=1.0,
+                    start_ms=(rank - 1) * 60_000,
+                    end_ms=rank * 60_000,
+                )
+                for rank in range(1, 11)
+            ],
+            duration_ms=600_000,
+        )
+
+    def test_only_the_windows_the_stretch_touches_survive(self) -> None:
+        narrowed = restrict_scope(self.scope(), start_ms=300_000, end_ms=600_000)
+        self.assertEqual(
+            [window.rank for window in narrowed.windows], [6, 7, 8, 9, 10]
+        )
+
+    def test_ranks_keep_their_meaning_across_the_whole_lecture(self) -> None:
+        """A marker must mean the same moment in every turn.
+
+        Renumbering the narrowed windows from one would make [S1] the opening
+        of the lecture in one turn and its midpoint in the next, inside the
+        same conversation and the same reference panel.
+        """
+
+        narrowed = restrict_scope(self.scope(), start_ms=300_000, end_ms=600_000)
+        self.assertEqual(narrowed.windows[0].rank, 6)
+        self.assertEqual(narrowed.windows[0].start_ms, 300_000)
+        # The recording did not get shorter because the request did.
+        self.assertEqual(narrowed.duration_ms, 600_000)
+
+    def test_a_partly_overlapping_window_is_kept(self) -> None:
+        # Windows are cut on transcript boundaries and a half is not, so the
+        # window straddling the midpoint belongs to both halves.
+        narrowed = restrict_scope(self.scope(), start_ms=330_000, end_ms=600_000)
+        self.assertEqual(narrowed.windows[0].rank, 6)
+
+    def test_coverage_is_checked_over_the_stretch_that_was_asked_for(self) -> None:
+        narrowed = restrict_scope(self.scope(), start_ms=300_000, end_ms=600_000)
+        units = coverage_units(narrowed, [])
+        self.assertEqual(len(units), 5)
+        # Citing the first half does not cover the second.
+        self.assertFalse(evaluate_coverage("Opening [S1][S2].", units).complete)
+        self.assertTrue(
+            evaluate_coverage(
+                "A [S6]. B [S7]. C [S8]. D [S9]. E [S10].", units
+            ).complete
+        )
+
+    def test_chapters_outside_the_stretch_are_not_offered_as_an_outline(
+        self,
+    ) -> None:
+        chapters = [
+            {"chapter_index": 0, "title": "Opening", "start_ms": 0, "end_ms": 200_000},
+            {
+                "chapter_index": 1,
+                "title": "Middle",
+                "start_ms": 200_000,
+                "end_ms": 400_000,
+            },
+            {
+                "chapter_index": 2,
+                "title": "Close",
+                "start_ms": 400_000,
+                "end_ms": 600_000,
+            },
+        ]
+        kept = restrict_chapters(chapters, start_ms=300_000, end_ms=600_000)
+        self.assertEqual([chapter["title"] for chapter in kept], ["Middle", "Close"])
+
+    def test_the_prompt_is_told_it_is_summarizing_a_stretch(self) -> None:
+        """Otherwise "cover the whole lecture" licenses inventing the rest."""
+
+        narrowed = restrict_scope(self.scope(), start_ms=300_000, end_ms=600_000)
+        model = FakeSummaryModel("Second half [S6][S7][S8][S9][S10].")
+        summarize_lecture(
+            question="summarize the second half",
+            scope=narrowed,
+            video_title="Lecture",
+            chapters=[],
+            dependencies=VideoAnswerDependencies(model=model),
+            stretch="the second half",
+        )
+
+        system = model.calls[0][0]["content"]
+        self.assertIn("the second half", system)
+        self.assertIn("nothing about the parts of the recording outside it", system)
+
+    def test_a_whole_lecture_summary_is_told_nothing_about_stretches(self) -> None:
+        model = FakeSummaryModel("Everything [S1].")
+        summarize_lecture(
+            question="summarize this lecture",
+            scope=self.scope(),
+            video_title="Lecture",
+            chapters=[],
+            dependencies=VideoAnswerDependencies(model=model),
+        )
+        self.assertNotIn(
+            "nothing about the parts of the recording outside it",
+            model.calls[0][0]["content"],
+        )
 
 
 class LectureCostCeilingTests(unittest.TestCase):

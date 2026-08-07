@@ -206,6 +206,239 @@ exact comparison only as a debugging aid; retrieval coverage and the optional
 answer judge are the semantic signals. Python-enforced schemas and canonical
 scope selection remain the safety boundary.
 
+## Video lecture conversation set
+
+`video_gold.json` is the video half's gold set: 12 conversations and 43 turns
+over the published Stanford CME 295 Lecture 1. It covers the question types a
+reader actually asks of a lecture that has a slide deck attached to it:
+
+| Kind | Where |
+|---|---|
+| Whole-lecture summary and topic inventory | vc-001 |
+| Answer transformation, with no new facts | vc-001 |
+| Exact-term and paraphrased retrieval from the transcript | vc-002, vc-003, vc-004 |
+| Follow-ups whose referent is only in the history | throughout; 16 rewrite probes |
+| Questions about what was on screen | vc-005, vc-012 |
+| Requests the lecture does not answer | vc-006 |
+| Course logistics, and a four-word follow-up | vc-007 |
+| Detail from the last quarter of the lecture | vc-008 |
+| Content from the linked document, by page | vc-009, vc-012 |
+| Sections listed, and one explained | vc-010 |
+| Stretches named by the clock | vc-011 |
+| One thread across transcript, screen and deck | vc-012 |
+
+Until it existed, every video feature was verified as working and none as
+better. That is the gap `AGENTS.md` calls non-negotiable, and it is why this
+set was built before anything further was added to the video path.
+
+### What a judgment is
+
+The unit is **a stretch of lecture** — a millisecond span plus the modalities
+that can satisfy it — not an evidence-unit row. Evidence unit ids are derived
+data and change on every rebuild, exactly as chunk ids do for books; the book
+set judges TOC nodes for that reason, and the video equivalent of a node is
+the moment a claim comes from. An anchor is satisfied when a retrieved item of
+a listed modality overlaps the span at all, because retrieval windows and
+caption cues are cut on different boundaries.
+
+The linked document is the exception, and names **pages** instead. A slide deck
+has no timestamps, and ingestion deliberately refuses to invent an alignment
+between its pages and the lecture, so an anchor names whichever locator its
+modality actually has. That content is also on screen — these were the slides —
+so what a page anchor tests is not that the fact is exclusive to the file, but
+that a reader who names the deck is answered from the deck, with a page they
+can open.
+
+Anchors were read off the canonical transcript rather than recalled. A pooling
+pass over the first run's results then added visual modalities to eight anchors
+whose slide is on screen inside their own span and genuinely carries the answer
+— the Tokenization summary table lists the cons of character-level tokenization
+in as many words. Anchors were left transcript-only wherever the slide did not
+carry the claim. No span was widened to reach a slide and no anchor was changed
+because a run had failed it.
+
+### The two behaviours that were failing silently
+
+**Summary coverage meant cited, not covered.** `video.lecture.evaluate_coverage`
+counts a stretch satisfied when any marker points at it, so "the lecture then
+moves on [S12]" satisfies window 12 and the runtime reports "24 of 24 required
+stretches cited". `evals/video_coverage.py` measures the second thing: whether
+the claim carrying the marker shares the distinctive vocabulary of that stretch,
+where distinctive is TF-IDF computed across the lecture's own windows so a term
+earns its place by being concentrated rather than frequent.
+
+**Follow-up rewriting had no replay.** Every dependent follow-up is now
+retrieved three ways against the same version and the same anchors — as the
+reader typed it, as the router rewrote it, and as the gold rewrite — so the
+only thing that differs between arms is the query.
+
+### Measured results
+
+43 turns, hosted database, hybrid retrieval, no answer judge. "First" is the
+baseline the set was built against; "current" is after the retrieval and prompt
+changes described below, on the expanded set.
+
+| Measurement | First (29 turns) | Current (43 turns) |
+|---|---:|---:|
+| Route accuracy | 1.000 | 1.000 |
+| History-dependency accuracy | 0.862 | 0.953 |
+| Outcome accuracy | 0.931 | 1.000 |
+| Required-evidence recall | 0.750 | 0.900 |
+| Cited-evidence recall | 0.385 | 0.775 |
+| Citation validity | 1.000 | 1.000 |
+| Visual evidence present, where required | 1.000 | 1.000 |
+| Execution errors | 0 | 0 |
+
+The two figures are not strictly comparable — the current set is larger and
+harder, containing document, section and time-range questions the first did
+not. Both directions of that matter: the recall gain is understated because
+the questions got harder, and no single number should be quoted without the
+set version beside it.
+
+Summary coverage on the whole-lecture summary: **24 of 24 stretches cited, 23
+of 24 substantive, 1 vacuous citation.** The one flagged is a window straddling
+the end of the historical timeline and the start of tokenization, where the
+summary reported the timeline and said nothing about the tokenization half. A
+borderline case, and the right call: the stretch was cited and only partly
+covered. Earlier runs scored 24 of 24, so this varies run to run.
+
+The rewriting replay, over 16 follow-ups the router rewrote in all 16 cases:
+
+| Query sent to retrieval | Mean anchor recall |
+|---|---:|
+| As the reader typed it | 0.563 |
+| As the router rewrote it | 0.875 |
+| The gold rewrite | 0.938 |
+
+Rewriting helped 7 follow-ups, hurt 2, and changed nothing for 7, capturing
+**83% of the recall the gold rewrite shows was available**. That is the
+evidence that the rewriting call earns its cost rather than merely resolving a
+pronoun — and the two it hurts are stable across three runs, so the tail is
+real rather than noise.
+
+Retrieval alone, scored from the gold rewrites with nothing generated:
+**anchor recall 0.909, 30 of 33 turns fully covered.**
+
+### What the set found, and what it cost to fix
+
+Retrieval changes are iterated in `--retrieval-only`, which scores anchor
+recall from each turn's gold rewrite with nothing generated — one query
+embedding per turn. Routing, answering and conversation state are held still,
+so a change in the number is a change in retrieval and nothing else. Every row
+below is one run of it.
+
+The first diagnosis came from the modality mix rather than from the recall.
+Across the set, **133 of 184 evidence slots went to frames** and almost exactly
+one per answer went to the transcript — and that one held six words. The cause
+is mechanical, not editorial: a frame's description runs to about 1,600
+characters, a caption cue to about 30, so the frame wins on lexical and vector
+scores nearly regardless of the question.
+
+| Change | Anchor recall |
+|---|---:|
+| Baseline, 8 conversations | 0.761 |
+| A share of the evidence per modality | 0.804 |
+| Retrieved cues widened into passages | 0.848 |
+| *Expanded to 12 conversations, harder questions* | *0.736* |
+| Shortlist cut per modality instead of globally | **0.879** |
+
+Three changes were tried and reverted because the measurement disagreed with
+the theory. Cutting the **fused** ranking per modality as well — the
+shortlists feeding it already are — cost 3 points: the fused order is what
+tells the budget which frames are the *right* frames. A longer shortlist at
+`limit * 8` cost 6 points, by letting weakly-matching frames into the fusion
+for the budget to then spend its visual share on. And topping each modality up
+to a floor after the global cut changed which turns failed without changing
+how many. All three are recorded next to the constants they concern, so nobody
+re-runs them.
+
+The ablation then found a defect the recall number could not, because it only
+appears when the *router's* rewrite is used rather than the gold one — and
+tracing it properly took two attempts, which is worth recording.
+
+Asked what the lecturer suggests instead of one-hot encoding, the answer
+retrieved the word2vec stretch — anchor recall 1.0 — and described it as
+"learning dense embedding vectors for the tokens from data" without ever
+writing *word2vec*. The follow-up "what are its two variants?" was then
+rewritten faithfully, by copying the only name the history contained, into a
+query for a phrase the recording does not say. Retrieval missed and the turn
+abstained.
+
+The first fix went to the rewriting prompt, and one sample made it look like it
+had worked. It had not: the router was already doing what it was told, and
+there was simply no name in the history to copy. The real fix is in the answer
+prompt, which now asks for the lecture's own names — word2vec, BLEU,
+CoNLL-2003 — rather than descriptions of what they do. A description reads
+perfectly well and leaves both the reader and every follow-up holding a phrase
+that is not in the index.
+
+The lesson generalises past this bug: in a multi-turn system an answer is also
+an input, so a vague answer degrades every question that follows it, and the
+damage shows up somewhere other than where it was caused.
+
+Three turns still miss, and they are kept rather than tuned away:
+
+- **vc-005-t3** and **vc-012-t1** reach the right region and stop just short of
+  the anchor — the slide after the one wanted, the minute after the claim.
+- **vc-010-t3** asks what "the section *after* word representation" introduces,
+  which needs a section index the lecture does not publish. Its gold rewrite
+  fails too, so this is a limitation rather than a rewriting fault.
+
+### Reading these numbers honestly
+
+- The set is **transcript-authored and pending human review**. Anchors were
+  read from canonical content, not recalled, but no second reader has confirmed
+  that each listed span is the narrowest or the only stretch that answers its
+  question.
+- **A laptop run has no frame images.** They live on the deployed volume, so
+  visual evidence arrives as its OCR and description text without the image
+  production attaches. Visual turns are therefore weaker here than in
+  production, and the runner logs a warning when this is the case.
+- **The linked deck's extracted text is damaged.** Roughly half its pages have
+  lost most lowercase `s` characters — "Hi tory of attention", "Preci ion",
+  "Data et" — which is a font-encoding problem in PDF extraction, not OCR
+  noise. It degrades both lexical and vector search over the document, so the
+  document-anchored turns are scoring against a handicapped index. Fixing it
+  needs a resource re-ingest and has not been done.
+- The two remaining history-dependency misses are turns labelled independent
+  and classified dependent. One exposes a real over-trigger: the deterministic
+  history-reference rule fires on "its" in "compared with its input", where the
+  pronoun refers inside its own sentence rather than to an earlier turn.
+- Cited-evidence recall (0.775) sits below retrieval recall (0.900): the answer
+  cites fewer of the stretches it was given than it reached. Narrowed by the
+  work above, from a gap of more than two to one, but not closed.
+- **Nothing here is deployed.** Quality gates and evidence are derived data, so
+  the published lecture keeps whatever it was last built with until it is
+  re-ingested, and deploys are `railway up` per service.
+
+### Running it
+
+Validate the set before trusting a run. The canonical pass checks that every
+anchor has evidence of a listed modality actually existing inside its span, so
+a dataset that asks for the unreachable fails loudly instead of scoring zero:
+
+```bash
+uv run python -m scripts.validate_video_gold --owner-id "$VIDEO_OWNER_ID"
+```
+
+Run the smoke set — one rewriting thread and the three abstentions — before a
+complete baseline:
+
+```bash
+uv run python -m scripts.evaluate_video --smoke --owner-id "$VIDEO_OWNER_ID"
+```
+
+```bash
+uv run python -m scripts.evaluate_video --all --owner-id "$VIDEO_OWNER_ID"
+```
+
+`--judge-answers` adds the optional semantic rubric, and
+`--no-rewrite-ablation` skips the two extra retrievals per probe. Runs write
+`results.json` and a filterable `report.html` under
+`evaluation/runs/video/<timestamp>/` and are gitignored. The owner is supplied
+explicitly because the lecture belongs to a real account rather than to the
+local bootstrap owner.
+
 ## Seed set
 
 `retrieval_gold_seed.json` is the first retrieval-only gold set. It is

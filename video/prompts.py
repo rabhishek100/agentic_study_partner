@@ -44,6 +44,11 @@ Grounding requirements:
   came from.
 - When a document page and a frame both support a claim, cite both: the page is
   the stable reference and the frame is the moment it was shown.
+- Name things the way the lecture names them. When the evidence gives a method,
+  a paper, a dataset or a model a name — word2vec, BLEU, CoNLL-2003 — use the
+  name rather than describing what it does. A description reads perfectly well
+  and leaves the reader, and every follow-up that refers back to this answer,
+  holding a phrase the recording never contains.
 - Answer the question that was asked, at the length it deserves. Do not pad
   with background the evidence did not raise.
 - If the evidence cannot support an answer, begin your response exactly with
@@ -221,6 +226,16 @@ def render_windows(windows: list[VideoEvidenceRef]) -> str:
     )
 
 
+def render_slides(slides: list[VideoEvidenceRef]) -> str:
+    """Number every slide the same way the windows are numbered."""
+
+    return "\n\n".join(
+        f"[S{slide.rank}] Slide on screen at "
+        f"{format_timestamp(slide.start_ms)}\n{slide.excerpt}"
+        for slide in slides
+    )
+
+
 def _outline(chapters: list[dict[str, Any]]) -> str:
     return "\n".join(
         f"- {format_timestamp(int(chapter['start_ms']))} {chapter['title']}"
@@ -247,6 +262,8 @@ def build_summary_messages(
     chapters: list[dict[str, Any]],
     duration_ms: int,
     units=(),
+    slides: list[VideoEvidenceRef] | None = None,
+    stretch: str | None = None,
     part: tuple[int, int] | None = None,
 ) -> list[dict[str, Any]]:
     """One summarization request over a consecutive stretch of the lecture."""
@@ -255,6 +272,18 @@ def build_summary_messages(
         LOCKED_SUMMARY_PROMPT,
         f"Lecture: {video_title} ({format_timestamp(duration_ms)} long)",
     ]
+    if stretch:
+        # The locked prompt says "the whole lecture" because that is the usual
+        # request. When the reader asked for part of it, only that part's
+        # windows are supplied, and the model must be told so — otherwise
+        # "cover the whole lecture" reads as licence to describe the rest of it
+        # from nothing.
+        system.append(
+            f"The reader asked about {stretch} only. The supplied windows are "
+            f"that stretch, and they are all of it. Treat 'the whole lecture' "
+            "above as meaning this stretch: cover it end to end, and say "
+            "nothing about the parts of the recording outside it."
+        )
     required = render_coverage(units)
     if required:
         system.append(f"Required coverage:\n{required}")
@@ -271,6 +300,16 @@ def build_summary_messages(
             f"This is stretch {index} of {total}. Summarize only what is "
             "supplied; another pass combines the stretches afterwards."
         )
+    if slides:
+        # Named as slides, not as more transcript: the model must not report
+        # something it read off a slide as something the lecturer said.
+        system.append(
+            "One slide per section is supplied alongside the transcript. Cite "
+            "a slide marker where the section is about what was on screen, so "
+            "the reader is shown it. Cite the transcript for what was said. "
+            "A slide is not speech: never write that the lecturer said "
+            "something because a slide states it."
+        )
     return [
         {"role": "system", "content": "\n\n".join(system)},
         {
@@ -278,6 +317,7 @@ def build_summary_messages(
             "content": (
                 f"Request: {question}\n\n"
                 f"Transcript windows:\n{render_windows(windows)}"
+                + (f"\n\nSlides:\n{render_slides(slides)}" if slides else "")
             ),
         },
     ]

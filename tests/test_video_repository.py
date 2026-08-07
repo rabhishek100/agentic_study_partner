@@ -11,7 +11,7 @@ from video.repository import (
     confirm_resource_suggestion,
     create_url_resource,
     create_youtube_video,
-    delete_unacquired_video,
+    delete_video,
     detach_video_resource,
     dismiss_resource_suggestion,
     initialize_video_upload,
@@ -249,17 +249,17 @@ class VideoRepositoryTests(unittest.TestCase):
                 title="  New title  ",
                 description="  Explanation  ",
             )
-            foreign_delete = delete_unacquired_video(
+            foreign_delete = delete_video(
                 database, created.video_id, owner_id=self.owner_b
             )
-            own_delete = delete_unacquired_video(
+            own_delete = delete_video(
                 database, created.video_id, owner_id=self.owner_a
             )
 
         self.assertEqual(updated["title"], "New title")
         self.assertEqual(updated["description"], "Explanation")
-        self.assertFalse(foreign_delete)
-        self.assertTrue(own_delete)
+        self.assertIsNone(foreign_delete)
+        self.assertIsNotNone(own_delete)
 
     def test_external_resource_detach_preserves_canonical_resource(self) -> None:
         with connection(self.database_url) as database:

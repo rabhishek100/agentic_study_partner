@@ -15,7 +15,11 @@ from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from video.contracts import VideoConversationState, VideoTurnDecision
+from video.contracts import (
+    VideoConversationState,
+    VideoTimeScope,
+    VideoTurnDecision,
+)
 from video.models import control_model
 
 
@@ -26,11 +30,70 @@ from video.models import control_model
 # wrong. Anything not matched here falls through to the control model.
 THIS_LECTURE = r"(?:this|the|his|her|their)\s+(?:whole\s+|entire\s+|full\s+)?" \
     r"(?:video|lecture|talk|recording|session|class)"
+# Every verb a reader uses to ask for the whole thing. "Summarize" was the only
+# one matched, so "explain the lecture in full detail" fell through to top-k
+# retrieval, which found eight passages and correctly reported that it could
+# not explain a hundred minutes from them. The abstention was right and the
+# route was wrong: a reader had asked for the whole lecture and been told the
+# lecture could not be described.
+WHOLE_LECTURE_VERB = (
+    r"summari[sz]e|summary\s+of|recap|overview\s+of|tl;?dr(?:\s+of)?|sum\s+up|"
+    r"walk\s+me\s+through|take\s+me\s+through|run\s+through|"
+    r"go\s+(?:back\s+)?(?:over|through)|explain|describe|break\s+down|"
+    r"tell\s+me\s+about"
+)
 SUMMARY_REQUEST = re.compile(
-    rf"\b(?:summari[sz]e|summary\s+of|recap|overview\s+of|tl;?dr(?:\s+of)?|"
-    rf"sum\s+up|walk\s+me\s+through)\b[^?.]*?\b{THIS_LECTURE}\b"
+    # At most two words between the verb and the recording, so the recording is
+    # what the verb acts on. "Explain the attention mechanism in this lecture"
+    # names a topic and happens to end by saying where it lives; the looser gap
+    # this replaces would have summarized the whole lecture in reply.
+    rf"\b(?:{WHOLE_LECTURE_VERB})\b\W+(?:\w+\W+){{0,2}}?{THIS_LECTURE}\b"
+    rf"|\bwhat(?:'s|\s+is|\s+was)\s+{THIS_LECTURE}\s+about\b"
     rf"|^\s*(?:give\s+me\s+)?(?:a\s+)?(?:short\s+|brief\s+|quick\s+)?"
     rf"(?:summary|recap|overview|tl;?dr)\s*[?.!]*\s*$",
+    re.IGNORECASE,
+)
+# The verbs that ask for a summary, without requiring the whole-lecture noun
+# that SUMMARY_REQUEST needs. A time scope supplies the scope by itself.
+#
+# The second group is wider than "summarize" on purpose. "What is described
+# between 20:00 and 40:00" and "what happens in the first half" are requests
+# for an account of a stretch of lecture, and answering either from eight
+# retrieved passages is the same failure the whole-lecture routes exist to
+# prevent — it is only the verb that differs. These are matched solely when a
+# time scope is also present, so an unscoped "what happens" stays a question.
+SUMMARY_VERB = re.compile(
+    r"\b(?:summari[sz]e|summary|recap|overview|tl;?dr|sum\s+up|"
+    r"walk\s+me\s+through|go\s+(?:back\s+)?(?:over|through)|"
+    r"describ(?:e[sd]?|ing)|discuss(?:e[sd]|es)?|cover(?:ed|s)?|"
+    r"happen(?:ed|s)?|talk(?:ed|s)?\s+about|goes?\s+on|"
+    r"what(?:'s|\s+is|\s+was)\s+in)\b",
+    re.IGNORECASE,
+)
+ORDINALS: dict[str, int | None] = {
+    "first": 0,
+    "second": 1,
+    "third": 2,
+    "fourth": 3,
+    "middle": None,
+    "last": -1,
+    "final": -1,
+}
+FRACTIONS = {"half": 2, "third": 3, "quarter": 4}
+FRACTION_RANGE = re.compile(
+    r"\b(?P<ordinal>first|second|third|fourth|middle|last|final)\s+"
+    r"(?P<part>half|third|quarter)\b",
+    re.IGNORECASE,
+)
+MINUTE_RANGE = re.compile(
+    r"\b(?P<which>first|last|final)\s+(?P<count>\d{1,3})\s*"
+    r"(?:minutes?|mins?)\b",
+    re.IGNORECASE,
+)
+EXPLICIT_RANGE = re.compile(
+    r"\b(?:from|between)?\s*(?P<from>\d{1,3}:\d{2}(?::\d{2})?)\s*"
+    r"(?:to|and|until|through|[-–—])\s*"
+    r"(?P<to>\d{1,3}:\d{2}(?::\d{2})?)",
     re.IGNORECASE,
 )
 TOPIC_NOUN = r"(?:topics?|subjects?|themes?|sections?|chapters?)"
@@ -46,8 +109,13 @@ INVENTORY_REQUEST = re.compile(
 )
 # "Summarize what he said about attention" is a retrieval question wearing a
 # summary verb: it is about one topic, not about the recording.
+#
+# Unless the thing it is about *is* the recording. "Tell me about this lecture"
+# and "what is this video about" are whole-lecture requests that happen to
+# contain the word, and reading them as narrowed sent both to retrieval.
 NARROWED = re.compile(
-    r"\b(?:about|regarding|concerning|on\s+the\s+topic\s+of)\b", re.IGNORECASE
+    rf"\b(?:about|regarding|concerning|on\s+the\s+topic\s+of)\s+(?!{THIS_LECTURE}\b)",
+    re.IGNORECASE,
 )
 # Words that point at something an earlier turn established. Their presence
 # does not decide the route, but a question containing one cannot honestly be
@@ -65,21 +133,100 @@ CLARIFICATION_REPLY_WORDS = 6
 SELF_CONTAINED_WORDS = 8
 
 
-def lecture_scope_route(question: str) -> tuple[str, str] | None:
-    """Match a whole-lecture request, returning its route and the reason."""
+def lecture_scope_route(
+    question: str,
+) -> tuple[str, str, VideoTimeScope | None] | None:
+    """Match a lecture-scope request, returning its route, reason, and stretch.
+
+    A time-scoped request is checked first. "Summarize the first half" carries
+    a summary verb and no whole-lecture noun, so it used to fall through to
+    retrieval — which answers a request about fifty minutes of lecture from
+    eight passages and reads exactly like a summary. That is the failure the
+    whole-lecture routes exist to prevent, and asking for half the lecture
+    should not reintroduce it.
+    """
 
     cleaned = " ".join(question.split())
     if INVENTORY_REQUEST.search(cleaned):
         return (
             "topic_inventory",
             "The request asks what the whole lecture covers.",
+            None,
+        )
+    scope = parse_time_scope(cleaned)
+    if scope and SUMMARY_VERB.search(cleaned) and not NARROWED.search(cleaned):
+        return (
+            "lecture_summary",
+            f"The request asks for a summary of {scope.label}.",
+            scope,
         )
     if SUMMARY_REQUEST.search(cleaned) and not NARROWED.search(cleaned):
         return (
             "lecture_summary",
             "The request asks for a summary of the whole lecture.",
+            None,
         )
     return None
+
+
+def parse_time_scope(question: str) -> VideoTimeScope | None:
+    """The stretch of lecture a request names, if it names one.
+
+    Deterministic for the same reason the whole-lecture match is: "the first
+    half" is not ambiguous, and paying a model to divide two by one adds
+    latency and a way to be wrong. A phrase this does not recognise is simply
+    not a time-scoped request, and falls through to the routes below it.
+    """
+
+    explicit = EXPLICIT_RANGE.search(question)
+    if explicit:
+        start = _timestamp_ms(explicit.group("from"))
+        end = _timestamp_ms(explicit.group("to"))
+        if start < end:
+            return VideoTimeScope(
+                label=f"{explicit.group('from')}–{explicit.group('to')}",
+                start_ms=start,
+                end_ms=end,
+            )
+
+    minutes = MINUTE_RANGE.search(question)
+    if minutes:
+        span = int(minutes.group("count")) * 60_000
+        which = minutes.group("which").lower()
+        label = f"the {which} {minutes.group('count')} minutes"
+        if which == "first":
+            return VideoTimeScope(label=label, start_ms=0, end_ms=span)
+        return VideoTimeScope(label=label, tail_ms=span)
+
+    fraction = FRACTION_RANGE.search(question)
+    if fraction:
+        parts = FRACTIONS[fraction.group("part").lower()]
+        index = ORDINALS[fraction.group("ordinal").lower()]
+        if index is None:
+            # "the middle third" is the one that exists; a "middle half" does
+            # not name a stretch, so it is not treated as one.
+            if parts != 3:
+                return None
+            index = 1
+        if index < 0:
+            index = parts - 1
+        if index >= parts:
+            return None
+        return VideoTimeScope(
+            label=f"the {fraction.group('ordinal').lower()} "
+            f"{fraction.group('part').lower()}",
+            start_ratio=index / parts,
+            end_ratio=(index + 1) / parts,
+        )
+    return None
+
+
+def _timestamp_ms(value: str) -> int:
+    parts = [int(part) for part in value.split(":")]
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    hours, minutes, seconds = parts[-3:]
+    return ((hours * 60 + minutes) * 60 + seconds) * 1000
 
 
 class VideoDecisionError(RuntimeError):
@@ -118,8 +265,14 @@ Routes:
 For evidence_qa, return one standalone query that is understandable with no
 chat history. Replace pronouns and vague labels — "that diagram", "the one he
 drew after", "it" — with the named referent from the earlier turns, keeping
-any timestamp or topic context that identifies it. Do not expand the question,
-invent search terms, or write an answer.
+any timestamp or topic context that identifies it.
+
+Use the name the earlier turn used, not a description of it. If the previous
+answer said word2vec, the rewrite says word2vec — not "learned embeddings for
+token representations". The retrieval index holds what the lecturer actually
+said, so a paraphrase searches for words the recording may never contain.
+
+Do not expand the question, invent search terms, or write an answer.
 
 Prefer evidence_qa. A question naming a real technical concept is never
 clarify, even if the lecture might cover it in several places. Use clarify
@@ -151,11 +304,12 @@ def analyze_turn(
         raise VideoDecisionError("a question is required")
     scoped = lecture_scope_route(cleaned)
     if scoped:
-        route, reason = scoped
+        route, reason, time_scope = scoped
         return VideoTurnDecision(
             route=route,
             history_dependency="independent",
             standalone_query=cleaned,
+            time_scope=time_scope,
             reason=reason,
         )
     resolved = resolve_clarification(cleaned, state)

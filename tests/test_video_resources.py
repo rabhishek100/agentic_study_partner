@@ -435,8 +435,15 @@ class DocumentFocusedRetrievalTests(unittest.TestCase):
         candidates += [unit(index + 10, "resource_page") for index in range(4)]
         candidates.append(unit(20, "transcript"))
 
-        self.assertTrue(DOCUMENT_FOCUS.search("what do the slides say?"))
+        self.assertTrue(DOCUMENT_FOCUS.search("what does the deck say?"))
+        self.assertTrue(DOCUMENT_FOCUS.search("which page of the pdf covers it?"))
         self.assertIsNone(DOCUMENT_FOCUS.search("what did he explain first?"))
+        # "Slide" means the thing on the screen. Treating it as a request for
+        # the attached file spent three of eight slots on pages when the reader
+        # asked what was projected, and cost anchor recall on the gold set.
+        self.assertIsNone(
+            DOCUMENT_FOCUS.search("what is shown on the slide?")
+        )
 
         ordinary = _balanced_direct(list(candidates), limit=8, document_floor=1)
         focused = _balanced_direct(

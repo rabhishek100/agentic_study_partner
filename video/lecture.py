@@ -13,7 +13,7 @@ for a chapter summary: retrieve the complete subtree, not the best matches.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Any
 from uuid import UUID
@@ -58,6 +58,10 @@ SUBSTANTIVE_WINDOW_CHARACTERS = 240
 # One repair pass. A second has nothing new to say: the same evidence was
 # already supplied twice, and a third call mostly spends money to reword.
 COVERAGE_REPAIR_ATTEMPTS = 1
+# How much of a slide's description travels with the summary prompt. The whole
+# transcript is already there; a full description is about 1,600 characters and
+# one per chapter would add half the transcript again.
+SLIDE_EXCERPT_CHARACTERS = 320
 
 
 class NoTranscriptError(LookupError):
@@ -78,11 +82,15 @@ class CoverageUnit:
 
     key: str
     label: str
-    window_ranks: tuple[int, ...]
+    # Every marker that would satisfy this unit: its transcript windows, and
+    # its own slide where the lecture has one. A summary that shows the
+    # tokenization slide and says what is on it has covered tokenization.
+    ranks: tuple[int, ...]
     required: bool
+    window_ranks: tuple[int, ...] = ()
 
     def satisfied_by(self, cited_ranks: set[int]) -> bool:
-        return any(rank in cited_ranks for rank in self.window_ranks)
+        return any(rank in cited_ranks for rank in self.ranks)
 
 
 @dataclass(frozen=True)
@@ -106,15 +114,29 @@ class SummaryCoverage:
 
 @dataclass(frozen=True)
 class LectureScope:
-    """The complete published transcript, in citable windows."""
+    """The complete published transcript, in citable windows.
+
+    Plus one slide per chapter, when the lecture has chapters and showed
+    anything. A summary built only from the transcript can describe a slide-
+    based lecture without ever showing a slide — which is what happened: the
+    interface renders a cited frame beside the claim that cites it, and a
+    whole-lecture summary had no frame to cite because it was never given one.
+    """
 
     version_id: UUID
     windows: list[VideoEvidenceRef]
     duration_ms: int
+    slides: list[VideoEvidenceRef] = field(default_factory=list)
 
     @property
     def characters(self) -> int:
         return sum(len(window.excerpt) for window in self.windows)
+
+    @property
+    def citable(self) -> list[VideoEvidenceRef]:
+        """Everything a marker in the summary may point at."""
+
+        return [*self.windows, *self.slides]
 
 
 def _published_version(
@@ -211,8 +233,132 @@ def load_lecture_scope(
     flush()
 
     return LectureScope(
-        version_id=version_id, windows=windows, duration_ms=duration_ms
+        version_id=version_id,
+        windows=windows,
+        duration_ms=duration_ms,
+        slides=load_chapter_slides(
+            connection,
+            owner_id=owner,
+            video_id=video,
+            version_id=version_id,
+            chapters=load_chapters(connection, owner_id=owner, video_id=video),
+            first_rank=len(windows) + 1,
+        ),
     )
+
+
+def load_chapter_slides(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+    version_id: UUID,
+    chapters: list[dict[str, Any]],
+    first_rank: int,
+) -> list[VideoEvidenceRef]:
+    """One representative slide per chapter, ranked after the windows.
+
+    The frame nearest the chapter's midpoint rather than its first: a boundary
+    frame is often the transition into the section, and what a reader wants
+    next to a paragraph about tokenization is the tokenization slide.
+
+    Descriptions are cut short here. The whole transcript is already in the
+    prompt, and a full frame description runs to about 1,600 characters — one
+    per chapter would add half as much again for evidence the summary cites in
+    passing rather than reasons from.
+    """
+
+    if not chapters:
+        return []
+    owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    slides: list[VideoEvidenceRef] = []
+    for chapter in chapters:
+        start = int(chapter["start_ms"])
+        middle = (start + int(chapter["end_ms"] or start)) // 2
+        row = connection.execute(
+            """
+            select id, retrieval_text, start_ms, end_ms, frame_id
+            from video.evidence_units
+            where owner_id = %s and video_id = %s and ingestion_version_id = %s
+              and modality = 'visual_frame' and frame_id is not null
+              and start_ms >= %s and start_ms < %s
+            order by abs(start_ms - %s), start_ms
+            limit 1
+            """,
+            (owner, video, version_id, start, max(int(chapter["end_ms"] or start), start + 1), middle),
+        ).fetchone()
+        if row is None:
+            continue
+        slides.append(
+            VideoEvidenceRef(
+                rank=first_rank + len(slides),
+                evidence_id=str(row["id"]),
+                modality="visual_frame",
+                excerpt=" ".join((row["retrieval_text"] or "").split())[
+                    :SLIDE_EXCERPT_CHARACTERS
+                ],
+                retrieval_method="complete_transcript",
+                score=1.0,
+                start_ms=int(row["start_ms"]),
+                end_ms=int(row["end_ms"] or row["start_ms"]),
+                frame_id=row["frame_id"],
+            )
+        )
+    return slides
+
+
+def restrict_scope(
+    scope: LectureScope, *, start_ms: int, end_ms: int
+) -> LectureScope:
+    """The same lecture, narrowed to the windows a requested stretch touches.
+
+    Window ranks are the ones assigned over the whole recording and are kept.
+    A marker therefore means the same moment whether the reader asked about all
+    of the lecture or twenty minutes of it, so citations stay comparable across
+    turns of one conversation — which is the whole reason ranks exist rather
+    than positions in whatever list was last supplied.
+
+    `duration_ms` stays the length of the lecture. The recording did not get
+    shorter because the request did, and the summary prompt says how long it is.
+    """
+
+    windows = [
+        window
+        for window in scope.windows
+        if window.start_ms is not None
+        and window.start_ms < end_ms
+        and (window.end_ms or window.start_ms) > start_ms
+    ]
+    return LectureScope(
+        version_id=scope.version_id,
+        windows=windows,
+        duration_ms=scope.duration_ms,
+        slides=[
+            slide
+            for slide in scope.slides
+            if slide.start_ms is not None
+            and slide.start_ms < end_ms
+            and (slide.end_ms or slide.start_ms) > start_ms
+        ],
+    )
+
+
+def restrict_chapters(
+    chapters: list[dict[str, Any]], *, start_ms: int, end_ms: int
+) -> list[dict[str, Any]]:
+    """Only the chapters the requested stretch actually reaches.
+
+    The outline is given to the prompt as the shape to follow. Handing over
+    the whole lecture's chapters while supplying twenty minutes of transcript
+    invites a summary of chapters whose evidence was never supplied.
+    """
+
+    return [
+        chapter
+        for chapter in chapters
+        if int(chapter["start_ms"]) < end_ms
+        and int(chapter["end_ms"] or chapter["start_ms"]) > start_ms
+    ]
 
 
 def load_chapters(
@@ -220,7 +366,7 @@ def load_chapters(
 ) -> list[dict[str, Any]]:
     return connection.execute(
         """
-        select chapter_index, title, start_ms, end_ms
+        select chapter_index, chapter_kind, title, start_ms, end_ms
         from video.chapters
         where owner_id = %s and video_id = %s
         order by chapter_index
@@ -259,6 +405,16 @@ def coverage_units(
             # demanding it would fail every summary of that lecture forever.
             if not ranks:
                 continue
+            slide = next(
+                (
+                    item.rank
+                    for item in scope.slides
+                    if item.start_ms is not None
+                    and item.start_ms >= start
+                    and item.start_ms < max(end, start + 1)
+                ),
+                None,
+            )
             units.append(
                 CoverageUnit(
                     key=f"chapter:{chapter['chapter_index']}",
@@ -266,6 +422,7 @@ def coverage_units(
                         f"{chapter['title']} "
                         f"({format_timestamp(start)}–{format_timestamp(end)})"
                     ),
+                    ranks=ranks + ((slide,) if slide else ()),
                     window_ranks=ranks,
                     required=True,
                 )
@@ -280,6 +437,7 @@ def coverage_units(
                 f"{format_timestamp(window.start_ms)}"
                 f"–{format_timestamp(window.end_ms)}"
             ),
+            ranks=(window.rank,),
             window_ranks=(window.rank,),
             required=len(window.excerpt) >= SUBSTANTIVE_WINDOW_CHARACTERS,
         )
@@ -311,7 +469,7 @@ def evaluate_coverage(
 def _windows_for(
     scope: LectureScope, units: tuple[CoverageUnit, ...]
 ) -> list[VideoEvidenceRef]:
-    wanted = {rank for unit in units for rank in unit.window_ranks}
+    wanted = {rank for unit in units for rank in unit.window_ranks}  # noqa: E501 - transcript only: an addendum is written from what was said
     return [window for window in scope.windows if window.rank in wanted]
 
 
@@ -355,6 +513,7 @@ def summarize_lecture(
     chapters: list[dict[str, Any]],
     dependencies: VideoAnswerDependencies,
     token_callback: TokenCallback | None = None,
+    stretch: str | None = None,
 ) -> AnswerDraft:
     """Summarize the complete transcript, then check it actually covered it.
 
@@ -379,6 +538,7 @@ def summarize_lecture(
         chapters=chapters,
         units=units,
         dependencies=dependencies,
+        stretch=stretch,
     )
 
     coverage = evaluate_coverage(text, units)
@@ -427,7 +587,7 @@ def summarize_lecture(
     return AnswerDraft(
         answer=text,
         outcome="answer",
-        citations=extract_citations(text, scope.windows),
+        citations=extract_citations(text, scope.citable),
         visual_cards=[],
         cost_usd=round(cost, 6),
         image_count=0,
@@ -445,6 +605,7 @@ def _draft_summary(
     chapters: list[dict[str, Any]],
     units: tuple[CoverageUnit, ...],
     dependencies: VideoAnswerDependencies,
+    stretch: str | None = None,
 ) -> tuple[str, float]:
     """One summary of the supplied windows, mapped and reduced if needed."""
 
@@ -459,6 +620,8 @@ def _draft_summary(
                 chapters=chapters,
                 duration_ms=scope.duration_ms,
                 units=units,
+                slides=scope.slides,
+                stretch=stretch,
             ),
             dependencies=dependencies,
             token_callback=None,
@@ -482,6 +645,19 @@ def _draft_summary(
                     for unit in units
                     if any(rank in ranks for rank in unit.window_ranks)
                 ),
+                slides=[
+                    slide
+                    for slide in scope.slides
+                    if slide.start_ms is not None
+                    and any(
+                        window.start_ms is not None
+                        and slide.start_ms >= window.start_ms
+                        and slide.start_ms
+                        < (window.end_ms or window.start_ms)
+                        for window in batch
+                    )
+                ],
+                stretch=stretch,
                 part=(index, len(batches)),
             ),
             dependencies=dependencies,
@@ -526,10 +702,22 @@ def inventory_topics(
             lines.append(
                 f"- **{format_timestamp(start)}** — {chapter['title']}{marker}"
             )
+        # Where the outline came from is part of the answer. A list the source
+        # published is the lecturer's own; one worked out from the slide titles
+        # on screen is this system's reading of the lecture, and a reader
+        # deciding whether to trust a heading needs to know which they have.
+        derived = all(
+            chapter.get("chapter_kind") == "derived" for chapter in chapters
+        )
+        provenance = (
+            "worked out from the slide titles on screen"
+            if derived
+            else "in the order the source published them"
+        )
         text = (
             f"{video_title} covers {len(chapters)} "
             f"{'topic' if len(chapters) == 1 else 'topics'}, "
-            "in the order the source published them:\n\n" + "\n".join(lines)
+            f"{provenance}:\n\n" + "\n".join(lines)
         )
         return AnswerDraft(
             answer=text,
@@ -580,6 +768,8 @@ def _window_at(
 
 __all__ = [
     "LectureScope",
+    "restrict_chapters",
+    "restrict_scope",
     "NoTranscriptError",
     "inventory_topics",
     "load_chapters",
