@@ -196,12 +196,22 @@ export function jobIsLive(job: DeckJob): boolean {
   return job.status === "queued" || job.status === "running";
 }
 
-/** How long until this card comes back, in the words a person would use. */
+/**
+ * How long until this card comes back, in the words a person would use.
+ *
+ * Short day-counts keep a decimal. The four grading buttons sit side by side
+ * and are chosen by comparing them, so rounding 2.5 and 3.25 both to "3 d"
+ * hides the difference the reader is actually deciding between.
+ */
 export function describeInterval(days: number): string {
   if (days <= 0) return "now";
   const minutes = days * 1440;
   if (minutes < 60) return `${Math.round(minutes)} min`;
   if (minutes < 1440) return `${Math.round(minutes / 60)} h`;
+  if (days < 10) {
+    const rounded = Math.round(days * 10) / 10;
+    return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} d`;
+  }
   if (days < 30) return `${Math.round(days)} d`;
   if (days < 365) return `${Math.round(days / 30)} mo`;
   return `${(days / 365).toFixed(1)} y`;
