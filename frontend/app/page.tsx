@@ -30,6 +30,7 @@ import { useSideChats } from "@/hooks/use-side-chats";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
+import { takeQuestion } from "@/lib/deck-handoff";
 import type {
   BookListResponse,
   BookSummary,
@@ -130,6 +131,61 @@ export default function Page() {
     },
     [send, selectedBookIds, retrievalMode, responseDepth, history],
   );
+
+  /**
+   * `?book=&page=` — where a card's "open the source" lands.
+   *
+   * Read from `window.location` rather than `useSearchParams`, which would
+   * force this page under a Suspense boundary purely to support a link that
+   * is followed once and then cleared from the URL.
+   */
+  useEffect(() => {
+    if (!session || !booksLoaded || books.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const bookId = Number(params.get("book"));
+    const page = Number(params.get("page"));
+    if (!bookId || !page) return;
+    const book = books.find((candidate) => candidate.book_id === bookId);
+    if (!book) return;
+    setPdfZoom(1);
+    setPdfPage(page);
+    setReadingMinimized(false);
+    setReading({
+      document: { kind: "book", bookId },
+      title: book.title,
+      page,
+    });
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [session, booksLoaded, books]);
+
+  /**
+   * A card the reader could not recall, arriving from the review screen.
+   *
+   * Read once, after books load so the narrowing can be applied, and only for
+   * a book the caller still has: a deck outlives the book it was made from
+   * only if the book was deleted, and asking about it then would search the
+   * whole library and answer from the wrong one.
+   */
+  useEffect(() => {
+    if (!session || !booksLoaded || books.length === 0) return;
+    const handoff = takeQuestion();
+    if (!handoff) return;
+    const narrowed = (handoff.bookIds ?? []).filter((bookId) =>
+      books.some((book) => book.book_id === bookId),
+    );
+    const requestBookIds =
+      narrowed.length > 0 ? narrowed : books.map((book) => book.book_id);
+    setSelectedBookIds(requestBookIds);
+    void send(handoff.question, {
+      bookIds: requestBookIds,
+      mentionedBookIds: [],
+      retrievalMode,
+      responseDepth,
+    }).then(() => history.refresh());
+    // Runs once per arrival: `takeQuestion` clears the stash, so a re-render
+    // cannot re-ask it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, booksLoaded, books.length]);
 
   const handleOpenConversation = useCallback(
     async (id: string) => {

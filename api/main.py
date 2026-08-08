@@ -28,6 +28,7 @@ load_dotenv()
 
 from api.auth import current_owner
 from api.version import build_revision, build_time
+from api.decks import router as deck_router
 from api.ingestions import router as ingestion_router
 from api.video_chat import chat_router as video_chat_router
 from api.videos import jobs_router as video_ingestion_router
@@ -89,7 +90,7 @@ from study.prompts import (
     prompt_preview,
 )
 from study.query import QueryExecutionError
-from study.scope import ScopeResolutionError
+from study.scope import ScopeResolutionError, list_chapters
 from study.summarize import ContextWindowExceededError
 
 logging.basicConfig(
@@ -284,6 +285,21 @@ class BookListResponse(ContractModel):
     books: list[BookSummary]
 
 
+class ChapterSummary(ContractModel):
+    """One selectable top-level scope, for anything that studies a chapter."""
+
+    node_id: int
+    title: str
+    path_text: str
+    start_page: int
+    end_page: int
+
+
+class ChapterListResponse(ContractModel):
+    book_id: int
+    chapters: list[ChapterSummary]
+
+
 class HealthResponse(ContractModel):
     status: Literal["ok", "unavailable"]
     canonical_database_ready: bool
@@ -354,6 +370,7 @@ app.include_router(ingestion_router)
 app.include_router(videos_router)
 app.include_router(video_ingestion_router)
 app.include_router(video_chat_router)
+app.include_router(deck_router)
 
 
 @app.on_event("startup")
@@ -457,6 +474,39 @@ async def books(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
             return summaries
 
     return BookListResponse(books=await run_in_threadpool(load))
+
+
+@app.get("/api/books/{book_id}/chapters", response_model=ChapterListResponse)
+async def book_chapters(
+    book_id: int,
+    owner_id: UUID = Depends(current_owner),
+) -> ChapterListResponse:
+    """The book's chapters, in table-of-contents order.
+
+    Deterministic hierarchy, no retrieval and no model call: the interface
+    needs a list to pick from when a reader chooses a chapter to make cards
+    from, and the canonical outline already is that list.
+    """
+
+    def load() -> list[ChapterSummary]:
+        with database_connection(readonly=True) as connection:
+            _require_ready_books(owner_id, [book_id])
+            return [
+                ChapterSummary(
+                    node_id=node.id,
+                    title=node.title,
+                    path_text=node.path_text,
+                    start_page=node.start_page,
+                    end_page=node.end_page,
+                )
+                for node in list_chapters(
+                    connection, owner_id=owner_id, book_id=book_id
+                )
+            ]
+
+    return ChapterListResponse(
+        book_id=book_id, chapters=await run_in_threadpool(load)
+    )
 
 
 @app.get("/api/books/suggested-questions", response_model=SuggestedQuestionsResponse)
