@@ -18,10 +18,12 @@ The active pipeline is:
 | `retrieval/search.py` | Expose lexical, vector, RRF hybrid, and hosted-reranker strategies. |
 | `study/` | Resolve hierarchy scopes, load complete evidence, validate citations, and orchestrate turns with LangGraph. |
 | `ingestion/` | Limits, job state machine, retry policy, durable job queue, PDF preflight, and the ingestion pipeline. |
-| `worker/main.py` | Poll Postgres, claim one job under a lease, run the pipeline, and record the outcome. |
+| `decks/` | Flashcards over one chapter or lecture: deterministic topic inventory, per-topic generation with coverage repair, citation validation, SM-2 scheduling, and the generation queue. |
+| `worker/main.py` | Poll Postgres, claim one job under a lease, run the pipeline, and record the outcome. Rotates over the book, video, and deck queues. |
 | `api/auth.py` | Verify Supabase access tokens and derive `owner_id` from the token subject. |
 | `api/ingestions.py` | Owner-scoped upload lifecycle: create, complete, status, list, cancel, retry. |
-| `api/main.py` | Serve health, the ready-book library, conversation CRUD, synchronous chat, and SSE streaming. |
+| `api/main.py` | Serve health, the ready-book library, chapter outlines, conversation CRUD, synchronous chat, and SSE streaming. |
+| `api/decks.py` | Owner-scoped decks: queue a generation, list decks, read one, serve the daily review queue, grade a card. |
 | `frontend/` | Next.js + TypeScript interface built on Tailwind v4 and shadcn/ui: Supabase sign-in, resumable upload with durable job progress, the ready-book library, and grounded streaming chat. |
 
 ## Database authority
@@ -35,7 +37,12 @@ The active pipeline is:
 
 Canonical tables are `books`, `nodes`, `content_blocks`, `table_blocks`, and
 `image_blocks`. Derived tables are `chunk_builds`, `chunks`, `chunk_sources`,
-and `chunk_embeddings`; their contents are always rebuildable. `conversations`
+and `chunk_embeddings`; their contents are always rebuildable. `decks`,
+`deck_topics`, and `deck_cards` are derived the same way — regenerating a scope
+inserts a new version rather than mutating cards, so review history survives.
+`deck_review_events` is the exception and is canonical: it is the append-only
+record of what was reviewed, and `deck_card_reviews` is a checkpoint over it.
+`conversations`
 and `conversation_turns` hold study history: turns are canonical and
 `conversations.state_json` is a derived resume checkpoint, stored rather than
 replayed because rebuilding it every turn is wasted work. `ingestion_jobs`

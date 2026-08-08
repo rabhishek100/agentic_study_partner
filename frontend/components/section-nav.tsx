@@ -1,19 +1,25 @@
 "use client";
 
-import { BookOpen, Video } from "lucide-react";
+import { BookOpen, Layers, Video } from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
 /**
- * Books and Videos are peers, not a feature hidden inside the book reader.
- * The switcher lives in the header so neither section looks like a mode of
- * the other.
+ * Books, Videos, and Cards are peers, not features hidden inside the reader.
+ * The switcher lives in the header so none of them looks like a mode of
+ * another — cards in particular are a daily habit that spans both libraries,
+ * so burying them under one would misdescribe what they are.
  */
-export function SectionNav({ active }: { active: "books" | "videos" }) {
+export function SectionNav({
+  active,
+}: {
+  active: "books" | "videos" | "decks";
+}) {
   const sections = [
     { key: "books" as const, href: "/", label: "Books", icon: BookOpen },
     { key: "videos" as const, href: "/videos", label: "Videos", icon: Video },
+    { key: "decks" as const, href: "/decks", label: "Cards", icon: Layers },
   ];
   return (
     <nav aria-label="Library sections" className="flex items-center gap-1">

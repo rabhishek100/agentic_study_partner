@@ -81,11 +81,21 @@ For every card:
   markers.
 - `front` must stand alone. A reader seeing only the front, with no memory of
   the chapter, must know what is being asked.
-- `interview_priority` is 1–5: 5 means an interviewer will almost certainly
-  probe this, 1 means it is peripheral detail. Judge it by how central the idea
-  is to the subject, not by how much text the evidence spends on it. Give a
-  one-line `priority_reason`.
+- `interview_priority` is 1–5, and it is a ranking, not a compliment. Rate the
+  cards against each other, not against how interesting the material is:
+  5 — an interviewer will open with this, or build a whole question on it.
+      Reserve it. Across a chapter it should fit on one hand.
+  4 — likely to come up as a follow-up.
+  3 — worth knowing; the default when nothing distinguishes a card.
+  2 — supporting detail you would mention, not be asked.
+  1 — peripheral: notation, a specific figure, an aside.
+  If most of a batch comes out at 5, the ranking has told the reader nothing
+  and the ordering it drives is worthless. Give a one-line `priority_reason`.
 - `difficulty` is foundational, intermediate, or advanced.
+- `interview_angle` stays empty unless there is genuinely something an
+  interviewer would push on that this evidence does not cover — a practical
+  consequence, a comparison with what is used in industry, a "when would this
+  break" probe. Roughly one card in four earns one. Never restate the answer.
 - Do not write two cards with the same front, and do not restate one card's
   answer as another card's answer in different words.
 """.strip()
@@ -94,6 +104,11 @@ VOLUME_GUIDANCE = """
 Write {minimum}–{maximum} cards per required topic. A short topic may need only
 one; a dense one may use the full allowance. Cover what a reader must be able
 to recall and explain, not every sentence present.
+
+Vary the card type by what the material is. A chapter that defines several
+terms which are easy to confuse should produce some `mcq` cards; one that
+describes a pipeline or an architecture should produce a `system_design` card
+rather than prose about it. Do not turn everything into `qa`.
 """.strip()
 
 REPAIR_GUIDANCE = """

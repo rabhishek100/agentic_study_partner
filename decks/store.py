@@ -193,6 +193,22 @@ def store_deck(
                 (row["id"], owner, deck_id),
             )
 
+        # Retire earlier versions *before* publishing this one. Only one
+        # version of a scope may be readable at a time and a partial unique
+        # index enforces it, so publishing first would collide with the very
+        # row this statement is about to stand down.
+        connection.execute(
+            """
+            update public.decks
+            set status = 'failed', updated_at = now()
+            where owner_id = %s
+              and scope_key = (select scope_key from public.decks where id = %s)
+              and id <> %s
+              and status in ('ready', 'partial')
+            """,
+            (owner, deck_id, deck_id),
+        )
+
         connection.execute(
             """
             update public.decks
@@ -217,21 +233,6 @@ def store_deck(
                 deck_id,
                 owner,
             ),
-        )
-
-        # Only one version of a scope is the one you study. Earlier versions
-        # stay in the table so their cards keep their review history, but they
-        # leave the library — the partial unique index requires it.
-        connection.execute(
-            """
-            update public.decks
-            set status = 'failed', updated_at = now()
-            where owner_id = %s
-              and scope_key = (select scope_key from public.decks where id = %s)
-              and id <> %s
-              and status in ('ready', 'partial')
-            """,
-            (owner, deck_id, deck_id),
         )
 
 

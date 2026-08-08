@@ -104,6 +104,14 @@ makes "top questions" the default experience without giving up coverage:
 - the deck view can filter to the top N,
 - coverage remains complete underneath.
 
+**Known limitation.** Priority is assigned per generation call, and a call sees
+one batch of topics rather than the whole chapter. The prompt anchors the scale
+against the chapter, which measurably helps — an uncalibrated first version put
+10 of 14 cards at priority 5, the calibrated one gives a real spread — but the
+ranking is still not a global sort. A cheap improvement, if this proves to
+matter in use, is a second deterministic pass that re-normalizes priorities
+across the finished deck.
+
 ## Review
 
 Scheduling is SM-2 with FSRS-style ease damping — deterministic Python, no
@@ -174,6 +182,26 @@ decks/worker.py       The runner the worker process polls
 api/decks.py          Owner-scoped HTTP surface
 frontend/app/decks/   Library, Today queue, review view
 ```
+
+## First measured run
+
+Chapter 3 of *The Hundred-Page Machine Learning Book*, generated with
+`openai/gpt-5.6-luna`:
+
+| | |
+|---|---:|
+| Required topics | 11 |
+| Topics covered | 11 |
+| Cards written | 15 |
+| Cards dropped (uncited or out of scope) | 0 |
+| Cards dropped (duplicate or malformed) | 0 |
+| Cards carrying an interview angle | 9 |
+| Types | 7 qa, 5 concept, 2 system design, 1 mcq |
+| Repair pass needed | no |
+
+The MCQ's distractors came from the chapter's own neighbouring rules — the
+regression averaging rule offered against the classification majority rule —
+which is the behaviour the distractor constraint exists to produce.
 
 ## Out of scope
 

@@ -392,11 +392,46 @@ same thing. A device chosen and later unplugged does not silently demote to
 the laptop lid: the request fails against the exact device, the stored choice
 is dropped, and the recording restarts on the system default.
 
-The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
+**Flashcards** turn one chapter, or one lecture, into cards you can review in a
+few minutes a day. Pick a scope under **Cards** and generation runs as a durable
+background job; the deck appears when it lands.
+
+Coverage is a property of the deck, not a claim about it. Before any model call
+the scope is inventoried in plain Python — the content-bearing nodes of a book
+chapter, or `video.lecture.coverage_units` for a lecture — and that list is the
+contract. Cards are generated per topic, so a call that can only see section 7.3
+cannot write about the chapter introduction. Every card is then validated
+deterministically: its citation markers must resolve inside its own topic, in
+its declared citations *and* in its prose, or it is dropped and counted. Any
+required topic left uncovered gets one targeted repair pass. What survives is
+reported per deck — topics covered, cards dropped and why, type and priority
+distributions — and shown in the interface.
+
+Cards come in four shapes, chosen per topic: an interview question with a model
+answer, a concept to recall, a multiple choice with distractors drawn from
+genuinely confusable neighbours in the same evidence, and a system-design card
+laid out as components, data flow, trade-offs and failure modes with the source
+figure or lecture frame beside it. Each carries an interview-priority score, so
+the deck keeps full coverage while the daily queue introduces what matters most
+first. A card may also carry one **interview angle** — a follow-up an
+interviewer would raise that the source does not cover — kept in its own field,
+labelled as model knowledge, and excluded from every grounding metric.
+
+Review is SM-2 with an ease floor and a halved lapse. The Today queue mixes
+everything due across every deck with a capped number of new cards (ten by
+default), and each grading button shows the gap it will schedule. A card you
+cannot recall offers two things: open the cited page or lecture timestamp, or
+carry it into a grounded conversation seeded with the card. See
+[`docs/flashcard-decks-spec.md`](docs/flashcard-decks-spec.md).
+
+The API exposes `GET /api/health`, `GET /api/books`,
+`GET /api/books/{id}/chapters`, `POST /api/chat`,
 `POST /api/chat/stream`, `POST /api/transcriptions`,
 `GET/PATCH /api/prompt-settings`, prompt preview,
 conversation CRUD, side chats (`POST|GET /api/conversations/{id}/side-chats`,
-`PATCH /api/side-chats/{id}`, `POST /api/side-chats/{id}/turns/stream`), and the
+`PATCH /api/side-chats/{id}`, `POST /api/side-chats/{id}/turns/stream`), decks
+(`POST|GET /api/decks`, `GET /api/decks/{id}`, `GET /api/decks/queue`,
+`POST /api/decks/cards/{id}/review`, `GET|PATCH /api/decks/preferences`), and the
 `/api/ingestions` lifecycle. Everything except health requires a Supabase bearer
 token.
 

@@ -56,29 +56,44 @@ def queue_card(
 
 
 class LearningTests(unittest.TestCase):
-    def test_a_new_card_rated_good_enters_the_learning_step(self) -> None:
+    def test_a_new_card_rated_good_graduates(self) -> None:
+        """Grading a new card happens on the same view that introduces it."""
+
         result = review(initial_state(), 3, now=NOW)
+        self.assertEqual(result.state.state, "review")
+        self.assertEqual(result.state.interval_days, GRADUATING_INTERVAL_DAYS)
+        self.assertEqual(result.due_at, NOW + timedelta(days=1))
+
+    def test_a_new_card_rated_again_stays_in_learning(self) -> None:
+        result = review(initial_state(), 1, now=NOW)
         self.assertEqual(result.state.state, "learning")
         self.assertAlmostEqual(result.state.interval_days * 1440, 10.0, places=3)
         self.assertEqual(result.due_at, NOW + timedelta(minutes=10))
 
-    def test_a_second_good_graduates_to_the_review_schedule(self) -> None:
-        first = review(initial_state(), 3, now=NOW).state
-        second = review(first, 3, now=NOW)
-        self.assertEqual(second.state.state, "review")
-        self.assertEqual(second.state.interval_days, GRADUATING_INTERVAL_DAYS)
+    def test_the_four_buttons_never_all_mean_the_same_gap(self) -> None:
+        gaps = {
+            review(initial_state(), rating, now=NOW).state.interval_days
+            for rating in (1, 2, 3, 4)
+        }
+        self.assertGreaterEqual(len(gaps), 3)
+
+    def test_a_relearned_step_then_good_returns_to_review(self) -> None:
+        failed = review(initial_state(), 1, now=NOW).state
+        recovered = review(failed, 3, now=NOW)
+        self.assertEqual(recovered.state.state, "review")
+        self.assertEqual(recovered.state.interval_days, GRADUATING_INTERVAL_DAYS)
 
     def test_easy_skips_the_learning_steps(self) -> None:
         result = review(initial_state(), 4, now=NOW)
         self.assertEqual(result.state.state, "review")
         self.assertEqual(result.state.interval_days, EASY_INTERVAL_DAYS)
 
-    def test_again_holds_the_card_in_learning(self) -> None:
-        first = review(initial_state(), 3, now=NOW).state
+    def test_failing_a_card_still_in_learning_is_not_a_lapse(self) -> None:
+        first = review(initial_state(), 1, now=NOW).state
         result = review(first, 1, now=NOW)
         self.assertEqual(result.state.state, "learning")
         self.assertAlmostEqual(result.state.interval_days * 1440, 10.0, places=3)
-        # Failing a card still in learning is not a lapse: it never left.
+        # It never left learning, so there was nothing to lapse from.
         self.assertEqual(result.state.lapses, 0)
 
 

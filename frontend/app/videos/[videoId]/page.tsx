@@ -48,6 +48,7 @@ import { useVideoChat } from "@/hooks/use-video-chat";
 import { VIDEO_SIDE_CHATS } from "@/lib/side-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
+import { takeQuestion } from "@/lib/deck-handoff";
 import { cn } from "@/lib/utils";
 import type { SideChatTurn } from "@/lib/side-chat";
 import type {
@@ -166,6 +167,31 @@ export default function VideoWorkspace() {
   const seek = useCallback((milliseconds: number) => {
     playerRef.current?.seekTo(milliseconds);
   }, []);
+
+  /**
+   * Arrivals from a flashcard: `?t=` seeks the player, and a stashed question
+   * asks the lecture about a card the reader could not recall.
+   *
+   * Both wait for the lecture to load, because seeking a player that has not
+   * mounted does nothing and would look like the link was broken.
+   */
+  useEffect(() => {
+    if (!session || !video) return;
+    const seconds = Number(
+      new URLSearchParams(window.location.search).get("t"),
+    );
+    if (seconds > 0) {
+      seek(seconds * 1000);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    const handoff = takeQuestion();
+    if (handoff) {
+      void send(handoff.question).then(() => loadConversations());
+    }
+    // Runs once the lecture is on screen; `takeQuestion` clears the stash so
+    // a re-render cannot re-ask it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, Boolean(video)]);
 
 
   const closeDocument = useCallback(() => {

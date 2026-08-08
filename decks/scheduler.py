@@ -139,7 +139,16 @@ def _learning(
             ease,
         )
 
-    step = _next_step(state.interval_days, steps)
+    # A card the reader has never seen is graded the moment it is introduced,
+    # so by the time `good` is pressed it has already served its first step —
+    # otherwise Again, Hard and Good would all schedule the same ten minutes
+    # and three of the four buttons would mean nothing.
+    position = (
+        steps[0] / MINUTES_PER_DAY
+        if state.state == "new"
+        else state.interval_days
+    )
+    step = _next_step(position, steps)
     if step is not None:
         return _Outcome(stage, step, ease)
     graduating = (
