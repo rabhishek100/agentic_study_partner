@@ -22,6 +22,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY api ./api
+COPY decks ./decks
 COPY ingestion ./ingestion
 COPY parsing ./parsing
 COPY retrieval ./retrieval
