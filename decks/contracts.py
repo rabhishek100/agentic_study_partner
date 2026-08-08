@@ -144,6 +144,10 @@ class GeneratedCard(ContractModel):
     emit structured locators will happily emit plausible ones.
     """
 
+    # Which numbered topic of the batch this card is about. Declared by the
+    # model, then verified against the card's markers rather than trusted: a
+    # batch containing three topics is exactly where attribution slips.
+    topic_ordinal: int = Field(ge=1)
     card_type: CardType
     front: str = Field(min_length=1, max_length=1_000)
     back: CardBack
