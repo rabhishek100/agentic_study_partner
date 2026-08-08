@@ -1,5 +1,6 @@
 """Execution logic for non-book / non-video queries via model knowledge or web search."""
 
+from datetime import datetime, timezone
 import logging
 import re
 from typing import Any
@@ -42,9 +43,12 @@ def execute_external_qa(
     )
     needs_web_search = bool(WEB_SEARCH_TRIGGER.search(query_text))
 
+    current_date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
     if not needs_web_search:
         logger.info(f"Answering out-of-domain question directly from LLM model knowledge: {question}")
         system_prompt = (
+            f"Today's date is {current_date_str}.\n"
             "You are an expert technical study partner. The requested topic was not found in "
             "the user's ingested book and video library.\n\n"
             "Answer the question thoroughly, accurately, and clearly using general AI model knowledge.\n"
@@ -83,6 +87,7 @@ def execute_external_qa(
     if not web_sources:
         # Fallback if web search returns zero results
         system_prompt = (
+            f"Today's date is {current_date_str}.\n"
             "You are an expert technical study partner. The requested topic was not found in "
             "the user's ingested library, and web search returned no results.\n\n"
             "Answer the question to the best of your ability using general AI model knowledge.\n"
@@ -121,6 +126,7 @@ def execute_external_qa(
     formatted_web_context = "\n\n".join(web_context_blocks)
 
     system_prompt = (
+        f"Today's date is {current_date_str}.\n"
         "You are an expert technical study partner. The requested topic was not found in "
         "the user's ingested book and video library. Web search results have been retrieved below.\n\n"
         "You MUST start your answer with this exact markdown header line:\n"
