@@ -58,11 +58,8 @@ def execute_external_qa(
             HumanMessage(content=question),
         ]
 
-        if token_callback:
-            answer_text = invoke_with_streaming(chat_model, messages, token_callback)
-        else:
-            res = chat_model.invoke(messages)
-            answer_text = getattr(res, "content", str(res))
+        res = invoke_with_streaming(chat_model, messages, token_callback=token_callback)
+        answer_text = str(getattr(res, "content", res))
 
         return TurnResult(
             question=question,
@@ -97,11 +94,8 @@ def execute_external_qa(
             SystemMessage(content=system_prompt),
             HumanMessage(content=question),
         ]
-        if token_callback:
-            answer_text = invoke_with_streaming(chat_model, messages, token_callback)
-        else:
-            res = chat_model.invoke(messages)
-            answer_text = getattr(res, "content", str(res))
+        res = invoke_with_streaming(chat_model, messages, token_callback=token_callback)
+        answer_text = str(getattr(res, "content", res))
 
         return TurnResult(
             question=question,
@@ -141,11 +135,8 @@ def execute_external_qa(
         HumanMessage(content=question),
     ]
 
-    if token_callback:
-        answer_text = invoke_with_streaming(chat_model, messages, token_callback)
-    else:
-        res = chat_model.invoke(messages)
-        answer_text = getattr(res, "content", str(res))
+    res = invoke_with_streaming(chat_model, messages, token_callback=token_callback)
+    answer_text = str(getattr(res, "content", res))
 
     return TurnResult(
         question=question,
