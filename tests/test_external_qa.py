@@ -42,13 +42,11 @@ def test_assess_model_knowledge_sufficiency_false():
 
 
 def test_execute_external_qa_model_knowledge():
-    """Verify execute_external_qa returns source_type='model_knowledge' when LLM knowledge is sufficient."""
+    """Verify execute_external_qa returns source_type='model_knowledge' when answering from model knowledge."""
     mock_model = MagicMock()
-    # First call: sufficiency check -> True. Second call: answer generation.
-    mock_model.invoke.side_effect = [
-        MagicMock(content='{"is_sufficient": true, "reason": "General concept"}'),
-        MagicMock(content="ℹ️ **General Model Knowledge**: Quicksort is a divide-and-conquer sorting algorithm."),
-    ]
+    mock_model.invoke.return_value = MagicMock(
+        content="ℹ️ **General Model Knowledge**: Quicksort is a divide-and-conquer sorting algorithm."
+    )
 
     state = ConversationState(conversation_id="test_conv")
     result = execute_external_qa(
@@ -67,13 +65,11 @@ def test_execute_external_qa_model_knowledge():
 
 
 def test_execute_external_qa_web_search(monkeypatch):
-    """Verify execute_external_qa returns source_type='web_search' and web_sources when search is needed."""
+    """Verify execute_external_qa returns source_type='web_search' and web_sources when search is triggered by query."""
     mock_model = MagicMock()
-    # First call: sufficiency check -> False. Second call: answer generation using web sources.
-    mock_model.invoke.side_effect = [
-        MagicMock(content='{"is_sufficient": false, "reason": "Requires live docs"}'),
-        MagicMock(content="🌐 **Web Search Results**: According to [Web 1: Python Docs](https://docs.python.org), asyncio is an asynchronous library."),
-    ]
+    mock_model.invoke.return_value = MagicMock(
+        content="🌐 **Web Search Results**: According to [Web 1: Python Docs](https://docs.python.org), asyncio is an asynchronous library."
+    )
 
     fake_web_sources = [
         WebSourceRef(url="https://docs.python.org", title="Python Docs", snippet="Asyncio documentation", domain="docs.python.org", rank=1)
@@ -82,7 +78,7 @@ def test_execute_external_qa_web_search(monkeypatch):
 
     state = ConversationState(conversation_id="test_conv")
     result = execute_external_qa(
-        "What is asyncio in Python 3.13?",
+        "What are the latest news updates today for Python asyncio?",
         state,
         model=mock_model,
     )

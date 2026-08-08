@@ -1,6 +1,7 @@
 """Execution logic for non-book / non-video queries via model knowledge or web search."""
 
 import logging
+import re
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -34,11 +35,15 @@ def execute_external_qa(
     chat_model = model or openrouter_model()
     query_text = standalone_query or question
 
-    # 1. Reason whether LLM parametric knowledge is sufficient
-    is_sufficient = assess_model_knowledge_sufficiency(query_text, chat_model)
+    # 1. Determine whether live web search is explicitly needed or if model knowledge is sufficient.
+    WEB_SEARCH_TRIGGER = re.compile(
+        r"\b(?:latest|recent|news|today|current\s+events|live\s+data|search\s+web)\b",
+        re.IGNORECASE,
+    )
+    needs_web_search = bool(WEB_SEARCH_TRIGGER.search(query_text))
 
-    if is_sufficient:
-        logger.info(f"Answering out-of-domain question from LLM model knowledge: {question}")
+    if not needs_web_search:
+        logger.info(f"Answering out-of-domain question directly from LLM model knowledge: {question}")
         system_prompt = (
             "You are an expert technical study partner. The requested topic was not found in "
             "the user's ingested book and video library.\n\n"
