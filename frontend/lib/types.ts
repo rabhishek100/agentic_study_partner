@@ -12,7 +12,16 @@ export type Route =
   | "hierarchy_list"
   | "retrieval_qa"
   | "prior_answer_transform"
-  | "clarify";
+  | "clarify"
+  | "external_qa";
+
+export interface WebSourceRef {
+  url: string;
+  title: string;
+  snippet: string;
+  domain?: string | null;
+  rank?: number | null;
+}
 
 export type HistoryDependency = "independent" | "dependent" | "ambiguous";
 
@@ -145,6 +154,8 @@ export interface TurnResult {
   prompt_profile_version: string | null;
   /** Present only on a side-chat turn. */
   side_context: SideContextReport | null;
+  web_sources?: WebSourceRef[];
+  source_type?: "book_library" | "model_knowledge" | "web_search";
 }
 
 export interface ChatResponse {

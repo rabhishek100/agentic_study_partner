@@ -158,6 +158,21 @@ def execute_decision(
         )
         return transformed.model_copy(update={"side_context": report})
 
+    if decision.route == "external_qa":
+        from .external_qa import execute_external_qa
+
+        ext_result = execute_external_qa(
+            question,
+            state,
+            model=model,
+            token_callback=token_callback,
+            response_depth=resolved_depth,
+            history_dependency=decision.history_dependency,
+            standalone_query=decision.standalone_query or question,
+            routing_reason=decision.reason,
+        )
+        return ext_result.model_copy(update={"side_context": report})
+
     is_hierarchy = decision.route in {"hierarchy_summary", "hierarchy_list"}
     execution_question = (
         _hierarchy_query(decision)

@@ -11,6 +11,7 @@ Route = Literal[
     "retrieval_qa",
     "prior_answer_transform",
     "clarify",
+    "external_qa",
 ]
 HistoryDependency = Literal["independent", "dependent", "ambiguous"]
 Outcome = Literal["answer", "clarify", "abstain", "error"]
@@ -236,6 +237,14 @@ class TurnDecision(ContractModel):
         return self
 
 
+class WebSourceRef(ContractModel):
+    url: str
+    title: str
+    snippet: str
+    domain: str | None = None
+    rank: int | None = None
+
+
 class TurnResult(ContractModel):
     question: str
     answer: str
@@ -257,3 +266,5 @@ class TurnResult(ContractModel):
     # Present only on a side-chat turn. Optional so that turns recorded before
     # side chats existed still load.
     side_context: SideContextReport | None = None
+    web_sources: list[WebSourceRef] = Field(default_factory=list)
+    source_type: Literal["book_library", "model_knowledge", "web_search"] = "book_library"
