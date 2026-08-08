@@ -13,6 +13,39 @@ import type { ResponseDepth } from "@/lib/types";
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
 
 /**
+ * Read a failure body into something a reader can act on.
+ *
+ * FastAPI reports a rejected request with `detail` as a *list* of field errors,
+ * not a string. Reading it as a string put "[object Object]" in the window,
+ * which named neither the field nor the reason — so the actual cause (a request
+ * carrying a field the endpoint forbids) was invisible.
+ */
+export function describeFailure(body: string): string | null {
+  if (!body.trim()) return null;
+  let detail: unknown;
+  try {
+    detail = (JSON.parse(body) as { detail?: unknown }).detail;
+  } catch {
+    return null;
+  }
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const described = detail
+      .map((entry) => {
+        if (typeof entry === "string") return entry;
+        const item = entry as { loc?: unknown[]; msg?: string };
+        const field = Array.isArray(item.loc)
+          ? item.loc.filter((part) => part !== "body").join(".")
+          : "";
+        return [field, item.msg].filter(Boolean).join(": ");
+      })
+      .filter(Boolean);
+    return described.length ? described.join("; ") : null;
+  }
+  return detail ? JSON.stringify(detail) : null;
+}
+
+/**
  * Owns one side chat's turns and the stream that fills them.
  *
  * Deliberately the same shape as the book and video chat hooks: turns
@@ -141,25 +174,19 @@ export function useSideChat<TResult>(
               "Content-Type": "application/json",
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
-            body: JSON.stringify({
-              question: submitted,
-              response_depth: responseDepth,
-            }),
+            body: JSON.stringify(
+              surface.supportsDepth
+                ? { question: submitted, response_depth: responseDepth }
+                : { question: submitted },
+            ),
             signal: controller.signal,
           },
         );
         if (!response.ok || !response.body) {
           const raw = await response.text();
-          let parsed: string | null = null;
-          try {
-            parsed = raw
-              ? ((JSON.parse(raw) as { detail?: string }).detail ?? null)
-              : null;
-          } catch {
-            parsed = null;
-          }
           throw new Error(
-            parsed ?? `The side chat request failed (${response.status}).`,
+            describeFailure(raw) ??
+              `The side chat request failed (${response.status}).`,
           );
         }
 
@@ -191,8 +218,9 @@ export function useSideChat<TResult>(
               });
               break readLoop;
             } else if (event === "error") {
-              const data = JSON.parse(payload) as { detail?: string };
-              throw new Error(data.detail ?? "The side chat request failed.");
+              throw new Error(
+                describeFailure(payload) ?? "The side chat request failed.",
+              );
             }
           }
         }

@@ -24,6 +24,15 @@ export interface SideChatThread {
 export interface SideChatSurface {
   /** Distinguishes the two surfaces in remembered state and in test output. */
   kind: "book" | "video";
+  /**
+   * Whether the turn endpoint accepts an answer depth.
+   *
+   * The book chat has three depths; the lecture chat has none, and its request
+   * contract forbids unknown fields — so sending one anyway produced a
+   * validation error on every lecture side turn. The window hides the control
+   * when it would not be honoured.
+   */
+  supportsDepth: boolean;
   /** Side chats of one parent conversation. */
   list(parentConversationId: string): string;
   create(parentConversationId: string): string;
@@ -38,6 +47,7 @@ export interface SideChatSurface {
 
 export const BOOK_SIDE_CHATS: SideChatSurface = {
   kind: "book",
+  supportsDepth: true,
   list: (parent) => `/conversations/${parent}/side-chats`,
   create: (parent) => `/conversations/${parent}/side-chats`,
   update: (id) => `/side-chats/${id}`,
@@ -48,6 +58,7 @@ export const BOOK_SIDE_CHATS: SideChatSurface = {
 
 export const VIDEO_SIDE_CHATS: SideChatSurface = {
   kind: "video",
+  supportsDepth: false,
   list: (parent) => `/video-conversations/${parent}/side-chats`,
   create: (parent) => `/video-conversations/${parent}/side-chats`,
   update: (id) => `/video-side-chats/${id}`,

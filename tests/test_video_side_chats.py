@@ -547,6 +547,25 @@ class VideoSideTurnTests(unittest.TestCase):
         self.assertIn("not source evidence", prompt)
 
 
+class VideoTurnRequestContractTests(unittest.TestCase):
+    def test_a_lecture_turn_takes_no_answer_depth(self) -> None:
+        """Pins why the client must not send one.
+
+        The lecture chat has no depth concept and its request contract forbids
+        unknown fields, so a client sending `response_depth` anyway failed every
+        lecture side turn with a validation error — which the window then
+        rendered as "[object Object]".
+        """
+
+        from pydantic import ValidationError
+
+        from api.video_chat import AskRequest
+
+        self.assertEqual(AskRequest(question="why?").question, "why?")
+        with self.assertRaises(ValidationError):
+            AskRequest(question="why?", response_depth="quick")
+
+
 class VideoSideTurnReportTests(unittest.TestCase):
     """Every route a side chat can take reports the context it was given."""
 

@@ -112,6 +112,7 @@ export function SideChatWindow({
           onResponseDepthChange={setResponseDepth}
           onSubmit={(question) => send(question, responseDepth)}
           onStop={stop}
+          showDepth={surface.supportsDepth}
           label={sideChat.title}
         />
       </div>

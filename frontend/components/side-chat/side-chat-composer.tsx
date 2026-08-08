@@ -30,6 +30,8 @@ export interface SideChatComposerProps {
   onResponseDepthChange: (depth: ResponseDepth) => void;
   onSubmit: (question: string) => void;
   onStop: () => void;
+  /** Hidden when this surface's turns have no depth to choose. */
+  showDepth?: boolean;
   /** Labels the controls with the thread they belong to, for screen readers. */
   label: string;
 }
@@ -49,6 +51,7 @@ export function SideChatComposer({
   onResponseDepthChange,
   onSubmit,
   onStop,
+  showDepth = true,
   label,
 }: SideChatComposerProps) {
   const [value, setValue] = useState("");
@@ -100,6 +103,7 @@ export function SideChatComposer({
           }}
         />
         <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
+          {showDepth ? (
           <Select
             value={responseDepth}
             onValueChange={(depth) =>
@@ -119,6 +123,11 @@ export function SideChatComposer({
               <SelectItem value="deep">Deep dive</SelectItem>
             </SelectContent>
           </Select>
+          ) : (
+            // Keeps the send button where it always is, rather than letting it
+            // jump to the left edge on the surface without a depth control.
+            <span />
+          )}
 
           {isStreaming ? (
             <Button
