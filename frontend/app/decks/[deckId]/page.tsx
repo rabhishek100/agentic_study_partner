@@ -16,6 +16,8 @@ import {
 } from "@/components/decks/card-face";
 import { ReviewSession } from "@/components/decks/review-session";
 import { SectionNav } from "@/components/section-nav";
+import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
+import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -34,8 +36,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCardSideChats } from "@/hooks/use-card-side-chats";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
+import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
+import type { ChatTurn } from "@/lib/types";
 import {
   type DeckDetailResponse,
   type QueueCard,
@@ -57,6 +62,9 @@ export default function DeckDetailPage() {
   const [reviewing, setReviewing] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [error, setError] = useState("");
+  // One deck, so the parent conversation is unambiguous and stable for the
+  // whole session — the case the shared side-chat hook is shaped for.
+  const sideChats = useCardSideChats(deckId ?? null);
 
   const load = useCallback(async () => {
     try {
@@ -122,6 +130,30 @@ export default function DeckDetailPage() {
   return (
     <AppShell
       nav={<SectionNav active="decks" />}
+      overlay={
+        <SideChatLayer
+          windows={sideChats.windows}
+          onRectChange={sideChats.setRect}
+          onMinimize={sideChats.setMinimized}
+          onClose={sideChats.close}
+          onFocus={sideChats.focus}
+          onSettled={sideChats.noteSettled}
+          surface={BOOK_SIDE_CHATS}
+          renderTurns={({ turns, isLoading, isQueued }) => (
+            <SideChatTurns
+              turns={turns as ChatTurn[]}
+              isLoading={isLoading}
+              isQueued={isQueued}
+            />
+          )}
+          onAnchorsChange={(sideChatId, anchors) => {
+            void sideChats.setAnchors(sideChatId, anchors);
+          }}
+          resolveQuoteTurn={() => null}
+          error={sideChats.error}
+          onDismissError={sideChats.dismissError}
+        />
+      }
       status={<span className="truncate">{deck?.title ?? "Deck"}</span>}
       account={
         <DropdownMenu>
@@ -239,6 +271,9 @@ export default function DeckDetailPage() {
             cards={queue.cards}
             onFinished={() => void load()}
             onExit={() => setReviewing(false)}
+            onAskSelection={(card, quotedText) => {
+              void sideChats.askAboutSelection(card, quotedText);
+            }}
           />
         ) : !deck ? (
           <div className="space-y-2" aria-hidden>

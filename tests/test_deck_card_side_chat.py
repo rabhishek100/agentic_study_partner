@@ -382,6 +382,37 @@ class CardSideChatEndpointTests(PostgresOwnerMixin, unittest.IsolatedAsyncioTest
             first.json()["conversation_id"], second.json()["conversation_id"]
         )
 
+    async def test_two_simultaneous_openings_share_one_deck_conversation(
+        self,
+    ) -> None:
+        """Opening a side chat fires the lookup and the highlight together.
+
+        Both create the deck's conversation on a first highlight, and the
+        loser of that race used to violate the one-per-deck index and 500.
+        """
+
+        import asyncio
+
+        async with await self._client() as client:
+            lookup, opened = await asyncio.gather(
+                client.get(f"/api/decks/{self.deck_id}/conversation"),
+                client.post(
+                    f"/api/decks/cards/{self.card_id}/side-chats",
+                    json={"quoted_text": "Buffering decouples producers"},
+                ),
+            )
+        self.assertEqual(lookup.status_code, 200, lookup.text)
+        self.assertEqual(opened.status_code, 200, opened.text)
+        self.assertEqual(
+            lookup.json()["conversation_id"],
+            opened.json()["parent_conversation_id"],
+        )
+        count = self.connection.execute(
+            "select count(*) as n from public.conversations where deck_id = %s",
+            (UUID(self.deck_id),),
+        ).fetchone()
+        self.assertEqual(count["n"], 1)
+
     async def test_an_unknown_card_is_rejected(self) -> None:
         async with await self._client() as client:
             response = await client.post(

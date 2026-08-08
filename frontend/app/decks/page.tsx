@@ -9,6 +9,8 @@ import { DeckJobRow, DeckRow } from "@/components/decks/deck-row";
 import { GenerateDeck } from "@/components/decks/generate-deck";
 import { ReviewSession } from "@/components/decks/review-session";
 import { SectionNav } from "@/components/section-nav";
+import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
+import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -23,8 +25,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCardSideChats } from "@/hooks/use-card-side-chats";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
+import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
+import type { ChatTurn } from "@/lib/types";
 import {
   type DeckJob,
   type DeckListResponse,
@@ -45,6 +50,10 @@ export default function DecksPage() {
   const [reviewing, setReviewing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
+  // The deck of the card being asked about. Set on the first highlight so a
+  // reader who never uses side chats never pays for the conversation lookup.
+  const [askingDeckId, setAskingDeckId] = useState<string | null>(null);
+  const sideChats = useCardSideChats(askingDeckId);
 
   const load = useCallback(async () => {
     try {
@@ -118,6 +127,32 @@ export default function DecksPage() {
   return (
     <AppShell
       nav={<SectionNav active="decks" />}
+      overlay={
+        <SideChatLayer
+          windows={sideChats.windows}
+          onRectChange={sideChats.setRect}
+          onMinimize={sideChats.setMinimized}
+          onClose={sideChats.close}
+          onFocus={sideChats.focus}
+          onSettled={sideChats.noteSettled}
+          surface={BOOK_SIDE_CHATS}
+          renderTurns={({ turns, isLoading, isQueued }) => (
+            <SideChatTurns
+              turns={turns as ChatTurn[]}
+              isLoading={isLoading}
+              isQueued={isQueued}
+            />
+          )}
+          onAnchorsChange={(sideChatId, anchors) => {
+            void sideChats.setAnchors(sideChatId, anchors);
+          }}
+          // Every anchor on a card points at the card's own turn, which the
+          // server assigned; there is no second turn here to disambiguate.
+          resolveQuoteTurn={() => null}
+          error={sideChats.error}
+          onDismissError={sideChats.dismissError}
+        />
+      }
       status={
         <span>
           {decks.length} deck{decks.length === 1 ? "" : "s"}
@@ -222,6 +257,10 @@ export default function DecksPage() {
             cards={queue.cards}
             onFinished={() => void load()}
             onExit={() => setReviewing(false)}
+            onAskSelection={(card, quotedText) => {
+              setAskingDeckId(card.deck_id);
+              void sideChats.askAboutSelection(card, quotedText);
+            }}
           />
         ) : (
           <>

@@ -19,6 +19,7 @@ import {
   CardMeta,
   CardSources,
 } from "@/components/decks/card-face";
+import { AskSelection } from "@/components/side-chat/ask-selection";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -88,12 +89,23 @@ export function ReviewSession({
   cards,
   onFinished,
   onExit,
+  onAskSelection,
 }: {
   cards: QueueCard[];
   onFinished?: () => void;
   onExit?: () => void;
+  /**
+   * Highlighted text on the back of a card, handed up to be asked about.
+   *
+   * The window layer belongs to the page, not to this component: a side chat
+   * floats against the viewport, so nesting it inside the review column would
+   * clip it at that column's edge — the same reason the chat surfaces mount it
+   * outside their scrolling layout.
+   */
+  onAskSelection?: (card: QueueCard, quotedText: string) => void;
 }) {
   const router = useRouter();
+  const backRef = useRef<HTMLDivElement | null>(null);
   // Ranges over the cards plus one past the end, which is the summary slate.
   // Making the summary a position rather than a separate mode is what lets
   // Previous walk back into the deck after the last card is graded.
@@ -465,12 +477,30 @@ export function ReviewSession({
         />
 
         {state.revealed ? (
-          <div className="mt-6 space-y-4 border-t border-border pt-5">
+          /*
+            `data-turn-index` and `data-answer` are what the selection reader
+            looks for. A card is one answer, so the index is a constant here —
+            which turn it really becomes is the server's decision, taken when
+            the card is first asked about.
+          */
+          <div
+            ref={backRef}
+            data-turn-index="0"
+            data-answer
+            className="mt-6 space-y-4 border-t border-border pt-5"
+          >
             <CardBackFace item={item} selected={state.selected} />
             <CardSources item={item} onOpenSource={openSource} />
           </div>
         ) : null}
       </div>
+
+      {state.revealed && onAskSelection && item.source_kind === "book" ? (
+        <AskSelection
+          container={backRef}
+          onAsk={(_turnIndex, quotedText) => onAskSelection(item, quotedText)}
+        />
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-sm text-destructive">

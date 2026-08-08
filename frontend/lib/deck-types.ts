@@ -164,6 +164,11 @@ export interface DeckDetailResponse {
   cards: QueueCard[];
 }
 
+/** What the card side-chat endpoint returns: an ordinary side-chat thread. */
+export interface DeckConversationResponse {
+  conversation_id: string;
+}
+
 export interface ChapterSummary {
   node_id: number;
   title: string;

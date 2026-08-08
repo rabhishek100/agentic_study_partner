@@ -155,6 +155,31 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
         )
         self.assertEqual((reviewed, introduced), (1, 1))
 
+    def test_todays_count_uses_the_database_clock(self) -> None:
+        """A review recorded moments ago always counts as today's.
+
+        Deriving the day boundary from Python's local date and comparing it
+        against UTC timestamps made this false for the hours where the two
+        dates disagree — the daily cap silently reset just after local
+        midnight. Asserting against the database's own clock is what makes the
+        test independent of where it runs.
+        """
+
+        deck_id, _ = self._store()
+        card_id = store.deck_cards(
+            self.connection, owner_id=self.owner_id, deck_id=deck_id
+        )[0].card.card_id
+        store.record_review(
+            self.connection, owner_id=self.owner_id, card_id=card_id, rating=3
+        )
+
+        boundary = self.connection.execute(
+            "select date_trunc('day', now()) as start, now() as current"
+        ).fetchone()
+        self.assertGreaterEqual(boundary["current"], boundary["start"])
+        reviewed, _ = store.counts_today(self.connection, owner_id=self.owner_id)
+        self.assertEqual(reviewed, 1)
+
     def test_a_failed_card_comes_back_and_a_known_one_does_not(self) -> None:
         deck_id, _ = self._store(fronts=("A?", "B?"))
         cards = store.deck_cards(

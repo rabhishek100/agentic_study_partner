@@ -10,7 +10,7 @@ to survive a regeneration it did not ask for.
 from __future__ import annotations
 
 import json
-from datetime import UTC, date, datetime
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -470,15 +470,21 @@ def counts_today(
     only the log can answer.
     """
 
+    # The day boundary is computed by the database, in the same clock the
+    # events were stamped with. Deriving it from Python's local `date.today()`
+    # and comparing against UTC timestamps made "today" start at local
+    # midnight and the events land in UTC — so for the hours between the two,
+    # a review recorded minutes earlier did not count and the daily cap
+    # silently reset. It passed every test until the two dates disagreed.
     row = connection.execute(
         """
         select
             count(*) as reviewed,
             count(*) filter (where prior_state = 'new') as introduced
         from public.deck_review_events
-        where owner_id = %s and reviewed_at >= %s
+        where owner_id = %s and reviewed_at >= date_trunc('day', now())
         """,
-        (parse_owner_id(owner_id), datetime.combine(date.today(), datetime.min.time(), UTC)),
+        (parse_owner_id(owner_id),),
     ).fetchone()
     return int(row["reviewed"] or 0), int(row["introduced"] or 0)
 

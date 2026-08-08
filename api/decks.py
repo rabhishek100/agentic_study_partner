@@ -492,7 +492,35 @@ def _card_with_deck(
 
 
 def _deck_conversation(connection, *, owner_id: UUID, deck: DeckSummary) -> dict:
-    """The one conversation that holds this deck's cards, created on demand."""
+    """The one conversation that holds this deck's cards, created on demand.
+
+    Created in a single statement rather than select-then-insert. Opening a
+    side chat fires two requests at once — the window layer asks for the
+    conversation so it can restore any open windows, while the highlight
+    itself posts — and both raced to create it, so the second one's insert
+    violated the one-per-deck index and returned a 500 on the reader's first
+    ever highlight.
+    """
+
+    created = connection.execute(
+        """
+        insert into public.conversations (
+            owner_id, title, book_ids, retrieval_mode, prompt_profile_json, deck_id
+        )
+        values (%s, %s, %s, %s, '{}'::jsonb, %s)
+        on conflict (owner_id, deck_id) where deck_id is not null do nothing
+        returning id, book_ids, retrieval_mode, prompt_profile_json
+        """,
+        (
+            owner_id,
+            f"Cards: {deck.title}",
+            [deck.book_id],
+            "hybrid_rerank",
+            UUID(deck.deck_id),
+        ),
+    ).fetchone()
+    if created is not None:
+        return dict(created)
 
     existing = connection.execute(
         """
@@ -502,21 +530,12 @@ def _deck_conversation(connection, *, owner_id: UUID, deck: DeckSummary) -> dict
         """,
         (owner_id, UUID(deck.deck_id)),
     ).fetchone()
-    if existing is not None:
-        return dict(existing)
-
-    created = create_conversation(
-        connection,
-        owner_id=owner_id,
-        book_ids=[deck.book_id],
-        retrieval_mode="hybrid_rerank",
-        title=f"Cards: {deck.title}",
-    )
-    connection.execute(
-        "update public.conversations set deck_id = %s where id = %s and owner_id = %s",
-        (UUID(deck.deck_id), created["id"], owner_id),
-    )
-    return dict(created)
+    if existing is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="this deck's conversation could not be opened; try again",
+        )
+    return dict(existing)
 
 
 def _card_turn_index(
