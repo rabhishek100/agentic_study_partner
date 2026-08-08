@@ -155,6 +155,11 @@ class FigureRef(ContractModel):
 # answer lengths rather than guessed: whole-answer anchors are the common case.
 MAXIMUM_QUOTE_CHARS = 16_000
 
+# More than a handful of references in one small window stops being a focused
+# question, and every anchor pins evidence that competes with retrieval for the
+# same context budget.
+MAXIMUM_ANCHORS = 5
+
 
 class QuoteAnchor(ContractModel):
     """One passage a reader carried from a conversation into a side chat.

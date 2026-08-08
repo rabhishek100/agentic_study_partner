@@ -11,6 +11,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# A side chat's context report has the same shape whichever surface it came
+# from: which anchors were used, what they pinned, and what the budget dropped.
+from study.contracts import SideContextReport
+
 
 VideoRoute = Literal[
     "evidence_qa",
@@ -34,6 +38,10 @@ RetrievalMethod = Literal[
     # whole-lecture request is answered from all of it, and the inspector must
     # not imply that eight passages were ranked and chosen.
     "complete_transcript",
+    # Also not a search: named by the citation markers inside a passage the
+    # reader highlighted in a side chat. Its score is a sentinel, so the
+    # inspector has to be able to say the unit was anchored rather than ranked.
+    "anchor_pin",
 ]
 
 
@@ -168,6 +176,9 @@ class VideoTurnResult(ContractModel):
     cost_usd: float = 0.0
     trace_id: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    # Present only on a side-chat turn. Optional so turns recorded before side
+    # chats existed still load.
+    side_context: SideContextReport | None = None
 
 
 class VideoConversationState(ContractModel):

@@ -6,11 +6,15 @@ follow from that, and they are deliberately not the same kind of thing:
 *   The passages the reader selected are **generated answer text**. They tell
     the model what is being asked about, and they are never citable — locked
     grounding forbids a prior answer supporting a new claim.
-*   The book chunks that passage's citation markers name **are** evidence, and
-    they are what "the pasted text matters more" actually means here: those
-    chunks are pinned to the front of the turn's evidence list, so they carry
-    the lowest markers and the answer rests on the same source the quoted
-    sentence did.
+*   What that passage's citation markers name **is** evidence, and it is what
+    "the pasted text matters more" actually means here: those units are pinned
+    to the front of the turn's evidence list, so they carry the lowest markers
+    and the answer rests on the same source the quoted sentence did.
+
+The rules are the same whether the source is a book or a lecture, so the
+assembly here is surface-neutral: it works on a rank-to-identity mapping that
+each surface supplies — book chunk ids on one side, video evidence units on the
+other. Only the adapters differ.
 
 Everything else — the exchange the passage came from, then the last few turns
 of the main conversation — is surrounding context, included while a token
@@ -22,17 +26,12 @@ what was left out.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 import tiktoken
 
-from .contracts import (
-    CitationRef,
-    EvidenceRef,
-    QuoteAnchor,
-    SideContextReport,
-)
+from .contracts import QuoteAnchor, SideContextReport
 
 DEFAULT_ENCODING = "cl100k_base"
 
@@ -64,20 +63,43 @@ ANCHORED_TURN_HEADING = "The exchange those passages came from:"
 EARLIER_HEADING = "Earlier in the main conversation:"
 
 
+def ranked_identities(
+    evidence: Iterable[object],
+    *,
+    identity: str,
+) -> dict[int, str]:
+    """Map each `[S…]` rank to the identity of the evidence it named.
+
+    `rank` is populated by every retrieval path; the list position is the
+    fallback for a turn recorded before it was, and for a hierarchy answer
+    whose evidence carries no ranks.
+    """
+
+    ranked: dict[int, str] = {}
+    for position, reference in enumerate(evidence, start=1):
+        value = getattr(reference, identity, None)
+        if not value:
+            continue
+        ranked.setdefault(getattr(reference, "rank", None) or position, str(value))
+    return ranked
+
+
 @dataclass(frozen=True)
 class ParentTurn:
     """One recorded turn of the conversation a side chat hangs off.
 
-    Deliberately not a `TurnResult`: the assembler needs four fields, and
-    taking the whole result would couple context assembly to every future
-    change in the result contract.
+    Holds the rank-to-identity mapping rather than either surface's reference
+    type. A book chunk and a video evidence unit are different things playing
+    the same role here — something a marker points at — and the assembly rules
+    are identical for both, so the assembler takes the mapping and each surface
+    supplies it.
     """
 
     turn_index: int
     question: str
     answer: str
-    evidence: tuple[EvidenceRef, ...] = ()
-    citations: tuple[CitationRef, ...] = ()
+    ranked_ids: Mapping[int, str] = field(default_factory=dict)
+    citation_ranks: tuple[int, ...] = ()
 
     @classmethod
     def from_result(
@@ -87,14 +109,22 @@ class ParentTurn:
         answer: str,
         result: object,
     ) -> "ParentTurn":
-        """Build from a stored `TurnResult`, tolerating one that has neither."""
+        """Build from a stored book `TurnResult`, tolerating one with neither."""
 
+        citations = tuple(getattr(result, "citations", ()) or ())
         return cls(
             turn_index=turn_index,
             question=question,
             answer=answer,
-            evidence=tuple(getattr(result, "evidence", ()) or ()),
-            citations=tuple(getattr(result, "citations", ()) or ()),
+            ranked_ids=ranked_identities(
+                getattr(result, "evidence", ()) or (),
+                identity="chunk_id",
+            ),
+            citation_ranks=tuple(
+                citation.evidence_rank
+                for citation in citations
+                if citation.evidence_rank
+            ),
         )
 
 
@@ -131,36 +161,20 @@ def readable_quote(quoted_text: str) -> str:
     return _collapse(SOURCE_MARKER.sub(" ", quoted_text))
 
 
-def _rank_to_chunk(turn: ParentTurn) -> dict[int, str]:
-    """Map the `[S…]` rank a marker carries to the chunk it named.
-
-    `rank` is populated by the retrieval path; the list position is the
-    fallback for a turn recorded before it was, and for a hierarchy answer
-    whose evidence carries no ranks.
-    """
-
-    ranked: dict[int, str] = {}
-    for position, reference in enumerate(turn.evidence, start=1):
-        if not reference.chunk_id:
-            continue
-        ranked.setdefault(reference.rank or position, reference.chunk_id)
-    return ranked
-
-
 def resolve_pins(anchor: QuoteAnchor, turn: ParentTurn) -> tuple[str, ...]:
-    """Chunks the quoted passage rests on, in the order it names them.
+    """What the quoted passage rests on, in the order it names them.
 
     A marker that the turn cannot account for is skipped rather than guessed:
     an anchor pointing at evidence that is no longer there should narrow the
-    pinned set, never invent a different chunk.
+    pinned set, never substitute something else.
 
     A selection carrying no marker at all is the common case — readers
     highlight a sentence, not its citation — so it falls back to what the whole
     answer cited, and then to its best-ranked evidence. That keeps an uncited
-    highlight anchored to the right part of the book instead of unanchored.
+    highlight anchored to the right part of the source instead of unanchored.
     """
 
-    ranked = _rank_to_chunk(turn)
+    ranked = turn.ranked_ids
     if not ranked:
         return ()
 
@@ -171,9 +185,8 @@ def resolve_pins(anchor: QuoteAnchor, turn: ParentTurn) -> tuple[str, ...]:
             ordered.append(rank)
 
     if not ordered:
-        for citation in turn.citations:
-            rank = citation.evidence_rank
-            if rank and rank in ranked and rank not in ordered:
+        for rank in turn.citation_ranks:
+            if rank in ranked and rank not in ordered:
                 ordered.append(rank)
     if not ordered:
         ordered = [min(ranked)]

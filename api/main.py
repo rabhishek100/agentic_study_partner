@@ -59,6 +59,7 @@ from storage.postgres import list_books, ready_book
 from storage.preferences import load_prompt_profile, save_prompt_profile
 from study.analyze import ConversationDecisionError
 from study.contracts import (
+    MAXIMUM_ANCHORS,
     MAXIMUM_QUOTE_CHARS,
     AnswerArchetype,
     ContractModel,
@@ -190,12 +191,6 @@ class SideChatAnchorInput(ContractModel):
     parent_turn_index: int = Field(ge=0)
     # Matches the stored contract; see the note on `QuoteAnchor.quoted_text`.
     quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
-
-
-# More than a handful of references in one small window stops being a focused
-# question, and every anchor pins evidence that competes with retrieval for the
-# same context budget.
-MAXIMUM_ANCHORS = 5
 
 
 class CreateSideChatRequest(ContractModel):

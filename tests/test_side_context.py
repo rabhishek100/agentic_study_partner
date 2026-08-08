@@ -1,6 +1,7 @@
 """Side chat context assembly: what gets priority, and what gets dropped."""
 
 import unittest
+from types import SimpleNamespace
 
 from study.contracts import CitationRef, EvidenceRef, QuoteAnchor
 from study.side_context import (
@@ -24,17 +25,14 @@ def evidence(rank: int, chunk_id: str) -> EvidenceRef:
     )
 
 
-def parent_turn(
-    turn_index: int = 0,
-    question: str = "What is training-serving skew?",
-    answer: str = "Skew arises when features differ [S1], and it compounds [S2].",
-    citation_ranks: tuple[int, ...] = (1,),
-) -> ParentTurn:
-    return ParentTurn(
-        turn_index=turn_index,
-        question=question,
-        answer=answer,
-        evidence=(evidence(1, "chunk-one"), evidence(2, "chunk-two")),
+def stored_result(
+    evidence_refs: tuple[EvidenceRef, ...],
+    citation_ranks: tuple[int, ...],
+) -> SimpleNamespace:
+    """Stands in for a recorded `TurnResult`, which is all the adapter reads."""
+
+    return SimpleNamespace(
+        evidence=evidence_refs,
         citations=tuple(
             CitationRef(
                 marker=f"[S{rank}]",
@@ -44,6 +42,22 @@ def parent_turn(
             )
             for rank in citation_ranks
         ),
+    )
+
+
+def parent_turn(
+    turn_index: int = 0,
+    question: str = "What is training-serving skew?",
+    answer: str = "Skew arises when features differ [S1], and it compounds [S2].",
+    citation_ranks: tuple[int, ...] = (1,),
+) -> ParentTurn:
+    # Built through the book adapter, so these tests cover the mapping from a
+    # stored result as well as the assembly rules.
+    return ParentTurn.from_result(
+        turn_index,
+        question,
+        answer,
+        stored_result((evidence(1, "chunk-one"), evidence(2, "chunk-two")), citation_ranks),
     )
 
 
@@ -100,17 +114,32 @@ class ResolvePinsTests(unittest.TestCase):
         self.assertEqual(resolve_pins(anchor("A"), turn), ())
 
     def test_list_position_stands_in_for_a_missing_rank(self):
-        turn = ParentTurn(
-            turn_index=0,
-            question="Q",
-            answer="A [S2]",
-            evidence=(
-                EvidenceRef(node_id=1, pages=[1], path="one", chunk_id="chunk-one"),
-                EvidenceRef(node_id=2, pages=[2], path="two", chunk_id="chunk-two"),
+        turn = ParentTurn.from_result(
+            0,
+            "Q",
+            "A [S2]",
+            stored_result(
+                (
+                    EvidenceRef(node_id=1, pages=[1], path="one", chunk_id="chunk-one"),
+                    EvidenceRef(node_id=2, pages=[2], path="two", chunk_id="chunk-two"),
+                ),
+                (),
             ),
         )
 
         self.assertEqual(resolve_pins(anchor("A [S2]"), turn), ("chunk-two",))
+
+    def test_evidence_without_an_identity_is_not_pinnable(self):
+        # A hierarchy answer's evidence carries no chunk id: there is nothing to
+        # pin, and inventing one would cite the wrong thing.
+        turn = ParentTurn.from_result(
+            0,
+            "Q",
+            "A [S1]",
+            stored_result((EvidenceRef(node_id=1, pages=[1], path="one"),), (1,)),
+        )
+
+        self.assertEqual(resolve_pins(anchor("A [S1]"), turn), ())
 
 
 class ReadableQuoteTests(unittest.TestCase):
@@ -182,11 +211,14 @@ class BuildSideContextTests(unittest.TestCase):
         self.assertEqual(context.report.anchor_ids, ["a1", "a2"])
 
     def test_pins_beyond_the_limit_are_dropped_and_reported(self):
-        turn = ParentTurn(
-            turn_index=0,
-            question="Q",
-            answer="A",
-            evidence=tuple(evidence(rank, f"chunk-{rank}") for rank in range(1, 5)),
+        turn = ParentTurn.from_result(
+            0,
+            "Q",
+            "A",
+            stored_result(
+                tuple(evidence(rank, f"chunk-{rank}") for rank in range(1, 5)),
+                (),
+            ),
         )
         context = build_side_context(
             [anchor("[S1] [S2] [S3] [S4]")],

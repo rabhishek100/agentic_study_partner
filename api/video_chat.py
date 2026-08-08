@@ -15,8 +15,9 @@ import logging
 from pathlib import Path
 import queue
 import threading
+from collections.abc import Callable
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import fitz
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -26,11 +27,20 @@ from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
 from storage.database import connection as database_connection
-from study.contracts import ContractModel
+from study.contracts import (
+    MAXIMUM_ANCHORS,
+    MAXIMUM_QUOTE_CHARS,
+    ContractModel,
+    QuoteAnchor,
+)
+from study.side_context import build_side_context, readable_quote
 from video.answers import VideoAnswerDependencies
 from video.contracts import VideoConversationState, VideoTurnResult
 from video.conversation import execute_video_turn, new_video_conversation_state
 from video.conversation_store import (
+    list_side_chats,
+    set_anchors,
+    set_conversation_state,
     PLACEHOLDER_TITLE,
     VideoConversationNotFoundError,
     VideoTurnCostExceeded,
@@ -53,6 +63,7 @@ from video.models import VideoModelError
 from video.playback import PlaybackTokenError, verify_playback
 from video.prompts import prompt_snapshot
 from video.repository import load_standalone_video
+from video.side_context import parent_turns as video_parent_turns
 from video.retrieval import VideoNotReadyError
 
 
@@ -86,6 +97,45 @@ class ConversationSummary(ContractModel):
     turn_count: int
     created_at: Any
     updated_at: Any
+    # Side chats opened over this conversation, counted rather than listed
+    # beside it: a side chat belongs to a passage, not to the library.
+    side_thread_count: int = 0
+
+
+class SideChatAnchorInput(ContractModel):
+    """One passage a reader carried into a side chat over this lecture."""
+
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
+    parent_turn_index: int = Field(ge=0)
+    quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
+
+
+class CreateSideChatRequest(ContractModel):
+    anchors: list[SideChatAnchorInput] = Field(min_length=1, max_length=MAXIMUM_ANCHORS)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class UpdateSideChatRequest(ContractModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    anchors: list[SideChatAnchorInput] | None = Field(
+        default=None,
+        max_length=MAXIMUM_ANCHORS,
+    )
+
+
+class SideChatSummary(ContractModel):
+    conversation_id: UUID
+    parent_conversation_id: UUID
+    video_id: UUID
+    title: str
+    anchors: list[QuoteAnchor]
+    turn_count: int
+    created_at: Any
+    updated_at: Any
+
+
+class SideChatListResponse(ContractModel):
+    side_chats: list[SideChatSummary]
 
 
 class ConversationListResponse(ContractModel):
@@ -360,6 +410,95 @@ def _run_turn(
     return AskResponse(conversation_id=conversation_id, result=result)
 
 
+SIDE_CHAT_NOT_FOUND = HTTPException(
+    status_code=404, detail="video side chat not found"
+)
+
+
+def _assigned_anchors(
+    requested: list[SideChatAnchorInput],
+    *,
+    existing: list[QuoteAnchor],
+    turn_indexes: set[int],
+) -> list[QuoteAnchor]:
+    """Validate anchors against the parent's turns and give each a unique id."""
+
+    known = {anchor.anchor_id for anchor in existing}
+    used: set[str] = set()
+    anchors: list[QuoteAnchor] = []
+    for item in requested:
+        if item.parent_turn_index not in turn_indexes:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"turn {item.parent_turn_index} is not an answered turn of "
+                    "the parent conversation"
+                ),
+            )
+        anchor_id = item.anchor_id
+        if anchor_id is None or anchor_id not in known or anchor_id in used:
+            anchor_id = uuid4().hex
+        used.add(anchor_id)
+        anchors.append(
+            QuoteAnchor(
+                anchor_id=anchor_id,
+                parent_turn_index=item.parent_turn_index,
+                quoted_text=item.quoted_text.strip(),
+            )
+        )
+    return anchors
+
+
+def _side_chat_summary(record: dict[str, Any], turn_count: int) -> SideChatSummary:
+    return SideChatSummary(
+        conversation_id=record["id"],
+        parent_conversation_id=record["parent_conversation_id"],
+        video_id=record["video_id"],
+        title=record["title"],
+        anchors=[
+            QuoteAnchor.model_validate(anchor)
+            for anchor in record["anchors_json"] or []
+        ],
+        turn_count=turn_count,
+        created_at=record["created_at"],
+        updated_at=record["updated_at"],
+    )
+
+
+def _seeded_side_chat_state(
+    conversation_id: UUID,
+    *,
+    video_id: UUID,
+    anchored_turn: dict[str, Any],
+) -> VideoConversationState:
+    """Open a side chat already knowing the answer it was opened over."""
+
+    state = new_video_conversation_state(
+        video_id=str(video_id),
+        conversation_id=conversation_id,
+    )
+    result = VideoTurnResult.model_validate(anchored_turn["result_json"])
+    state.previous_answer = anchored_turn["answer"]
+    state.previous_evidence = list(result.evidence)
+    state.previous_citations = list(result.citations)
+    state.previous_route = result.route
+    return state
+
+
+def _answered_turns(connection, conversation_id: UUID, owner_id: UUID) -> dict[int, dict]:
+    """The parent's turns that a side chat can anchor to.
+
+    A running or failed turn is excluded: it has no answer to quote and no
+    evidence to pin, so anchoring to it would produce a window about nothing.
+    """
+
+    return {
+        row["turn_index"]: row
+        for row in load_turns(connection, conversation_id, owner_id=owner_id)
+        if row.get("answer") and row.get("result_json")
+    }
+
+
 REJECTED_TURN_ERRORS = (
     VideoNotReadyError,
     VideoModelError,
@@ -385,25 +524,25 @@ async def ask(
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
-@chat_router.post("/api/video-conversations/{conversation_id}/turns/stream")
-async def ask_stream(
-    conversation_id: UUID,
-    request: AskRequest,
-    owner_id: UUID = Depends(current_owner),
+def _streamed_video_turn(
+    execute: Callable[[Callable[[str, str], None]], AskResponse],
 ) -> StreamingResponse:
-    """Stream answer tokens, ending with one `final` or `error` event."""
+    """Run one lecture turn on a worker thread and stream its tokens as SSE.
+
+    Shared by the main lecture chat and by its side chats, so the framing, the
+    heartbeat, and the mapping from a rejected turn to an `error` event cannot
+    drift apart between the two.
+    """
 
     loop = asyncio.get_running_loop()
     events: queue.Queue = queue.Queue()
-    question = request.question.strip()
 
     def on_token(kind: str, text: str) -> None:
         events.put((kind, text))
 
     def run() -> None:
         try:
-            response = _run_turn(owner_id, conversation_id, question, on_token)
-            events.put(("final", response.model_dump_json()))
+            events.put(("final", execute(on_token).model_dump_json()))
         except HTTPException as error:
             logger.warning("Video turn rejected: %s", error.detail)
             events.put(("error", json.dumps({"detail": error.detail})))
@@ -442,6 +581,238 @@ async def ask_stream(
         event_stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@chat_router.post("/api/video-conversations/{conversation_id}/turns/stream")
+async def ask_stream(
+    conversation_id: UUID,
+    request: AskRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> StreamingResponse:
+    """Stream answer tokens, ending with one `final` or `error` event."""
+
+    question = request.question.strip()
+    return _streamed_video_turn(
+        lambda on_token: _run_turn(owner_id, conversation_id, question, on_token)
+    )
+
+
+def _create_side_chat(
+    owner_id: UUID,
+    parent_conversation_id: UUID,
+    request: CreateSideChatRequest,
+) -> SideChatSummary:
+    with database_connection() as connection:
+        parent = load_conversation(
+            connection, parent_conversation_id, owner_id=owner_id
+        )
+        if parent is None:
+            raise CONVERSATION_NOT_FOUND
+        if parent["parent_conversation_id"] is not None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "side chats cannot be nested; open one over the main "
+                    "conversation instead"
+                ),
+            )
+        turns = _answered_turns(connection, parent_conversation_id, owner_id)
+        anchors = _assigned_anchors(
+            request.anchors, existing=[], turn_indexes=set(turns)
+        )
+        anchored_turn = turns[anchors[0].parent_turn_index]
+        created = create_conversation(
+            connection,
+            owner_id=owner_id,
+            # The lecture is inherited: a side chat is about a passage of this
+            # conversation, so it can only ever search the same recording.
+            video_id=parent["video_id"],
+            title=(
+                request.title
+                or readable_quote(anchors[0].quoted_text)
+                or anchored_turn["question"]
+            ),
+            retrieval_mode=parent["retrieval_mode"],
+            prompt_snapshot=parent["prompt_snapshot_json"] or prompt_snapshot(),
+            parent_conversation_id=parent_conversation_id,
+            anchors=[anchor.model_dump(mode="json") for anchor in anchors],
+        )
+        set_conversation_state(
+            connection,
+            created["id"],
+            owner_id=owner_id,
+            state=_seeded_side_chat_state(
+                created["id"],
+                video_id=parent["video_id"],
+                anchored_turn=anchored_turn,
+            ).model_dump(mode="json"),
+        )
+    return _side_chat_summary(created, turn_count=0)
+
+
+def _run_side_turn(
+    owner_id: UUID,
+    side_chat_id: UUID,
+    question: str,
+    token_callback=None,
+) -> AskResponse:
+    """Execute and persist one side-chat turn over a lecture."""
+
+    with database_connection() as connection:
+        record = load_conversation(connection, side_chat_id, owner_id=owner_id)
+        if record is None or record["parent_conversation_id"] is None:
+            raise SIDE_CHAT_NOT_FOUND
+        video = _require_video(connection, record["video_id"], owner_id)
+        anchors = [
+            QuoteAnchor.model_validate(anchor)
+            for anchor in record["anchors_json"] or []
+        ]
+        parent_rows = load_turns(
+            connection, record["parent_conversation_id"], owner_id=owner_id
+        )
+        state = (
+            VideoConversationState.model_validate(record["state_json"]).model_copy(
+                update={"conversation_id": str(side_chat_id)}
+            )
+            if record["state_json"]
+            else new_video_conversation_state(
+                video_id=record["video_id"], conversation_id=side_chat_id
+            )
+        )
+        result, updated = execute_video_turn(
+            connection,
+            question,
+            state,
+            owner_id=owner_id,
+            video_id=record["video_id"],
+            video_title=video["title"],
+            dependencies=_answer_dependencies(),
+            token_callback=token_callback,
+            side_context=build_side_context(anchors, video_parent_turns(parent_rows)),
+        )
+        if result.ingestion_version_id:
+            append_turn(
+                connection,
+                side_chat_id,
+                owner_id=owner_id,
+                video_id=record["video_id"],
+                ingestion_version_id=result.ingestion_version_id,
+                question=result.question,
+                rewritten_query=result.standalone_query or result.question,
+                answer=result.answer,
+                result=result.model_dump(mode="json"),
+                state=updated.model_dump(mode="json"),
+                cost_usd=result.cost_usd,
+                trace_id=result.trace_id,
+                maximum_cost_usd=cost_ceiling(result.route),
+            )
+    return AskResponse(conversation_id=side_chat_id, result=result)
+
+
+@chat_router.post(
+    "/api/video-conversations/{conversation_id}/side-chats",
+    status_code=201,
+)
+async def open_side_chat(
+    conversation_id: UUID,
+    request: CreateSideChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> SideChatSummary:
+    """Open a side chat over one or more passages of a lecture conversation."""
+
+    return await run_in_threadpool(
+        _create_side_chat, owner_id, conversation_id, request
+    )
+
+
+@chat_router.get("/api/video-conversations/{conversation_id}/side-chats")
+async def video_side_chats(
+    conversation_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> SideChatListResponse:
+    """List the side chats opened over one lecture conversation."""
+
+    def load() -> list[SideChatSummary]:
+        with database_connection(readonly=True) as connection:
+            if load_conversation(connection, conversation_id, owner_id=owner_id) is None:
+                raise CONVERSATION_NOT_FOUND
+            return [
+                _side_chat_summary(row, turn_count=row["turn_count"])
+                for row in list_side_chats(
+                    connection, conversation_id, owner_id=owner_id
+                )
+            ]
+
+    return SideChatListResponse(side_chats=await run_in_threadpool(load))
+
+
+@chat_router.patch("/api/video-side-chats/{side_chat_id}")
+async def update_video_side_chat(
+    side_chat_id: UUID,
+    request: UpdateSideChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> SideChatSummary:
+    """Rename a side chat, or replace the passages it is anchored to."""
+
+    def apply() -> SideChatSummary:
+        with database_connection() as connection:
+            record = load_conversation(connection, side_chat_id, owner_id=owner_id)
+            if record is None or record["parent_conversation_id"] is None:
+                raise SIDE_CHAT_NOT_FOUND
+            if request.title:
+                record = rename_conversation(
+                    connection,
+                    side_chat_id,
+                    owner_id=owner_id,
+                    title=request.title.strip(),
+                )
+            if request.anchors is not None:
+                anchors = _assigned_anchors(
+                    request.anchors,
+                    existing=[
+                        QuoteAnchor.model_validate(anchor)
+                        for anchor in record["anchors_json"] or []
+                    ],
+                    turn_indexes=set(
+                        _answered_turns(
+                            connection,
+                            record["parent_conversation_id"],
+                            owner_id,
+                        )
+                    ),
+                )
+                record = set_anchors(
+                    connection,
+                    side_chat_id,
+                    owner_id=owner_id,
+                    anchors=[anchor.model_dump(mode="json") for anchor in anchors],
+                )
+            if record is None:
+                raise SIDE_CHAT_NOT_FOUND
+            turn_count = connection.execute(
+                """
+                select count(*) as turn_count from video.conversation_turns
+                where conversation_id = %s and owner_id = %s
+                """,
+                (side_chat_id, owner_id),
+            ).fetchone()["turn_count"]
+        return _side_chat_summary(record, turn_count=turn_count)
+
+    return await run_in_threadpool(apply)
+
+
+@chat_router.post("/api/video-side-chats/{side_chat_id}/turns/stream")
+async def video_side_chat_turn_stream(
+    side_chat_id: UUID,
+    request: AskRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> StreamingResponse:
+    """Stream one side-chat answer, framed like a main lecture turn."""
+
+    question = request.question.strip()
+    return _streamed_video_turn(
+        lambda on_token: _run_side_turn(owner_id, side_chat_id, question, on_token)
     )
 
 
@@ -754,4 +1125,5 @@ def _summary(row: dict[str, Any]) -> ConversationSummary:
         turn_count=int(row["turn_count"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        side_thread_count=int(row.get("side_thread_count") or 0),
     )

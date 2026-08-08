@@ -8,6 +8,7 @@ pin the published ingestion version that supplied their evidence.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -52,6 +53,13 @@ def derive_title(question: str) -> str:
     return cleaned[: MAXIMUM_TITLE_CHARACTERS - 1].rstrip() + "…"
 
 
+CONVERSATION_COLUMNS = """
+    id, video_id, title, retrieval_mode, retrieval_config_json,
+    prompt_snapshot_json, state_json, parent_conversation_id, anchors_json,
+    created_at, updated_at
+"""
+
+
 def create_conversation(
     connection: Connection,
     *,
@@ -61,21 +69,32 @@ def create_conversation(
     retrieval_mode: str = "hybrid",
     retrieval_config: dict[str, Any] | None = None,
     prompt_snapshot: dict[str, Any] | None = None,
+    parent_conversation_id: str | UUID | None = None,
+    anchors: Sequence[dict[str, Any]] | None = None,
+    state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Create a lecture conversation, or a side chat when a parent is named.
+
+    A side chat may be seeded with state — the anchored turn's answer, evidence
+    and citations — so asking it to reword that answer works on its first turn.
+    """
+
     owner, video = parse_owner_id(owner_id), UUID(str(video_id))
+    if anchors and parent_conversation_id is None:
+        raise ValueError("anchors require a parent conversation")
     row = connection.execute(
-        """
+        f"""
         insert into video.conversations (
             owner_id, video_id, title, retrieval_mode, retrieval_config_json,
-            prompt_snapshot_json, state_json
+            prompt_snapshot_json, state_json, parent_conversation_id,
+            anchors_json
         )
-        select %s, %s, %s, %s, %s, %s, %s
+        select %s, %s, %s, %s, %s, %s, %s, %s, %s
         where exists (
             select 1 from video.videos
             where id = %s and owner_id = %s
         )
-        returning id, video_id, title, retrieval_mode, retrieval_config_json,
-                  prompt_snapshot_json, state_json, created_at, updated_at
+        returning {CONVERSATION_COLUMNS}
         """,
         (
             owner,
@@ -84,7 +103,9 @@ def create_conversation(
             retrieval_mode,
             Jsonb(retrieval_config or {}),
             Jsonb(prompt_snapshot or {}),
-            Jsonb({}),
+            Jsonb(state or {}),
+            UUID(str(parent_conversation_id)) if parent_conversation_id else None,
+            Jsonb(list(anchors or ())),
             video,
             owner,
         ),
@@ -101,9 +122,8 @@ def load_conversation(
     owner_id: str | UUID,
 ) -> dict[str, Any] | None:
     return connection.execute(
-        """
-        select id, video_id, title, retrieval_mode, retrieval_config_json,
-               prompt_snapshot_json, state_json, created_at, updated_at
+        f"""
+        select {CONVERSATION_COLUMNS}
         from video.conversations
         where id = %s and owner_id = %s
         """,
@@ -129,7 +149,13 @@ def list_conversations(
         select conversation.id, conversation.video_id, conversation.title,
                conversation.retrieval_mode, conversation.created_at,
                conversation.updated_at, video.title as video_title,
-               count(turn.id) as turn_count
+               count(turn.id) as turn_count,
+               (
+                   select count(*)
+                   from video.conversations as side
+                   where side.parent_conversation_id = conversation.id
+                     and side.owner_id = conversation.owner_id
+               ) as side_thread_count
         from video.conversations as conversation
         join video.videos as video
           on video.id = conversation.video_id
@@ -138,6 +164,7 @@ def list_conversations(
           on turn.conversation_id = conversation.id
          and turn.owner_id = conversation.owner_id
         where conversation.owner_id = %s {predicate}
+          and conversation.parent_conversation_id is null
         group by conversation.id, video.title
         order by conversation.updated_at desc, conversation.id
         limit %s
@@ -258,14 +285,94 @@ def rename_conversation(
     title: str,
 ) -> dict[str, Any] | None:
     return connection.execute(
-        """
+        f"""
         update video.conversations set title = %s, updated_at = now()
         where id = %s and owner_id = %s
-        returning id, video_id, title, retrieval_mode, retrieval_config_json,
-                  prompt_snapshot_json, state_json, created_at, updated_at
+        returning {CONVERSATION_COLUMNS}
         """,
         (derive_title(title), UUID(str(conversation_id)), parse_owner_id(owner_id)),
     ).fetchone()
+
+
+def list_side_chats(
+    connection: Connection,
+    parent_conversation_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+) -> list[dict[str, Any]]:
+    """List one lecture conversation's side chats, most recently used first."""
+
+    return connection.execute(
+        """
+        select conversation.id, conversation.video_id, conversation.title,
+               conversation.retrieval_mode, conversation.parent_conversation_id,
+               conversation.anchors_json, conversation.created_at,
+               conversation.updated_at, count(turn.id) as turn_count
+        from video.conversations as conversation
+        left join video.conversation_turns as turn
+          on turn.conversation_id = conversation.id
+         and turn.owner_id = conversation.owner_id
+        where conversation.owner_id = %s
+          and conversation.parent_conversation_id = %s
+        group by conversation.id
+        order by conversation.updated_at desc, conversation.id
+        """,
+        (parse_owner_id(owner_id), UUID(str(parent_conversation_id))),
+    ).fetchall()
+
+
+def set_anchors(
+    connection: Connection,
+    conversation_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    anchors: Sequence[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Replace the passages a side chat is anchored to, wholesale.
+
+    The whole set rather than a patch, for the same reason as the book store: the
+    client always knows the intended set, and merging would only add a way for
+    two windows to disagree about it.
+    """
+
+    return connection.execute(
+        f"""
+        update video.conversations
+        set anchors_json = %s, updated_at = now()
+        where id = %s and owner_id = %s and parent_conversation_id is not null
+        returning {CONVERSATION_COLUMNS}
+        """,
+        (
+            Jsonb(list(anchors)),
+            UUID(str(conversation_id)),
+            parse_owner_id(owner_id),
+        ),
+    ).fetchone()
+
+
+def set_conversation_state(
+    connection: Connection,
+    conversation_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    state: dict[str, Any],
+) -> None:
+    """Seed a side chat with the answer it was opened over.
+
+    Unlike the book store, this does bump `updated_at`: `video.conversations`
+    has a trigger that stamps it on every update, and suppressing that for one
+    statement would be a worse trade than the ordering it buys. The effect is
+    only that a freshly created side chat sorts first among its siblings, which
+    it would anyway.
+    """
+
+    connection.execute(
+        """
+        update video.conversations set state_json = %s
+        where id = %s and owner_id = %s
+        """,
+        (Jsonb(state), UUID(str(conversation_id)), parse_owner_id(owner_id)),
+    )
 
 
 def delete_conversation(
