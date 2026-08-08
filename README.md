@@ -381,6 +381,17 @@ Escape discards it, and the button hides itself where recording is impossible â€
 an insecure origin, or a browser without `MediaRecorder` â€” since every surface
 stays fully usable by typing.
 
+A caret beside the microphone chooses which input to record from, and appears
+only once there is more than one. The choice is remembered across sessions and
+shared by every composer on the page, since a headset picked in one is meant
+for all of them. Browsers withhold device names until an origin has been
+granted the microphone once, so the list is named after the first recording
+rather than before it; Chrome's `default` and `communications` aliases are
+dropped, because the menu has its own "System default" entry that means the
+same thing. A device chosen and later unplugged does not silently demote to
+the laptop lid: the request fails against the exact device, the stored choice
+is dropped, and the recording restarts on the system default.
+
 The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
 `POST /api/chat/stream`, `POST /api/transcriptions`,
 `GET/PATCH /api/prompt-settings`, prompt preview,

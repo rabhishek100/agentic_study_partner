@@ -1,12 +1,25 @@
 "use client";
 
-import { Loader2, Mic, Square } from "lucide-react";
+import { ChevronDown, Loader2, Mic, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useDictation } from "@/hooks/use-dictation";
+import { useMicrophones } from "@/hooks/use-microphones";
 import { canDictate, recordingClock } from "@/lib/dictation";
 import { cn } from "@/lib/utils";
+
+/** Stands in for "whatever the system is set to", which has no device id. */
+const SYSTEM_DEFAULT = "system-default";
 
 export interface MicButtonProps {
   /** Called with the words that were spoken, for the composer to place. */
@@ -42,6 +55,7 @@ export function MicButton({
   const [supported, setSupported] = useState(false);
   const { status, error, elapsedMs, start, stop, cancel, dismissError } =
     useDictation(onTranscript);
+  const { devices, selectedId, select } = useMicrophones();
 
   useEffect(() => setSupported(canDictate()), []);
 
@@ -123,6 +137,55 @@ export function MicButton({
           <Mic aria-hidden />
         )}
       </Button>
+
+      {/* Only worth showing once there is a choice to make. Before the first
+          recording the browser reports inputs without names, and often only
+          one of them, so this appears after permission has been granted —
+          which is also the first moment the names are readable. */}
+      {devices.length > 1 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              disabled={disabled || isRecording || isBusy}
+              aria-label="Choose a microphone"
+              className="text-muted-foreground"
+            >
+              <ChevronDown aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          {/* Fixed width, not a max: device names run long ("Jabra Evolve2 65
+              Hands-Free"), and a menu that sizes to its content would be a
+              different width every time a headset is plugged in. */}
+          <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuLabel>Microphone</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup
+              value={selectedId ?? SYSTEM_DEFAULT}
+              onValueChange={(value) =>
+                select(value === SYSTEM_DEFAULT ? null : value)
+              }
+            >
+              <DropdownMenuRadioItem value={SYSTEM_DEFAULT}>
+                <span className="truncate">System default</span>
+              </DropdownMenuRadioItem>
+              {devices.map((device) => (
+                <DropdownMenuRadioItem
+                  key={device.deviceId}
+                  value={device.deviceId}
+                >
+                  {/* The title carries the name the width cannot. */}
+                  <span className="truncate" title={device.label}>
+                    {device.label}
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </span>
   );
 }

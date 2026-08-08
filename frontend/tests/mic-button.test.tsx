@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "@/components/conversation/composer";
 import { MicButton } from "@/components/dictation/mic-button";
 import { transcribeRecording } from "@/lib/dictation";
+import { resetMicrophones } from "@/lib/microphone";
 
 vi.mock("@/lib/dictation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/dictation")>()),
@@ -59,6 +60,9 @@ function grantMicrophone(getUserMedia = vi.fn(async () => fakeStream())) {
 }
 
 beforeEach(() => {
+  // The device store outlives a component, so each test starts from nothing
+  // remembered rather than from whatever the previous one plugged in.
+  resetMicrophones();
   FakeMediaRecorder.instances = [];
   stoppedTracks.length = 0;
   transcribe.mockReset();

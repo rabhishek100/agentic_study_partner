@@ -9,6 +9,11 @@ import {
   recordingMimeType,
   transcribeRecording,
 } from "@/lib/dictation";
+import {
+  microphoneConstraint,
+  refreshMicrophones,
+  selectMicrophone,
+} from "@/lib/microphone";
 
 export type DictationStatus =
   | "idle"
@@ -30,6 +35,31 @@ export interface Dictation {
 }
 
 const ELAPSED_TICK_MS = 250;
+
+/**
+ * Open the chosen microphone, or the default if that one has gone away.
+ *
+ * The choice is an exact constraint, so a headset unplugged since it was
+ * picked fails the request outright rather than recording from the laptop lid
+ * without saying so. Falling back is safe here precisely because it is
+ * explicit: the stored choice is dropped, so the picker stops claiming a
+ * device that no longer exists.
+ */
+async function openMicrophone(): Promise<MediaStream> {
+  const audio = microphoneConstraint();
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio });
+  } catch (failure) {
+    const missing =
+      audio !== true &&
+      failure instanceof DOMException &&
+      (failure.name === "OverconstrainedError" ||
+        failure.name === "NotFoundError");
+    if (!missing) throw failure;
+    selectMicrophone(null);
+    return navigator.mediaDevices.getUserMedia({ audio: true });
+  }
+}
 
 /**
  * Record one spoken question and hand back its text.
@@ -140,13 +170,16 @@ export function useDictation(onTranscript: (text: string) => void): Dictation {
 
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await openMicrophone();
     } catch (failure) {
       if (!liveRef.current) return;
       setStatus("idle");
       setError(microphoneProblem(failure));
       return;
     }
+    // Device labels are unreadable until an origin has been granted the
+    // microphone once, so the list is only worth naming after this point.
+    void refreshMicrophones();
     // The reader may have cancelled, or navigated, while the permission
     // prompt was open. Nothing should keep recording after that.
     if (!liveRef.current || discardedRef.current) {
