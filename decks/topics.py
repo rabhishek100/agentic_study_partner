@@ -25,6 +25,7 @@ from parsing.models import NON_CONTENT_CATEGORIES
 from storage.database import parse_owner_id
 from study.content import EvidenceBundle
 from study.context import DEFAULT_ENCODING
+from study.summarize import OPTIONAL_INTERVIEW_SECTION, OPTIONAL_RECAP_TITLES
 from video.lecture import CoverageUnit, LectureScope
 
 from .contracts import DeckFigure
@@ -37,6 +38,26 @@ SUBSTANTIVE_NODE_CHARACTERS = 400
 # Same idea for a lecture: `video.lecture` uses 240 characters for a transcript
 # window, and a topic here is at least a window.
 SUBSTANTIVE_WINDOW_CHARACTERS = 240
+
+# Sections that are long enough to look required and have nothing to card.
+# A chapter recap restates what its own sections already said, and a reading
+# list is a list of books. Requiring a card for either forces the padding every
+# prompt in this project forbids, so the generator refuses — and the deck was
+# then marked `partial` for behaving correctly, which is how this set was
+# found. `study.summarize` already draws the same distinction for summaries;
+# the recap titles and the lab/exercise pattern come from there rather than
+# being restated, and the bibliography titles are the deck's own addition.
+NON_CARDABLE_TITLES = OPTIONAL_RECAP_TITLES | {
+    "reference material",
+    "reference materials",
+    "references",
+    "further reading",
+    "bibliography",
+    "acknowledgements",
+    "acknowledgments",
+    "index",
+    "glossary",
+}
 
 # One generation call may carry several small adjacent topics. This is a call
 # -batching decision only — it never merges two topics into one coverage entry,
@@ -97,6 +118,20 @@ class ScopeInventory:
 
 def _tokens(text: str) -> int:
     return len(tiktoken.get_encoding(DEFAULT_ENCODING).encode(text))
+
+
+def cardable(title: str, path_text: str = "") -> str | bool:
+    """Whether a section is the kind of thing a card can be made from.
+
+    Optional, not excluded: a recap sometimes states a comparison more crisply
+    than the sections it summarizes, and a card drawn from it is welcome. What
+    changes is that its absence stops counting as a coverage failure.
+    """
+
+    if title.casefold().strip() in NON_CARDABLE_TITLES:
+        return False
+    parts = (part.strip() for part in (path_text or title).split(" :: "))
+    return not any(OPTIONAL_INTERVIEW_SECTION.match(part) for part in parts)
 
 
 def book_scope_key(book_id: int, node_id: int) -> str:
@@ -164,7 +199,10 @@ def book_inventory(
                 key=f"node:{node.id}",
                 ordinal=len(topics),
                 label=node.path_text or node.title,
-                required=characters >= SUBSTANTIVE_NODE_CHARACTERS,
+                required=(
+                    characters >= SUBSTANTIVE_NODE_CHARACTERS
+                    and cardable(node.title, node.path_text)
+                ),
                 evidence_text="\n\n".join(lines),
                 allowed_markers=frozenset(markers),
                 figures=figures_by_node.get(node.id, ())[:FIGURES_PER_TOPIC],

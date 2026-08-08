@@ -4,7 +4,7 @@ import unittest
 
 from decks.contracts import CardBack, GeneratedCard, McqOption, TopicCards
 from decks.generate import GenerationConfig, attribute_topic, generate_deck
-from decks.topics import ScopeInventory, Topic, generation_batches
+from decks.topics import ScopeInventory, Topic, cardable, generation_batches
 from decks.validate import (
     DROP_DUPLICATE,
     DROP_MALFORMED,
@@ -204,6 +204,41 @@ class AttributionTests(unittest.TestCase):
         first, second = topic(0, node_id=10), topic(1, node_id=20, pages=(9,))
         card = qa_card(topic_ordinal=1, markers=["[N10:P5]", "[N20:P9]"])
         self.assertIsNone(attribute_topic(card, (first, second)))
+
+
+class CardableSectionTests(unittest.TestCase):
+    """Which sections may fail coverage without the deck being wrong.
+
+    Found in production: a chapter's own "Summary" and "Reference Material"
+    were marked required, the generator rightly refused to pad cards out of a
+    recap and a reading list, and a correct deck was reported as partial.
+    """
+
+    def test_recaps_and_reading_lists_are_not_required(self) -> None:
+        for title in (
+            "Summary",
+            "conclusion",
+            "Reference Material",
+            "References",
+            "Further reading",
+            "Glossary",
+        ):
+            with self.subTest(title=title):
+                self.assertFalse(cardable(title, title))
+
+    def test_labs_and_exercises_are_not_required(self) -> None:
+        self.assertFalse(cardable("Lab 3", "Chapter 4 :: Lab 3"))
+        self.assertFalse(cardable("Exercises", "Chapter 4 :: Exercises"))
+
+    def test_ordinary_sections_still_are(self) -> None:
+        for title in ("10.4 Feature Engineering", "Model Evaluation", "Summaries"):
+            with self.subTest(title=title):
+                self.assertTrue(cardable(title, title))
+
+    def test_a_recap_nested_under_a_chapter_is_caught_by_its_own_title(self) -> None:
+        self.assertFalse(
+            cardable("Summary", "10 Personalized News Feed :: Summary")
+        )
 
 
 class BatchingTests(unittest.TestCase):
