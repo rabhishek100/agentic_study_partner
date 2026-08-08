@@ -22,7 +22,8 @@ export function uploadUrl(path: string): string {
   return `${API_ORIGIN}${suffix}`;
 }
 
-async function detail(response: Response): Promise<string> {
+/** The server's own wording for a failure, for callers that fetch directly. */
+export async function errorDetail(response: Response): Promise<string> {
   const raw = await response.text();
   try {
     const parsed = JSON.parse(raw) as {
@@ -61,7 +62,7 @@ export async function apiFetch<T>(
     },
   });
   if (!response.ok) {
-    throw new ApiError(await detail(response), response.status);
+    throw new ApiError(await errorDetail(response), response.status);
   }
   // 204 carries no body; the caller types these as void.
   if (response.status === 204) return undefined as T;

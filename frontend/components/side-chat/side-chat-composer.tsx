@@ -3,6 +3,7 @@
 import { ArrowUp, Square } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { MicButton } from "@/components/dictation/mic-button";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -12,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { spliceTranscript } from "@/lib/dictation";
 import type { ResponseDepth } from "@/lib/types";
 
 /**
@@ -75,6 +77,19 @@ export function SideChatComposer({
     requestAnimationFrame(resize);
   }
 
+  function insertDictation(transcript: string) {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? start;
+    const spliced = spliceTranscript(value, transcript, start, end);
+    setValue(spliced.value);
+    requestAnimationFrame(() => {
+      resize();
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(spliced.caret, spliced.caret);
+    });
+  }
+
   return (
     <div className="shrink-0 border-t border-border bg-background p-2.5">
       {/*
@@ -129,25 +144,31 @@ export function SideChatComposer({
             <span />
           )}
 
-          {isStreaming ? (
-            <Button
-              variant="outline"
-              size="icon-sm"
-              aria-label="Stop generating this answer"
-              onClick={onStop}
-            >
-              <Square aria-hidden />
-            </Button>
-          ) : (
-            <Button
-              size="icon-sm"
-              aria-label="Send this question"
-              disabled={!value.trim()}
-              onClick={submit}
-            >
-              <ArrowUp aria-hidden />
-            </Button>
-          )}
+          <span className="flex items-center gap-1">
+            <MicButton
+              label={`Dictate a question in the ${label} side chat`}
+              onTranscript={insertDictation}
+            />
+            {isStreaming ? (
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Stop generating this answer"
+                onClick={onStop}
+              >
+                <Square aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                size="icon-sm"
+                aria-label="Send this question"
+                disabled={!value.trim()}
+                onClick={submit}
+              >
+                <ArrowUp aria-hidden />
+              </Button>
+            )}
+          </span>
         </div>
       </div>
     </div>

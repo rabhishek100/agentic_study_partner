@@ -1,14 +1,16 @@
 "use client";
 
 import { ArrowDown, Loader2, Send, Square } from "lucide-react";
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { VideoTurnView } from "@/components/video/video-turn";
 import { AskSelection } from "@/components/side-chat/ask-selection";
+import { MicButton } from "@/components/dictation/mic-button";
 import { VideoWelcome } from "@/components/video/video-welcome";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
+import { spliceTranscript } from "@/lib/dictation";
 import type {
   VideoChapter,
   VideoDocumentTarget,
@@ -63,6 +65,7 @@ export function AskPane({
   onAskOnTheSide,
 }: AskPaneProps) {
   const [question, setQuestion] = useState("");
+  const questionRef = useRef<HTMLTextAreaElement | null>(null);
   const { viewportRef, contentRef, isPinned, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
     HTMLDivElement
@@ -82,6 +85,18 @@ export function AskPane({
     if (!value || !canAsk || isStreaming) return;
     setQuestion("");
     onAsk(value);
+  }
+
+  function insertDictation(transcript: string) {
+    const textarea = questionRef.current;
+    const start = textarea?.selectionStart ?? question.length;
+    const end = textarea?.selectionEnd ?? start;
+    const spliced = spliceTranscript(question, transcript, start, end);
+    setQuestion(spliced.value);
+    requestAnimationFrame(() => {
+      questionRef.current?.focus();
+      questionRef.current?.setSelectionRange(spliced.caret, spliced.caret);
+    });
   }
 
   return (
@@ -153,6 +168,7 @@ export function AskPane({
           ) : null}
           <div className="flex items-end gap-2">
             <Textarea
+              ref={questionRef}
               id="question"
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
@@ -167,6 +183,12 @@ export function AskPane({
               disabled={!canAsk}
               rows={2}
               className="min-h-16 resize-none"
+            />
+            <MicButton
+              size="icon"
+              disabled={!canAsk}
+              label="Dictate a question about this lecture"
+              onTranscript={insertDictation}
             />
             {isStreaming ? (
               <Button variant="outline" onClick={onStop} aria-label="Stop">
