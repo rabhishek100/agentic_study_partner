@@ -19,6 +19,7 @@ from .contracts import (
 )
 from .conversation import execute_decision, record_turn
 from .query import ChatModel
+from .side_context import SideContext
 from .streaming import TokenCallback
 
 
@@ -50,6 +51,9 @@ class StudyGraphContext:
     # Optional per-turn narrowing supplied by explicit @book mentions. The
     # conversation's library selection remains unchanged for later turns.
     turn_book_ids: tuple[int, ...] | None = None
+    # Present when this turn belongs to a side chat: the passages the reader
+    # anchored it to, plus the evidence those passages cited.
+    side_context: SideContext | None = None
 
 
 def plan_turn(
@@ -61,6 +65,7 @@ def plan_turn(
         conversation = conversation.model_copy(
             update={"book_ids": list(runtime.context.turn_book_ids)}
         )
+    side_context = runtime.context.side_context
     return {
         "decision": analyze_turn(
             state["question"],
@@ -68,6 +73,7 @@ def plan_turn(
             runtime.context.database_url,
             owner_id=runtime.context.owner_id,
             model=runtime.context.analysis_model,
+            anchored_quotes=side_context.anchored_quotes if side_context else (),
         )
     }
 
@@ -108,6 +114,7 @@ def execute_route(
             prompt_profile=runtime.context.prompt_profile,
             response_depth=runtime.context.response_depth,
             turn_book_ids=runtime.context.turn_book_ids,
+            side_context=runtime.context.side_context,
         )
     }
 

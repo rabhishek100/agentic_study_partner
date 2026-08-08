@@ -27,9 +27,13 @@ export interface AppShellProps {
   account: React.ReactNode;
   /** Restores a document that has been minimized. */
   documentControl?: React.ReactNode;
+  /** Lists the conversation's side chats, including closed ones. */
+  sideChatControl?: React.ReactNode;
   children: React.ReactNode;
   /** The document pane, docked right of the conversation when open. */
   aside?: React.ReactNode;
+  /** Floating side-chat windows, positioned against the viewport. */
+  overlay?: React.ReactNode;
 }
 
 export function AppShell({
@@ -38,8 +42,10 @@ export function AppShell({
   status,
   account,
   documentControl,
+  sideChatControl,
   children,
   aside,
+  overlay,
 }: AppShellProps) {
   const [railOpen, setRailOpen] = useState(false);
 
@@ -90,6 +96,7 @@ export function AppShell({
 
         <div className="ml-auto flex items-center gap-1.5">
           {nav ? <div className="hidden sm:block">{nav}</div> : null}
+          {sideChatControl}
           {documentControl}
           <ThemeToggle />
           {account}
@@ -106,6 +113,13 @@ export function AppShell({
           <main className="flex min-w-0 flex-1 flex-col">{children}</main>
         </SplitPane>
       </div>
+
+      {/*
+        Outside the scrolling layout on purpose: side chat windows are
+        positioned against the viewport, so nesting them inside a pane would
+        clip them at that pane's edge.
+      */}
+      {overlay}
     </div>
   );
 }

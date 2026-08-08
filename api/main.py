@@ -12,9 +12,10 @@ import logging
 import os
 import queue
 import threading
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
@@ -40,8 +41,10 @@ from storage.conversations import (
     delete_conversation,
     derive_title,
     list_conversations,
+    list_side_chats,
     load_conversation,
     load_turns,
+    set_conversation_state,
     update_conversation,
 )
 from storage.database import (
@@ -56,14 +59,18 @@ from storage.postgres import list_books, ready_book
 from storage.preferences import load_prompt_profile, save_prompt_profile
 from study.analyze import ConversationDecisionError
 from study.contracts import (
+    MAXIMUM_ANCHORS,
+    MAXIMUM_QUOTE_CHARS,
     AnswerArchetype,
     ContractModel,
     ConversationState,
     PromptProfile,
+    QuoteAnchor,
     ResponseDepth,
     TurnResult,
 )
 from study.conversation import execute_conversation_turn, new_conversation_state
+from study.side_context import ParentTurn, build_side_context, readable_quote
 from study.prompts import (
     DEFAULT_PROMPT_PROFILE,
     LOCKED_GROUNDING_PROMPT,
@@ -118,6 +125,11 @@ class ChatRequest(ContractModel):
 class ChatResponse(ContractModel):
     result: TurnResult
     state: ConversationState
+    # Which recorded turn this is. The client cannot derive it from its own
+    # list: a stopped turn is never recorded, and a regenerated one is recorded
+    # a second time, so list position and turn index diverge. A side chat has
+    # to name a turn index to anchor to, hence returning it here.
+    turn_index: int
 
 
 class ConversationSummary(ContractModel):
@@ -128,6 +140,10 @@ class ConversationSummary(ContractModel):
     turn_count: int
     created_at: datetime
     updated_at: datetime
+    # Side chats opened over this conversation. They are counted rather than
+    # listed alongside it: a side chat belongs to a passage of one
+    # conversation, not to the library.
+    side_thread_count: int = 0
 
 
 class ConversationListResponse(ContractModel):
@@ -151,12 +167,66 @@ class ConversationDetail(ContractModel):
     updated_at: datetime
     prompt_profile: PromptProfile
     turns: list[ConversationTurn]
+    # Set when this conversation is a side chat, along with the passages it was
+    # opened over. Resuming a side chat uses this endpoint like any other.
+    parent_conversation_id: UUID | None = None
+    anchors: list[QuoteAnchor] = Field(default_factory=list)
 
 
 class UpdateConversationRequest(ContractModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     retrieval_mode: RetrievalMode | None = None
     prompt_profile: PromptProfile | None = None
+
+
+class SideChatAnchorInput(ContractModel):
+    """One passage a reader carried into a side chat.
+
+    `anchor_id` is echoed back when an existing chip is being kept, and omitted
+    for a new one; the server assigns ids it has not seen so two chips can
+    never share one.
+    """
+
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
+    parent_turn_index: int = Field(ge=0)
+    # Matches the stored contract; see the note on `QuoteAnchor.quoted_text`.
+    quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
+
+
+class CreateSideChatRequest(ContractModel):
+    anchors: list[SideChatAnchorInput] = Field(min_length=1, max_length=MAXIMUM_ANCHORS)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class UpdateSideChatRequest(ContractModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    anchors: list[SideChatAnchorInput] | None = Field(
+        default=None,
+        max_length=MAXIMUM_ANCHORS,
+    )
+
+
+class SideChatSummary(ContractModel):
+    conversation_id: UUID
+    parent_conversation_id: UUID
+    title: str
+    book_ids: list[int]
+    retrieval_mode: RetrievalMode
+    anchors: list[QuoteAnchor]
+    turn_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class SideChatListResponse(ContractModel):
+    side_chats: list[SideChatSummary]
+
+
+class SideChatTurnRequest(ContractModel):
+    question: str = Field(min_length=1, max_length=10_000)
+    # A side question is a clarification, and a long answer in a small window
+    # scrolls badly. The reader can still ask for more depth per window.
+    response_depth: ResponseDepth = "quick"
 
 
 class PromptSettingsResponse(ContractModel):
@@ -401,6 +471,14 @@ def _resume_state(
             )
             if existing is None:
                 raise CONVERSATION_NOT_FOUND
+            if existing["parent_conversation_id"] is not None:
+                # A side chat's turns must carry its anchors, and this endpoint
+                # has none to give. Continuing here would answer the reader's
+                # question with the priority context silently missing.
+                raise HTTPException(
+                    status_code=422,
+                    detail="use the side-chat turn endpoint for a side chat",
+                )
             if list(existing["book_ids"]) == request.book_ids:
                 state = ConversationState.model_validate(existing["state_json"])
                 if existing["retrieval_mode"] != request.retrieval_mode:
@@ -444,9 +522,11 @@ def _persist_turn(
     question: str,
     result: TurnResult,
     state: ConversationState,
-) -> None:
+) -> int:
+    """Record the turn and return the index it was recorded under."""
+
     with database_connection() as connection:
-        append_turn(
+        return append_turn(
             connection,
             conversation_id,
             owner_id=owner_id,
@@ -480,8 +560,352 @@ def _run_turn(
     # The stored conversation is the identity; a fresh state object from the
     # workflow must not invent a different one.
     updated = updated.model_copy(update={"conversation_id": str(conversation_id)})
-    _persist_turn(owner_id, conversation_id, question, result, updated)
-    return ChatResponse(result=result, state=updated)
+    turn_index = _persist_turn(owner_id, conversation_id, question, result, updated)
+    return ChatResponse(result=result, state=updated, turn_index=turn_index)
+
+
+SIDE_CHAT_NOT_FOUND = HTTPException(status_code=404, detail="side chat not found")
+
+
+def _assigned_anchors(
+    requested: list[SideChatAnchorInput],
+    *,
+    existing: list[QuoteAnchor],
+    turn_indexes: set[int],
+) -> list[QuoteAnchor]:
+    """Validate anchors against the parent's turns and give each a unique id.
+
+    An anchor naming a turn the parent does not have is rejected rather than
+    dropped: it means the client and the server disagree about the
+    conversation, and silently answering with less context than the reader
+    highlighted is the wrong way to find that out.
+    """
+
+    known = {anchor.anchor_id for anchor in existing}
+    used: set[str] = set()
+    anchors: list[QuoteAnchor] = []
+    for item in requested:
+        if item.parent_turn_index not in turn_indexes:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"turn {item.parent_turn_index} is not part of the parent "
+                    "conversation"
+                ),
+            )
+        anchor_id = item.anchor_id
+        if anchor_id is None or anchor_id not in known or anchor_id in used:
+            anchor_id = uuid4().hex
+        used.add(anchor_id)
+        anchors.append(
+            QuoteAnchor(
+                anchor_id=anchor_id,
+                parent_turn_index=item.parent_turn_index,
+                quoted_text=item.quoted_text.strip(),
+            )
+        )
+    return anchors
+
+
+def _side_chat_summary(record: dict, turn_count: int) -> SideChatSummary:
+    return SideChatSummary(
+        conversation_id=record["id"],
+        parent_conversation_id=record["parent_conversation_id"],
+        title=record["title"],
+        book_ids=list(record["book_ids"]),
+        retrieval_mode=record["retrieval_mode"],
+        anchors=[
+            QuoteAnchor.model_validate(anchor)
+            for anchor in record["anchors_json"] or []
+        ],
+        turn_count=turn_count,
+        created_at=record["created_at"],
+        updated_at=record["updated_at"],
+    )
+
+
+def _seeded_side_chat_state(
+    conversation_id: UUID,
+    *,
+    book_ids: list[int],
+    anchored_turn: dict,
+) -> ConversationState:
+    """Open a side chat already knowing the answer it was opened over.
+
+    In a side chat, "the previous answer" is the one being asked about, so the
+    anchored turn's answer, evidence, citations and scope are seeded here. That
+    makes "shorten this" or "reword that as bullets" work on the first turn
+    through the existing `prior_answer_transform` route, instead of only after
+    the side chat has produced an answer of its own.
+    """
+
+    state = new_conversation_state(
+        book_ids=book_ids,
+        conversation_id=str(conversation_id),
+    )
+    result = TurnResult.model_validate(anchored_turn["result_json"])
+    state.previous_answer = anchored_turn["answer"]
+    state.previous_evidence = list(result.evidence)
+    state.previous_citations = list(result.citations)
+    state.previous_route = result.route
+    state.active_scope = result.resolved_scope
+    return state
+
+
+def _side_chat_state(record: dict) -> ConversationState:
+    """The stored state to continue, corrected to this conversation's identity."""
+
+    stored = record["state_json"] or {}
+    if not stored:
+        return new_conversation_state(
+            book_ids=list(record["book_ids"]),
+            conversation_id=str(record["id"]),
+        )
+    return ConversationState.model_validate(stored).model_copy(
+        update={"conversation_id": str(record["id"])}
+    )
+
+
+def _create_side_chat(
+    owner_id: UUID,
+    parent_conversation_id: UUID,
+    request: CreateSideChatRequest,
+) -> SideChatSummary:
+    with database_connection() as connection:
+        parent = load_conversation(
+            connection,
+            parent_conversation_id,
+            owner_id=owner_id,
+        )
+        if parent is None:
+            raise CONVERSATION_NOT_FOUND
+        if parent["parent_conversation_id"] is not None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "side chats cannot be nested; open one over the main "
+                    "conversation instead"
+                ),
+            )
+        turns = {
+            turn["turn_index"]: turn
+            for turn in load_turns(
+                connection,
+                parent_conversation_id,
+                owner_id=owner_id,
+            )
+        }
+        anchors = _assigned_anchors(
+            request.anchors,
+            existing=[],
+            turn_indexes=set(turns),
+        )
+        anchored_turn = turns[anchors[0].parent_turn_index]
+        # A selection can be nothing but a citation marker, which names the
+        # thread badly; the question it came from is the better fallback.
+        title = (
+            request.title
+            or readable_quote(anchors[0].quoted_text)
+            or anchored_turn["question"]
+        )
+        created = create_conversation(
+            connection,
+            owner_id=owner_id,
+            # Inherited and then frozen. The parent's selection may change
+            # later — that starts a new conversation there — and an open side
+            # chat must not be regrounded underneath the reader.
+            book_ids=list(parent["book_ids"]),
+            retrieval_mode=parent["retrieval_mode"],
+            title=derive_title(title),
+            prompt_profile=parent["prompt_profile_json"] or None,
+            parent_conversation_id=parent_conversation_id,
+            anchors=[anchor.model_dump(mode="json") for anchor in anchors],
+        )
+        state = _seeded_side_chat_state(
+            created["id"],
+            book_ids=list(parent["book_ids"]),
+            anchored_turn=anchored_turn,
+        )
+        set_conversation_state(
+            connection,
+            created["id"],
+            owner_id=owner_id,
+            state=state.model_dump(mode="json"),
+        )
+    return _side_chat_summary(created, turn_count=0)
+
+
+def _run_side_turn(
+    owner_id: UUID,
+    side_chat_id: UUID,
+    request: SideChatTurnRequest,
+    token_callback=None,
+) -> ChatResponse:
+    """Execute and persist one side-chat turn. Runs on a worker thread."""
+
+    question = request.question.strip()
+    with database_connection(readonly=True) as connection:
+        record = load_conversation(connection, side_chat_id, owner_id=owner_id)
+        if record is None or record["parent_conversation_id"] is None:
+            raise SIDE_CHAT_NOT_FOUND
+        anchors = [
+            QuoteAnchor.model_validate(anchor)
+            for anchor in record["anchors_json"] or []
+        ]
+        parent_turns = [
+            ParentTurn.from_result(
+                turn["turn_index"],
+                turn["question"],
+                turn["answer"],
+                TurnResult.model_validate(turn["result_json"]),
+            )
+            for turn in load_turns(
+                connection,
+                record["parent_conversation_id"],
+                owner_id=owner_id,
+            )
+        ]
+
+    book_ids = list(record["book_ids"])
+    _require_ready_books(owner_id, book_ids)
+    result, updated = execute_conversation_turn(
+        question,
+        _side_chat_state(record),
+        owner_id=owner_id,
+        retrieval_mode=record["retrieval_mode"],
+        book_ids=book_ids,
+        token_callback=token_callback,
+        prompt_profile=_stored_profile(record["prompt_profile_json"]),
+        response_depth=request.response_depth,
+        side_context=build_side_context(anchors, parent_turns),
+    )
+    updated = updated.model_copy(update={"conversation_id": str(side_chat_id)})
+    turn_index = _persist_turn(owner_id, side_chat_id, question, result, updated)
+    return ChatResponse(result=result, state=updated, turn_index=turn_index)
+
+
+@app.post(
+    "/api/conversations/{conversation_id}/side-chats",
+    response_model=SideChatSummary,
+    status_code=201,
+)
+async def open_side_chat(
+    conversation_id: UUID,
+    request: CreateSideChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> SideChatSummary:
+    """Open a side chat over one or more passages of a conversation."""
+
+    return await run_in_threadpool(
+        _create_side_chat,
+        owner_id,
+        conversation_id,
+        request,
+    )
+
+
+@app.get(
+    "/api/conversations/{conversation_id}/side-chats",
+    response_model=SideChatListResponse,
+)
+async def side_chats(
+    conversation_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> SideChatListResponse:
+    """List the side chats opened over one conversation, most recent first."""
+
+    def load() -> list[SideChatSummary]:
+        with database_connection(readonly=True) as connection:
+            if load_conversation(connection, conversation_id, owner_id=owner_id) is None:
+                raise CONVERSATION_NOT_FOUND
+            return [
+                _side_chat_summary(row, turn_count=row["turn_count"])
+                for row in list_side_chats(
+                    connection,
+                    conversation_id,
+                    owner_id=owner_id,
+                )
+            ]
+
+    return SideChatListResponse(side_chats=await run_in_threadpool(load))
+
+
+@app.patch("/api/side-chats/{side_chat_id}", response_model=SideChatSummary)
+async def update_side_chat(
+    side_chat_id: UUID,
+    request: UpdateSideChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> SideChatSummary:
+    """Rename a side chat, or replace the passages it is anchored to."""
+
+    def apply() -> SideChatSummary:
+        with database_connection() as connection:
+            record = load_conversation(connection, side_chat_id, owner_id=owner_id)
+            if record is None or record["parent_conversation_id"] is None:
+                raise SIDE_CHAT_NOT_FOUND
+            anchors = None
+            if request.anchors is not None:
+                turn_indexes = {
+                    turn["turn_index"]
+                    for turn in load_turns(
+                        connection,
+                        record["parent_conversation_id"],
+                        owner_id=owner_id,
+                    )
+                }
+                anchors = [
+                    anchor.model_dump(mode="json")
+                    for anchor in _assigned_anchors(
+                        request.anchors,
+                        existing=[
+                            QuoteAnchor.model_validate(anchor)
+                            for anchor in record["anchors_json"] or []
+                        ],
+                        turn_indexes=turn_indexes,
+                    )
+                ]
+            updated = update_conversation(
+                connection,
+                side_chat_id,
+                owner_id=owner_id,
+                title=request.title.strip() if request.title else None,
+                anchors=anchors,
+            )
+            if updated is None:
+                raise SIDE_CHAT_NOT_FOUND
+            turn_count = connection.execute(
+                """
+                select count(*) as turn_count from conversation_turns
+                where conversation_id = %s and owner_id = %s
+                """,
+                (side_chat_id, owner_id),
+            ).fetchone()["turn_count"]
+        return _side_chat_summary(updated, turn_count=turn_count)
+
+    return await run_in_threadpool(apply)
+
+
+@app.post("/api/side-chats/{side_chat_id}/turns/stream")
+async def side_chat_turn_stream(
+    side_chat_id: UUID,
+    request: SideChatTurnRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> StreamingResponse:
+    """Stream one side-chat answer, framed exactly like a main chat turn.
+
+    The books, retrieval mode and prompt profile all come from the stored side
+    chat rather than from the request: they were inherited from the parent at
+    creation and are deliberately not the client's to change per turn.
+    """
+
+    return _streamed_turn(
+        lambda on_token: _run_side_turn(
+            owner_id,
+            side_chat_id,
+            request,
+            token_callback=on_token,
+        )
+    )
 
 
 def _prompt_settings(profile: PromptProfile) -> PromptSettingsResponse:
@@ -587,24 +1011,17 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
-@app.post("/api/chat/stream")
-async def chat_stream(
-    request: ChatRequest,
-    owner_id: UUID = Depends(current_owner),
+def _streamed_turn(
+    execute: Callable[[Callable[[str, str], None]], ChatResponse],
 ) -> StreamingResponse:
-    """Stream the answer as it is generated instead of waiting for it whole.
+    """Run one turn on a worker thread and stream its tokens as SSE.
 
-    Ordinary answers emit `token` events as generation text arrives. Hierarchy
-    summaries buffer validation/repair attempts and emit only the validated
-    answer. Every request ends with one `final` (matching ChatResponse) or
-    `error` event.
+    Shared by the main chat and by side chats: `execute` receives the token
+    callback and returns the response to send as `final`. Keeping one
+    implementation means the framing, the heartbeat, and the mapping from a
+    rejected turn to an `error` event cannot drift apart between the two.
     """
 
-    await run_in_threadpool(
-        _require_ready_books,
-        owner_id,
-        sorted(set(request.book_ids + request.mentioned_book_ids)),
-    )
     loop = asyncio.get_running_loop()
     events: queue.Queue = queue.Queue()
 
@@ -613,8 +1030,7 @@ async def chat_stream(
 
     def run() -> None:
         try:
-            response = _run_turn(owner_id, request, token_callback=on_token)
-            events.put(("final", response.model_dump_json()))
+            events.put(("final", execute(on_token).model_dump_json()))
         except HTTPException as error:
             # A missing conversation is a client error, not a workflow failure.
             logger.warning("Chat turn rejected: %s", error.detail)
@@ -660,6 +1076,29 @@ async def chat_stream(
     )
 
 
+@app.post("/api/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> StreamingResponse:
+    """Stream the answer as it is generated instead of waiting for it whole.
+
+    Ordinary answers emit `token` events as generation text arrives. Hierarchy
+    summaries buffer validation/repair attempts and emit only the validated
+    answer. Every request ends with one `final` (matching ChatResponse) or
+    `error` event.
+    """
+
+    await run_in_threadpool(
+        _require_ready_books,
+        owner_id,
+        sorted(set(request.book_ids + request.mentioned_book_ids)),
+    )
+    return _streamed_turn(
+        lambda on_token: _run_turn(owner_id, request, token_callback=on_token)
+    )
+
+
 @app.get("/api/conversations", response_model=ConversationListResponse)
 async def conversations(
     owner_id: UUID = Depends(current_owner),
@@ -681,6 +1120,7 @@ async def conversations(
                     turn_count=row["turn_count"],
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
+                    side_thread_count=row["side_thread_count"],
                 )
                 for row in list_conversations(
                     connection, owner_id=owner_id, limit=limit
@@ -714,6 +1154,11 @@ async def conversation_detail(
             created_at=record["created_at"],
             updated_at=record["updated_at"],
             prompt_profile=_stored_profile(record["prompt_profile_json"]),
+            parent_conversation_id=record["parent_conversation_id"],
+            anchors=[
+                QuoteAnchor.model_validate(anchor)
+                for anchor in record["anchors_json"] or []
+            ],
             turns=[
                 ConversationTurn(
                     turn_index=turn["turn_index"],
@@ -754,21 +1199,29 @@ async def rename_conversation(
             )
             if record is None:
                 raise CONVERSATION_NOT_FOUND
-            turn_count = connection.execute(
+            counts = connection.execute(
                 """
-                select count(*) as turn_count from conversation_turns
-                where conversation_id = %s and owner_id = %s
+                select
+                    (
+                        select count(*) from conversation_turns
+                        where conversation_id = %s and owner_id = %s
+                    ) as turn_count,
+                    (
+                        select count(*) from conversations
+                        where parent_conversation_id = %s and owner_id = %s
+                    ) as side_thread_count
                 """,
-                (conversation_id, owner_id),
-            ).fetchone()["turn_count"]
+                (conversation_id, owner_id, conversation_id, owner_id),
+            ).fetchone()
         return ConversationSummary(
             conversation_id=record["id"],
             title=record["title"],
             book_ids=list(record["book_ids"]),
             retrieval_mode=record["retrieval_mode"],
-            turn_count=turn_count,
+            turn_count=counts["turn_count"],
             created_at=record["created_at"],
             updated_at=record["updated_at"],
+            side_thread_count=counts["side_thread_count"],
         )
 
     return await run_in_threadpool(apply)

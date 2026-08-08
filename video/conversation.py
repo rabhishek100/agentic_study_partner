@@ -20,6 +20,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from psycopg import Connection
 
+from study.contracts import SideContextReport
+from study.side_context import SideContext
 from study.streaming import TokenCallback
 from video.analyze import AnalysisModel, analyze_turn
 from video.answers import (
@@ -71,6 +73,9 @@ class VideoTurnContext:
     analysis_model: AnalysisModel | None = None
     token_callback: TokenCallback | None = None
     evidence_limit: int = DEFAULT_EVIDENCE_LIMIT
+    # Present when this turn belongs to a side chat: the passages the reader
+    # anchored it to, and the evidence those passages cited.
+    side_context: SideContext | None = None
 
 
 class VideoGraphInput(TypedDict):
@@ -111,11 +116,13 @@ def evaluate_sufficiency(
 
 
 def plan_turn(state: VideoGraphState, runtime: Runtime[VideoTurnContext]) -> dict:
+    side = runtime.context.side_context
     return {
         "decision": analyze_turn(
             state["question"],
             state["conversation"],
             model=runtime.context.analysis_model,
+            anchored_quotes=side.anchored_quotes if side else (),
         ),
         "attempts": 0,
     }
@@ -163,6 +170,7 @@ def whole_lecture(
                 retrieval_attempts=0,
                 routing_reason=decision.reason,
                 trace_id=_current_trace_id(),
+                side_context=_side_report(context.side_context),
             )
         }
 
@@ -192,6 +200,7 @@ def whole_lecture(
                     retrieval_attempts=0,
                     routing_reason=decision.reason,
                     trace_id=_current_trace_id(),
+                    side_context=_side_report(context.side_context),
                 )
             }
         scope = narrowed
@@ -242,6 +251,7 @@ def whole_lecture(
             routing_reason=decision.reason,
             cost_usd=draft.cost_usd,
             trace_id=_current_trace_id(),
+            side_context=_side_report(runtime.context.side_context),
         )
     }
 
@@ -262,6 +272,9 @@ def retrieve_evidence(
             BROADENED_TIMELINE_WINDOW_MS if broadened else DEFAULT_TIMELINE_WINDOW_MS
         ),
         dependencies=context.dependencies,
+        pinned_evidence_ids=(
+            context.side_context.pinned_chunk_ids if context.side_context else ()
+        ),
     )
     return {"retrieval": retrieved, "attempts": attempts}
 
@@ -294,6 +307,9 @@ def synthesize(state: VideoGraphState, runtime: Runtime[VideoTurnContext]) -> di
         state=state["conversation"],
         dependencies=context.dependencies,
         token_callback=context.token_callback,
+        request_context=(
+            context.side_context.request_context if context.side_context else None
+        ),
     )
     return {
         "result": VideoTurnResult(
@@ -312,8 +328,35 @@ def synthesize(state: VideoGraphState, runtime: Runtime[VideoTurnContext]) -> di
             routing_reason=decision.reason,
             cost_usd=draft.cost_usd,
             trace_id=_current_trace_id(),
+            side_context=_side_report(context.side_context, retrieved),
         )
     }
+
+
+def _side_report(
+    side: SideContext | None,
+    retrieved: RetrievedTurn | None = None,
+) -> SideContextReport | None:
+    """The context report for this turn, including anchors the version lost.
+
+    A re-ingest can replace the moment a reader highlighted. The anchor is still
+    theirs, so it stays; what is reported is that this version could not supply
+    the evidence it named.
+    """
+
+    if side is None:
+        return None
+    dropped = list(side.report.dropped)
+    honoured = list(side.report.pinned_chunk_ids)
+    for missing in retrieved.dropped_anchors if retrieved else ():
+        dropped.append(
+            f"anchored evidence {missing[:12]}… is not in the published version"
+        )
+        if missing in honoured:
+            honoured.remove(missing)
+    return side.report.model_copy(
+        update={"pinned_chunk_ids": honoured, "dropped": dropped}
+    )
 
 
 def transform_prior(
@@ -351,11 +394,12 @@ def transform_prior(
             routing_reason=decision.reason,
             cost_usd=draft.cost_usd,
             trace_id=_current_trace_id(),
+            side_context=_side_report(runtime.context.side_context),
         )
     }
 
 
-def clarify(state: VideoGraphState) -> dict:
+def clarify(state: VideoGraphState, runtime: Runtime[VideoTurnContext]) -> dict:
     decision = state["decision"]
     return {
         "result": VideoTurnResult(
@@ -367,6 +411,7 @@ def clarify(state: VideoGraphState) -> dict:
             retrieval_attempts=0,
             routing_reason=decision.reason,
             trace_id=_current_trace_id(),
+            side_context=_side_report(runtime.context.side_context),
         )
     }
 
@@ -456,6 +501,7 @@ def execute_video_turn(
     analysis_model: AnalysisModel | None = None,
     token_callback: TokenCallback | None = None,
     evidence_limit: int = DEFAULT_EVIDENCE_LIMIT,
+    side_context: SideContext | None = None,
 ) -> tuple[VideoTurnResult, VideoConversationState]:
     """Run one traced turn and return the result with the updated state."""
 
@@ -479,6 +525,7 @@ def execute_video_turn(
             analysis_model=analysis_model,
             token_callback=token_callback,
             evidence_limit=evidence_limit,
+            side_context=side_context,
         ),
     )
     return output["result"], output["conversation"]

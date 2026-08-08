@@ -7,6 +7,7 @@ import { Composer } from "@/components/conversation/composer";
 import { PromptSettings } from "@/components/conversation/prompt-settings";
 import { TurnView } from "@/components/conversation/turn-view";
 import { Welcome } from "@/components/conversation/welcome";
+import { AskSelection } from "@/components/side-chat/ask-selection";
 import { Button } from "@/components/ui/button";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
 import type {
@@ -46,6 +47,7 @@ export interface ConversationViewProps {
   /** What the next question will search, e.g. "All 3 books". */
   scopeSummary?: string | null;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
 }
 
 export function ConversationView({
@@ -62,6 +64,7 @@ export function ConversationView({
   books,
   scopeSummary,
   onOpenReference,
+  onAskOnTheSide,
 }: ConversationViewProps) {
   const { viewportRef, contentRef, isPinned, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
@@ -106,11 +109,17 @@ export function ConversationView({
                 canRetry={hasBooks && !isStreaming}
                 onRetry={onRetry}
                 onOpenReference={onOpenReference}
+                onAskOnTheSide={onAskOnTheSide}
               />
             ))
           )}
         </div>
       </div>
+
+      {/* Offers to open a side chat on whatever passage the reader highlights. */}
+      {onAskOnTheSide && (
+        <AskSelection container={contentRef} onAsk={onAskOnTheSide} />
+      )}
 
       <div className="relative border-t border-border bg-background">
         {/*

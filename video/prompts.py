@@ -169,6 +169,7 @@ def build_answer_messages(
     video_title: str,
     images: list[tuple[int, str, bytes]] | None = None,
     conversation_context: str | None = None,
+    request_context: str | None = None,
 ) -> list[dict[str, Any]]:
     """Build one multimodal request: evidence text plus the ranked frames.
 
@@ -178,6 +179,11 @@ def build_answer_messages(
     """
 
     system = [LOCKED_GROUNDING_PROMPT, f"Lecture: {video_title}"]
+    if request_context:
+        # A side chat's quoted passages. Carried in the system message beside
+        # the same warning the earlier turns get: they say what is being asked
+        # about, and they are not evidence for anything.
+        system.append(request_context)
     if conversation_context:
         system.append(
             "Earlier turns, for resolving references and for not repeating "

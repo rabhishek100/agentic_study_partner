@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertCircle, Check, Copy, RotateCcw } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  MessageSquarePlus,
+  RotateCcw,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { DocumentPages } from "@/components/video/document-pages";
@@ -68,6 +74,11 @@ export interface VideoTurnViewProps {
   onRetry(): void;
   onSeek(milliseconds: number): void;
   onOpenDocument(target: VideoDocumentTarget): void;
+  /**
+   * Opens a side chat anchored to this answer. Offered only for a turn the
+   * server recorded, since an anchor names a stored turn index.
+   */
+  onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
 }
 
 /**
@@ -87,12 +98,18 @@ export function VideoTurnView({
   onRetry,
   onSeek,
   onOpenDocument,
+  onAskOnTheSide,
 }: VideoTurnViewProps) {
   const result = turn.result;
   const showThinking = turn.status === "streaming" && !turn.answer;
 
   return (
-    <article className="space-y-4" aria-labelledby={`question-${turn.id}`}>
+    <article
+      className="space-y-4"
+      aria-labelledby={`question-${turn.id}`}
+      // Read by the selection popover to attribute a highlight to this turn.
+      data-turn-index={turn.turnIndex ?? undefined}
+    >
       <div className="flex justify-end">
         <h3
           id={`question-${turn.id}`}
@@ -176,6 +193,16 @@ export function VideoTurnView({
         {turn.status !== "streaming" && (
           <div className="flex flex-wrap items-center gap-1">
             {turn.answer && <CopyButton text={turn.answer} />}
+            {onAskOnTheSide && turn.turnIndex != null && turn.answer && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => onAskOnTheSide(turn.turnIndex!, turn.answer)}
+              >
+                <MessageSquarePlus aria-hidden />
+                Ask on the side
+              </Button>
+            )}
             {isLast && canRetry && (
               <Button variant="ghost" size="xs" onClick={onRetry}>
                 <RotateCcw aria-hidden />

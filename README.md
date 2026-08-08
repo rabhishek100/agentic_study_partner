@@ -347,10 +347,34 @@ snapshotted when a conversation starts, so changing a default does not silently
 change an existing study history. The answer inspector records the selected
 archetype, resolved depth, routing reason, and prompt-profile version.
 
+A **side chat** is a small conversation anchored to a passage of another one, so
+an intermediate question can be asked beside the paragraph that prompted it
+instead of at the bottom of the main thread. Highlight a sentence in an answer
+and ask about it: the window floats over the conversation, moves, resizes and
+minimizes to a dock, and several can answer at once — three at a time, with the
+rest queued.
+
+The passages a reader highlights are the side chat's priority context. What
+their citation markers name — book chunks in a book chat, evidence units in a
+lecture — is pinned to the front of that turn's evidence, so the answer rests on
+the same source the quoted sentence did, while the quoted text itself is passed
+as focus and never as something an answer may cite. Surrounding
+main-conversation context is included under a token budget, and every turn
+records what did not fit, which the answer inspector shows.
+
+Both surfaces have them, sharing one window layer: a lecture side answer still
+seeks the player and opens the slide it cites. A lecture's evidence belongs to
+the published ingestion version that produced it, so a side turn pins only what
+the version it retrieved from still contains and reports any anchor a re-ingest
+replaced. See
+[`docs/floating-side-chats-spec.md`](docs/floating-side-chats-spec.md).
+
 The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
 `POST /api/chat/stream`, `GET/PATCH /api/prompt-settings`, prompt preview,
-conversation CRUD, and the `/api/ingestions` lifecycle. Everything except health
-requires a Supabase bearer token.
+conversation CRUD, side chats (`POST|GET /api/conversations/{id}/side-chats`,
+`PATCH /api/side-chats/{id}`, `POST /api/side-chats/{id}/turns/stream`), and the
+`/api/ingestions` lifecycle. Everything except health requires a Supabase bearer
+token.
 
 Health reports infrastructure readiness only: it returns 503 when the canonical
 or retrieval schema is missing, and stays healthy while a book is being

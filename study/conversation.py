@@ -25,6 +25,7 @@ from .prompts import (
     resolve_response_depth,
 )
 from .query import ChatModel, execute_query, openrouter_model
+from .side_context import SideContext
 from .streaming import TokenCallback, invoke_with_streaming
 
 
@@ -128,9 +129,11 @@ def execute_decision(
     prompt_profile: PromptProfile | None = None,
     response_depth: ResponseDepth = "interview",
     turn_book_ids: Sequence[int] | None = None,
+    side_context: SideContext | None = None,
 ) -> TurnResult:
     profile = prompt_profile or DEFAULT_PROMPT_PROFILE
     resolved_depth = resolve_response_depth(question, response_depth)
+    report = side_context.report if side_context else None
     if decision.route == "clarify":
         return TurnResult(
             question=question,
@@ -141,9 +144,10 @@ def execute_decision(
             response_depth=resolved_depth,
             routing_reason=decision.reason,
             prompt_profile_version=profile_version(profile),
+            side_context=report,
         )
     if decision.route == "prior_answer_transform":
-        return _transform(
+        transformed = _transform(
             question,
             state,
             model,
@@ -152,6 +156,7 @@ def execute_decision(
             decision.reason,
             token_callback=token_callback,
         )
+        return transformed.model_copy(update={"side_context": report})
 
     is_hierarchy = decision.route in {"hierarchy_summary", "hierarchy_list"}
     execution_question = (
@@ -182,11 +187,14 @@ def execute_decision(
         response_depth=resolved_depth,
         routing_reason=decision.reason,
         answer_archetype=resolve_answer_archetype(question, decision.route),
+        pinned_chunk_ids=side_context.pinned_chunk_ids if side_context else (),
+        request_context=side_context.request_context if side_context else "",
     )
     updates = {
         "question": question,
         "history_dependency": decision.history_dependency,
         "standalone_query": execution_question,
+        "side_context": report,
     }
     if result.route == "retrieval_qa":
         chapter_refs = set(
@@ -255,6 +263,7 @@ def execute_conversation_turn(
     token_callback: TokenCallback | None = None,
     prompt_profile: PromptProfile | None = None,
     response_depth: ResponseDepth = "interview",
+    side_context: SideContext | None = None,
 ) -> tuple[TurnResult, ConversationState]:
     load_dotenv()
     # `book_id` remains for the CLI and evaluation entry points, which study
@@ -277,6 +286,25 @@ def execute_conversation_turn(
                 "conversation_id": current.conversation_id,
                 "book_ids": current.book_ids,
                 "retrieval_mode": retrieval_mode,
+                # A side turn is traced with what its priority context
+                # actually resolved to, so the inclusion decision is
+                # reviewable after the fact rather than only in the answer.
+                "side_chat": side_context is not None,
+                **(
+                    {
+                        "side_chat_anchor_ids": list(
+                            side_context.report.anchor_ids
+                        ),
+                        "side_chat_pinned_chunk_ids": list(
+                            side_context.pinned_chunk_ids
+                        ),
+                        "side_chat_dropped_context": list(
+                            side_context.report.dropped
+                        ),
+                    }
+                    if side_context
+                    else {}
+                ),
             },
         },
         context=StudyGraphContext(
@@ -293,6 +321,7 @@ def execute_conversation_turn(
                 if turn_book_ids
                 else None
             ),
+            side_context=side_context,
         ),
     )
     return output["result"], output["conversation"]

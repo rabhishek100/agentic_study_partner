@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 import re
 from typing import Any
@@ -53,6 +54,9 @@ class VideoAnswerDependencies:
 class RetrievedTurn:
     version_id: UUID
     evidence: list[VideoEvidenceRef] = field(default_factory=list)
+    # Anchored evidence ids this version does not contain, so the turn can
+    # report that a re-ingest replaced the moment the reader highlighted.
+    dropped_anchors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -78,8 +82,16 @@ def retrieve_turn_evidence(
     limit: int = 8,
     timeline_window_ms: int = 60_000,
     dependencies: VideoAnswerDependencies,
+    pinned_evidence_ids: Sequence[str] = (),
 ) -> RetrievedTurn:
-    """Search every modality, then restore each item's own identity."""
+    """Search every modality, then restore each item's own identity.
+
+    `pinned_evidence_ids` are placed ahead of what the search found and the
+    ranks are renumbered around them, so a side chat's anchored units take the
+    lowest markers. They are loaded from the same published version this turn
+    retrieved from: a unit that version no longer contains is dropped and
+    reported rather than resolved against a different cut of the lecture.
+    """
 
     version_id, found = retrieve_video_evidence(
         connection,
@@ -91,6 +103,20 @@ def retrieve_turn_evidence(
         text_embedder=dependencies.text_embedder,
         image_embedder=dependencies.image_embedder,
     )
+    dropped: tuple[str, ...] = ()
+    if pinned_evidence_ids:
+        from video.side_context import merge_pinned, pinned_evidence
+
+        anchored, dropped = pinned_evidence(
+            connection,
+            owner_id=owner_id,
+            video_id=video_id,
+            ingestion_version_id=version_id,
+            evidence_ids=pinned_evidence_ids,
+        )
+        # The limit covers the whole set: an anchored turn must not quietly get
+        # a larger evidence budget than an ordinary one.
+        found = merge_pinned(anchored, found, limit=max(limit, len(anchored)))
     documents = _resource_identity(
         connection,
         owner_id=owner_id,
@@ -116,7 +142,11 @@ def retrieve_turn_evidence(
         )
         for item in found
     ]
-    return RetrievedTurn(version_id=version_id, evidence=evidence)
+    return RetrievedTurn(
+        version_id=version_id,
+        evidence=evidence,
+        dropped_anchors=dropped,
+    )
 
 
 def synthesize_answer(
@@ -129,6 +159,7 @@ def synthesize_answer(
     state: VideoConversationState,
     dependencies: VideoAnswerDependencies,
     token_callback: TokenCallback | None = None,
+    request_context: str | None = None,
 ) -> AnswerDraft:
     """Answer from the supplied evidence, or say plainly that it cannot."""
 
@@ -167,6 +198,7 @@ def synthesize_answer(
                 if state.messages
                 else None
             ),
+            request_context=request_context,
         ),
         token_callback=token_callback,
     )

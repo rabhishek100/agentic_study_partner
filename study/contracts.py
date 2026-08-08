@@ -151,6 +151,50 @@ class FigureRef(ContractModel):
     evidence_rank: int | None = None
 
 
+# The longest passage a side chat will store as an anchor. Set from measured
+# answer lengths rather than guessed: whole-answer anchors are the common case.
+MAXIMUM_QUOTE_CHARS = 16_000
+
+# More than a handful of references in one small window stops being a focused
+# question, and every anchor pins evidence that competes with retrieval for the
+# same context budget.
+MAXIMUM_ANCHORS = 5
+
+
+class QuoteAnchor(ContractModel):
+    """One passage a reader carried from a conversation into a side chat.
+
+    Only the selection is recorded: which turn of the parent it came from and
+    the text that was highlighted. The citation markers, nodes, and chunks it
+    implies are derived from that turn's stored result when the side chat runs
+    a turn, so an anchor can never disagree with the answer it points at.
+    """
+
+    anchor_id: str = Field(min_length=1, max_length=64)
+    parent_turn_index: int = Field(ge=0)
+    # Wide enough for a whole answer, because anchoring a whole answer is one of
+    # the two ways a side chat is opened. The first limit here was 4,000
+    # characters, which rejected roughly half of real answers — an interview or
+    # deep-dive answer averages over 7,000 — and the interface reported nothing.
+    # Length is not what protects the model's context: `build_side_context`
+    # truncates a long quote to its token budget and records that it did.
+    quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
+
+
+class SideContextReport(ContractModel):
+    """What a side turn was given, and what did not fit its budget.
+
+    Recorded on the turn so the answer inspector and the trace both show the
+    inclusion decision rather than leaving it to be inferred from the answer.
+    """
+
+    anchor_ids: list[str] = Field(default_factory=list)
+    pinned_chunk_ids: list[str] = Field(default_factory=list)
+    token_count: int = Field(ge=0)
+    token_budget: int = Field(ge=0)
+    dropped: list[str] = Field(default_factory=list)
+
+
 class ConversationState(ContractModel):
     conversation_id: str
     # The books this conversation may search. Empty means every book the owner
@@ -210,3 +254,6 @@ class TurnResult(ContractModel):
     response_depth: ResponseDepth | None = None
     routing_reason: str | None = None
     prompt_profile_version: str | None = None
+    # Present only on a side-chat turn. Optional so that turns recorded before
+    # side chats existed still load.
+    side_context: SideContextReport | None = None

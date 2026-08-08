@@ -51,6 +51,7 @@ const result: VideoTurnResult = {
   cost_usd: 0.0123,
   trace_id: "abcdef1234567890",
   warnings: [],
+  side_context: null,
 };
 
 function view(turn: Partial<VideoTurn>, props: Record<string, unknown> = {}) {

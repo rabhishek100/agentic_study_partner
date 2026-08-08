@@ -112,6 +112,34 @@ export function VideoInspector({ result }: { result: VideoTurnResult }) {
               {result.outcome}
             </Badge>
           </Row>
+          {/*
+            A side turn's priority context. The same rows the book inspector
+            shows, for the same reason: "the highlighted passage matters more"
+            has to be checkable, including when this lecture's published version
+            no longer contains what an anchor named.
+          */}
+          {result.side_context && (
+            <>
+              <Row term="Anchored context">
+                {result.side_context.pinned_chunk_ids.length} pinned source
+                {result.side_context.pinned_chunk_ids.length === 1 ? "" : "s"}
+                {", "}
+                {result.side_context.token_count} of{" "}
+                {result.side_context.token_budget} tokens
+              </Row>
+              {result.side_context.dropped.length > 0 && (
+                <Row term="Context dropped">
+                  <ul className="space-y-1">
+                    {result.side_context.dropped.map((entry) => (
+                      <li key={entry} className="text-muted-foreground">
+                        {entry}
+                      </li>
+                    ))}
+                  </ul>
+                </Row>
+              )}
+            </>
+          )}
           <Row term="Cost">${result.cost_usd.toFixed(4)}</Row>
           <Row term="Trace">
             {result.trace_id ? (

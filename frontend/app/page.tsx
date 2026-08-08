@@ -10,6 +10,9 @@ import { ConversationView } from "@/components/conversation/conversation-view";
 import { LibraryRail } from "@/components/library-rail";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SectionNav } from "@/components/section-nav";
+import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
+import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
+import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,11 +26,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChat } from "@/hooks/use-chat";
 import { useConversations } from "@/hooks/use-conversations";
+import { useSideChats } from "@/hooks/use-side-chats";
+import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import type {
   BookListResponse,
   BookSummary,
+  ChatTurn,
   EvidenceRef,
   ResponseDepth,
   RetrievalMode,
@@ -60,6 +66,7 @@ export default function Page() {
     resume,
   } = useChat();
   const history = useConversations();
+  const sideChats = useSideChats(conversationId, BOOK_SIDE_CHATS);
 
   const loadBooks = useCallback(async () => {
     setBooksError("");
@@ -187,6 +194,29 @@ export default function Page() {
     [books, reading?.document],
   );
 
+  /**
+   * Which recorded turn a passage came from, matched against this
+   * conversation's answers.
+   *
+   * Derived rather than assumed: attributing a pasted passage to whichever turn
+   * the window happens to be anchored to would resolve its citation markers
+   * against the wrong evidence. Whitespace is normalized on both sides because
+   * copying out of rendered Markdown does not preserve the source's line breaks.
+   */
+  const resolveQuoteTurn = useCallback(
+    (text: string) => {
+      const flatten = (value: string) => value.replace(/\s+/g, " ").trim();
+      const needle = flatten(text);
+      if (!needle) return null;
+      const match = turns.find(
+        (turn) =>
+          turn.turnIndex != null && flatten(turn.answer).includes(needle),
+      );
+      return match?.turnIndex ?? null;
+    },
+    [turns],
+  );
+
   const handleNewConversation = useCallback(() => {
     closeDocument();
     reset();
@@ -269,6 +299,39 @@ export default function Page() {
           </DropdownMenuContent>
         </DropdownMenu>
       }
+      sideChatControl={
+        <SideChatMenu
+          sideChats={sideChats.available}
+          openIds={sideChats.openIds}
+          onOpen={sideChats.show}
+          onDelete={sideChats.remove}
+        />
+      }
+      overlay={
+        <SideChatLayer
+          windows={sideChats.windows}
+          onRectChange={sideChats.setRect}
+          onMinimize={sideChats.setMinimized}
+          onClose={sideChats.close}
+          onFocus={sideChats.focus}
+          onSettled={sideChats.noteSettled}
+          surface={BOOK_SIDE_CHATS}
+          renderTurns={({ turns: sideTurns, isLoading, isQueued }) => (
+            <SideChatTurns
+              turns={sideTurns as ChatTurn[]}
+              isLoading={isLoading}
+              isQueued={isQueued}
+              onOpenReference={openReference}
+            />
+          )}
+          onAnchorsChange={(sideChatId, anchors) => {
+            void sideChats.setAnchors(sideChatId, anchors);
+          }}
+          resolveQuoteTurn={resolveQuoteTurn}
+          error={sideChats.error}
+          onDismissError={sideChats.dismissError}
+        />
+      }
       documentControl={
         reading && readingMinimized ? (
           <Button
@@ -327,6 +390,9 @@ export default function Page() {
       <ConversationView
         books={books}
         onOpenReference={openReference}
+        onAskOnTheSide={(turnIndex, quotedText) => {
+          void sideChats.open({ parentTurnIndex: turnIndex, quotedText });
+        }}
         turns={turns}
         isStreaming={isStreaming}
         hasBooks={hasBooks}

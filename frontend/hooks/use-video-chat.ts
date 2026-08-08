@@ -143,6 +143,9 @@ export function useVideoChat(videoId: string) {
                 answer: data.result.answer,
                 result: data.result,
                 status: "complete",
+                // Recorded server-side under this index, which is what a side
+                // chat anchors to. Null for a turn the server did not record.
+                turnIndex: data.turn_index ?? undefined,
               });
               break readLoop;
             } else if (event === "error") {
@@ -220,6 +223,7 @@ export function useVideoChat(videoId: string) {
         status: "complete" as const,
         result: turn.result,
         error: null,
+        turnIndex: turn.turn_index,
       })),
     );
   }, []);

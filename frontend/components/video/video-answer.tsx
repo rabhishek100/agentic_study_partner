@@ -327,6 +327,10 @@ export function VideoAnswer({
 
   return (
     <div
+      // Marks the prose as a passage a reader may highlight and anchor a side
+      // chat to. Without it the selection popover refuses every lecture
+      // selection, because reference cards and controls are not passages.
+      data-answer=""
       className={cn(
         "text-sm leading-relaxed",
         "[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5",

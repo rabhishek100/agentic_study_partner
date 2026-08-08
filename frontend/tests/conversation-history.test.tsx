@@ -22,6 +22,7 @@ function conversation(
     turn_count: 2,
     created_at: "2026-07-28T09:00:00Z",
     updated_at: "2026-07-28T09:30:00Z",
+    side_thread_count: 0,
     ...overrides,
   };
 }

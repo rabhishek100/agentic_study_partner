@@ -133,6 +133,10 @@ export function AnswerInspector({ result }: { result: TurnResult }) {
                     <span className="min-w-0 flex-1 truncate">
                       {reference.path}
                     </span>
+                    {/* Named by a highlighted passage rather than searched for. */}
+                    {reference.retrieval_method === "anchor_pin" && (
+                      <Badge variant="outline">anchored</Badge>
+                    )}
                     {reference.score != null && (
                       <span className="text-muted-foreground">
                         {reference.score.toFixed(3)}
@@ -142,6 +146,34 @@ export function AnswerInspector({ result }: { result: TurnResult }) {
                 ))}
               </ol>
             </Row>
+          )}
+
+          {/*
+            A side turn's priority context. Showing the budget and the drops is
+            what keeps "the highlighted passage matters more" checkable rather
+            than merely claimed.
+          */}
+          {result.side_context && (
+            <>
+              <Row term="Anchored context">
+                {result.side_context.pinned_chunk_ids.length} pinned source
+                {result.side_context.pinned_chunk_ids.length === 1 ? "" : "s"}
+                {", "}
+                {result.side_context.token_count} of{" "}
+                {result.side_context.token_budget} tokens
+              </Row>
+              {result.side_context.dropped.length > 0 && (
+                <Row term="Context dropped">
+                  <ul className="space-y-1">
+                    {result.side_context.dropped.map((entry) => (
+                      <li key={entry} className="text-muted-foreground">
+                        {entry}
+                      </li>
+                    ))}
+                  </ul>
+                </Row>
+              )}
+            </>
           )}
 
           {result.warnings.length > 0 && (

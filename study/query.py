@@ -8,8 +8,9 @@ from uuid import UUID
 
 from dotenv import load_dotenv
 
-from retrieval.langchain import BookRetriever
+from retrieval.langchain import BookRetriever, document_from_result
 from retrieval.models import book_scope
+from retrieval.postgres import chunks_by_id, search_result_from_row
 from retrieval.search import RetrievalMode
 from storage.database import connection as database_connection
 from storage.database import parse_owner_id
@@ -325,6 +326,52 @@ def _answer_hierarchy_request(
     )
 
 
+# The retrieval method recorded for a chunk that was not searched for but
+# named, by the citation markers inside a passage a reader highlighted.
+ANCHOR_RETRIEVAL_METHOD = "anchor_pin"
+
+
+def _pinned_documents(
+    chunk_ids: Sequence[str],
+    *,
+    database_url: str | None,
+    owner_id: str | UUID,
+    scope: list[int] | None,
+) -> list:
+    """Load specific chunks as evidence documents, in the order named.
+
+    Ownership is enforced by the query and book scope is enforced here: a side
+    chat freezes its book selection at creation, so a pinned chunk from a book
+    that is no longer in scope is dropped rather than quietly widening the
+    selection the reader made.
+    """
+
+    if not chunk_ids:
+        return []
+    with database_connection(database_url, readonly=True) as source:
+        rows = chunks_by_id(source, list(chunk_ids), owner_id=owner_id)
+    documents = []
+    for chunk_id in chunk_ids:
+        row = rows.get(chunk_id)
+        if row is None:
+            continue
+        if scope is not None and row["source_book_id"] not in scope:
+            continue
+        documents.append(
+            document_from_result(
+                search_result_from_row(
+                    row,
+                    # Anchored chunks are not ranked against the query; they
+                    # are named. A sentinel score keeps that visible in the
+                    # inspector instead of implying a retrieval score.
+                    score=1.0,
+                    retrieval_method=ANCHOR_RETRIEVAL_METHOD,
+                )
+            )
+        )
+    return documents
+
+
 def _answer_retrieval_question(
     question: str,
     *,
@@ -339,8 +386,17 @@ def _answer_retrieval_question(
     routing_reason: str | None,
     answer_archetype: AnswerArchetype | None = None,
     token_callback: TokenCallback | None = None,
+    pinned_chunk_ids: Sequence[str] = (),
+    request_context: str = "",
 ) -> TurnResult:
-    """Answer one ordinary question from top-k retrieval evidence."""
+    """Answer one ordinary question from top-k retrieval evidence.
+
+    `pinned_chunk_ids` are placed ahead of the retrieved documents, so they
+    take the lowest `[S…]` markers. That ordering is the mechanism behind a
+    side chat's priority context: the chunks a highlighted passage cited are
+    the first evidence the model reads, and retrieval for the new question
+    fills in around them.
+    """
 
     owner = parse_owner_id(owner_id)
     scope = book_scope(book_id, book_ids)
@@ -360,7 +416,7 @@ def _answer_retrieval_question(
         question,
         "retrieval_qa",
     )
-    documents = BookRetriever(
+    retrieved = BookRetriever(
         database_url=database_url or "",
         owner_id=str(owner),
         mode=retrieval_mode,
@@ -372,6 +428,20 @@ def _answer_retrieval_question(
         # discards most of that design while admitting unrelated chapters.
         unique_nodes=archetype != "system_design",
     ).invoke(question)
+    pinned = _pinned_documents(
+        pinned_chunk_ids,
+        database_url=database_url,
+        owner_id=owner,
+        scope=scope,
+    )
+    pinned_ids = {document.metadata["chunk_id"] for document in pinned}
+    # A pinned chunk that retrieval also found keeps its pinned position: the
+    # same chunk twice would consume two markers for one piece of evidence.
+    documents = pinned + [
+        document
+        for document in retrieved
+        if document.metadata.get("chunk_id") not in pinned_ids
+    ]
     if not documents:
         return TurnResult(
             question=question,
@@ -421,6 +491,7 @@ def _answer_retrieval_question(
             evidence=evidence,
             archetype=archetype,
             depth=response_depth,
+            request_context=request_context,
             additional_grounding=grounding,
         ),
         token_callback=token_callback,
@@ -529,6 +600,8 @@ def execute_query(
     response_depth: ResponseDepth = "interview",
     routing_reason: str | None = None,
     answer_archetype: AnswerArchetype | None = None,
+    pinned_chunk_ids: Sequence[str] = (),
+    request_context: str = "",
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
@@ -544,6 +617,12 @@ def execute_query(
             book_ids=book_ids,
         )
     if hierarchy is not None:
+        # A hierarchy answer loads its whole canonical scope, so pinning
+        # individual chunks inside that scope would add nothing, and its
+        # summary prompt is built by `build_summary_messages`, which has no
+        # request-context layer. A side chat that asks for a whole-chapter
+        # summary therefore gets the ordinary summary, quotes and all context
+        # excluded — recorded here rather than looking like an oversight.
         request, scope = hierarchy
         result = _answer_hierarchy_request(
             request,
@@ -570,6 +649,8 @@ def execute_query(
         routing_reason=routing_reason,
         answer_archetype=answer_archetype,
         token_callback=token_callback,
+        pinned_chunk_ids=pinned_chunk_ids,
+        request_context=request_context,
     )
 
 

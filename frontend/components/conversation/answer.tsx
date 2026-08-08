@@ -205,7 +205,10 @@ export function Answer({
   const rendered = new Set<number>();
 
   return (
-    <div className="answer-prose">
+    // Marks the answer body as the region a side chat can be anchored to. The
+    // reference cards and controls around it are interface, not passages: a
+    // quote of "8 Advanced Practice" anchors nothing worth asking about.
+    <div className="answer-prose" data-answer="">
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
         // KaTeX runs before the citation pass so that markers are never

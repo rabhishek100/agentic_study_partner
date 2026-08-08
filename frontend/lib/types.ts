@@ -109,6 +109,22 @@ export interface ConversationState {
   previous_route: Route | null;
 }
 
+/** One passage a reader carried from a conversation into a side chat. */
+export interface QuoteAnchor {
+  anchor_id: string;
+  parent_turn_index: number;
+  quoted_text: string;
+}
+
+/** What a side turn was given, and what its token budget excluded. */
+export interface SideContextReport {
+  anchor_ids: string[];
+  pinned_chunk_ids: string[];
+  token_count: number;
+  token_budget: number;
+  dropped: string[];
+}
+
 export interface TurnResult {
   question: string;
   answer: string;
@@ -127,11 +143,19 @@ export interface TurnResult {
   response_depth: ResponseDepth | null;
   routing_reason: string | null;
   prompt_profile_version: string | null;
+  /** Present only on a side-chat turn. */
+  side_context: SideContextReport | null;
 }
 
 export interface ChatResponse {
   result: TurnResult;
   state: ConversationState;
+  /**
+   * Which recorded turn this is. Not derivable from the client's own list: a
+   * stopped turn is never recorded and a regenerated one is recorded twice, so
+   * list position and turn index diverge. A side chat anchors to this index.
+   */
+  turn_index: number;
 }
 
 export interface BookSourceResponse {
@@ -149,6 +173,24 @@ export interface ConversationSummary {
   turn_count: number;
   created_at: string;
   updated_at: string;
+  /** Side chats opened over this conversation, counted rather than listed. */
+  side_thread_count: number;
+}
+
+export interface SideChatSummary {
+  conversation_id: string;
+  parent_conversation_id: string;
+  title: string;
+  book_ids: number[];
+  retrieval_mode: RetrievalMode;
+  anchors: QuoteAnchor[];
+  turn_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SideChatListResponse {
+  side_chats: SideChatSummary[];
 }
 
 export interface ConversationListResponse {
@@ -172,6 +214,9 @@ export interface ConversationDetail {
   created_at: string;
   updated_at: string;
   turns: StoredTurn[];
+  /** Set when this conversation is a side chat. */
+  parent_conversation_id: string | null;
+  anchors: QuoteAnchor[];
 }
 
 export interface BookSummary {
@@ -318,4 +363,10 @@ export interface ChatTurn {
   error: string | null;
   /** Per-turn @book narrowing, retained so retry repeats the same scope. */
   mentionedBookIds?: number[];
+  /**
+   * The index this turn was recorded under, once it has been. Absent for a
+   * turn that never reached the server, which is exactly the turn a side chat
+   * must refuse to anchor to.
+   */
+  turnIndex?: number;
 }

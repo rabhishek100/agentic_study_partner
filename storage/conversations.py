@@ -34,6 +34,12 @@ def derive_title(question: str) -> str:
     return f"{clipped.rstrip()}…"
 
 
+CONVERSATION_COLUMNS = """
+    id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
+    parent_conversation_id, anchors_json, created_at, updated_at
+"""
+
+
 def create_conversation(
     connection: Connection,
     *,
@@ -42,18 +48,30 @@ def create_conversation(
     retrieval_mode: str,
     title: str,
     prompt_profile: dict[str, Any] | None = None,
+    parent_conversation_id: str | UUID | None = None,
+    anchors: Sequence[dict[str, Any]] | None = None,
+    state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Create a conversation, or a side chat when a parent is named.
+
+    A side chat may be seeded with state — the anchored turn's answer, evidence
+    and scope — so that asking it to reword or shorten that answer works on its
+    first turn instead of only after it has produced one of its own.
+    """
+
     scope = sorted({int(identifier) for identifier in book_ids})
     if not scope:
         raise ValueError("a conversation must be scoped to at least one book")
+    if anchors and parent_conversation_id is None:
+        raise ValueError("anchors require a parent conversation")
     return connection.execute(
-        """
+        f"""
         insert into conversations (
-            owner_id, title, book_ids, retrieval_mode, prompt_profile_json
+            owner_id, title, book_ids, retrieval_mode, prompt_profile_json,
+            parent_conversation_id, anchors_json, state_json
         )
-        values (%s, %s, %s, %s, %s)
-        returning id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
-                  created_at, updated_at
+        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        returning {CONVERSATION_COLUMNS}
         """,
         (
             parse_owner_id(owner_id),
@@ -61,6 +79,9 @@ def create_conversation(
             scope,
             retrieval_mode,
             Jsonb(prompt_profile or {}),
+            parent_conversation_id,
+            Jsonb(list(anchors or ())),
+            Jsonb(state or {}),
         ),
     ).fetchone()
 
@@ -77,9 +98,8 @@ def load_conversation(
     """
 
     return connection.execute(
-        """
-        select id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
-               created_at, updated_at
+        f"""
+        select {CONVERSATION_COLUMNS}
         from conversations
         where id = %s and owner_id = %s
         """,
@@ -93,7 +113,13 @@ def list_conversations(
     owner_id: str | UUID,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """List one owner's conversations, most recently used first."""
+    """List one owner's root conversations, most recently used first.
+
+    Side chats are deliberately excluded and counted instead. They belong to a
+    passage of one conversation, so listing them beside their parent would put
+    a dozen "what does this mean?" threads above the session they came from.
+    The interface nests them under the parent using `side_thread_count`.
+    """
 
     if limit <= 0:
         raise ValueError("limit must be positive")
@@ -106,17 +132,57 @@ def list_conversations(
             conversations.retrieval_mode,
             conversations.created_at,
             conversations.updated_at,
+            count(conversation_turns.id) as turn_count,
+            (
+                select count(*)
+                from conversations as side
+                where side.parent_conversation_id = conversations.id
+                  and side.owner_id = conversations.owner_id
+            ) as side_thread_count
+        from conversations
+        left join conversation_turns
+          on conversation_turns.conversation_id = conversations.id
+         and conversation_turns.owner_id = conversations.owner_id
+        where conversations.owner_id = %s
+          and conversations.parent_conversation_id is null
+        group by conversations.id
+        order by conversations.updated_at desc
+        limit %s
+        """,
+        (parse_owner_id(owner_id), limit),
+    ).fetchall()
+
+
+def list_side_chats(
+    connection: Connection,
+    parent_conversation_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+) -> list[dict[str, Any]]:
+    """List one conversation's side chats, most recently used first."""
+
+    return connection.execute(
+        """
+        select
+            conversations.id,
+            conversations.title,
+            conversations.book_ids,
+            conversations.retrieval_mode,
+            conversations.parent_conversation_id,
+            conversations.anchors_json,
+            conversations.created_at,
+            conversations.updated_at,
             count(conversation_turns.id) as turn_count
         from conversations
         left join conversation_turns
           on conversation_turns.conversation_id = conversations.id
          and conversation_turns.owner_id = conversations.owner_id
         where conversations.owner_id = %s
+          and conversations.parent_conversation_id = %s
         group by conversations.id
         order by conversations.updated_at desc
-        limit %s
         """,
-        (parse_owner_id(owner_id), limit),
+        (parse_owner_id(owner_id), parent_conversation_id),
     ).fetchall()
 
 
@@ -189,6 +255,27 @@ def append_turn(
     return row["turn_index"]
 
 
+def set_conversation_state(
+    connection: Connection,
+    conversation_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    state: dict[str, Any],
+) -> None:
+    """Replace the resume checkpoint without recording a turn.
+
+    Used to seed a side chat with the answer it was opened over, which happens
+    before it has a turn of its own. `updated_at` is deliberately left alone:
+    seeding is not use, and a seeded side chat should not jump above a
+    conversation someone is actually reading.
+    """
+
+    connection.execute(
+        "update conversations set state_json = %s where id = %s and owner_id = %s",
+        (Jsonb(state), conversation_id, parse_owner_id(owner_id)),
+    )
+
+
 def update_conversation(
     connection: Connection,
     conversation_id: str | UUID,
@@ -197,12 +284,18 @@ def update_conversation(
     title: str | None = None,
     retrieval_mode: str | None = None,
     prompt_profile: dict[str, Any] | None = None,
+    anchors: Sequence[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
-    """Rename a conversation or change its retrieval mode.
+    """Rename a conversation, change its retrieval mode, or reset its anchors.
 
     The book selection is deliberately not editable: answers already in the
     conversation were grounded in the current selection, so a different one
     starts a new conversation instead.
+
+    Anchors are replaced wholesale rather than patched. A side chat's reference
+    list is small and the reader edits it by adding and removing chips, so the
+    client always knows the whole intended set; merging server-side would only
+    add a way for two windows to disagree about it.
     """
 
     assignments = []
@@ -216,6 +309,9 @@ def update_conversation(
     if prompt_profile is not None:
         assignments.append("prompt_profile_json = %s")
         parameters.append(Jsonb(prompt_profile))
+    if anchors is not None:
+        assignments.append("anchors_json = %s")
+        parameters.append(Jsonb(list(anchors)))
     if not assignments:
         return load_conversation(connection, conversation_id, owner_id=owner_id)
 
@@ -225,8 +321,7 @@ def update_conversation(
         f"""
         update conversations set {", ".join(assignments)}
         where id = %s and owner_id = %s
-        returning id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
-                  created_at, updated_at
+        returning {CONVERSATION_COLUMNS}
         """,
         parameters,
     ).fetchone()
