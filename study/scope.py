@@ -484,6 +484,36 @@ def resolve_chapter(
     return _resolved_node(connection, matches[0], owner_id=owner, kind="chapter")
 
 
+def resolve_node(
+    connection: Connection,
+    node_id: int,
+    *,
+    owner_id: str | UUID,
+) -> ResolvedScope:
+    """Resolve one node by its canonical id, returning its complete subtree.
+
+    Every other resolver here starts from something a reader typed and has to
+    cope with ambiguity. This one starts from an id the interface already
+    holds — a chapter picked from a list — so there is nothing to disambiguate
+    and nothing to guess.
+    """
+
+    owner = parse_owner_id(owner_id)
+    row = connection.execute(
+        """
+        SELECT nodes.*, books.title AS book_title
+        FROM nodes
+        JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
+        WHERE nodes.id = %s AND nodes.owner_id = %s
+        """,
+        (node_id, owner),
+    ).fetchone()
+    if row is None:
+        raise ScopeNotFoundError("scope", node_id)
+    kind = "chapter" if row["node_type"] == CHAPTER else "section"
+    return _resolved_node(connection, row, owner_id=owner, kind=kind)
+
+
 def resolve_section(
     connection: Connection,
     reference: str,

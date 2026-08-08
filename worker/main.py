@@ -23,6 +23,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
+from decks.worker import DeckWorker as StandaloneDeckWorker
 from ingestion.cleanup import run_cleanup
 from api.version import build_revision, build_time
 from ingestion.config import IngestionLimits, load_limits
@@ -156,6 +157,7 @@ class Worker:
         dependencies: PipelineDependencies | None = None,
         temporary_root: Path | None = None,
         video_worker: StandaloneVideoWorker | None = None,
+        deck_worker: StandaloneDeckWorker | None = None,
     ) -> None:
         self.limits = limits or load_limits()
         self.worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:8]}"
@@ -170,7 +172,11 @@ class Worker:
             database_url=self.database_url,
             temporary_root=self.temporary_root,
         )
-        self._prefer_video = False
+        self.deck_worker = deck_worker or StandaloneDeckWorker(
+            worker_id=self.worker_id,
+            database_url=self.database_url,
+        )
+        self._next_queue = 0
         # Force the first loop iteration to run a retention pass, so a worker
         # that restarts daily still cleans up even with long intervals.
         self._last_cleanup = -float(self.limits.cleanup_interval_seconds)
@@ -357,32 +363,30 @@ class Worker:
             logger.exception("video retention pass failed")
 
     def run_once(self) -> bool:
-        """Claim and run at most one job. True when work was done."""
+        """Claim and run at most one job. True when work was done.
+
+        Three independent queues share this process, so the cursor rotates
+        rather than alternating: a long book ingestion must not be the reason
+        a deck that takes ninety seconds never starts, and vice versa.
+        """
 
         self.recover_abandoned_jobs()
         self.video_worker.recover_abandoned_jobs()
+        self.deck_worker.recover_abandoned_jobs()
         self.run_retention_pass()
-        if self._prefer_video:
-            video_job = self.video_worker.claim()
-            if video_job is not None:
-                self.video_worker.process(video_job)
-                self._prefer_video = False
-                return True
-            job = self.claim()
+
+        queues = (
+            (self.claim, self.process),
+            (self.video_worker.claim, self.video_worker.process),
+            (self.deck_worker.claim, self.deck_worker.process),
+        )
+        for offset in range(len(queues)):
+            index = (self._next_queue + offset) % len(queues)
+            claim, process = queues[index]
+            job = claim()
             if job is not None:
-                self.process(job)
-                self._prefer_video = True
-                return True
-        else:
-            job = self.claim()
-            if job is not None:
-                self.process(job)
-                self._prefer_video = True
-                return True
-            video_job = self.video_worker.claim()
-            if video_job is not None:
-                self.video_worker.process(video_job)
-                self._prefer_video = False
+                self._next_queue = (index + 1) % len(queues)
+                process(job)
                 return True
         return False
 
