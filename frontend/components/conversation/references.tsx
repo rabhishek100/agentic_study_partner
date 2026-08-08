@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, ChevronDown, ChevronRight } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Globe } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -15,7 +15,7 @@ import {
   pathBelow,
   type ReferenceGroup,
 } from "@/lib/references";
-import type { CitationRef, EvidenceRef } from "@/lib/types";
+import type { CitationRef, EvidenceRef, WebSourceRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function ReferenceRow({
@@ -125,16 +125,21 @@ function GroupHeading({
 export interface ReferencesProps {
   evidence: EvidenceRef[];
   citations: CitationRef[];
+  webSources?: WebSourceRef[];
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
 }
 
 export function References({
   evidence,
   citations,
+  webSources,
   onOpenReference,
 }: ReferencesProps) {
   const [showUncited, setShowUncited] = useState(false);
-  if (evidence.length === 0) return null;
+  const hasEvidence = evidence.length > 0;
+  const hasWebSources = (webSources?.length ?? 0) > 0;
+
+  if (!hasEvidence && !hasWebSources) return null;
 
   const { cited, uncited } = partitionByCitation(evidence, citations);
   // Chip numbers index the full evidence list, so a row's number has to come
@@ -207,6 +212,42 @@ export function References({
             ))}
           </CollapsibleContent>
         </Collapsible>
+      )}
+
+      {webSources && webSources.length > 0 && (
+        <div className="space-y-1.5 border-t border-border/60 pt-2">
+          <h4 className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            <Globe className="size-3.5" aria-hidden />
+            {webSources.length} web {webSources.length === 1 ? "source" : "sources"}
+          </h4>
+          <ul className="space-y-1.5">
+            {webSources.map((ws, idx) => (
+              <li key={ws.url || idx} className="text-xs border-b border-border/40 pb-1 last:border-b-0">
+                <a
+                  href={ws.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-citation hover:underline flex items-center gap-1.5"
+                >
+                  <span className="bg-citation-muted text-citation rounded px-1.5 py-0.5 text-[0.65rem] font-semibold tabular-nums shrink-0">
+                    Web {ws.rank ?? idx + 1}
+                  </span>
+                  <span className="truncate flex-1">{ws.title}</span>
+                  {ws.domain && (
+                    <span className="text-muted-foreground text-[0.7rem] shrink-0">
+                      ({ws.domain})
+                    </span>
+                  )}
+                </a>
+                {ws.snippet && (
+                  <p className="ml-6 text-muted-foreground text-[0.75rem] line-clamp-2 leading-relaxed mt-0.5">
+                    {ws.snippet}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

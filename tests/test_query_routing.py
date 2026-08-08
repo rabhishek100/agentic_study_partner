@@ -1,7 +1,7 @@
 import re
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
@@ -314,12 +314,44 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 book_id=self.book_id,
                 owner_id=self.owner_id,
                 model=InsufficientAnswerModel(),
+                allow_external_fallback=False,
             )
 
         self.assertEqual(result.route, "retrieval_qa")
         self.assertEqual(result.outcome, "abstain")
         self.assertIn("evidence is insufficient", result.answer)
         self.assertNotIn("INSUFFICIENT_EVIDENCE", result.answer)
+
+    def test_model_falls_back_to_external_qa_when_evidence_insufficient(self):
+        document = SimpleNamespace(
+            page_content="Low-rank factorization can compress model tensors.",
+            metadata={
+                "book_id": self.book_id,
+                "node_id": 1,
+                "path": "Chapter 1 :: Core idea",
+                "start_page": 2,
+                "end_page": 2,
+            },
+        )
+        mock_model = MagicMock()
+        mock_model.invoke.side_effect = [
+            MagicMock(content="INSUFFICIENT_EVIDENCE: LoRA target modules are not discussed."),
+            MagicMock(content='{"is_sufficient": true, "reason": "General ML concept"}'),
+            MagicMock(content="ℹ️ **General Model Knowledge**: Target modules depend on task requirements."),
+        ]
+        with patch("study.query.BookRetriever") as retriever:
+            retriever.return_value.invoke.return_value = [document]
+            result = execute_query(
+                "How should I choose LoRA target modules?",
+                database_url=self.database_url,
+                book_id=self.book_id,
+                owner_id=self.owner_id,
+                model=mock_model,
+                allow_external_fallback=True,
+            )
+
+        self.assertEqual(result.route, "external_qa")
+        self.assertEqual(result.source_type, "model_knowledge")
 
     def test_forced_retrieval_does_not_reparse_query_as_hierarchy(self):
         document = SimpleNamespace(

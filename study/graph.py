@@ -83,6 +83,7 @@ ExecutionNode = Literal[
     "execute_retrieval",
     "transform_answer",
     "clarify",
+    "execute_external",
 ]
 
 
@@ -94,6 +95,8 @@ def route_turn(state: StudyGraphState) -> ExecutionNode:
         return "execute_retrieval"
     if route == "prior_answer_transform":
         return "transform_answer"
+    if route == "external_qa":
+        return "execute_external"
     return "clarify"
 
 
@@ -142,6 +145,7 @@ def build_study_graph():
         "execute_retrieval",
         "transform_answer",
         "clarify",
+        "execute_external",
     ):
         builder.add_node(node, execute_route)
         builder.add_edge(node, "update_state")

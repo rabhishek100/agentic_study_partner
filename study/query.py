@@ -388,6 +388,7 @@ def _answer_retrieval_question(
     token_callback: TokenCallback | None = None,
     pinned_chunk_ids: Sequence[str] = (),
     request_context: str = "",
+    allow_external_fallback: bool = True,
 ) -> TurnResult:
     """Answer one ordinary question from top-k retrieval evidence.
 
@@ -443,6 +444,20 @@ def _answer_retrieval_question(
         if document.metadata.get("chunk_id") not in pinned_ids
     ]
     if not documents:
+        if allow_external_fallback:
+            from .contracts import ConversationState
+            from .external_qa import execute_external_qa
+
+            return execute_external_qa(
+                question,
+                ConversationState(conversation_id=""),
+                model=model,
+                token_callback=token_callback,
+                response_depth=response_depth,
+                history_dependency="independent",
+                standalone_query=question,
+                routing_reason=routing_reason or "No matching evidence in indexed books; falling back to external QA.",
+            )
         return TurnResult(
             question=question,
             answer="I could not find relevant evidence in the indexed books.",
@@ -507,16 +522,32 @@ def _answer_retrieval_question(
         re.IGNORECASE,
     ):
         insufficient = False
-    if reply_text.startswith(INSUFFICIENT_EVIDENCE_MARKER):
-        explanation = reply_text.removeprefix(INSUFFICIENT_EVIDENCE_MARKER).strip()
-        reply_text = "Insufficient evidence"
-        if explanation:
-            reply_text += f": {explanation}"
-    elif insufficient:
-        reply_text = reply_text.replace(
-            INSUFFICIENT_EVIDENCE_MARKER,
-            "Insufficient evidence:",
-        )
+
+    if insufficient:
+        if allow_external_fallback:
+            from .contracts import ConversationState
+            from .external_qa import execute_external_qa
+
+            return execute_external_qa(
+                question,
+                ConversationState(conversation_id=""),
+                model=model,
+                token_callback=token_callback,
+                response_depth=response_depth,
+                history_dependency="independent",
+                standalone_query=question,
+                routing_reason=routing_reason or "Indexed evidence was evaluated as insufficient; falling back to external QA.",
+            )
+        if reply_text.startswith(INSUFFICIENT_EVIDENCE_MARKER):
+            explanation = reply_text.removeprefix(INSUFFICIENT_EVIDENCE_MARKER).strip()
+            reply_text = "Insufficient evidence"
+            if explanation:
+                reply_text += f": {explanation}"
+        else:
+            reply_text = reply_text.replace(
+                INSUFFICIENT_EVIDENCE_MARKER,
+                "Insufficient evidence:",
+            )
     # The source list and the retrieval-mode line that used to be appended here
     # are `evidence` and `retrieval_mode` on the result. See the note in
     # `_answer_hierarchy_request`.
@@ -602,6 +633,7 @@ def execute_query(
     answer_archetype: AnswerArchetype | None = None,
     pinned_chunk_ids: Sequence[str] = (),
     request_context: str = "",
+    allow_external_fallback: bool = True,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
@@ -651,6 +683,7 @@ def execute_query(
         token_callback=token_callback,
         pinned_chunk_ids=pinned_chunk_ids,
         request_context=request_context,
+        allow_external_fallback=allow_external_fallback,
     )
 
 

@@ -137,10 +137,11 @@ export function TurnView({
           />
         )}
 
-        {result && result.evidence.length > 0 && (
+        {result && (result.evidence.length > 0 || (result.web_sources && result.web_sources.length > 0)) && (
           <References
             evidence={result.evidence}
             citations={result.citations}
+            webSources={result.web_sources}
             onOpenReference={onOpenReference}
           />
         )}
