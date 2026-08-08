@@ -70,6 +70,12 @@ from study.contracts import (
     TurnResult,
 )
 from study.conversation import execute_conversation_turn, new_conversation_state
+from study.dictation import (
+    MAXIMUM_QUESTION_BYTES,
+    DictationError,
+    audio_extension,
+    transcribe_spoken_question,
+)
 from study.side_context import ParentTurn, build_side_context, readable_quote
 from study.prompts import (
     DEFAULT_PROMPT_PROFILE,
@@ -130,6 +136,10 @@ class ChatResponse(ContractModel):
     # a second time, so list position and turn index diverge. A side chat has
     # to name a turn index to anchor to, hence returning it here.
     turn_index: int
+
+
+class TranscriptionResponse(ContractModel):
+    text: str
 
 
 class ConversationSummary(ContractModel):
@@ -968,6 +978,50 @@ async def preview_prompt_settings(
         preview_user_prompt=preview[1][1],
         profile_version=profile_version(request.profile),
     )
+
+
+@app.post("/api/transcriptions", response_model=TranscriptionResponse)
+async def transcribe(
+    request: Request,
+    owner_id: UUID = Depends(current_owner),
+) -> TranscriptionResponse:
+    """Transcribe a dictated question so the composer can be spoken into.
+
+    Signed-in callers only, and not because the audio belongs to a book: the
+    request spends provider money, so it may not be anonymous. Nothing is
+    stored, and the words are handed straight back for the reader to edit
+    before they ask anything.
+    """
+
+    del owner_id
+    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip()
+    if audio_extension(media_type) is None:
+        raise HTTPException(
+            status_code=415, detail="dictation must be recorded audio"
+        )
+
+    payload = bytearray()
+    async for chunk in request.stream():
+        payload.extend(chunk)
+        if len(payload) > MAXIMUM_QUESTION_BYTES:
+            raise HTTPException(status_code=413, detail="that recording is too long")
+    if not payload:
+        raise HTTPException(status_code=422, detail="the recording was empty")
+
+    try:
+        text = await run_in_threadpool(
+            transcribe_spoken_question, bytes(payload), media_type=media_type
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except DictationError as error:
+        logger.warning("Dictation failed: %s", error)
+        raise HTTPException(
+            status_code=502, detail="dictation is unavailable; type the question"
+        ) from error
+    if not text:
+        raise HTTPException(status_code=422, detail="no speech was recorded")
+    return TranscriptionResponse(text=text)
 
 
 @app.post("/api/chat", response_model=ChatResponse)

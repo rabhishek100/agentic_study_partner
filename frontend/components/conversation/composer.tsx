@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 
+import { MicButton } from "@/components/dictation/mic-button";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -19,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { spliceTranscript } from "@/lib/dictation";
 import type { BookSummary, ResponseDepth } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -117,6 +119,26 @@ export function Composer({
     setValue("");
     setCaret(0);
     setMentionDismissed(false);
+  }
+
+  /**
+   * Place dictated words where the caret is and leave them there.
+   *
+   * The textarea's own selection is read rather than the tracked `caret`
+   * because clicking the mic moves focus away, and the field keeps the
+   * selection it had when it lost focus.
+   */
+  function insertDictation(transcript: string) {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? start;
+    const spliced = spliceTranscript(value, transcript, start, end);
+    setValue(spliced.value);
+    setCaret(spliced.caret);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(spliced.caret, spliced.caret);
+    });
   }
 
   function insertMention(book: BookSummary) {
@@ -227,7 +249,7 @@ export function Composer({
         }
         placeholder={placeholder}
         disabled={disabled}
-        className="max-h-[200px] resize-none rounded-xl bg-card py-3 pl-3.5 pr-13 text-[0.95rem] shadow-sm"
+        className="max-h-[200px] resize-none rounded-xl bg-card py-3 pl-3.5 pr-24 text-[0.95rem] shadow-sm"
       />
 
       {mention && mention.matches.length > 0 && (
@@ -267,7 +289,8 @@ export function Composer({
         </div>
       )}
 
-      <div className="absolute bottom-2 right-2">
+      <div className="absolute bottom-2 right-2 flex items-center gap-1">
+        <MicButton disabled={disabled} onTranscript={insertDictation} />
         {isStreaming ? (
           <Button
             type="button"

@@ -369,8 +369,32 @@ the version it retrieved from still contains and reports any anchor a re-ingest
 replaced. See
 [`docs/floating-side-chats-spec.md`](docs/floating-side-chats-spec.md).
 
+Every composer — book chat, side chats, and the lecture ask pane — has a
+microphone beside its send button. It records a question, posts the clip to
+`POST /api/transcriptions`, and puts the words at the caret, where they are
+edited and sent like anything typed; nothing is asked automatically, because
+speech recognition mishears technical terms often enough that auto-sending
+would spend a retrieval turn on a question nobody asked. Transcription reuses
+`OPENROUTER_AUDIO_MODEL`, the same hosted model video ingestion falls back to,
+and the audio is never stored. Recording stops on its own after two minutes,
+Escape discards it, and the button hides itself where recording is impossible —
+an insecure origin, or a browser without `MediaRecorder` — since every surface
+stays fully usable by typing.
+
+A caret beside the microphone chooses which input to record from, and appears
+only once there is more than one. The choice is remembered across sessions and
+shared by every composer on the page, since a headset picked in one is meant
+for all of them. Browsers withhold device names until an origin has been
+granted the microphone once, so the list is named after the first recording
+rather than before it; Chrome's `default` and `communications` aliases are
+dropped, because the menu has its own "System default" entry that means the
+same thing. A device chosen and later unplugged does not silently demote to
+the laptop lid: the request fails against the exact device, the stored choice
+is dropped, and the recording restarts on the system default.
+
 The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
-`POST /api/chat/stream`, `GET/PATCH /api/prompt-settings`, prompt preview,
+`POST /api/chat/stream`, `POST /api/transcriptions`,
+`GET/PATCH /api/prompt-settings`, prompt preview,
 conversation CRUD, side chats (`POST|GET /api/conversations/{id}/side-chats`,
 `PATCH /api/side-chats/{id}`, `POST /api/side-chats/{id}/turns/stream`), and the
 `/api/ingestions` lifecycle. Everything except health requires a Supabase bearer
