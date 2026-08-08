@@ -18,6 +18,7 @@ const ROUTE_LABELS: Record<TurnResult["route"], string> = {
   retrieval_qa: "Retrieval question answering",
   prior_answer_transform: "Transform of the previous answer",
   clarify: "Clarification",
+  external_qa: "External model knowledge / web search",
 };
 
 const DEPENDENCY_LABELS: Record<TurnResult["history_dependency"], string> = {
