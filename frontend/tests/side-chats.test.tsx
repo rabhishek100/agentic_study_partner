@@ -8,6 +8,7 @@ import {
   useSideChats,
 } from "@/hooks/use-side-chats";
 import { readGeometry } from "@/lib/floating-window";
+import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import type { ChatTurn, SideChatSummary, TurnResult } from "@/lib/types";
 
 const apiFetch = vi.hoisted(() => vi.fn());
@@ -38,7 +39,7 @@ function Harness({
   parentId: string | null;
   onReady: (api: ReturnType<typeof useSideChats>) => void;
 }) {
-  const api = useSideChats(parentId);
+  const api = useSideChats(parentId, BOOK_SIDE_CHATS);
   onReady(api);
   return (
     <ul>

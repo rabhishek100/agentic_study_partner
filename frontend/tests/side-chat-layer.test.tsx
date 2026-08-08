@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import { DEFAULT_HEIGHT, DEFAULT_WIDTH } from "@/lib/floating-window";
+import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 
 // The window's own body loads its turns over the network. This suite is about
 // the layer: stacking, the dock, and the narrow-viewport fallback.
@@ -37,8 +38,6 @@ function windowState(
       conversation_id: id,
       parent_conversation_id: "parent",
       title: `thread ${id}`,
-      book_ids: [1],
-      retrieval_mode: "hybrid_rerank",
       anchors: [],
       turn_count: 0,
       created_at: "2026-08-07T00:00:00Z",
@@ -68,6 +67,8 @@ function setViewport(floating: boolean) {
 }
 
 const handlers = () => ({
+  surface: BOOK_SIDE_CHATS,
+  renderTurns: () => <p>turns</p>,
   onRectChange: vi.fn(),
   onMinimize: vi.fn(),
   onClose: vi.fn(),

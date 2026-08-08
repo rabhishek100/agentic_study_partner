@@ -170,6 +170,7 @@ def whole_lecture(
                 retrieval_attempts=0,
                 routing_reason=decision.reason,
                 trace_id=_current_trace_id(),
+                side_context=_side_report(context.side_context),
             )
         }
 
@@ -199,6 +200,7 @@ def whole_lecture(
                     retrieval_attempts=0,
                     routing_reason=decision.reason,
                     trace_id=_current_trace_id(),
+                    side_context=_side_report(context.side_context),
                 )
             }
         scope = narrowed
@@ -397,7 +399,7 @@ def transform_prior(
     }
 
 
-def clarify(state: VideoGraphState) -> dict:
+def clarify(state: VideoGraphState, runtime: Runtime[VideoTurnContext]) -> dict:
     decision = state["decision"]
     return {
         "result": VideoTurnResult(
@@ -409,6 +411,7 @@ def clarify(state: VideoGraphState) -> dict:
             retrieval_attempts=0,
             routing_reason=decision.reason,
             trace_id=_current_trace_id(),
+            side_context=_side_report(runtime.context.side_context),
         )
     }
 

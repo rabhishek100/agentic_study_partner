@@ -1,3 +1,5 @@
+import type { SideContextReport } from "@/lib/types";
+
 /** Contracts served by the video API, mirrored for the Videos section. */
 
 export type VideoReadiness = "processing" | "ready" | "degraded" | "failed";
@@ -13,7 +15,10 @@ export type VideoRetrievalMethod =
   | "hybrid"
   | "timeline_expansion"
   // Not a search: the complete published transcript, in order.
-  | "complete_transcript";
+  | "complete_transcript"
+  // Also not a search: named by the citation markers inside a passage the
+  // reader highlighted in a side chat.
+  | "anchor_pin";
 
 export interface VideoPlayback {
   kind: "youtube" | "local";
@@ -177,11 +182,18 @@ export interface VideoTurnResult {
   cost_usd: number;
   trace_id: string | null;
   warnings: string[];
+  /** Present only on a side-chat turn. */
+  side_context: SideContextReport | null;
 }
 
 export interface VideoAskResponse {
   conversation_id: string;
   result: VideoTurnResult;
+  /**
+   * Which recorded turn this is, or null for a turn the server did not record
+   * (an abstention with no published version). A side chat anchors to it.
+   */
+  turn_index: number | null;
 }
 
 export interface VideoConversationSummary {
@@ -220,6 +232,8 @@ export interface VideoTimelineEntry {
 
 export interface VideoTurn {
   id: string;
+  /** Present once recorded; absent for a stopped or failed turn. */
+  turnIndex?: number;
   question: string;
   answer: string;
   status: "streaming" | "complete" | "failed" | "stopped";

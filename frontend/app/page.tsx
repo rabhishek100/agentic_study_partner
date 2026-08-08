@@ -12,6 +12,7 @@ import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
+import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,11 +27,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useChat } from "@/hooks/use-chat";
 import { useConversations } from "@/hooks/use-conversations";
 import { useSideChats } from "@/hooks/use-side-chats";
+import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import type {
   BookListResponse,
   BookSummary,
+  ChatTurn,
   EvidenceRef,
   ResponseDepth,
   RetrievalMode,
@@ -63,7 +66,7 @@ export default function Page() {
     resume,
   } = useChat();
   const history = useConversations();
-  const sideChats = useSideChats(conversationId);
+  const sideChats = useSideChats(conversationId, BOOK_SIDE_CHATS);
 
   const loadBooks = useCallback(async () => {
     setBooksError("");
@@ -312,7 +315,15 @@ export default function Page() {
           onClose={sideChats.close}
           onFocus={sideChats.focus}
           onSettled={sideChats.noteSettled}
-          onOpenReference={openReference}
+          surface={BOOK_SIDE_CHATS}
+          renderTurns={({ turns: sideTurns, isLoading, isQueued }) => (
+            <SideChatTurns
+              turns={sideTurns as ChatTurn[]}
+              isLoading={isLoading}
+              isQueued={isQueued}
+              onOpenReference={openReference}
+            />
+          )}
           onAnchorsChange={(sideChatId, anchors) => {
             void sideChats.setAnchors(sideChatId, anchors);
           }}

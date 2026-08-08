@@ -10,7 +10,10 @@ import { AuthGate } from "@/components/auth-gate";
 import { ConversationHistory } from "@/components/conversation-history";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
+import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
 import { AskPane } from "@/components/video/ask-pane";
+import { VideoSideChatTurns } from "@/components/video/video-side-chat-turns";
 import {
   IngestionStatus,
   readinessLabel,
@@ -40,10 +43,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useResizablePane } from "@/hooks/use-resizable-pane";
+import { useSideChats } from "@/hooks/use-side-chats";
 import { useVideoChat } from "@/hooks/use-video-chat";
+import { VIDEO_SIDE_CHATS } from "@/lib/side-chat";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import type { SideChatTurn } from "@/lib/side-chat";
 import type {
   VideoConversationDetail,
   VideoConversationSummary,
@@ -51,6 +57,7 @@ import type {
   VideoDocumentTarget,
   VideoResource,
   VideoTimelineEntry,
+  VideoTurnResult,
 } from "@/lib/video-types";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -88,6 +95,26 @@ export default function VideoWorkspace() {
 
   const { turns, conversationId, isStreaming, send, stop, retry, reset, resume } =
     useVideoChat(videoId);
+  const sideChats = useSideChats(conversationId, VIDEO_SIDE_CHATS);
+
+  /**
+   * Which recorded turn a passage came from, matched against this lecture
+   * conversation's answers. Derived rather than assumed, for the same reason as
+   * the book chat: the turn index is what a quote's markers resolve against.
+   */
+  const resolveQuoteTurn = useCallback(
+    (text: string) => {
+      const flatten = (value: string) => value.replace(/\s+/g, " ").trim();
+      const needle = flatten(text);
+      if (!needle) return null;
+      const match = turns.find(
+        (turn) =>
+          turn.turnIndex != null && flatten(turn.answer).includes(needle),
+      );
+      return match?.turnIndex ?? null;
+    },
+    [turns],
+  );
   const { percent, containerRef, separatorProps } = useResizablePane({
     ...VIDEO_PANE,
     edge: "left",
@@ -298,6 +325,41 @@ export default function VideoWorkspace() {
   return (
     <AppShell
       nav={<SectionNav active="videos" />}
+      sideChatControl={
+        <SideChatMenu
+          sideChats={sideChats.available}
+          openIds={sideChats.openIds}
+          onOpen={sideChats.show}
+          onDelete={sideChats.remove}
+        />
+      }
+      overlay={
+        <SideChatLayer
+          windows={sideChats.windows}
+          onRectChange={sideChats.setRect}
+          onMinimize={sideChats.setMinimized}
+          onClose={sideChats.close}
+          onFocus={sideChats.focus}
+          onSettled={sideChats.noteSettled}
+          onAnchorsChange={(sideChatId, anchors) => {
+            void sideChats.setAnchors(sideChatId, anchors);
+          }}
+          surface={VIDEO_SIDE_CHATS}
+          renderTurns={({ turns: sideTurns, isLoading, isQueued }) => (
+            <VideoSideChatTurns
+              videoId={videoId}
+              turns={sideTurns as SideChatTurn<VideoTurnResult>[]}
+              isLoading={isLoading}
+              isQueued={isQueued}
+              onSeek={seek}
+              onOpenDocument={openDocument}
+            />
+          )}
+          resolveQuoteTurn={resolveQuoteTurn}
+          error={sideChats.error}
+          onDismissError={sideChats.dismissError}
+        />
+      }
       status={
         <span>
           {video
@@ -531,6 +593,9 @@ export default function VideoWorkspace() {
             onRetry={handleRetry}
             onSeek={seek}
             onOpenDocument={openDocument}
+            onAskOnTheSide={(turnIndex, quotedText) => {
+              void sideChats.open({ parentTurnIndex: turnIndex, quotedText });
+            }}
           />
         </section>
       </div>

@@ -547,6 +547,51 @@ class VideoSideTurnTests(unittest.TestCase):
         self.assertIn("not source evidence", prompt)
 
 
+class VideoSideTurnReportTests(unittest.TestCase):
+    """Every route a side chat can take reports the context it was given."""
+
+    def test_a_clarification_still_records_the_context(self) -> None:
+        # Found by driving a real lecture: asking "why does that matter?" about
+        # an abstention clarifies, and the report was dropped on that path — so
+        # the inspector said nothing about a turn that did use anchored context.
+        from video.conversation import _side_report, clarify
+        from video.contracts import VideoTurnDecision
+
+        side = build_side_context(
+            [
+                QuoteAnchor(
+                    anchor_id="a1", parent_turn_index=0, quoted_text="a passage"
+                )
+            ],
+            [],
+        )
+
+        class Runtime:
+            def __init__(self, context) -> None:
+                self.context = context
+
+        class Context:
+            side_context = side
+
+        output = clarify(
+            {
+                "question": "why does that matter?",
+                "conversation": None,
+                "decision": VideoTurnDecision(
+                    route="clarify",
+                    history_dependency="ambiguous",
+                    clarification_question="What does “that” refer to?",
+                    reason="No referent.",
+                ),
+            },
+            Runtime(Context()),
+        )
+
+        self.assertIsNotNone(output["result"].side_context)
+        self.assertEqual(output["result"].side_context.anchor_ids, ["a1"])
+        self.assertIsNone(_side_report(None))
+
+
 class VideoSideChatApiTests(unittest.IsolatedAsyncioTestCase):
     """The HTTP surface, against the real database."""
 

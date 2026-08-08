@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { AnchorEditor } from "@/components/side-chat/anchor-editor";
 import { FloatingWindow } from "@/components/side-chat/floating-window";
-import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { SideChatComposer } from "@/components/side-chat/side-chat-composer";
 import { useSideChat } from "@/hooks/use-side-chat";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
-import type { EvidenceRef, QuoteAnchor, ResponseDepth } from "@/lib/types";
+import type { SideChatSurface, SideChatTurn } from "@/lib/side-chat";
+import type { QuoteAnchor, ResponseDepth } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 
 export interface SideChatWindowProps {
@@ -21,8 +21,17 @@ export interface SideChatWindowProps {
   onFocus: () => void;
   /** `recorded` is false for a turn that failed or was stopped. */
   onSettled: (recorded: boolean) => void;
-  onOpenReference?: (reference: EvidenceRef, page?: number) => void;
   onAnchorsChange: (anchors: QuoteAnchor[]) => void;
+  surface: SideChatSurface;
+  /**
+   * How this surface draws its exchanges. A lecture answer seeks a player and
+   * opens slides; a book answer opens a page. The window owns neither.
+   */
+  renderTurns: (state: {
+    turns: SideChatTurn<unknown>[];
+    isLoading: boolean;
+    isQueued: boolean;
+  }) => React.ReactNode;
   resolveQuoteTurn: (text: string) => number | null;
   /** Renders inside a docked sheet instead of a floating window. */
   docked?: boolean;
@@ -44,15 +53,15 @@ export function SideChatWindow({
   onClose,
   onFocus,
   onSettled,
-  onOpenReference,
   onAnchorsChange,
+  surface,
+  renderTurns,
   resolveQuoteTurn,
   docked = false,
 }: SideChatWindowProps) {
   const { sideChat } = state;
-  const { turns, isStreaming, isQueued, isLoading, send, stop } = useSideChat(
-    sideChat.conversation_id,
-  );
+  const { turns, isStreaming, isQueued, isLoading, send, stop } =
+    useSideChat<unknown>(sideChat.conversation_id, surface);
   const [responseDepth, setResponseDepth] = useState<ResponseDepth>("quick");
   const { viewportRef, contentRef, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
@@ -94,12 +103,7 @@ export function SideChatWindow({
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
         >
           <div ref={contentRef}>
-            <SideChatTurns
-              turns={turns}
-              isLoading={isLoading}
-              isQueued={isQueued}
-              onOpenReference={onOpenReference}
-            />
+            {renderTurns({ turns, isLoading, isQueued })}
           </div>
         </div>
         <SideChatComposer

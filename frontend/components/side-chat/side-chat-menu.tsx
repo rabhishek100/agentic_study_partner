@@ -11,13 +11,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { SideChatSummary } from "@/lib/types";
+import type { SideChatThread } from "@/lib/side-chat";
 
 export interface SideChatMenuProps {
-  sideChats: SideChatSummary[];
+  sideChats: SideChatThread[];
   /** Which are currently on screen, open or minimized. */
   openIds: Set<string>;
-  onOpen: (sideChat: SideChatSummary) => void;
+  onOpen: (sideChat: SideChatThread) => void;
   onDelete: (sideChatId: string) => void;
 }
 

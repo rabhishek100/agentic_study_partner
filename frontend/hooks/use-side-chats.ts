@@ -14,14 +14,11 @@ import {
   type Viewport,
   type WindowRect,
 } from "@/lib/floating-window";
-import type {
-  QuoteAnchor,
-  SideChatListResponse,
-  SideChatSummary,
-} from "@/lib/types";
+import type { SideChatSurface, SideChatThread } from "@/lib/side-chat";
+import type { QuoteAnchor } from "@/lib/types";
 
 export interface SideChatWindow {
-  sideChat: SideChatSummary;
+  sideChat: SideChatThread;
   rect: WindowRect;
   minimized: boolean;
   /** An answer landed while this window was minimized. */
@@ -121,8 +118,11 @@ function viewportSize(): Viewport {
  * leaves it listed, because the reader's question and its answer are recorded
  * server-side and are worth coming back to.
  */
-export function useSideChats(parentConversationId: string | null) {
-  const [available, setAvailable] = useState<SideChatSummary[]>([]);
+export function useSideChats(
+  parentConversationId: string | null,
+  surface: SideChatSurface,
+) {
+  const [available, setAvailable] = useState<SideChatThread[]>([]);
   const [windows, setWindows] = useState<SideChatWindow[]>([]);
   // Surfaced by the interface. A side chat that fails to open leaves nothing on
   // screen to attach a message to, so an unreported error here is a click that
@@ -141,8 +141,8 @@ export function useSideChats(parentConversationId: string | null) {
     if (!parentConversationId) return;
 
     let cancelled = false;
-    apiFetch<SideChatListResponse>(
-      `/conversations/${parentConversationId}/side-chats`,
+    apiFetch<{ side_chats: SideChatThread[] }>(
+      surface.list(parentConversationId),
     )
       .then(({ side_chats: sideChats }) => {
         if (cancelled) return;
@@ -176,7 +176,7 @@ export function useSideChats(parentConversationId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [parentConversationId]);
+  }, [parentConversationId, surface]);
 
   // Persist only after restoration has run for this conversation, so an
   // in-flight load cannot be recorded as "nothing was open".
@@ -215,7 +215,7 @@ export function useSideChats(parentConversationId: string | null) {
     });
   }, []);
 
-  const show = useCallback((sideChat: SideChatSummary) => {
+  const show = useCallback((sideChat: SideChatThread) => {
     setWindows((current) => {
       const existing = current.find(
         (entry) => entry.sideChat.conversation_id === sideChat.conversation_id,
@@ -254,8 +254,8 @@ export function useSideChats(parentConversationId: string | null) {
       setError("");
       setIsOpening(true);
       try {
-        const created = await apiFetch<SideChatSummary>(
-          `/conversations/${parentConversationId}/side-chats`,
+        const created = await apiFetch<SideChatThread>(
+          surface.create(parentConversationId),
           {
             method: "POST",
             body: JSON.stringify({
@@ -278,7 +278,7 @@ export function useSideChats(parentConversationId: string | null) {
         setIsOpening(false);
       }
     },
-    [parentConversationId, show],
+    [parentConversationId, show, surface],
   );
 
   const close = useCallback((sideChatId: string) => {
@@ -289,7 +289,8 @@ export function useSideChats(parentConversationId: string | null) {
     );
   }, []);
 
-  const remove = useCallback(async (sideChatId: string) => {
+  const remove = useCallback(
+    async (sideChatId: string) => {
     setWindows((current) =>
       current.filter((entry) => entry.sideChat.conversation_id !== sideChatId),
     );
@@ -298,13 +299,15 @@ export function useSideChats(parentConversationId: string | null) {
     );
     forgetGeometry(sideChatId);
     try {
-      await apiFetch<void>(`/conversations/${sideChatId}`, {
-        method: "DELETE",
-      });
-    } catch (caught) {
-      setError((caught as Error).message);
-    }
-  }, []);
+        await apiFetch<void>(surface.remove(sideChatId), {
+          method: "DELETE",
+        });
+      } catch (caught) {
+        setError((caught as Error).message);
+      }
+    },
+    [surface],
+  );
 
   const setMinimized = useCallback((sideChatId: string, minimized: boolean) => {
     setWindows((current) =>
@@ -328,7 +331,7 @@ export function useSideChats(parentConversationId: string | null) {
   const setAnchors = useCallback(
     async (sideChatId: string, anchors: QuoteAnchor[]) => {
       const previous = { available, windows };
-      const apply = (chat: SideChatSummary) =>
+      const apply = (chat: SideChatThread) =>
         chat.conversation_id === sideChatId ? { ...chat, anchors } : chat;
       // Applied first so removing a chip feels immediate, and rolled back if
       // the server refuses.
@@ -341,8 +344,8 @@ export function useSideChats(parentConversationId: string | null) {
         ),
       );
       try {
-        const updated = await apiFetch<SideChatSummary>(
-          `/side-chats/${sideChatId}`,
+        const updated = await apiFetch<SideChatThread>(
+          surface.update(sideChatId),
           {
             method: "PATCH",
             body: JSON.stringify({
@@ -374,7 +377,7 @@ export function useSideChats(parentConversationId: string | null) {
         return false;
       }
     },
-    [available, windows],
+    [available, windows, surface],
   );
 
   const setRect = useCallback((sideChatId: string, rect: WindowRect) => {

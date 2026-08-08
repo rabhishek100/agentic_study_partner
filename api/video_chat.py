@@ -166,6 +166,10 @@ class AskRequest(ContractModel):
 class AskResponse(ContractModel):
     conversation_id: UUID
     result: VideoTurnResult
+    # Which recorded turn this is, or null for a turn that was not recorded —
+    # an abstention with no published version has nothing to anchor to. The
+    # client cannot derive it, and a side chat names a turn index.
+    turn_index: int | None = None
 
 
 class RenameRequest(ContractModel):
@@ -391,8 +395,9 @@ def _run_turn(
             dependencies=_answer_dependencies(),
             token_callback=token_callback,
         )
+        turn_index: int | None = None
         if result.ingestion_version_id:
-            append_turn(
+            turn_index = append_turn(
                 connection,
                 conversation_id,
                 owner_id=owner_id,
@@ -407,7 +412,9 @@ def _run_turn(
                 trace_id=result.trace_id,
                 maximum_cost_usd=cost_ceiling(result.route),
             )
-    return AskResponse(conversation_id=conversation_id, result=result)
+    return AskResponse(
+        conversation_id=conversation_id, result=result, turn_index=turn_index
+    )
 
 
 SIDE_CHAT_NOT_FOUND = HTTPException(
@@ -691,8 +698,9 @@ def _run_side_turn(
             token_callback=token_callback,
             side_context=build_side_context(anchors, video_parent_turns(parent_rows)),
         )
+        turn_index: int | None = None
         if result.ingestion_version_id:
-            append_turn(
+            turn_index = append_turn(
                 connection,
                 side_chat_id,
                 owner_id=owner_id,
@@ -707,7 +715,9 @@ def _run_side_turn(
                 trace_id=result.trace_id,
                 maximum_cost_usd=cost_ceiling(result.route),
             )
-    return AskResponse(conversation_id=side_chat_id, result=result)
+    return AskResponse(
+        conversation_id=side_chat_id, result=result, turn_index=turn_index
+    )
 
 
 @chat_router.post(

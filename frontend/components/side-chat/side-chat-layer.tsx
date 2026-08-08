@@ -8,7 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import { FLOATING_MIN_VIEWPORT_WIDTH } from "@/lib/floating-window";
-import type { EvidenceRef, QuoteAnchor } from "@/lib/types";
+import type { SideChatSurface, SideChatTurn } from "@/lib/side-chat";
+import type { QuoteAnchor } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +46,13 @@ export interface SideChatLayerProps {
   onClose: (sideChatId: string) => void;
   onFocus: (sideChatId: string) => void;
   onSettled: (sideChatId: string, recorded: boolean) => void;
-  onOpenReference?: (reference: EvidenceRef, page?: number) => void;
   onAnchorsChange: (sideChatId: string, anchors: QuoteAnchor[]) => void;
+  surface: SideChatSurface;
+  renderTurns: (state: {
+    turns: SideChatTurn<unknown>[];
+    isLoading: boolean;
+    isQueued: boolean;
+  }) => React.ReactNode;
   resolveQuoteTurn: (text: string) => number | null;
   /** Reported here because a side chat that failed to open has no window. */
   error?: string;
@@ -96,8 +102,9 @@ export function SideChatLayer({
   onClose,
   onFocus,
   onSettled,
-  onOpenReference,
   onAnchorsChange,
+  surface,
+  renderTurns,
   resolveQuoteTurn,
   error,
   onDismissError,
@@ -196,8 +203,9 @@ export function SideChatLayer({
                 onClose={() => onClose(id)}
                 onFocus={() => onFocus(id)}
                 onSettled={(recorded) => onSettled(id, recorded)}
-                onOpenReference={onOpenReference}
                 onAnchorsChange={(anchors) => onAnchorsChange(id, anchors)}
+                surface={surface}
+                renderTurns={renderTurns}
                 resolveQuoteTurn={resolveQuoteTurn}
               />
             </div>
@@ -222,8 +230,9 @@ export function SideChatLayer({
             onClose={() => onClose(id)}
             onFocus={() => onFocus(id)}
             onSettled={(recorded) => onSettled(id, recorded)}
-            onOpenReference={onOpenReference}
             onAnchorsChange={(anchors) => onAnchorsChange(id, anchors)}
+            surface={surface}
+            renderTurns={renderTurns}
             resolveQuoteTurn={resolveQuoteTurn}
           />
         );

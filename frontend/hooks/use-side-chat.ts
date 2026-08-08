@@ -6,12 +6,8 @@ import { API_BASE, apiFetch } from "@/lib/api";
 import { drainSseEvents } from "@/lib/sse";
 import { accessToken } from "@/lib/supabase";
 import { sideChatQueue } from "@/lib/turn-queue";
-import type {
-  ChatResponse,
-  ChatTurn,
-  ConversationDetail,
-  ResponseDepth,
-} from "@/lib/types";
+import type { SideChatSurface, SideChatTurn, StoredSideChatTurn } from "@/lib/side-chat";
+import type { ResponseDepth } from "@/lib/types";
 
 /** How long the stream may go quiet before the client gives up on it. */
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
@@ -27,8 +23,11 @@ const STREAM_IDLE_TIMEOUT_MS = 60_000;
  * chat that was closed and reopened must come back with its history rather
  * than as an empty window.
  */
-export function useSideChat(sideChatId: string) {
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
+export function useSideChat<TResult>(
+  sideChatId: string,
+  surface: SideChatSurface,
+) {
+  const [turns, setTurns] = useState<SideChatTurn<TResult>[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   // Sent, but waiting for one of the shared generation slots.
@@ -37,27 +36,37 @@ export function useSideChat(sideChatId: string) {
   const controllerRef = useRef<AbortController | null>(null);
   const stoppedByUserRef = useRef(false);
 
-  const patchTurn = useCallback((id: string, patch: Partial<ChatTurn>) => {
-    setTurns((current) =>
-      current.map((turn) => (turn.id === id ? { ...turn, ...patch } : turn)),
-    );
-  }, []);
+  const patchTurn = useCallback(
+    (id: string, patch: Partial<SideChatTurn<TResult>>) => {
+      setTurns((current) =>
+        current.map((turn) => (turn.id === id ? { ...turn, ...patch } : turn)),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    apiFetch<ConversationDetail>(`/conversations/${sideChatId}`)
+    apiFetch<{
+      conversation_id: string;
+      turns: StoredSideChatTurn<TResult>[];
+    }>(surface.detail(sideChatId))
       .then((detail) => {
         if (cancelled) return;
         setTurns(
-          detail.turns.map((turn) => ({
-            id: `${detail.conversation_id}-${turn.turn_index}`,
-            question: turn.question,
-            answer: turn.answer,
-            status: "complete" as const,
-            result: turn.result,
-            error: null,
-          })),
+          detail.turns
+            // A lecture turn can be recorded as running or failed, with no
+            // answer to show; the book endpoint only ever returns settled ones.
+            .filter((turn) => turn.answer)
+            .map((turn) => ({
+              id: `${detail.conversation_id}-${turn.turn_index}`,
+              question: turn.question,
+              answer: turn.answer ?? "",
+              status: "complete" as const,
+              result: turn.result,
+              error: null,
+            })),
         );
       })
       .catch(() => {
@@ -70,7 +79,7 @@ export function useSideChat(sideChatId: string) {
     return () => {
       cancelled = true;
     };
-  }, [sideChatId]);
+  }, [sideChatId, surface]);
 
   const send = useCallback(
     async (question: string, responseDepth: ResponseDepth) => {
@@ -125,7 +134,7 @@ export function useSideChat(sideChatId: string) {
       try {
         const token = await accessToken();
         const response = await fetch(
-          `${API_BASE}/side-chats/${sideChatId}/turns/stream`,
+          `${API_BASE}${surface.stream(sideChatId)}`,
           {
             method: "POST",
             headers: {
@@ -171,7 +180,9 @@ export function useSideChat(sideChatId: string) {
               streamedText += (JSON.parse(payload) as { text: string }).text;
               patchTurn(id, { answer: streamedText });
             } else if (event === "final") {
-              const data = JSON.parse(payload) as ChatResponse;
+              const data = JSON.parse(payload) as {
+                result: TResult & { answer: string };
+              };
               settled = true;
               patchTurn(id, {
                 answer: data.result.answer,
@@ -209,7 +220,7 @@ export function useSideChat(sideChatId: string) {
         setIsStreaming(false);
       }
     },
-    [patchTurn, sideChatId],
+    [patchTurn, sideChatId, surface],
   );
 
   const stop = useCallback(() => {

@@ -4,6 +4,7 @@ import { ArrowDown, Loader2, Send, Square } from "lucide-react";
 import { useLayoutEffect, useState } from "react";
 
 import { VideoTurnView } from "@/components/video/video-turn";
+import { AskSelection } from "@/components/side-chat/ask-selection";
 import { VideoWelcome } from "@/components/video/video-welcome";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +44,7 @@ interface AskPaneProps {
   onRetry(): void;
   onSeek(milliseconds: number): void;
   onOpenDocument(target: VideoDocumentTarget): void;
+  onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
 }
 
 export function AskPane({
@@ -58,6 +60,7 @@ export function AskPane({
   onRetry,
   onSeek,
   onOpenDocument,
+  onAskOnTheSide,
 }: AskPaneProps) {
   const [question, setQuestion] = useState("");
   const { viewportRef, contentRef, isPinned, scrollToBottom } = useScrollAnchor<
@@ -115,10 +118,14 @@ export function AskPane({
                 onRetry={onRetry}
                 onSeek={onSeek}
                 onOpenDocument={onOpenDocument}
+                onAskOnTheSide={onAskOnTheSide}
               />
             ))
           )}
         </div>
+        {onAskOnTheSide && (
+          <AskSelection container={contentRef} onAsk={onAskOnTheSide} />
+        )}
       </div>
 
       <div className="relative border-t border-border bg-background">
