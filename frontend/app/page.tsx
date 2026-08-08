@@ -389,6 +389,7 @@ export default function Page() {
     >
       <ConversationView
         books={books}
+        selectedBookIds={selectedBookIds}
         onOpenReference={openReference}
         onAskOnTheSide={(turnIndex, quotedText) => {
           void sideChats.open({ parentTurnIndex: turnIndex, quotedText });

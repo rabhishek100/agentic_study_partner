@@ -36,6 +36,7 @@ export interface ConversationViewProps {
   turns: ChatTurn[];
   isStreaming: boolean;
   hasBooks: boolean;
+  selectedBookIds?: number[];
   canSend: boolean;
   onSend: (question: string, mentionedBookIds?: number[]) => void;
   onStop: () => void;
@@ -54,6 +55,7 @@ export function ConversationView({
   turns,
   isStreaming,
   hasBooks,
+  selectedBookIds = [],
   canSend,
   onSend,
   onStop,
@@ -97,6 +99,7 @@ export function ConversationView({
           {isEmpty ? (
             <Welcome
               hasBooks={hasBooks}
+              selectedBookIds={selectedBookIds}
               canUseStarters={canSend}
               onAsk={onSend}
             />

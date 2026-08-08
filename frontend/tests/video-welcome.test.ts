@@ -35,12 +35,12 @@ describe("videoStarters", () => {
   it("offers the whole-lecture requests first", () => {
     const starters = videoStarters(chapters("Tokenization", "Attention"));
     expect(starters[0]).toBe("Summarize this lecture");
-    expect(starters).toHaveLength(3);
+    expect(starters).toHaveLength(5);
   });
 
   it("still gives a lecture with no chapters something to ask", () => {
     const starters = videoStarters([]);
-    expect(starters).toHaveLength(3);
+    expect(starters).toHaveLength(5);
     expect(starters.every((starter) => starter.length > 0)).toBe(true);
   });
 });

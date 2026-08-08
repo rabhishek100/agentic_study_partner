@@ -370,3 +370,9 @@ export interface ChatTurn {
    */
   turnIndex?: number;
 }
+
+export interface SuggestedQuestionsResponse {
+  questions: string[];
+  scope_type: string;
+  scope_key: string;
+}

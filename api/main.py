@@ -18,7 +18,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import Field, field_validator
@@ -57,6 +57,11 @@ from storage.database import (
 )
 from storage.postgres import list_books, ready_book
 from storage.preferences import load_prompt_profile, save_prompt_profile
+from storage.suggested_questions import (
+    get_cached_suggested_questions,
+    save_cached_suggested_questions,
+)
+from study.question_generator import generate_book_questions
 from study.analyze import ConversationDecisionError
 from study.contracts import (
     MAXIMUM_ANCHORS,
@@ -230,6 +235,12 @@ class SideChatSummary(ContractModel):
 
 class SideChatListResponse(ContractModel):
     side_chats: list[SideChatSummary]
+
+
+class SuggestedQuestionsResponse(ContractModel):
+    questions: list[str]
+    scope_type: str
+    scope_key: str
 
 
 class SideChatTurnRequest(ContractModel):
@@ -446,6 +457,73 @@ async def books(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
             return summaries
 
     return BookListResponse(books=await run_in_threadpool(load))
+
+
+@app.get("/api/books/suggested-questions", response_model=SuggestedQuestionsResponse)
+async def book_suggested_questions(
+    book_ids: str | None = Query(default=None, description="Comma-separated book IDs"),
+    refresh: bool = Query(default=False),
+    owner_id: UUID = Depends(current_owner),
+) -> SuggestedQuestionsResponse:
+    """Get dynamic suggested questions for selected book(s) or library scope."""
+
+    parsed_ids = []
+    if book_ids:
+        try:
+            parsed_ids = sorted({int(x.strip()) for x in book_ids.split(",") if x.strip().isdigit()})
+        except Exception:
+            parsed_ids = []
+
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if len(parsed_ids) == 1:
+        scope_type = "book"
+        scope_key = f"book:{parsed_ids[0]}"
+    elif len(parsed_ids) > 1:
+        scope_type = "library"
+        scope_key = f"books:{','.join(map(str, parsed_ids))}:{today_str}"
+    else:
+        scope_type = "library"
+        scope_key = f"books:all:{today_str}"
+
+    def load() -> SuggestedQuestionsResponse:
+        with database_connection() as connection:
+            if not refresh:
+                cached = get_cached_suggested_questions(
+                    connection, owner_id=owner_id, scope_type=scope_type, scope_key=scope_key
+                )
+                if cached and len(cached) == 5:
+                    return SuggestedQuestionsResponse(
+                        questions=cached,
+                        scope_type=scope_type,
+                        scope_key=scope_key,
+                    )
+
+            questions = generate_book_questions(
+                connection, owner_id=owner_id, book_ids=parsed_ids if parsed_ids else None
+            )
+            save_cached_suggested_questions(
+                connection,
+                owner_id=owner_id,
+                scope_type=scope_type,
+                scope_key=scope_key,
+                questions=questions,
+            )
+            return SuggestedQuestionsResponse(
+                questions=questions,
+                scope_type=scope_type,
+                scope_key=scope_key,
+            )
+
+    return await run_in_threadpool(load)
+
+
+@app.post("/api/books/suggested-questions/refresh", response_model=SuggestedQuestionsResponse)
+async def refresh_book_suggested_questions(
+    book_ids: str | None = Query(default=None, description="Comma-separated book IDs"),
+    owner_id: UUID = Depends(current_owner),
+) -> SuggestedQuestionsResponse:
+    """Force re-generation of dynamic suggested questions."""
+    return await book_suggested_questions(book_ids=book_ids, refresh=True, owner_id=owner_id)
 
 
 CONVERSATION_NOT_FOUND = HTTPException(

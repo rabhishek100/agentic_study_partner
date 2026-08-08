@@ -1,48 +1,85 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+import { RefreshCw, Sparkles } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { apiFetch } from "@/lib/api";
+import type { SuggestedQuestionsResponse } from "@/lib/types";
 import type { VideoChapter } from "@/lib/video-types";
 
 const GENERIC_STARTERS = [
   "Summarize this lecture",
   "List the topics covered in this lecture",
   "What was drawn or written on the board?",
+  "What are the key takeaways from this lecture?",
+  "Generate 3 practice questions for this video.",
 ];
 
-/**
- * Openers for a lecture with no conversation yet.
- *
- * The two whole-lecture requests come first because they are what a reader
- * opening an unfamiliar recording actually wants, and the graph now answers
- * them from the complete transcript rather than from a top-k sample.
- *
- * A chapter title makes a better third starter than anything generic: it
- * names something this recording demonstrably contains, in the lecturer's own
- * words, so the question retrieves rather than guesses.
- */
 export function videoStarters(chapters: VideoChapter[]): string[] {
-  // From the middle rather than the front. A recording opens on a title card,
-  // branding and logistics — "Explain Stanford ENGINEERING" is a starter that
-  // teaches a reader the feature does not work — and closes on a wrap-up. The
-  // middle is where the lecture is about what it is about.
   const middle = chapters[Math.floor(chapters.length / 2)];
   const fromChapters = middle ? [`Explain ${middle.title}`] : [];
-  return [
+  const starters = [
     ...GENERIC_STARTERS.slice(0, 2),
     ...fromChapters,
-    GENERIC_STARTERS[2]!,
-  ].slice(0, 3);
+    ...GENERIC_STARTERS.slice(2),
+  ];
+  return Array.from(new Set(starters)).slice(0, 5);
 }
 
 export function VideoWelcome({
+  videoId,
   chapters,
   canAsk,
   onAsk,
 }: {
+  videoId?: string;
   chapters: VideoChapter[];
   canAsk: boolean;
   onAsk(question: string): void;
 }) {
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchQuestions = useCallback(
+    async (isRefresh = false) => {
+      if (!videoId) return;
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const endpoint = isRefresh
+          ? `/videos/${videoId}/suggested-questions/refresh`
+          : `/videos/${videoId}/suggested-questions`;
+        const method = isRefresh ? "POST" : "GET";
+        const data = await apiFetch<SuggestedQuestionsResponse>(endpoint, { method });
+        if (data?.questions && data.questions.length > 0) {
+          setQuestions(data.questions);
+        }
+      } catch {
+        if (questions.length === 0) {
+          setQuestions(videoStarters(chapters));
+        }
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [videoId, chapters, questions.length]
+  );
+
+  useEffect(() => {
+    fetchQuestions(false);
+  }, [fetchQuestions]);
+
+  const activeQuestions =
+    questions.length > 0 ? questions : videoStarters(chapters);
+
   return (
     <div className="flex flex-col items-center justify-center py-10 text-center">
       <h2 className="font-heading text-xl font-medium tracking-tight sm:text-2xl">
@@ -53,19 +90,43 @@ export function VideoWelcome({
         what a slide shows. Answers cite the moment they came from.
       </p>
 
-      <div className="mt-6 grid w-full max-w-md gap-2">
-        {videoStarters(chapters).map((starter) => (
-          <Button
-            key={starter}
-            variant="outline"
-            size="lg"
-            className="h-auto justify-start whitespace-normal px-4 py-3 text-left font-normal"
-            onClick={() => onAsk(starter)}
-            disabled={!canAsk}
-          >
-            {starter}
-          </Button>
-        ))}
+      <div className="mt-6 flex w-full max-w-md flex-col gap-2">
+        {videoId && (
+          <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Sparkles className="h-3.5 w-3.5 text-primary" /> Suggested Prompts
+            </span>
+            <button
+              type="button"
+              onClick={() => fetchQuestions(true)}
+              disabled={refreshing || loading}
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              title="Refresh suggested questions"
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        )}
+
+        {loading ? (
+          Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-md" />
+          ))
+        ) : (
+          activeQuestions.map((starter) => (
+            <Button
+              key={starter}
+              variant="outline"
+              size="lg"
+              className="h-auto justify-start whitespace-normal px-4 py-3 text-left font-normal"
+              onClick={() => onAsk(starter)}
+              disabled={!canAsk || refreshing}
+            >
+              {starter}
+            </Button>
+          ))
+        )}
       </div>
     </div>
   );

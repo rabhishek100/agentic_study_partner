@@ -118,6 +118,7 @@ export function AskPane({
         >
           {isEmpty ? (
             <VideoWelcome
+              videoId={videoId}
               chapters={chapters}
               canAsk={canAsk}
               onAsk={onAsk}

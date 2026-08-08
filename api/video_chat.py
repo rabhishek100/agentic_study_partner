@@ -20,13 +20,18 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import fitz
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
 from storage.database import connection as database_connection
+from storage.suggested_questions import (
+    get_cached_suggested_questions,
+    save_cached_suggested_questions,
+)
+from study.question_generator import generate_video_questions
 from study.contracts import (
     MAXIMUM_ANCHORS,
     MAXIMUM_QUOTE_CHARS,
@@ -176,6 +181,12 @@ class RenameRequest(ContractModel):
     title: str = Field(min_length=1, max_length=200)
 
 
+class SuggestedQuestionsResponse(ContractModel):
+    questions: list[str]
+    scope_type: str
+    scope_key: str
+
+
 class TimelineEntry(ContractModel):
     frame_id: int
     timestamp_ms: int
@@ -266,6 +277,61 @@ async def video_conversations(
     return ConversationListResponse(
         conversations=[_summary(row) for row in await run_in_threadpool(load)]
     )
+
+
+@chat_router.get("/api/videos/{video_id}/suggested-questions", response_model=SuggestedQuestionsResponse)
+async def video_suggested_questions(
+    video_id: UUID,
+    refresh: bool = Query(default=False),
+    owner_id: UUID = Depends(current_owner),
+) -> SuggestedQuestionsResponse:
+    """Get dynamic suggested questions for a video lecture."""
+    scope_type = "video"
+    scope_key = f"video:{video_id}"
+
+    def load() -> SuggestedQuestionsResponse:
+        with database_connection() as connection:
+            _require_video(connection, video_id, owner_id)
+            if not refresh:
+                cached = get_cached_suggested_questions(
+                    connection, owner_id=owner_id, scope_type=scope_type, scope_key=scope_key
+                )
+                if cached and len(cached) == 5:
+                    return SuggestedQuestionsResponse(
+                        questions=cached,
+                        scope_type=scope_type,
+                        scope_key=scope_key,
+                    )
+
+            questions = generate_video_questions(
+                connection, owner_id=owner_id, video_id=video_id
+            )
+            save_cached_suggested_questions(
+                connection,
+                owner_id=owner_id,
+                scope_type=scope_type,
+                scope_key=scope_key,
+                questions=questions,
+            )
+            return SuggestedQuestionsResponse(
+                questions=questions,
+                scope_type=scope_type,
+                scope_key=scope_key,
+            )
+
+    try:
+        return await run_in_threadpool(load)
+    except VideoConversationNotFoundError as error:
+        raise VIDEO_NOT_FOUND from error
+
+
+@chat_router.post("/api/videos/{video_id}/suggested-questions/refresh", response_model=SuggestedQuestionsResponse)
+async def refresh_video_suggested_questions(
+    video_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> SuggestedQuestionsResponse:
+    """Force re-generation of video suggested questions."""
+    return await video_suggested_questions(video_id=video_id, refresh=True, owner_id=owner_id)
 
 
 @chat_router.get("/api/video-conversations")
