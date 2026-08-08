@@ -9,7 +9,7 @@ read or a small write, so it answers directly.
 from __future__ import annotations
 
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import Field
@@ -20,17 +20,21 @@ from decks import jobs as deck_jobs
 from decks import store
 from decks.contracts import (
     ContractModel,
+    DeckCard,
     DeckPreferences,
     DeckSummary,
     QueueCard,
     ReviewQueue,
     ReviewState,
 )
+from decks.conversation import card_turn_result, seeded_state
 from decks.pipeline import DeckSourceError, load_inventory
 from decks.scheduler import build_queue
 from decks.store import DeckNotFoundError
 from decks.topics import book_scope_key, video_scope_key
+from storage.conversations import append_turn, create_conversation, derive_title
 from storage.database import connection as database_connection
+from study.contracts import MAXIMUM_QUOTE_CHARS, QuoteAnchor
 from study.scope import ScopeNotFoundError, resolve_node
 
 logger = logging.getLogger("study_partner.api.decks")
@@ -323,6 +327,231 @@ async def grade_card(
             return GradeResponse(card_id=card_id, review=state)
 
     return await run_in_threadpool(run)
+
+
+class CardSideChatRequest(ContractModel):
+    quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
+
+
+class CardSideChatResponse(ContractModel):
+    """The same shape the conversation side-chat endpoints return.
+
+    Deliberately identical: the interface's side-chat hook, window chrome, and
+    streaming path all take this, so a card side chat is opened by the code
+    that already opens every other one.
+    """
+
+    conversation_id: str
+    parent_conversation_id: str
+    title: str
+    anchors: list[QuoteAnchor]
+    turn_count: int
+    created_at: str
+    updated_at: str
+
+
+class DeckConversationResponse(ContractModel):
+    conversation_id: str
+
+
+@router.post("/cards/{card_id}/side-chats", response_model=CardSideChatResponse)
+async def open_card_side_chat(
+    card_id: str,
+    request: CardSideChatRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> CardSideChatResponse:
+    """Ask about a passage of a card, in a side chat anchored to it.
+
+    The card is recorded as a turn of the deck's own conversation the first
+    time it is asked about, and reused afterwards. That is what lets the
+    existing side-chat machinery — pinning, seeding, the streaming endpoint,
+    reopening a closed window — work over a card without a second
+    implementation of any of it.
+    """
+
+    def run() -> CardSideChatResponse:
+        with database_connection() as connection:
+            card, deck = _card_with_deck(connection, owner_id=owner_id, card_id=card_id)
+            if deck.source_kind != "book" or deck.book_id is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "lecture cards cannot open a side chat yet; use "
+                        "'Ask about this' to continue in the lecture chat"
+                    ),
+                )
+
+            parent = _deck_conversation(
+                connection, owner_id=owner_id, deck=deck
+            )
+            result = card_turn_result(
+                connection,
+                owner_id=owner_id,
+                card=card,
+                book_id=deck.book_id,
+                book_title=deck.source_title,
+                deck_title=deck.title,
+            )
+            turn_index = _card_turn_index(
+                connection,
+                owner_id=owner_id,
+                conversation_id=parent["id"],
+                card=card,
+                result=result,
+            )
+
+            anchor = QuoteAnchor(
+                anchor_id=uuid4().hex,
+                parent_turn_index=turn_index,
+                quoted_text=request.quoted_text.strip(),
+            )
+            side_chat = create_conversation(
+                connection,
+                owner_id=owner_id,
+                book_ids=list(parent["book_ids"]),
+                retrieval_mode=parent["retrieval_mode"],
+                title=derive_title(card.front),
+                prompt_profile=parent["prompt_profile_json"],
+                parent_conversation_id=parent["id"],
+                anchors=[anchor.model_dump(mode="json")],
+                state=seeded_state(
+                    parent["id"],
+                    book_ids=list(parent["book_ids"]),
+                    result=result,
+                ).model_dump(mode="json"),
+            )
+            return CardSideChatResponse(
+                conversation_id=str(side_chat["id"]),
+                parent_conversation_id=str(parent["id"]),
+                title=side_chat["title"],
+                anchors=[anchor],
+                turn_count=0,
+                created_at=str(side_chat["created_at"]),
+                updated_at=str(side_chat["updated_at"]),
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.get("/{deck_id}/conversation", response_model=DeckConversationResponse)
+async def deck_conversation(
+    deck_id: str,
+    owner_id: UUID = Depends(current_owner),
+) -> DeckConversationResponse:
+    """The conversation that holds this deck's cards, created if absent.
+
+    The interface needs it before the first highlight, because listing a
+    deck's existing side chats is what restores the windows a reader left
+    open.
+    """
+
+    def run() -> DeckConversationResponse:
+        with database_connection() as connection:
+            try:
+                deck = store.get_deck(
+                    connection, owner_id=owner_id, deck_id=deck_id
+                )
+            except (DeckNotFoundError, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such deck"
+                ) from error
+            if deck.source_kind != "book" or deck.book_id is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="lecture decks do not have a card conversation yet",
+                )
+            parent = _deck_conversation(connection, owner_id=owner_id, deck=deck)
+            return DeckConversationResponse(conversation_id=str(parent["id"]))
+
+    return await run_in_threadpool(run)
+
+
+def _card_with_deck(
+    connection, *, owner_id: UUID, card_id: str
+) -> tuple[DeckCard, DeckSummary]:
+    row = connection.execute(
+        "select deck_id from public.deck_cards where id = %s and owner_id = %s",
+        (UUID(str(card_id)), owner_id),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="no such card")
+    deck = store.get_deck(connection, owner_id=owner_id, deck_id=row["deck_id"])
+    card = next(
+        (
+            item.card
+            for item in store.deck_cards(
+                connection, owner_id=owner_id, deck_id=row["deck_id"]
+            )
+            if item.card.card_id == str(card_id)
+        ),
+        None,
+    )
+    if card is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="no such card")
+    return card, deck
+
+
+def _deck_conversation(connection, *, owner_id: UUID, deck: DeckSummary) -> dict:
+    """The one conversation that holds this deck's cards, created on demand."""
+
+    existing = connection.execute(
+        """
+        select id, book_ids, retrieval_mode, prompt_profile_json
+        from public.conversations
+        where owner_id = %s and deck_id = %s
+        """,
+        (owner_id, UUID(deck.deck_id)),
+    ).fetchone()
+    if existing is not None:
+        return dict(existing)
+
+    created = create_conversation(
+        connection,
+        owner_id=owner_id,
+        book_ids=[deck.book_id],
+        retrieval_mode="hybrid_rerank",
+        title=f"Cards: {deck.title}",
+    )
+    connection.execute(
+        "update public.conversations set deck_id = %s where id = %s and owner_id = %s",
+        (UUID(deck.deck_id), created["id"], owner_id),
+    )
+    return dict(created)
+
+
+def _card_turn_index(
+    connection, *, owner_id: UUID, conversation_id: UUID, card: DeckCard, result
+) -> int:
+    """The turn this card occupies, writing it the first time it is asked about."""
+
+    existing = connection.execute(
+        """
+        select turn_index from public.conversation_turns
+        where conversation_id = %s and owner_id = %s and deck_card_id = %s
+        """,
+        (conversation_id, owner_id, UUID(str(card.card_id))),
+    ).fetchone()
+    if existing is not None:
+        return existing["turn_index"]
+
+    turn_index = append_turn(
+        connection,
+        conversation_id,
+        owner_id=owner_id,
+        question=result.question,
+        answer=result.answer,
+        result=result.model_dump(mode="json"),
+        state={},
+    )
+    connection.execute(
+        """
+        update public.conversation_turns
+        set deck_card_id = %s
+        where conversation_id = %s and owner_id = %s and turn_index = %s
+        """,
+        (UUID(str(card.card_id)), conversation_id, owner_id, turn_index),
+    )
+    return turn_index
 
 
 @router.post("/{deck_id}/reset", status_code=status.HTTP_204_NO_CONTENT)
