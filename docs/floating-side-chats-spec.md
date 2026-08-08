@@ -105,9 +105,43 @@ Added:
 Reused unchanged: `GET /api/conversations/{id}` (a side chat is a conversation,
 so resume already works) and `DELETE /api/conversations/{id}`.
 
+The lecture surface has the same three, addressed separately because a lecture
+conversation is a different object with a different turn contract:
+
+- `POST|GET /api/video-conversations/{id}/side-chats`
+- `PATCH /api/video-side-chats/{id}`
+- `POST /api/video-side-chats/{id}/turns/stream`
+
 Changed: `ConversationDetail` gains `parent_conversation_id` and `anchors`;
-`ConversationSummary` gains `side_thread_count`; `TurnResult` gains an optional
-`side_context` report; `ChatResponse` gains `turn_index`.
+`ConversationSummary` gains `side_thread_count`; `TurnResult` and
+`VideoTurnResult` gain an optional `side_context` report; `ChatResponse` gains
+`turn_index` and the lecture `AskResponse` gains a nullable one; the lecture
+`RetrievalMethod` gains `anchor_pin`.
+
+### One layer, two surfaces
+
+The window, its geometry, the anchor editor, the concurrency queue and the dock
+are shared. Each surface supplies only two things — the endpoints to talk to and
+how to draw a turn — through the descriptor in `frontend/lib/side-chat.ts`. The
+alternative was a second copy of the window or a union type threaded through six
+components, and both would have drifted.
+
+The descriptor also carries what a surface *accepts*: the book chat honours an
+answer depth and shows the control, the lecture chat has no depth concept and
+its turn contract forbids unknown fields. Sending one anyway failed every
+lecture side turn, so this is a declared capability rather than an assumption.
+
+Server-side, the assembly is surface-neutral: `study.side_context` works on a
+rank-to-identity mapping each surface supplies — book chunk ids on one side,
+lecture evidence units on the other — because the rules are identical and only
+the identity of the thing a marker points at differs.
+
+### A naming wart, left deliberately
+
+`SideContextReport.pinned_chunk_ids` now also holds lecture evidence ids, so the
+name is narrower than the field. Renaming it would need a read alias for turns
+already recorded in production, and that class of migration is not worth a field
+name. Recorded here so the next reader knows it was a decision, not an oversight.
 
 The per-turn anchor button moved from stage 3 into stage 2, because without any
 way to open a window there is nothing in stage 2 to operate. Stage 3 keeps the

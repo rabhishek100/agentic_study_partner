@@ -349,12 +349,24 @@ archetype, resolved depth, routing reason, and prompt-profile version.
 
 A **side chat** is a small conversation anchored to a passage of another one, so
 an intermediate question can be asked beside the paragraph that prompted it
-instead of at the bottom of the main thread. The passages a reader highlights
-are the side chat's priority context: the book chunks their citation markers
-name are pinned to the front of that turn's evidence, and the quoted text
-itself is passed as focus, never as something an answer may cite. Surrounding
+instead of at the bottom of the main thread. Highlight a sentence in an answer
+and ask about it: the window floats over the conversation, moves, resizes and
+minimizes to a dock, and several can answer at once — three at a time, with the
+rest queued.
+
+The passages a reader highlights are the side chat's priority context. What
+their citation markers name — book chunks in a book chat, evidence units in a
+lecture — is pinned to the front of that turn's evidence, so the answer rests on
+the same source the quoted sentence did, while the quoted text itself is passed
+as focus and never as something an answer may cite. Surrounding
 main-conversation context is included under a token budget, and every turn
-records what did not fit. See
+records what did not fit, which the answer inspector shows.
+
+Both surfaces have them, sharing one window layer: a lecture side answer still
+seeks the player and opens the slide it cites. A lecture's evidence belongs to
+the published ingestion version that produced it, so a side turn pins only what
+the version it retrieved from still contains and reports any anchor a re-ingest
+replaced. See
 [`docs/floating-side-chats-spec.md`](docs/floating-side-chats-spec.md).
 
 The API exposes `GET /api/health`, `GET /api/books`, `POST /api/chat`,
