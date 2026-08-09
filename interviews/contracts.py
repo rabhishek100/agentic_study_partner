@@ -140,8 +140,13 @@ class AnswerEvaluation(ContractModel):
     concise_feedback: str = Field(default="", max_length=2_000)
     recommended_answer: str = Field(default="", max_length=6_000)
     citation_markers: list[str] = Field(default_factory=list, max_length=20)
+    # A candidate is evaluated against the question they heard, not every fact
+    # in the source topic. Topic coverage is tracked separately below.
+    question_complete: bool = False
     needs_clarifying_probe: bool = False
     clarifying_probe: str | None = Field(default=None, max_length=1_000)
+    needs_depth_follow_up: bool = False
+    depth_follow_up_focus: str | None = Field(default=None, max_length=1_000)
     needs_external_verification: bool = False
     external_query: str | None = Field(default=None, max_length=500)
     extension_summary: str | None = Field(default=None, max_length=1_000)
@@ -151,6 +156,16 @@ class AnswerEvaluation(ContractModel):
     def required_conditional_fields(self) -> "AnswerEvaluation":
         if self.needs_clarifying_probe and not (self.clarifying_probe or "").strip():
             raise ValueError("a clarifying probe must be supplied when requested")
+        if self.needs_depth_follow_up and not (
+            self.depth_follow_up_focus or ""
+        ).strip():
+            raise ValueError("a depth follow-up focus must be supplied when requested")
+        if self.needs_depth_follow_up and not self.question_complete:
+            raise ValueError("a depth follow-up follows a completed scoped answer")
+        if self.needs_depth_follow_up and self.topic_complete:
+            raise ValueError("a completed topic cannot request a depth follow-up")
+        if self.needs_clarifying_probe and self.needs_depth_follow_up:
+            raise ValueError("an evaluation cannot request two follow-up paths")
         if self.needs_external_verification and not (self.external_query or "").strip():
             raise ValueError("an external query must be supplied when verification is requested")
         return self

@@ -19,15 +19,13 @@ from .contracts import (
     InterviewTurn,
     WebSource,
 )
-from .evaluation import InterviewValidationError, sanitize_evaluation
+from .evaluation import sanitize_evaluation
 from .models import InterviewModelError, invoke_structured, structured_model
 from .planning import next_topic, topic_by_key
 from .prompts import build_evaluation_messages
 from .question_generation import (
     MAX_QUESTIONS_PER_TOPIC,
     generate_question,
-    validate_question_focus,
-    validate_question_progression,
 )
 
 DURATION_SOFT_STOP_SECONDS = 30
@@ -136,7 +134,11 @@ def verify_extension(
             "evaluation": evaluation.model_copy(
                 update={
                     "needs_external_verification": False,
-                    "classification": "partially_correct",
+                    "classification": (
+                        "source_aligned"
+                        if evaluation.question_complete
+                        else "partially_correct"
+                    ),
                     "extension_summary": (
                         (evaluation.extension_summary or "Extension")
                         + " (not externally verified)"
@@ -171,7 +173,11 @@ def verify_extension(
             "evaluation": evaluation.model_copy(
                 update={
                     "needs_external_verification": False,
-                    "classification": "partially_correct",
+                    "classification": (
+                        "source_aligned"
+                        if evaluation.question_complete
+                        else "partially_correct"
+                    ),
                     "extension_summary": (
                         (evaluation.extension_summary or "Extension")
                         + " (external recheck unavailable)"
@@ -205,11 +211,15 @@ def adapt(state: AnswerGraphState) -> dict:
         evaluation.scores.technical_correctness >= 4
         and evaluation.scores.depth_completeness >= 4
     )
-    # One primary question plus at most one diagnostic follow-up. A weak topic
-    # is recorded for revision, not allowed to consume the rest of the session.
+    follow_up_warranted = (
+        evaluation.needs_clarifying_probe
+        or evaluation.needs_depth_follow_up
+    )
+    # One primary question plus at most one focused follow-up. Correct answers
+    # may go deeper without retroactively making the first answer deficient.
     if (
         evaluation.topic_complete
-        or strong
+        or (strong and not follow_up_warranted)
         or topic_state.attempts >= MAX_QUESTIONS_PER_TOPIC
     ):
         topic_state.completed = True
@@ -277,39 +287,43 @@ def compose_next(
     if not current_state.completed:
         topic = current_topic
         if current_state.attempts == 1 and evaluation.needs_clarifying_probe:
-            question = InterviewQuestion(
-                topic_key=topic.key,
-                topic_label=topic.label,
+            question, cost = generate_question(
+                inventory=state["inventory"],
+                topic=topic,
+                interview_format=session.interview_format,
+                target_level=session.target_level,
                 kind="clarifying",
-                text=evaluation.clarifying_probe or "Could you make that more specific?",
-                expected_points=state["current_turn"].question.expected_points,
-                suggested_answer=state["current_turn"].question.suggested_answer,
-                citation_markers=state["current_turn"].question.citation_markers,
-                difficulty=session.target_level,
-                interviewer_note="Clarify before applying the rubric.",
+                recent_questions=recent_questions,
+                prior_question=state["current_turn"].question,
+                candidate_answer=state["answer_text"],
+                purpose=(
+                    "The answer to the explicit question was ambiguous. Ask one "
+                    "neutral question targeting this uncertainty: "
+                    f"{evaluation.clarifying_probe}. Do not give a hint or introduce "
+                    "an unasked topic. The private rubric must cover only this probe."
+                ),
+                model=runtime.context.question_model,
             )
-            try:
-                question = validate_question_focus(question)
-                question = validate_question_progression(question, recent_questions)
-                cost = 0.0
-            except InterviewValidationError:
-                current_state.hints_used = 1
-                question, cost = generate_question(
-                    inventory=state["inventory"],
-                    topic=topic,
-                    interview_format=session.interview_format,
-                    target_level=session.target_level,
-                    kind="hint",
-                    recent_questions=recent_questions,
-                    prior_question=state["current_turn"].question,
-                    candidate_answer=state["answer_text"],
-                    purpose=(
-                        "Ask one final diagnostic question from a different angle. "
-                        "Do not restate the previous question; the interview advances "
-                        "to the next topic after this answer."
-                    ),
-                    model=runtime.context.question_model,
-                )
+        elif current_state.attempts == 1 and evaluation.needs_depth_follow_up:
+            question, cost = generate_question(
+                inventory=state["inventory"],
+                topic=topic,
+                interview_format=session.interview_format,
+                target_level=session.target_level,
+                kind="follow_up",
+                recent_questions=recent_questions,
+                prior_question=state["current_turn"].question,
+                candidate_answer=state["answer_text"],
+                purpose=(
+                    "The candidate correctly and completely answered the question "
+                    "that was asked. Acknowledge that implicitly by asking one new, "
+                    "direct question about this previously unasked area: "
+                    f"{evaluation.depth_follow_up_focus}. Do not frame it as a "
+                    "correction, omission, hint, or request to remember the source. "
+                    "The new private rubric must cover only this explicit follow-up."
+                ),
+                model=runtime.context.question_model,
+            )
         else:
             current_state.hints_used = 1
             question, cost = generate_question(

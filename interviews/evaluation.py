@@ -38,6 +38,11 @@ REACTION_FALLBACKS = {
     ),
 }
 
+SCOPED_COMPLETE_FEEDBACK = (
+    "That answers the question directly and gives us a sound basis to go one "
+    "level deeper."
+)
+
 
 def interviewer_reaction(evaluation: AnswerEvaluation) -> str:
     """Return a concise candidate-facing transition that is safe to speak.
@@ -97,12 +102,39 @@ def sanitize_evaluation(
     if not valid or not ANY_MARKER.search(answer):
         answer = question.suggested_answer
         valid = set(question.citation_markers)
-    return evaluation.model_copy(
-        update={
-            "recommended_answer": answer.strip(),
-            "citation_markers": sorted(valid),
-        }
-    )
+    updates = {
+        "recommended_answer": answer.strip(),
+        "citation_markers": sorted(valid),
+    }
+    if evaluation.question_complete:
+        # The model explicitly found that the candidate answered the audible
+        # scope. Extra source detail belongs in a new question, never in this
+        # turn's score or report gaps.
+        updates.update(
+            {
+                "classification": (
+                    "correct_extension"
+                    if evaluation.classification == "correct_extension"
+                    else "source_aligned"
+                ),
+                "scores": evaluation.scores.model_copy(
+                    update={
+                        "technical_correctness": max(
+                            4, evaluation.scores.technical_correctness
+                        ),
+                        "depth_completeness": max(
+                            4, evaluation.scores.depth_completeness
+                        ),
+                    }
+                ),
+                "gaps": [],
+                "needs_clarifying_probe": False,
+                "clarifying_probe": None,
+            }
+        )
+        if evaluation.needs_depth_follow_up:
+            updates["concise_feedback"] = SCOPED_COMPLETE_FEEDBACK
+    return evaluation.model_copy(update=updates)
 
 
 def resolve_citations(markers: list[str], topic: Topic) -> list[InterviewCitation]:

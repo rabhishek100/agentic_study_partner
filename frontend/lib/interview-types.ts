@@ -73,8 +73,11 @@ export interface AnswerEvaluation {
   concise_feedback: string;
   recommended_answer: string;
   citation_markers: string[];
+  question_complete: boolean;
   needs_clarifying_probe: boolean;
   clarifying_probe: string | null;
+  needs_depth_follow_up: boolean;
+  depth_follow_up_focus: string | null;
   needs_external_verification: boolean;
   external_query: string | null;
   extension_summary: string | null;

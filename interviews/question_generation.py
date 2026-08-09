@@ -34,6 +34,7 @@ QUESTION_RETRY_ATTEMPTS = 2
 MAX_QUESTION_WORDS = 32
 MAX_WORK_SAMPLE_WORDS = 20
 MAX_SPOKEN_TURN_WORDS = 50
+MAX_EXPECTED_POINTS = 3
 
 SECOND_OBJECTIVE = re.compile(
     r"(?:[,;]\s*|\b(?:and|then)\s+)"
@@ -71,6 +72,13 @@ ASSUMPTIONS_REQUEST = re.compile(
 VAGUE_MATH_REQUEST = re.compile(
     r"\b(?:the|an?|one|this|single|key|single key)\s+"
     r"(?:key\s+)?(?:equation|formula)\b",
+    re.IGNORECASE,
+)
+GENERIC_RECALL_QUESTION = re.compile(
+    r"\b(?:central|main|key)\s+(?:idea|concept)\s+behind\b|"
+    r"\baccording to (?:the|this) (?:book|chapter|source)\b|"
+    r"\b(?:name|list|recall)\b.{0,40}\b(?:from|in) (?:the|this) "
+    r"(?:book|chapter|source)\b",
     re.IGNORECASE,
 )
 
@@ -132,7 +140,7 @@ def grounded_fallback_question(
     label = (topic.label.split(" :: ")[-1].strip() or "this topic")
     label = " ".join(label.split()[:16])
     if kind == "primary":
-        text = f"What is the central idea behind {label}?"
+        text = f"What does {label} mean in practice?"
     else:
         text = f"State one source-grounded point about {label}."
     question = InterviewQuestion(
@@ -178,6 +186,14 @@ def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
         raise InterviewValidationError("the generated question contains multiple prompts")
     if SECOND_OBJECTIVE.search(text):
         raise InterviewValidationError("the generated question asks for multiple objectives")
+    if GENERIC_RECALL_QUESTION.search(text):
+        raise InterviewValidationError(
+            "the generated question tests source recall instead of understanding"
+        )
+    if len(question.expected_points) > MAX_EXPECTED_POINTS:
+        raise InterviewValidationError(
+            "the private rubric exceeds the explicit scope of one question"
+        )
     if VAGUE_MATH_REQUEST.search(text):
         raise InterviewValidationError(
             "an equation question must name the relationship being derived"
@@ -319,6 +335,8 @@ def generate_question(
         repair = (
             "Repair the prior draft: use only active-topic evidence markers, ask a "
             "materially different question, and keep exactly one atomic objective. "
+            "Test reasoning rather than recall of a source heading, and include only "
+            "private expected points that the audible question explicitly requests. "
             "The screen instruction may change the response format but must not add "
             "another task."
             if attempt

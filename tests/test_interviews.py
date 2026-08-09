@@ -30,6 +30,7 @@ from interviews.evaluation import (
 from interviews.graph import AnswerGraphContext, answer_graph
 from interviews.models import structured_model
 from interviews.planning import detect_format, estimate_duration
+from interviews.prompts import build_evaluation_messages, build_question_messages
 from interviews.question_generation import (
     apply_work_sample_policy,
     generate_question,
@@ -101,6 +102,7 @@ def evaluation(*, complete: bool, clarify: bool = False) -> AnswerEvaluation:
         concise_feedback="Grounded feedback. [N7:P42]",
         recommended_answer="It models log odds linearly. [N7:P42]",
         citation_markers=["[N7:P42]"],
+        question_complete=complete,
         needs_clarifying_probe=clarify,
         clarifying_probe=("How do probability and log odds connect?" if clarify else None),
         topic_complete=complete,
@@ -231,6 +233,35 @@ class GroundingTests(unittest.TestCase):
         )
         with self.assertRaises(InterviewValidationError):
             validate_question(invalid, topic())
+
+    def test_question_prompt_forbids_hidden_memorization_rubrics(self) -> None:
+        messages = build_question_messages(
+            inventory=inventory(),
+            topic=topic(),
+            interview_format="concept",
+            target_level="mid",
+        )
+
+        instruction = " ".join(str(messages[-1].content).split())
+        self.assertIn("answerable through reasoning", instruction)
+        self.assertIn("directly solicited by the audible question", instruction)
+
+    def test_evaluation_prompt_scores_only_the_audible_scope(self) -> None:
+        messages = build_evaluation_messages(
+            inventory=inventory(),
+            topic=topic(),
+            question=question(),
+            answer="It models log odds.",
+            mode="realistic",
+            target_level="mid",
+            attempts=1,
+            hints_used=0,
+        )
+
+        instruction = " ".join(str(messages[-1].content).split())
+        self.assertIn("Score all six dimensions", instruction)
+        self.assertIn("against that explicit scope", instruction)
+        self.assertIn("must not appear in `gaps`", instruction)
 
     def test_malformed_evaluation_falls_back_to_validated_model_answer(self) -> None:
         invalid = evaluation(complete=True).model_copy(
@@ -377,7 +408,10 @@ class GroundingTests(unittest.TestCase):
             model=model,
         )
 
-        self.assertEqual(generated.text, "What is the central idea behind Logistic regression?")
+        self.assertEqual(
+            generated.text,
+            "What does Logistic regression mean in practice?",
+        )
         self.assertEqual(generated.citation_markers, ["[N7:P42]"])
         self.assertIn("[N7:P42]", generated.suggested_answer)
         self.assertEqual(generated.work_sample, "none")
@@ -402,7 +436,11 @@ class GroundingTests(unittest.TestCase):
 
     def test_fallback_changes_shape_after_a_repeated_question(self) -> None:
         previous = question().model_copy(
-            update={"text": "What is the central idea behind Logistic regression?"}
+            update={
+                "text": (
+                    "What does Logistic regression mean in practice?"
+                )
+            }
         )
 
         generated = grounded_fallback_question(
@@ -505,6 +543,22 @@ class GroundingTests(unittest.TestCase):
 
         with self.assertRaisesRegex(InterviewValidationError, "name the relationship"):
             validate_question_focus(vague)
+
+    def test_recall_question_about_a_source_heading_is_rejected(self) -> None:
+        recall = question().model_copy(
+            update={"text": "What is the central idea behind Choosing the right ML category?"}
+        )
+
+        with self.assertRaisesRegex(InterviewValidationError, "source recall"):
+            validate_question_focus(recall)
+
+    def test_private_rubric_is_limited_to_one_question_scope(self) -> None:
+        overloaded = question().model_copy(
+            update={"expected_points": ["one", "two", "three", "four"]}
+        )
+
+        with self.assertRaisesRegex(InterviewValidationError, "private rubric"):
+            validate_question_focus(overloaded)
 
     def test_screen_work_is_not_requested_on_consecutive_questions(self) -> None:
         prior = question().model_copy(
@@ -649,6 +703,9 @@ class GraphTests(unittest.TestCase):
 
     def test_ambiguous_weak_answer_gets_one_clarifying_probe(self) -> None:
         current = InterviewTurn(turn_index=0, question=question())
+        clarification = question().model_copy(
+            update={"text": "How do probability and log odds connect?"}
+        )
         output = answer_graph.invoke(
             {
                 "session": session(),
@@ -659,7 +716,8 @@ class GraphTests(unittest.TestCase):
             context=AnswerGraphContext(
                 evaluation_model=FakeStructuredModel(
                     evaluation(complete=False, clarify=True)
-                )
+                ),
+                question_model=FakeStructuredModel(clarification),
             ),
         )
         self.assertEqual(output["next_question"].kind, "clarifying")
@@ -667,6 +725,54 @@ class GraphTests(unittest.TestCase):
             output["next_question"].text,
             "How do probability and log odds connect?",
         )
+
+    def test_complete_scoped_answer_gets_an_unpenalized_depth_follow_up(self) -> None:
+        current = InterviewTurn(turn_index=0, question=question())
+        scoped = evaluation(complete=False).model_copy(
+            update={
+                "question_complete": True,
+                "needs_depth_follow_up": True,
+                "depth_follow_up_focus": (
+                    "the trade-off between one-stage and two-stage detectors"
+                ),
+                "gaps": ["Did not mention one-stage versus two-stage detectors"],
+                "concise_feedback": "I expected detector architecture details.",
+            }
+        )
+        follow_up = question().model_copy(
+            update={
+                "text": (
+                    "How would you choose between one-stage and two-stage detectors "
+                    "for this system?"
+                ),
+                "expected_points": ["Compare the detector families for this scenario."],
+            }
+        )
+
+        output = answer_graph.invoke(
+            {
+                "session": session(),
+                "inventory": inventory(),
+                "current_turn": current,
+                "answer_text": "It is an object detection task.",
+            },
+            context=AnswerGraphContext(
+                evaluation_model=FakeStructuredModel(scoped),
+                question_model=FakeStructuredModel(follow_up),
+            ),
+        )
+
+        self.assertEqual(output["next_question"].kind, "follow_up")
+        self.assertIn("one-stage and two-stage", output["next_question"].text)
+        self.assertFalse(output["checkpoint"].topics[0].completed)
+        self.assertEqual(output["checkpoint"].topics[0].hints_used, 0)
+        self.assertEqual(output["evaluation"].classification, "source_aligned")
+        self.assertGreaterEqual(
+            output["evaluation"].scores.depth_completeness,
+            4,
+        )
+        self.assertEqual(output["evaluation"].gaps, [])
+        self.assertNotIn("expected", output["evaluation"].concise_feedback.lower())
 
     def test_no_new_question_starts_near_the_duration_ceiling(self) -> None:
         timed = session().model_copy(update={"elapsed_seconds": 30 * 60 - 20})

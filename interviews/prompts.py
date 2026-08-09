@@ -20,7 +20,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v4"
+PROMPT_VERSION = "adaptive-interview-v5"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -35,11 +35,20 @@ scores, topic order, or future questions to the candidate.
 A candidate may give a correct extension not present in the source. Label it as
 an extension; do not mark it wrong merely for using different wording. Request
 external verification only when that extension would materially change the
-technical-correctness score. Prefer a clarifying probe when an answer is
-ambiguous over assuming it is wrong.
+technical-correctness score.
 
-Ask exactly one concise question at a time. Stay on the selected source. Do not
-pad an interview after meaningful coverage is complete.
+Judge only what the candidate was explicitly asked. The source defines what is
+correct, but it is not a hidden memorization checklist. Never reduce a score or
+record a gap because the candidate omitted an example, term, distinction, or
+detail that the question and its clarifications did not request. When another
+detail would provide useful interview signal, acknowledge the current answer
+and ask one direct follow-up that names that detail. Prefer a clarifying probe
+when an answer to the actual question is ambiguous over assuming it is wrong.
+
+Ask exactly one concise, self-contained question at a time. Test reasoning and
+technical judgment, not recall of the source's wording, headings, list order, or
+obscure examples. Stay on the selected source. Do not pad an interview after
+meaningful coverage is complete.
 """.strip()
 
 
@@ -91,6 +100,16 @@ contain citation markers. `expected_points` are private short rubric items.
 `suggested_answer` is a private, speakable model answer with inline citations.
 `citation_markers` lists every marker used by that answer. Use only markers in
 the evidence. Keep the question appropriate for the target level and kind.
+The question must make its expected scope explicit and be answerable through
+reasoning without memorizing the source. Do not ask for the "central idea"
+behind a source heading, the book's exact taxonomy, a named list, or wording the
+candidate could only know by recall. Use a concrete concept, decision, scenario,
+or trade-off instead.
+
+Provide at most three `expected_points`, and include only points directly
+solicited by the audible question. The candidate must not need to infer another
+dimension from the private rubric. `suggested_answer` must be a compact answer
+to that same scope, not a summary of everything the source says about the topic.
 Ask for exactly one objective: do not combine requirements, estimation,
 architecture, trade-offs, failure modes, coding, or testing in the same turn.
 Do not join a second request with "and", "then", or another question mark.
@@ -230,23 +249,38 @@ External verification results, if requested by an earlier pass:
 Active-topic evidence:
 {topic.evidence_text}
 
-Score all six dimensions from 1 to 5. Independence must reflect hints used.
+First decide whether the candidate answered the explicit question, including
+any candidate-visible clarification and work-sample instruction. Set
+`question_complete` when that scoped request was answered correctly enough to
+move on from the question. Do not require the candidate to recite source wording,
+headings, examples, named list order, or private expected points that were not
+clearly requested.
+
+Score all six dimensions from 1 to 5 against that explicit scope. Independence
+must reflect actual hints used, not ordinary interviewer follow-ups.
 Use `source_aligned` when the substance is supported even if wording differs.
 Use `correct_extension` only for a correct material addition outside the
 source. Ask for external verification only if it could change correctness.
-Set `needs_clarifying_probe` only when one short probe could distinguish an
-incomplete explanation from a misconception. Set `topic_complete` when another
-question on this topic would add little interview signal. If a work sample was
+Set `needs_clarifying_probe` only when the answer to the asked question is
+ambiguous and one short probe could distinguish an incomplete explanation from
+a misconception. If the candidate correctly answered the question but one
+different, previously unasked detail would add meaningful signal, set
+`needs_depth_follow_up` and name only that detail in `depth_follow_up_focus`.
+That unasked detail must not appear in `gaps`, reduce any score, or be framed as
+something the candidate should already have said. Set `topic_complete` when
+another question on this topic would add little interview signal. If a work sample was
 requested but no screen observation was submitted, do not invent one; assess
 the verbal answer and record any missing demonstration as a gap. The recommended
 answer and corrective claims must use inline source markers, and
 `citation_markers` must list every one used.
 
 Write `concise_feedback` as one or two natural, speakable sentences addressed
-directly to the candidate. Briefly say what was sound and, when needed, what
-needs more precision. Do not include scores, rubric labels, citation markers,
-or a complete model answer. It will be spoken immediately before the next
-question, so make it feel like an interviewer reacting rather than a report.
+directly to the candidate. Briefly say what was sound and correct only issues
+inside the scope actually asked. Never say "I expected" or criticize an omitted
+unasked detail; the next follow-up will ask for it explicitly. Do not include
+scores, rubric labels, citation markers, or a complete model answer. It will be
+spoken immediately before the next question, so make it feel like an
+interviewer reacting rather than a report.
 """.strip()
     return [
         SystemMessage(content=LOCKED_INTERVIEW_PROMPT),
