@@ -122,6 +122,91 @@ def _fallback_evidence(topic: Topic) -> tuple[str, str]:
     return marker, excerpt
 
 
+def _practical_fallback_scope(
+    label: str,
+    *,
+    kind: QuestionKind,
+    alternate: bool = False,
+) -> tuple[str, list[str]]:
+    """Build a reasoning prompt that never asks the candidate to recall text."""
+
+    clean_label = " ".join(label.split()[:16]) or "this topic"
+    gerund_label = bool(re.match(r"^[A-Za-z]+ing\b", clean_label))
+    natural_label = (
+        clean_label[:1].lower() + clean_label[1:]
+        if gerund_label
+        else clean_label
+    )
+    if alternate and gerund_label:
+        return (
+            f"What other factor would influence {natural_label} in this scenario?",
+            ["Identify another technically relevant decision factor."],
+        )
+    if alternate:
+        return (
+            f"What other practical consideration matters when applying {clean_label}?",
+            ["Identify another technically relevant practical consideration."],
+        )
+    if kind == "primary" and gerund_label:
+        return (
+            f"How would you approach {natural_label} in a real system?",
+            ["Describe a plausible practical decision or approach."],
+        )
+    if kind == "primary":
+        return (
+            f"How would you use {clean_label} in a practical system?",
+            ["Describe a plausible practical application."],
+        )
+    if gerund_label:
+        return (
+            f"What factor would most influence {natural_label} in this scenario?",
+            ["Identify one technically relevant decision factor."],
+        )
+    return (
+        f"What practical consideration matters most when applying {clean_label}?",
+        ["Identify one technically relevant practical consideration."],
+    )
+
+
+def repair_legacy_recall_fallback(question: InterviewQuestion) -> InterviewQuestion:
+    """Repair recall-oriented continuity questions saved by older prompts."""
+
+    text = " ".join(question.text.split())
+    source_match = re.fullmatch(
+        r"State one source-grounded point about (.+)\.", text, re.IGNORECASE
+    )
+    central_match = re.fullmatch(
+        r"What is the central idea behind (.+)\?", text, re.IGNORECASE
+    )
+    generic_repeat = text.casefold() == (
+        "state one important source-grounded point we have not covered yet."
+    )
+    if not source_match and not central_match and not generic_repeat:
+        return question
+
+    label = (
+        (source_match or central_match).group(1)
+        if source_match or central_match
+        else question.topic_label.split(" :: ")[-1]
+    )
+    replacement, expected_points = _practical_fallback_scope(
+        label,
+        kind=question.kind,
+        alternate=generic_repeat,
+    )
+    return question.model_copy(
+        update={
+            "text": replacement,
+            "expected_points": expected_points,
+            "work_sample": "none",
+            "work_sample_prompt": None,
+            "interviewer_note": (
+                "Repaired a legacy recall-oriented continuity fallback."
+            ),
+        }
+    )
+
+
 def grounded_fallback_question(
     *,
     topic: Topic,
@@ -138,17 +223,13 @@ def grounded_fallback_question(
 
     marker, excerpt = _fallback_evidence(topic)
     label = (topic.label.split(" :: ")[-1].strip() or "this topic")
-    label = " ".join(label.split()[:16])
-    if kind == "primary":
-        text = f"What does {label} mean in practice?"
-    else:
-        text = f"State one source-grounded point about {label}."
+    text, expected_points = _practical_fallback_scope(label, kind=kind)
     question = InterviewQuestion(
         topic_key=topic.key,
         topic_label=topic.label,
         kind=kind,
         text=text,
-        expected_points=[excerpt[:180]],
+        expected_points=expected_points,
         suggested_answer=f"{excerpt}. {marker}",
         citation_markers=[marker],
         difficulty=target_level,
@@ -160,10 +241,15 @@ def grounded_fallback_question(
     try:
         return validate_question_progression(question, recent_questions)
     except InterviewValidationError:
-        # Same-topic fallbacks use a different atomic shape. A source with one
-        # unusually repetitive label must still never lose the saved answer.
+        # A repeated continuity fallback asks for a different practical angle;
+        # it still must not turn into a request to remember the source.
+        alternate, alternate_points = _practical_fallback_scope(
+            label,
+            kind=kind,
+            alternate=True,
+        )
         return question.model_copy(
-            update={"text": "State one important source-grounded point we have not covered yet."}
+            update={"text": alternate, "expected_points": alternate_points}
         )
 
 

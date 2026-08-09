@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import unittest
 from unittest.mock import patch
 
@@ -35,6 +36,7 @@ from interviews.question_generation import (
     apply_work_sample_policy,
     generate_question,
     grounded_fallback_question,
+    repair_legacy_recall_fallback,
     validate_question_focus,
     validate_question_progression,
 )
@@ -410,7 +412,7 @@ class GroundingTests(unittest.TestCase):
 
         self.assertEqual(
             generated.text,
-            "What does Logistic regression mean in practice?",
+            "How would you use Logistic regression in a practical system?",
         )
         self.assertEqual(generated.citation_markers, ["[N7:P42]"])
         self.assertIn("[N7:P42]", generated.suggested_answer)
@@ -438,7 +440,7 @@ class GroundingTests(unittest.TestCase):
         previous = question().model_copy(
             update={
                 "text": (
-                    "What does Logistic regression mean in practice?"
+                    "How would you use Logistic regression in a practical system?"
                 )
             }
         )
@@ -450,7 +452,51 @@ class GroundingTests(unittest.TestCase):
             recent_questions=[previous],
         )
 
-        self.assertIn("not covered yet", generated.text)
+        self.assertIn("other practical consideration", generated.text)
+        self.assertNotIn("source", generated.text.lower())
+
+    def test_follow_up_fallback_tests_reasoning_instead_of_source_recall(self) -> None:
+        choosing = topic(
+            evidence=(
+                "[N7:P42]\nFrame Street View blurring as object detection before "
+                "selecting a detector architecture."
+            )
+        )
+        choosing = replace(choosing, label="Choosing the right ML category")
+
+        generated = grounded_fallback_question(
+            topic=choosing,
+            target_level="mid",
+            kind="follow_up",
+            recent_questions=[],
+        )
+
+        self.assertEqual(
+            generated.text,
+            "What factor would most influence choosing the right ML category in this scenario?",
+        )
+        self.assertNotIn("source", generated.text.lower())
+        self.assertNotIn("source", generated.expected_points[0].lower())
+
+    def test_saved_source_recall_fallback_is_repaired_on_load(self) -> None:
+        legacy = question().model_copy(
+            update={
+                "kind": "follow_up",
+                "topic_label": "Choosing the right ML category",
+                "text": (
+                    "State one source-grounded point about Choosing the right ML category."
+                ),
+            }
+        )
+
+        repaired = repair_legacy_recall_fallback(legacy)
+
+        self.assertEqual(
+            repaired.text,
+            "What factor would most influence choosing the right ML category in this scenario?",
+        )
+        self.assertNotIn("source", repaired.text.lower())
+        self.assertNotIn("source", repaired.expected_points[0].lower())
 
     def test_screen_work_is_inferred_from_the_candidate_facing_question(self) -> None:
         architecture_topic = topic(

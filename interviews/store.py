@@ -54,6 +54,12 @@ def _elapsed(row: dict[str, Any]) -> int:
 
 def _turn(row: dict[str, Any]) -> InterviewTurn:
     question = InterviewQuestion.model_validate(row["question_json"])
+    # Older sessions may contain the emergency wording "source-grounded
+    # point". Normalize it in memory so the displayed question, narration,
+    # evaluation, and report all use the same reasoning-oriented scope.
+    from .question_generation import repair_legacy_recall_fallback
+
+    question = repair_legacy_recall_fallback(question)
     evaluation = (
         AnswerEvaluation.model_validate(row["evaluation_json"])
         if row["evaluation_json"]
