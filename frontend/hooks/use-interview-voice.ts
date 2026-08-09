@@ -63,7 +63,8 @@ export function useInterviewVoice({
   const chunksRef = useRef<Blob[]>([]);
   const frameRef = useRef<number | null>(null);
   const listeningRef = useRef(false);
-  const processingRef = useRef(false);
+  const transcriptionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingTranscriptionsRef = useRef(0);
   const modeRef = useRef(mode);
   const onRecordingRef = useRef(onRecording);
   const onVoiceStartRef = useRef(onVoiceStart);
@@ -83,7 +84,6 @@ export function useInterviewVoice({
 
   const release = useCallback(() => {
     listeningRef.current = false;
-    processingRef.current = false;
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
     const recorder = recorderRef.current;
@@ -107,7 +107,7 @@ export function useInterviewVoice({
 
   const beginRecording = useCallback(() => {
     const stream = streamRef.current;
-    if (!stream || recorderRef.current || processingRef.current) return;
+    if (!stream || recorderRef.current) return;
     const mimeType = recordingMimeType();
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     chunksRef.current = [];
@@ -126,15 +126,23 @@ export function useInterviewVoice({
         if (listeningRef.current) setStatus("listening");
         return;
       }
-      processingRef.current = true;
+      pendingTranscriptionsRef.current += 1;
       setStatus("processing");
-      void onRecordingRef.current(blob)
+      transcriptionQueueRef.current = transcriptionQueueRef.current
+        .then(() => onRecordingRef.current(blob))
         .catch((failure) => {
           setError((failure as Error).message || "That answer could not be transcribed.");
         })
         .finally(() => {
-          processingRef.current = false;
-          if (listeningRef.current) setStatus("listening");
+          pendingTranscriptionsRef.current = Math.max(
+            0,
+            pendingTranscriptionsRef.current - 1,
+          );
+          if (listeningRef.current && !recorderRef.current) {
+            setStatus(
+              pendingTranscriptionsRef.current > 0 ? "processing" : "listening",
+            );
+          }
         });
     };
     recorder.onerror = () => {
@@ -161,7 +169,7 @@ export function useInterviewVoice({
     const now = Date.now();
     const recorder = recorderRef.current;
 
-    if (!processingRef.current && modeRef.current === "automatic") {
+    if (modeRef.current === "automatic") {
       if (!recorder) {
         loudFramesRef.current = loud ? loudFramesRef.current + 1 : 0;
         if (loudFramesRef.current >= LOUD_FRAMES_TO_START) beginRecording();

@@ -362,7 +362,7 @@ export default function InterviewWorkspace() {
                             {voice.status === "recording"
                               ? "Capturing this part of your answer…"
                               : voice.status === "processing"
-                                ? "Adding speech to your draft…"
+                                ? "Adding speech to your draft — keep speaking when ready"
                                 : voice.status === "listening"
                                   ? voice.mode === "automatic"
                                     ? "Listening continuously — pauses only update the draft"
