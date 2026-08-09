@@ -46,7 +46,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useInterviewerSpeech } from "@/hooks/use-interviewer-speech";
-import { useInterviewVoice } from "@/hooks/use-interview-voice";
+import {
+  primeInterviewAudio,
+  releasePrimedInterviewAudio,
+  useInterviewVoice,
+} from "@/hooks/use-interview-voice";
 import { useScreenShare } from "@/hooks/use-screen-share";
 import { signOut, useSession } from "@/hooks/use-session";
 import { ApiError, apiFetch, errorDetail, uploadUrl } from "@/lib/api";
@@ -246,9 +250,10 @@ export default function InterviewWorkspace() {
     finally { setBusy(false); }
   }, [sessionId, speech.stop, voice.stop]);
   const resume = useCallback(async () => {
+    primeInterviewAudio();
     setBusy(true);
     try { const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/resume`, { method: "POST" }); loadedAtRef.current = Date.now(); setInterview(updated); }
-    catch (failure) { setError((failure as Error).message); }
+    catch (failure) { releasePrimedInterviewAudio(); setError((failure as Error).message); }
     finally { setBusy(false); }
   }, [sessionId]);
   const finish = useCallback(async () => {

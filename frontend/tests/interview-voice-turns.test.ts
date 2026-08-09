@@ -1,6 +1,34 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  primeInterviewAudio,
+  releasePrimedInterviewAudio,
+} from "@/hooks/use-interview-voice";
 import { appendTranscriptSegment } from "@/lib/interview-types";
+
+afterEach(() => {
+  releasePrimedInterviewAudio();
+  vi.unstubAllGlobals();
+});
+
+describe("interview audio activation", () => {
+  it("resumes Web Audio during the setup click", () => {
+    const resume = vi.fn(async () => undefined);
+    const close = vi.fn(async () => undefined);
+    class FakeAudioContext {
+      state: AudioContextState = "suspended";
+      resume = resume;
+      close = close;
+    }
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+
+    primeInterviewAudio();
+
+    expect(resume).toHaveBeenCalledOnce();
+    releasePrimedInterviewAudio();
+    expect(close).toHaveBeenCalledOnce();
+  });
+});
 
 describe("continuous interview transcription", () => {
   it("keeps thinking pauses as separate draft segments", () => {

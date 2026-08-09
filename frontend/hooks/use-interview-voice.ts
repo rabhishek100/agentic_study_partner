@@ -19,6 +19,30 @@ const MAXIMUM_SPEECH_MS = 180_000;
 const RMS_THRESHOLD = 0.028;
 const LOUD_FRAMES_TO_START = 3;
 
+let primedAudioContext: AudioContext | null = null;
+
+/** Unlock Web Audio during the setup/resume click before route/API awaits. */
+export function primeInterviewAudio(): void {
+  if (typeof AudioContext === "undefined") return;
+  if (primedAudioContext && primedAudioContext.state !== "closed") return;
+  const context = new AudioContext();
+  primedAudioContext = context;
+  void context.resume();
+}
+
+export function releasePrimedInterviewAudio(): void {
+  const context = primedAudioContext;
+  primedAudioContext = null;
+  if (context && context.state !== "closed") void context.close();
+}
+
+function audioContext(): AudioContext {
+  const context = primedAudioContext;
+  primedAudioContext = null;
+  if (context && context.state !== "closed") return context;
+  return new AudioContext();
+}
+
 async function microphone(): Promise<MediaStream> {
   const audio = microphoneConstraint();
   try {
@@ -187,9 +211,21 @@ export function useInterviewVoice({
     if (streamRef.current) return;
     setStatus("starting");
     setError("");
+    const context = audioContext();
+    try {
+      await context.resume();
+    } catch {
+      // The explicit state check below produces one useful instruction for
+      // every browser-specific autoplay error.
+    }
+    if (context.state !== "running") {
+      void context.close();
+      setStatus("idle");
+      setError("Your browser paused microphone analysis. Select Start listening once to enable it.");
+      return;
+    }
     try {
       const stream = await microphone();
-      const context = new AudioContext();
       const source = context.createMediaStreamSource(stream);
       const analyser = context.createAnalyser();
       analyser.fftSize = 1024;
@@ -202,6 +238,7 @@ export function useInterviewVoice({
       setStatus("listening");
       frameRef.current = requestAnimationFrame(monitor);
     } catch (failure) {
+      void context.close();
       setStatus("idle");
       setError(microphoneProblem(failure));
     }
@@ -218,6 +255,7 @@ export function useInterviewVoice({
   return {
     supported:
       typeof window !== "undefined" &&
+      typeof AudioContext !== "undefined" &&
       typeof MediaRecorder !== "undefined" &&
       Boolean(navigator.mediaDevices?.getUserMedia),
     mode,

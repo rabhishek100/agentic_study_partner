@@ -38,6 +38,10 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { signOut, useSession } from "@/hooks/use-session";
+import {
+  primeInterviewAudio,
+  releasePrimedInterviewAudio,
+} from "@/hooks/use-interview-voice";
 import { apiFetch } from "@/lib/api";
 import type { ChapterListResponse, ChapterSummary } from "@/lib/deck-types";
 import {
@@ -178,6 +182,7 @@ export default function InterviewsPage() {
 
   const begin = useCallback(async () => {
     if (!payload) return;
+    primeInterviewAudio();
     setBusy(true);
     setError("");
     try {
@@ -191,6 +196,7 @@ export default function InterviewsPage() {
       window.sessionStorage.setItem("interview:just-started", created.session_id);
       router.push(`/interviews/${created.session_id}`);
     } catch (failure) {
+      releasePrimedInterviewAudio();
       setError((failure as Error).message || "Could not start the interview.");
       setBusy(false);
     }
