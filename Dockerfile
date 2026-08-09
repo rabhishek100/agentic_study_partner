@@ -24,6 +24,7 @@ RUN apt-get update \
 COPY api ./api
 COPY decks ./decks
 COPY ingestion ./ingestion
+COPY interviews ./interviews
 COPY parsing ./parsing
 COPY retrieval ./retrieval
 # The whole package: enumerating individual modules here means a new one is
