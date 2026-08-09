@@ -175,6 +175,10 @@ export function pendingTurn(session: InterviewSession): InterviewTurn | null {
   return [...session.turns].reverse().find((turn) => !turn.answer_text) ?? null;
 }
 
+export function appendTranscriptSegment(draft: string, segment: string): string {
+  return [draft.trim(), segment.trim()].filter(Boolean).join(" ");
+}
+
 export function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
   if (minutes === 60) return "1 hour";

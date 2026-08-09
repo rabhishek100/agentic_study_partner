@@ -52,6 +52,7 @@ import { signOut, useSession } from "@/hooks/use-session";
 import { ApiError, apiFetch, errorDetail, uploadUrl } from "@/lib/api";
 import { transcribeInterviewRecording } from "@/lib/dictation";
 import {
+  appendTranscriptSegment,
   pendingTurn,
   type AnswerEvaluation,
   type InterviewReport,
@@ -61,7 +62,6 @@ import {
 import { accessToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
-const AUTO_SUBMIT_MS = 2_500;
 const INR_PER_USD_ESTIMATE = Number(process.env.NEXT_PUBLIC_USD_INR_RATE ?? "90");
 
 function clock(seconds: number): string {
@@ -128,15 +128,12 @@ export default function InterviewWorkspace() {
   const [report, setReport] = useState<InterviewReport | null>(null);
   const [answer, setAnswer] = useState("");
   const [transcriptCorrected, setTranscriptCorrected] = useState(false);
-  const [autoSubmitAt, setAutoSubmitAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const [screenBusy, setScreenBusy] = useState(false);
+  const [listeningPaused, setListeningPaused] = useState(false);
   const [error, setError] = useState("");
   const loadedAtRef = useRef(Date.now());
-  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const recordingResolveRef = useRef<(() => void) | null>(null);
-  const submitRef = useRef<(text: string, corrected: boolean) => Promise<void>>(async () => undefined);
   const lastSpokenRef = useRef<number | null>(null);
   const speech = useInterviewerSpeech();
   const screen = useScreenShare();
@@ -146,9 +143,6 @@ export default function InterviewWorkspace() {
   const submitAnswer = useCallback(async (text: string, corrected: boolean) => {
     const value = text.trim();
     if (!value || !interview || interview.status !== "active" || busy) return;
-    if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
-    autoTimerRef.current = null;
-    setAutoSubmitAt(null);
     setBusy(true);
     setError("");
     try {
@@ -165,33 +159,16 @@ export default function InterviewWorkspace() {
       setError((failure as Error).message || "That answer could not be evaluated.");
     } finally {
       setBusy(false);
-      recordingResolveRef.current?.();
-      recordingResolveRef.current = null;
     }
   }, [busy, interview, sessionId, speech.stop]);
-  submitRef.current = submitAnswer;
 
   const handleRecording = useCallback(async (recording: Blob) => {
     const transcript = await transcribeInterviewRecording(recording, sessionId);
     if (!transcript.trim()) throw new Error("No speech was recorded.");
-    setAnswer(transcript);
-    setTranscriptCorrected(false);
-    setAutoSubmitAt(Date.now() + AUTO_SUBMIT_MS);
-    await new Promise<void>((resolve) => {
-      recordingResolveRef.current = resolve;
-      autoTimerRef.current = setTimeout(() => {
-        void submitRef.current(transcript, false);
-      }, AUTO_SUBMIT_MS);
-    });
+    setAnswer((currentAnswer) => appendTranscriptSegment(currentAnswer, transcript));
   }, [sessionId]);
 
   const voice = useInterviewVoice({ onRecording: handleRecording, onVoiceStart: speech.stop });
-
-  useEffect(() => {
-    if (interview && ["completed", "abandoned"].includes(interview.status)) {
-      voice.stop();
-    }
-  }, [interview?.status, voice.stop]);
 
   const load = useCallback(async () => {
     try {
@@ -216,7 +193,21 @@ export default function InterviewWorkspace() {
 
   useEffect(() => { if (authSession) void load(); }, [authSession, load]);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(timer); }, []);
-  useEffect(() => () => { if (autoTimerRef.current) clearTimeout(autoTimerRef.current); recordingResolveRef.current?.(); }, []);
+
+  useEffect(() => {
+    const shouldListen =
+      interview?.status === "active" &&
+      current !== null &&
+      !busy &&
+      !listeningPaused;
+    if (!shouldListen) {
+      if (voice.status !== "idle") voice.stop();
+      return;
+    }
+    if (voice.supported && voice.status === "idle" && !voice.error) {
+      void voice.start();
+    }
+  }, [busy, current, interview?.status, listeningPaused, voice.error, voice.start, voice.status, voice.stop, voice.supported]);
 
   useEffect(() => {
     if (!authSession || interview?.status !== "active") return;
@@ -232,10 +223,14 @@ export default function InterviewWorkspace() {
   }, [authSession, interview?.status, sessionId]);
 
   useEffect(() => {
-    if (!speech.enabled || !current || current.turn_index === lastSpokenRef.current) return;
+    if (
+      interview?.status !== "active" ||
+      !current ||
+      current.turn_index === lastSpokenRef.current
+    ) return;
     lastSpokenRef.current = current.turn_index;
     void speech.speak(sessionId, current.turn_index);
-  }, [current, sessionId, speech.enabled, speech.speak]);
+  }, [current, interview?.status, sessionId, speech.speak]);
 
   const elapsed = useMemo(() => {
     if (!interview) return 0;
@@ -243,7 +238,6 @@ export default function InterviewWorkspace() {
   }, [interview, now]);
   const remaining = Math.max(0, (interview?.maximum_duration_minutes ?? 0) * 60 - elapsed);
   const coverage = interview?.metrics.topics_required ? (interview.metrics.topics_covered / interview.metrics.topics_required) * 100 : interview?.checkpoint.topics.length ? (interview.checkpoint.topics.filter((topic) => topic.required && topic.completed).length / interview.checkpoint.topics.filter((topic) => topic.required).length) * 100 : 0;
-  const autoSeconds = autoSubmitAt ? Math.max(0, Math.ceil((autoSubmitAt - now) / 1000)) : null;
 
   const pause = useCallback(async () => {
     voice.stop(); speech.stop(); setBusy(true);
@@ -307,9 +301,126 @@ export default function InterviewWorkspace() {
               <div className="space-y-5">
                 <div className="space-y-4">{interview.turns.filter((turn) => turn.answer_text).map((turn: InterviewTurn) => <div key={turn.turn_index} className="space-y-3"><div className="max-w-[88%] rounded-2xl rounded-tl-sm border bg-card p-4"><p className="text-xs font-medium text-primary">Interviewer</p><p className="mt-1.5 text-sm leading-6">{turn.question.text}</p></div><div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground"><p className="text-xs font-medium opacity-70">You</p><p className="mt-1.5 text-sm leading-6">{turn.answer_text}</p></div>{turn.evaluation ? <Feedback evaluation={turn.evaluation} /> : null}</div>)}</div>
 
-                {current ? <Card className="overflow-hidden border-primary/20 shadow-sm"><div className="h-1 bg-primary" /><CardHeader className="pb-3"><div className="flex flex-wrap items-center justify-between gap-2"><Badge variant="outline">Question {current.turn_index + 1}</Badge><Badge variant="secondary" className="capitalize">{current.question.kind.replace("_", " ")}</Badge></div><CardTitle className="mt-3 text-xl leading-8 sm:text-2xl">{current.question.text}</CardTitle></CardHeader><CardContent><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={speech.loading} onClick={() => { if (speech.speaking) speech.stop(); else { lastSpokenRef.current = current.turn_index; void speech.speak(sessionId, current.turn_index); } }}>{speech.speaking ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}{speech.speaking ? "Stop voice" : speech.loading ? "Preparing voice…" : "Hear question"}</Button>{voice.supported ? <Button variant={voice.status === "idle" ? "outline" : "secondary"} size="sm" onClick={() => voice.status === "idle" ? void voice.start() : voice.stop()}><Mic aria-hidden />{voice.status === "idle" ? "Start voice answer" : titleCase(voice.status)}</Button> : null}</div>{current.screen_observation ? <Alert className="mt-4"><MonitorUp aria-hidden /><AlertDescription>Screen checkpoint received: {current.screen_observation.summary}</AlertDescription></Alert> : null}</CardContent></Card> : null}
+                {current ? (
+                  <Card className="overflow-hidden border-primary/20 shadow-sm">
+                    <div className="h-1 bg-primary" />
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Badge variant="outline">Question {current.turn_index + 1}</Badge>
+                        <Badge variant="secondary" className="capitalize">{current.question.kind.replace("_", " ")}</Badge>
+                      </div>
+                      <CardTitle className="mt-3 text-xl leading-8 sm:text-2xl">{current.question.text}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={speech.loading}
+                          onClick={() => {
+                            if (speech.speaking) speech.stop();
+                            else {
+                              lastSpokenRef.current = current.turn_index;
+                              void speech.speak(sessionId, current.turn_index);
+                            }
+                          }}
+                        >
+                          {speech.speaking ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
+                          {speech.speaking ? "Stop voice" : speech.loading ? "Preparing voice…" : "Hear question again"}
+                        </Button>
+                        {voice.supported ? (
+                          <Button
+                            variant={voice.status === "idle" ? "outline" : "secondary"}
+                            size="sm"
+                            onClick={() => {
+                              if (voice.status === "idle") {
+                                setListeningPaused(false);
+                                void voice.start();
+                              } else {
+                                setListeningPaused(true);
+                                voice.stop();
+                              }
+                            }}
+                          >
+                            <Mic aria-hidden />
+                            {voice.status === "idle" ? "Start listening" : "Pause listening"}
+                          </Button>
+                        ) : null}
+                      </div>
+                      {current.screen_observation ? <Alert className="mt-4"><MonitorUp aria-hidden /><AlertDescription>Screen checkpoint received: {current.screen_observation.summary}</AlertDescription></Alert> : null}
+                    </CardContent>
+                  </Card>
+                ) : null}
 
-                {current && interview.status === "active" ? <Card id="question"><CardContent className="p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2"><span className={cn("size-2 rounded-full", voice.status === "recording" ? "bg-destructive motion-safe:animate-pulse" : voice.status === "listening" ? "bg-emerald-500" : "bg-muted-foreground/40")} /><span className="text-xs text-muted-foreground">{voice.status === "recording" ? "Listening to your answer…" : voice.status === "processing" ? "Transcribing…" : voice.status === "listening" ? voice.mode === "automatic" ? "Automatic turn detection is on" : "Hold the mic button to speak" : "Type or start the microphone"}</span></div>{voice.status !== "idle" ? <Select value={voice.mode} onValueChange={(value) => voice.setMode(value as "automatic" | "push_to_talk")}><SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="automatic">Automatic</SelectItem><SelectItem value="push_to_talk">Push to talk</SelectItem></SelectContent></Select> : null}</div><Textarea value={answer} onChange={(event) => { setAnswer(event.target.value); if (autoSubmitAt) { if (autoTimerRef.current) clearTimeout(autoTimerRef.current); setAutoSubmitAt(null); setTranscriptCorrected(true); } }} placeholder="Answer as you would in a real interview…" className="min-h-32 resize-y text-base leading-6" disabled={busy} />{autoSeconds !== null ? <div className="mt-2 flex items-center justify-between rounded-md bg-muted px-3 py-2 text-xs"><span>Transcript captured. Sending in {autoSeconds}s…</span><Button variant="ghost" size="sm" className="h-7" onClick={() => { if (autoTimerRef.current) clearTimeout(autoTimerRef.current); setAutoSubmitAt(null); setTranscriptCorrected(true); }}>Correct transcript</Button></div> : null}<div className="mt-3 flex items-center justify-between gap-3">{voice.mode === "push_to_talk" && voice.status !== "idle" ? <Button type="button" variant="secondary" onPointerDown={voice.beginPush} onPointerUp={voice.endPush} onPointerCancel={voice.endPush}><Mic aria-hidden />Hold to talk</Button> : <span /> }<Button disabled={!answer.trim() || busy} onClick={() => void submitAnswer(answer, transcriptCorrected)}>{busy ? "Evaluating…" : "Send answer"}<Send aria-hidden /></Button></div></CardContent></Card> : null}
+                {current && interview.status === "active" ? (
+                  <Card id="question">
+                    <CardContent className="p-4">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("size-2 rounded-full", voice.status === "recording" ? "bg-destructive motion-safe:animate-pulse" : voice.status === "listening" ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                          <span className="text-xs text-muted-foreground">
+                            {voice.status === "recording"
+                              ? "Capturing this part of your answer…"
+                              : voice.status === "processing"
+                                ? "Adding speech to your draft…"
+                                : voice.status === "listening"
+                                  ? voice.mode === "automatic"
+                                    ? "Listening continuously — pauses only update the draft"
+                                    : "Hold the mic button to speak"
+                                  : "Type your answer or start listening"}
+                          </span>
+                        </div>
+                        {voice.status !== "idle" ? (
+                          <Select value={voice.mode} onValueChange={(value) => voice.setMode(value as "automatic" | "push_to_talk")}>
+                            <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="automatic">Continuous listening</SelectItem>
+                              <SelectItem value="push_to_talk">Push to talk</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+                      </div>
+                      <Textarea
+                        value={answer}
+                        onChange={(event) => {
+                          setAnswer(event.target.value);
+                          setTranscriptCorrected(true);
+                        }}
+                        placeholder="Speak or type your answer. Nothing is sent until you choose Send answer."
+                        className="min-h-32 resize-y text-base leading-6"
+                        disabled={busy}
+                      />
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Thinking pauses are safe. Each spoken segment is appended here, and you decide when the complete answer is ready.
+                      </p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        {voice.mode === "push_to_talk" && voice.status !== "idle" ? (
+                          <Button type="button" variant="secondary" onPointerDown={voice.beginPush} onPointerUp={voice.endPush} onPointerCancel={voice.endPush}>
+                            <Mic aria-hidden />Hold to talk
+                          </Button>
+                        ) : <span />}
+                        <Button
+                          disabled={
+                            !answer.trim() ||
+                            busy ||
+                            voice.status === "recording" ||
+                            voice.status === "processing"
+                          }
+                          onClick={() => void submitAnswer(answer, transcriptCorrected)}
+                        >
+                          {busy
+                            ? "Evaluating…"
+                            : voice.status === "recording"
+                              ? "Finish speaking…"
+                              : voice.status === "processing"
+                                ? "Finishing transcript…"
+                                : "Send answer"}
+                          <Send aria-hidden />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
               </div>
 
               <aside className="space-y-4">

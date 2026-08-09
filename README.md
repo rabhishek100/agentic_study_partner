@@ -408,10 +408,12 @@ report; guided mode returns feedback after each turn. Reports retain the
 transcript, six dimension scores, recommended answers, citations, cost, and
 missed topics without inventing percentiles.
 
-Voice answers use automatic silence detection by default with push-to-talk as a
-fallback. Clips are transcribed through `OPENROUTER_INTERVIEW_STT_MODEL`, and
-questions are spoken through `OPENROUTER_TTS_MODEL`; both remain usable as text
-if media access or a provider call fails. Screen sharing stays local until the
+Voice answers listen continuously by default, with push-to-talk as a fallback.
+Silence transcribes one segment into the editable draft but never submits it;
+the candidate explicitly sends the complete answer. New questions are spoken
+automatically through `OPENROUTER_TTS_MODEL`, and clips are transcribed through
+`OPENROUTER_INTERVIEW_STT_MODEL`; both remain usable as text if media access,
+browser autoplay, or a provider call fails. Screen sharing stays local until the
 candidate explicitly sends a still checkpoint. Raw audio and screen frames are
 processed ephemerally and never stored; only transcripts and structured screen
 observations survive. Pausing, navigating away, or refreshing stops the clock,

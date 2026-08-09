@@ -10,7 +10,6 @@ export function useInterviewerSpeech() {
   const urlRef = useRef<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState("");
 
   const stop = useCallback(() => {
@@ -54,9 +53,14 @@ export function useInterviewerSpeech() {
           setError("The interviewer voice could not be played.");
         };
         await audio.play();
-        setEnabled(true);
       } catch (failure) {
-        setError((failure as Error).message || "Interviewer voice is unavailable.");
+        const blocked =
+          failure instanceof DOMException && failure.name === "NotAllowedError";
+        setError(
+          blocked
+            ? "Your browser blocked automatic audio. Select Hear question once to enable it."
+            : (failure as Error).message || "Interviewer voice is unavailable.",
+        );
       } finally {
         setLoading(false);
       }
@@ -64,5 +68,5 @@ export function useInterviewerSpeech() {
     [clear],
   );
 
-  return { enabled, speaking, loading, error, speak, stop, setEnabled };
+  return { speaking, loading, error, speak, stop };
 }

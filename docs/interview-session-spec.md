@@ -66,11 +66,15 @@ produces a report.
 
 ## Voice and screen sharing
 
-The existing OpenRouter Whisper path transcribes candidate speech. Automatic
-voice activity is the default: roughly 1.2 seconds of silence settles a turn.
-Push-to-talk remains available in noisy or unsupported environments. Candidate
-speech interrupts TTS. A transcript is shown immediately and a correction
-action repairs a transcription without creating a new answer.
+The existing OpenRouter Whisper path transcribes candidate speech. Listening
+starts automatically and remains active through the answer. Roughly 1.2
+seconds of silence closes only the current audio segment and appends its
+transcript to an editable draft; it never submits the answer. The candidate
+may pause to think, continue speaking across as many segments as needed, and
+explicitly sends the completed draft. Push-to-talk remains available in noisy
+or unsupported environments. Candidate speech interrupts TTS. Every new
+interviewer question is spoken automatically, with a one-click replay/unlock
+fallback where browser autoplay policy requires a gesture.
 
 Kokoro 82M is the default TTS model, selected for modern voice quality at
 low per-character cost. Model and voice remain environment-configurable.
