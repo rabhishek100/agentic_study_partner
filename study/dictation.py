@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -59,6 +60,13 @@ class DictationError(RuntimeError):
     """
 
 
+@dataclass(frozen=True)
+class DictationResult:
+    text: str
+    cost_usd: float = 0.0
+    seconds: float = 0.0
+
+
 def audio_extension(media_type: str) -> str | None:
     """The container Whisper should be told about, or None if unsupported."""
 
@@ -79,6 +87,25 @@ def transcribe_spoken_question(
     and taps again — so it returns empty rather than raising. Only a provider
     that fails or answers unintelligibly is an error.
     """
+
+    return transcribe_spoken_question_result(
+        audio,
+        media_type=media_type,
+        language=language,
+        client=client,
+        model=model,
+    ).text
+
+
+def transcribe_spoken_question_result(
+    audio: bytes,
+    *,
+    media_type: str,
+    language: str | None = "en",
+    client: httpx.Client | None = None,
+    model: str | None = None,
+) -> DictationResult:
+    """Return text plus provider-reported usage for a cost-tracked session."""
 
     extension = audio_extension(media_type)
     if extension is None:
@@ -102,7 +129,9 @@ def transcribe_spoken_question(
         data["language"] = language.strip()
 
     if client is not None:
-        return _post(client, data=data, audio=audio, filename=f"question.{extension}")
+        return _post_result(
+            client, data=data, audio=audio, filename=f"question.{extension}"
+        )
     api_key = os.getenv("OPENROUTER_API_KEY", "").strip()
     if not api_key:
         raise DictationError("OPENROUTER_API_KEY is required for dictation")
@@ -110,12 +139,20 @@ def transcribe_spoken_question(
         headers={"Authorization": f"Bearer {api_key}"},
         timeout=REQUEST_TIMEOUT_SECONDS,
     ) as owned:
-        return _post(owned, data=data, audio=audio, filename=f"question.{extension}")
+        return _post_result(
+            owned, data=data, audio=audio, filename=f"question.{extension}"
+        )
 
 
 def _post(
     client: httpx.Client, *, data: dict[str, str], audio: bytes, filename: str
 ) -> str:
+    return _post_result(client, data=data, audio=audio, filename=filename).text
+
+
+def _post_result(
+    client: httpx.Client, *, data: dict[str, str], audio: bytes, filename: str
+) -> DictationResult:
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
             response = client.post(
@@ -138,7 +175,24 @@ def _post(
                 f"dictation request was rejected ({response.status_code})"
             )
         try:
-            return _spoken_text(response.json())
+            body = response.json()
+            text = _spoken_text(body)
+            usage = body.get("usage") if isinstance(body, dict) else None
+            cost = usage.get("cost", 0) if isinstance(usage, dict) else 0
+            seconds = usage.get("seconds", 0) if isinstance(usage, dict) else 0
+            return DictationResult(
+                text=text,
+                cost_usd=(
+                    round(float(cost), 6)
+                    if isinstance(cost, (int, float)) and cost >= 0
+                    else 0.0
+                ),
+                seconds=(
+                    round(float(seconds), 3)
+                    if isinstance(seconds, (int, float)) and seconds >= 0
+                    else 0.0
+                ),
+            )
         except ValueError as error:
             raise DictationError(str(error)) from None
     raise AssertionError("bounded dictation retry loop was exhausted")

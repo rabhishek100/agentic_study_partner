@@ -392,6 +392,36 @@ same thing. A device chosen and later unplugged does not silently demote to
 the laptop lid: the request fails against the exact device, the stored choice
 is dropped, and the recording restarts on the system default.
 
+**Interviews** run an adaptive, source-grounded mock interview over one book
+chapter or one lecture. Choose a 15, 30, 45, 60, 90, or 120 minute ceiling,
+entry/mid/senior level, and realistic or guided feedback. The ceiling is not a
+quota: a session closes early as soon as its substantive topic inventory is
+covered, and strong answers complete a topic without filler follow-ups.
+
+Before the first model call, the selected scope is inventoried deterministically
+and classified as concept, system-design, or source-led interview material. The
+LangGraph turn workflow evaluates against that topic's evidence, requests a
+clarifying answer and at most two graduated hints when needed, optionally
+verifies a material answer extension on the web, and either advances or closes.
+Realistic mode withholds rubrics, feedback, scores, and topic order until the
+report; guided mode returns feedback after each turn. Reports retain the
+transcript, six dimension scores, recommended answers, citations, cost, and
+missed topics without inventing percentiles.
+
+Voice answers use automatic silence detection by default with push-to-talk as a
+fallback. Clips are transcribed through `OPENROUTER_INTERVIEW_STT_MODEL`, and
+questions are spoken through `OPENROUTER_TTS_MODEL`; both remain usable as text
+if media access or a provider call fails. Screen sharing stays local until the
+candidate explicitly sends a still checkpoint. Raw audio and screen frames are
+processed ephemerally and never stored; only transcripts and structured screen
+observations survive. Pausing, navigating away, or refreshing stops the clock,
+and the persisted session can be resumed.
+
+The default interview stack is `openai/gpt-5.6-luna` for reasoning,
+`openai/whisper-large-v3-turbo` for STT, and `hexgrad/kokoro-82m` with
+`af_heart` for TTS. See [`docs/interview-session-spec.md`](docs/interview-session-spec.md)
+for the complete product and evidence contract.
+
 **Flashcards** turn one chapter, or one lecture, into cards you can review in a
 few minutes a day. Pick a scope under **Cards** and generation runs as a durable
 background job; the deck appears when it lands.
@@ -431,7 +461,9 @@ The API exposes `GET /api/health`, `GET /api/books`,
 conversation CRUD, side chats (`POST|GET /api/conversations/{id}/side-chats`,
 `PATCH /api/side-chats/{id}`, `POST /api/side-chats/{id}/turns/stream`), decks
 (`POST|GET /api/decks`, `GET /api/decks/{id}`, `GET /api/decks/queue`,
-`POST /api/decks/cards/{id}/review`, `GET|PATCH /api/decks/preferences`), and the
+`POST /api/decks/cards/{id}/review`, `GET|PATCH /api/decks/preferences`), the
+interview lifecycle (`POST|GET /api/interviews`, preflight, start/resume/pause,
+answers, finish, report, transcription, speech, and screen checkpoints), and the
 `/api/ingestions` lifecycle. Everything except health requires a Supabase bearer
 token.
 

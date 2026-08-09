@@ -30,6 +30,7 @@ from api.auth import current_owner
 from api.version import build_revision, build_time
 from api.decks import router as deck_router
 from api.ingestions import router as ingestion_router
+from api.interviews import router as interview_router
 from api.video_chat import chat_router as video_chat_router
 from api.videos import jobs_router as video_ingestion_router
 from api.videos import videos_router
@@ -371,6 +372,7 @@ app.include_router(videos_router)
 app.include_router(video_ingestion_router)
 app.include_router(video_chat_router)
 app.include_router(deck_router)
+app.include_router(interview_router)
 
 
 @app.on_event("startup")
