@@ -73,6 +73,8 @@ export function useInterviewVoice({
   const listeningRef = useRef(false);
   const transcriptionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingTranscriptionsRef = useRef(0);
+  const captureGenerationRef = useRef(0);
+  const recordingGenerationRef = useRef(0);
   const modeRef = useRef(mode);
   const onRecordingRef = useRef(onRecording);
   const onVoiceStartRef = useRef(onVoiceStart);
@@ -96,6 +98,7 @@ export function useInterviewVoice({
   }, [onVoiceStart]);
 
   const release = useCallback(() => {
+    captureGenerationRef.current += 1;
     listeningRef.current = false;
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
@@ -133,6 +136,7 @@ export function useInterviewVoice({
       if (event.data.size) chunksRef.current.push(event.data);
     };
     recorder.onstop = () => {
+      const captureGeneration = recordingGenerationRef.current;
       const duration = Date.now() - startedAtRef.current;
       const voicedFrames = voicedFramesRef.current;
       const blob = new Blob(chunksRef.current, {
@@ -154,7 +158,10 @@ export function useInterviewVoice({
       pendingTranscriptionsRef.current += 1;
       setStatus("processing");
       transcriptionQueueRef.current = transcriptionQueueRef.current
-        .then(() => onRecordingRef.current(blob))
+        .then(() => {
+          if (captureGeneration !== captureGenerationRef.current) return;
+          return onRecordingRef.current(blob);
+        })
         .catch((failure) => {
           setError((failure as Error).message || "That answer could not be transcribed.");
         })
@@ -178,6 +185,7 @@ export function useInterviewVoice({
     startedAtRef.current = Date.now();
     lastLoudAtRef.current = startedAtRef.current;
     voicedFramesRef.current = loudFramesRef.current;
+    recordingGenerationRef.current = captureGenerationRef.current;
     recorderRef.current = recorder;
     recorder.start(250);
     setStatus("recording");

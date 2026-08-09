@@ -263,19 +263,21 @@ export default function InterviewWorkspace() {
   const [submitError, setSubmitError] = useState("");
   const loadedAtRef = useRef(Date.now());
   const lastSpokenRef = useRef<number | null>(null);
+  const draftEpochRef = useRef(0);
   const speech = useInterviewerSpeech();
   const screen = useScreenShare();
 
   const pending = interview ? pendingTurn(interview) : null;
   const current = transitionTurnIndex === null ? pending : null;
   const busy = operation !== "idle";
+  const submissionLocked = ["submitting_answer", "checking_submission"].includes(operation);
   const screenBusy = operation === "screen_checkpoint";
 
   const beginOperation = useCallback((next: InterviewOperation) => {
     setOperation(next);
   }, []);
-  const endOperation = useCallback(() => {
-    setOperation("idle");
+  const endOperation = useCallback((expected?: InterviewOperation) => {
+    setOperation((active) => (!expected || active === expected ? "idle" : active));
   }, []);
 
   const acceptSubmittedAnswer = useCallback(async (
@@ -314,8 +316,12 @@ export default function InterviewWorkspace() {
 
   const submitAnswer = useCallback(async (text: string, corrected: boolean) => {
     const value = text.trim();
-    if (!value || !current || !interview || interview.status !== "active" || busy) return;
+    if (!value || !current || !interview || interview.status !== "active" || submissionLocked) return;
     const answeredTurnIndex = current.turn_index;
+    // Everything visible at this instant is the submitted answer. A Whisper
+    // request already in flight belongs to the old draft and must not append
+    // after this turn advances.
+    draftEpochRef.current += 1;
     beginOperation("submitting_answer");
     setError("");
     setSubmitError("");
@@ -346,13 +352,14 @@ export default function InterviewWorkspace() {
     } finally {
       endOperation();
     }
-  }, [acceptSubmittedAnswer, beginOperation, busy, current, endOperation, interview, sessionId]);
+  }, [acceptSubmittedAnswer, beginOperation, current, endOperation, interview, sessionId, submissionLocked]);
 
   const handleRecording = useCallback(async (recording: Blob) => {
+    const draftEpoch = draftEpochRef.current;
     const transcript = await transcribeInterviewRecording(recording, sessionId);
     // Silence and low-information noise are expected while listening remains
     // automatic. The API returns an empty transcript for those segments.
-    if (!transcript.trim()) return;
+    if (!transcript.trim() || draftEpoch !== draftEpochRef.current) return;
     setAnswer((currentAnswer) => appendTranscriptSegment(currentAnswer, transcript));
   }, [sessionId]);
 
@@ -466,15 +473,21 @@ export default function InterviewWorkspace() {
   }, [busy, elapsed, finish, interview]);
 
   const submitScreen = useCallback(async () => {
+    const draftEpoch = draftEpochRef.current;
     beginOperation("screen_checkpoint"); setError("");
     try {
       const blob = await screen.capture();
       const token = await accessToken();
       const response = await fetch(uploadUrl(`/interviews/${sessionId}/screen-checkpoints`), { method: "POST", headers: { "Content-Type": blob.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: blob });
       if (!response.ok) throw new ApiError(await errorDetail(response), response.status);
-      setInterview((await response.json()) as InterviewSession);
-    } catch (failure) { setError((failure as Error).message || "Screen checkpoint failed."); }
-    finally { endOperation(); }
+      const updated = (await response.json()) as InterviewSession;
+      if (draftEpoch === draftEpochRef.current) setInterview(updated);
+    } catch (failure) {
+      if (draftEpoch === draftEpochRef.current) {
+        setError((failure as Error).message || "Screen checkpoint failed.");
+      }
+    }
+    finally { endOperation("screen_checkpoint"); }
   }, [beginOperation, endOperation, screen, sessionId]);
 
   if (sessionLoading || (authSession && !interview && !error)) return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-5" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-0.5 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">{sessionLoading ? "Checking your session" : "Restoring your interview"}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{sessionLoading ? "Verifying sign-in before loading interview data." : "Loading the saved question, transcript, timer, and media state."}</p></div></div></div>;
@@ -690,10 +703,10 @@ export default function InterviewWorkspace() {
                         }}
                         placeholder="Speak or type your answer. Nothing is sent until you choose Send answer."
                         className="min-h-32 resize-y text-base leading-6"
-                        disabled={busy}
+                        disabled={submissionLocked}
                       />
                       <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                        Thinking pauses are safe. Each spoken segment is appended here, and you decide when the complete answer is ready.
+                        Thinking pauses are safe. Send is always available and submits exactly the text currently visible; unfinished speech is left out.
                       </p>
                       {operation === "submitting_answer" ? (
                         <div className="mt-3 rounded-lg border border-primary/25 bg-primary/[0.035] p-3 text-xs leading-5" role="status" aria-live="polite">
@@ -726,28 +739,21 @@ export default function InterviewWorkspace() {
                         <Button
                           disabled={
                             !answer.trim() ||
-                            busy ||
-                            voice.status === "recording" ||
-                            voice.status === "processing"
+                            submissionLocked
                           }
-                          onClick={() => void submitAnswer(answer, transcriptCorrected)}
+                          onClick={() => {
+                            voice.stop();
+                            void submitAnswer(answer, transcriptCorrected);
+                          }}
                         >
-                          {busy || voice.status === "processing"
+                          {submissionLocked
                             ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" />
                             : <Send aria-hidden />}
                           {operation === "submitting_answer"
                             ? `Evaluating answer… ${operationElapsed ?? 0}s`
                             : operation === "checking_submission"
                               ? "Confirming save…"
-                              : operation === "screen_checkpoint"
-                                ? "Analyzing screen…"
-                                : busy
-                                  ? "Processing…"
-                                  : voice.status === "recording"
-                                    ? "Finish speaking…"
-                                    : voice.status === "processing"
-                                      ? "Transcribing speech…"
-                                      : "Send answer"}
+                              : "Send answer"}
                         </Button>
                       </div>
                     </CardContent>
