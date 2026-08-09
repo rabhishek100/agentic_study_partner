@@ -60,9 +60,10 @@ progress without revealing future questions.
 The planner reserves approximately 10% of the maximum for calibration, 75% for
 adaptive questioning, and 15% for synthesis and closing. It stops introducing
 new questions at the deadline, lets the current answer finish for at most two
-minutes, and then produces the report. Explicit pause stops the clock. Refresh
-or connection loss pauses a live session; an intentional early finish still
-produces a report.
+minutes, and then produces the report. Only the explicit Pause control stops
+the clock. A refresh or transient remount rehydrates the active session so its
+current question, narration, and listening controls do not disappear; an
+intentional early finish still produces a report.
 
 ## Voice and screen sharing
 

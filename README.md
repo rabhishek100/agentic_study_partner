@@ -422,8 +422,9 @@ browser autoplay, or a provider call fails. Slow hosted TTS falls back to the
 device voice rather than blocking the interview. Screen sharing stays local until the
 candidate explicitly sends a still checkpoint. Raw audio and screen frames are
 processed ephemerally and never stored; only transcripts and structured screen
-observations survive. Pausing, navigating away, or refreshing stops the clock,
-and the persisted session can be resumed.
+observations survive. Explicit Pause stops the clock, while a refresh restores
+the live question and voice controls instead of silently pausing the session.
+Persisted paused sessions can be resumed from a prominent in-session control.
 
 The default interview stack is `openai/gpt-5.6-luna` for reasoning,
 `openai/whisper-large-v3-turbo` for STT, and

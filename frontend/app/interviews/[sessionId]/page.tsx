@@ -244,15 +244,11 @@ export default function InterviewWorkspace() {
 
   const load = useCallback(async () => {
     try {
-      let found = await apiFetch<InterviewSession>(`/interviews/${sessionId}`);
-      const justStarted = window.sessionStorage.getItem("interview:just-started") === sessionId;
-      window.sessionStorage.removeItem("interview:just-started");
-      // A live status surviving a reload means the old page vanished without
-      // settling its clock. Pause it before rendering so refresh never spends
-      // interview time in the background.
-      if (found.status === "active" && !justStarted) {
-        found = await apiFetch<InterviewSession>(`/interviews/${sessionId}/pause`, { method: "POST" });
-      }
+      // Reloading or remounting must preserve a live interview. The previous
+      // implementation converted every active reload into a pause, which
+      // removed the composer and disabled narration even though the candidate
+      // never selected Pause.
+      const found = await apiFetch<InterviewSession>(`/interviews/${sessionId}`);
       loadedAtRef.current = Date.now();
       setInterview(found);
       if (["completed", "abandoned"].includes(found.status)) {
@@ -284,19 +280,6 @@ export default function InterviewWorkspace() {
   }, [busy, current, interview?.status, listeningPaused, speech.loading, speech.speaking, voice.error, voice.start, voice.status, voice.stop, voice.supported]);
 
   useEffect(() => {
-    if (!authSession || interview?.status !== "active") return;
-    const pauseOnExit = () => {
-      void fetch(uploadUrl(`/interviews/${sessionId}/pause`), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authSession.access_token}` },
-        keepalive: true,
-      });
-    };
-    window.addEventListener("pagehide", pauseOnExit);
-    return () => window.removeEventListener("pagehide", pauseOnExit);
-  }, [authSession, interview?.status, sessionId]);
-
-  useEffect(() => {
     if (
       interview?.status !== "active" ||
       !current ||
@@ -322,6 +305,8 @@ export default function InterviewWorkspace() {
   const resume = useCallback(async () => {
     primeInterviewAudio();
     primeInterviewerSpeech();
+    lastSpokenRef.current = null;
+    setListeningPaused(false);
     setBusy(true);
     try { const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/resume`, { method: "POST" }); loadedAtRef.current = Date.now(); setInterview(updated); }
     catch (failure) { releasePrimedInterviewAudio(); setError((failure as Error).message); }
@@ -544,6 +529,21 @@ export default function InterviewWorkspace() {
                           <Send aria-hidden />
                         </Button>
                       </div>
+                    </CardContent>
+                  </Card>
+                ) : current && interview.status === "paused" ? (
+                  <Card className="border-amber-500/30 bg-amber-500/[0.04]">
+                    <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-medium">This interview is paused</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                          Resume to replay the current question and restore automatic listening.
+                        </p>
+                      </div>
+                      <Button onClick={() => void resume()} disabled={busy}>
+                        <Play aria-hidden />
+                        {busy ? "Resuming…" : "Resume interview"}
+                      </Button>
                     </CardContent>
                   </Card>
                 ) : null}

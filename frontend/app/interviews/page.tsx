@@ -197,7 +197,6 @@ export default function InterviewsPage() {
       await apiFetch<InterviewSession>(`/interviews/${created.session_id}/start`, {
         method: "POST",
       });
-      window.sessionStorage.setItem("interview:just-started", created.session_id);
       router.push(`/interviews/${created.session_id}`);
     } catch (failure) {
       releasePrimedInterviewAudio();
