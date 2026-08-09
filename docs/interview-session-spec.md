@@ -45,7 +45,10 @@ The source is classified before the interview:
 - source-led: the order already used by a source that presents an interview.
 
 The deterministic topic inventory establishes coverage before any generation
-call. Luna writes one question or follow-up at a time. Two strong answers
+call. Luna writes one question or follow-up at a time. A deterministic focus
+guard limits the candidate-facing question to one atomic objective and a short
+spoken-turn budget. It rejects compound questions, multiple prompts, and
+overloaded screen instructions, then gives generation one repair attempt. Two strong answers
 increase depth. A topic receives one primary question and, only when useful,
 at most one materially different clarifying or diagnostic follow-up; the graph
 then records remaining gaps for revision and moves forward. Before a question
@@ -114,8 +117,10 @@ grounded primary question where visible work gives useful interview signal,
 the planner requests one of four work samples: an architecture/data-flow
 diagram, an equation derivation, code or pseudocode, or written assumptions,
 constraints, and estimates. The task is shown prominently and included in
-automatic narration. Follow-ups stay verbal, and screen tasks are not placed on
-consecutive questions.
+automatic narration. The work-sample instruction is only a response format for
+the question's single objective; it cannot add complexity, edge cases, testing,
+trade-offs, or a second design task. Follow-ups stay verbal, and screen tasks
+are not placed on consecutive questions.
 
 Browser privacy rules prevent a page from silently starting screen capture, so
 the request automatically foregrounds a **Start screen task** control and the

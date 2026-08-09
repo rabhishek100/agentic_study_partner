@@ -26,6 +26,7 @@ from .prompts import build_evaluation_messages
 from .question_generation import (
     MAX_QUESTIONS_PER_TOPIC,
     generate_question,
+    validate_question_focus,
     validate_question_progression,
 )
 
@@ -273,6 +274,7 @@ def compose_next(
                 interviewer_note="Clarify before applying the rubric.",
             )
             try:
+                question = validate_question_focus(question)
                 question = validate_question_progression(question, recent_questions)
                 cost = 0.0
             except InterviewValidationError:

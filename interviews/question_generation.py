@@ -22,6 +22,17 @@ from .prompts import build_question_messages
 
 MAX_QUESTIONS_PER_TOPIC = 2
 QUESTION_RETRY_ATTEMPTS = 2
+MAX_QUESTION_WORDS = 32
+MAX_WORK_SAMPLE_WORDS = 20
+MAX_SPOKEN_TURN_WORDS = 50
+
+SECOND_OBJECTIVE = re.compile(
+    r"(?:[,;]\s*|\b(?:and|then)\s+)"
+    r"(?:what|how|why|which|describe|explain|discuss|identify|compare|"
+    r"derive|design|implement|estimate|evaluate|justify|show|write|handle|"
+    r"address|state|list|analyze|assess|test|validate|calculate|outline)\b",
+    re.IGNORECASE,
+)
 
 ARCHITECTURE = re.compile(
     r"\b(architect(?:ure|ural)|diagram|component|service|data[ -]?flow|pipeline|"
@@ -47,26 +58,60 @@ ASSUMPTIONS = re.compile(
 DEFAULT_WORK_SAMPLE_PROMPTS: dict[WorkSampleKind, str] = {
     "none": "",
     "architecture_diagram": (
-        "Share your screen and draw the architecture you would propose. Label the "
-        "main components, interfaces, and important data flows, then talk through it."
+        "Share your screen and sketch only the core architecture, labeling the main "
+        "components and primary data flow."
     ),
     "equation_derivation": (
-        "Share your screen and derive the key equation step by step. State each "
-        "assumption and explain what every term means."
+        "Share your screen and derive the single key equation step by step."
     ),
     "code": (
-        "Share your screen and write code or pseudocode for the core approach. Walk "
-        "through complexity, edge cases, and one test as you work."
+        "Share your screen and write code or pseudocode for only the core approach."
     ),
     "assumptions": (
-        "Share your screen and write down the assumptions, constraints, and estimates "
-        "that drive your answer before proceeding."
+        "Share your screen and list the three assumptions that most affect your answer."
     ),
 }
 
 
 def _normalized_question(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\b[\w'-]+\b", text))
+
+
+def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
+    """Keep one candidate turn to one atomic interview objective."""
+
+    text = " ".join(question.text.split())
+    prompt = " ".join((question.work_sample_prompt or "").split())
+    if _word_count(text) > MAX_QUESTION_WORDS:
+        raise InterviewValidationError("the generated question is too broad for one turn")
+    if text.count("?") > 1 or len(re.findall(r"[.!?](?:\s|$)", text)) > 1:
+        raise InterviewValidationError("the generated question contains multiple prompts")
+    if SECOND_OBJECTIVE.search(text):
+        raise InterviewValidationError("the generated question asks for multiple objectives")
+    if prompt:
+        # Starting screen capture is the response mode, not a second technical
+        # objective. Validate only the instruction that follows that prefix.
+        task_prompt = re.sub(
+            r"^share your screen(?:\s+and)?\s+", "", prompt, flags=re.IGNORECASE
+        )
+        if _word_count(prompt) > MAX_WORK_SAMPLE_WORDS:
+            raise InterviewValidationError("the work-sample instruction is too broad")
+        if (
+            SECOND_OBJECTIVE.search(task_prompt)
+            or prompt.count("?")
+            or len(re.findall(r"[.!?](?:\s|$)", prompt)) > 1
+            or prompt.count(",") >= 2
+        ):
+            raise InterviewValidationError(
+                "the work-sample instruction adds another objective"
+            )
+    if _word_count(text) + _word_count(prompt) > MAX_SPOKEN_TURN_WORDS:
+        raise InterviewValidationError("the complete spoken turn asks too much at once")
+    return question
 
 
 def validate_question_progression(
@@ -182,8 +227,10 @@ def generate_question(
     total_cost = 0.0
     for attempt in range(QUESTION_RETRY_ATTEMPTS):
         repair = (
-            "Repair the prior draft: use only active-topic evidence markers and ask "
-            "a materially different question from every recent question."
+            "Repair the prior draft: use only active-topic evidence markers, ask a "
+            "materially different question, and keep exactly one atomic objective. "
+            "The screen instruction may change the response format but must not add "
+            "another task."
             if attempt
             else None
         )
@@ -209,7 +256,9 @@ def generate_question(
             continue
         total_cost += cost
         try:
-            validated = validate_question(question, topic).model_copy(
+            validated = validate_question_focus(
+                validate_question(question, topic)
+            ).model_copy(
                 update={
                     "topic_key": topic.key,
                     "topic_label": topic.label,
@@ -218,15 +267,13 @@ def generate_question(
                 }
             )
             validated = validate_question_progression(validated, recent_questions)
-            return (
-                apply_work_sample_policy(
-                    validated,
-                    topic=topic,
-                    interview_format=interview_format,
-                    recent_questions=recent_questions,
-                ),
-                total_cost,
+            focused = apply_work_sample_policy(
+                validated,
+                topic=topic,
+                interview_format=interview_format,
+                recent_questions=recent_questions,
             )
+            return validate_question_focus(focused), total_cost
         except InterviewValidationError as error:
             last_error = error
     raise InterviewModelError(str(last_error or "question validation failed"))

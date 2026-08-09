@@ -20,7 +20,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v2"
+PROMPT_VERSION = "adaptive-interview-v3"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -85,11 +85,15 @@ def build_question_messages(
         )
     context.append(f"Evidence:\n{topic.evidence_text}")
     instruction = """
-Return one interview question. `text` is what the candidate hears and must not
+Return one atomic interview question with at most 32 words. `text` is what the
+candidate hears and must not
 contain citation markers. `expected_points` are private short rubric items.
 `suggested_answer` is a private, speakable model answer with inline citations.
 `citation_markers` lists every marker used by that answer. Use only markers in
 the evidence. Keep the question appropriate for the target level and kind.
+Ask for exactly one objective: do not combine requirements, estimation,
+architecture, trade-offs, failure modes, coding, or testing in the same turn.
+Do not join a second request with "and", "then", or another question mark.
 
 Use `work_sample` when a real interviewer would learn more by watching the
 candidate work than by hearing another verbal explanation:
@@ -98,11 +102,12 @@ candidate work than by hearing another verbal explanation:
 - `code` for implementation, pseudocode, debugging, complexity, or tests;
 - `assumptions` for requirements, estimates, constraints, and capacity reasoning;
 - `none` for an ordinary verbal answer.
-When work is requested, provide a concise `work_sample_prompt` telling the
-candidate what to put on screen and narrate. It must not contain citation
-markers. Otherwise it must be null. Do not request screen work on a clarifying
-or hint question. Vary question shape and advance the interview; never
-paraphrase a recent question.
+When work is requested, provide a `work_sample_prompt` of at most 20 words. It
+changes only the response format for the same objective; it must never add
+complexity analysis, edge cases, testing, trade-offs, or any other second task.
+It must not contain citation markers. Otherwise it must be null. Do not request
+screen work on a clarifying or hint question. Vary question shape and advance
+the interview; never paraphrase a recent question.
 """.strip()
     return [
         SystemMessage(content=LOCKED_INTERVIEW_PROMPT),

@@ -30,6 +30,7 @@ from interviews.planning import detect_format, estimate_duration
 from interviews.question_generation import (
     apply_work_sample_policy,
     generate_question,
+    validate_question_focus,
     validate_question_progression,
 )
 from interviews.speech import (
@@ -229,6 +230,55 @@ class GroundingTests(unittest.TestCase):
         with self.assertRaises(InterviewValidationError):
             validate_question_progression(duplicate, [question()])
 
+    def test_compound_question_is_rejected(self) -> None:
+        overloaded = question().model_copy(
+            update={
+                "text": (
+                    "How would you design the user-data layer, and what challenges "
+                    "would you address when preparing the data for modeling?"
+                )
+            }
+        )
+
+        with self.assertRaisesRegex(InterviewValidationError, "multiple objectives"):
+            validate_question_focus(overloaded)
+
+    def test_overlong_question_is_rejected(self) -> None:
+        overloaded = question().model_copy(
+            update={"text": " ".join(["detail"] * 33) + "?"}
+        )
+
+        with self.assertRaisesRegex(InterviewValidationError, "too broad"):
+            validate_question_focus(overloaded)
+
+    def test_work_sample_cannot_add_complexity_edges_and_testing(self) -> None:
+        overloaded = question().model_copy(
+            update={
+                "work_sample": "code",
+                "work_sample_prompt": (
+                    "Share your screen and write pseudocode. Cover complexity, edge "
+                    "cases, and one test."
+                ),
+            }
+        )
+
+        with self.assertRaisesRegex(
+            InterviewValidationError, "work-sample instruction adds another objective"
+        ):
+            validate_question_focus(overloaded)
+
+    def test_focused_screen_question_stays_within_one_turn_budget(self) -> None:
+        focused = question().model_copy(
+            update={
+                "work_sample": "equation_derivation",
+                "work_sample_prompt": (
+                    "Share your screen and derive the single key equation step by step."
+                ),
+            }
+        )
+
+        self.assertIs(validate_question_focus(focused), focused)
+
     def test_question_generation_retries_a_repeated_draft(self) -> None:
         replacement = question().model_copy(
             update={"text": "Why are log odds useful for this model?"}
@@ -248,6 +298,33 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(generated.text, replacement.text)
         self.assertEqual(model.calls, 2)
         self.assertEqual(cost, 0.002)
+
+    def test_question_generation_retries_an_overloaded_draft(self) -> None:
+        overloaded = question().model_copy(
+            update={
+                "text": (
+                    "Explain logistic regression, and then discuss its objective, "
+                    "failure modes, calibration, and implementation details?"
+                )
+            }
+        )
+        focused = question().model_copy(
+            update={"text": "How do log odds connect to probability?"}
+        )
+        model = SequenceStructuredModel(overloaded, focused)
+
+        generated, _ = generate_question(
+            inventory=inventory(),
+            topic=topic(),
+            interview_format="concept",
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+            model=model,
+        )
+
+        self.assertEqual(generated.text, focused.text)
+        self.assertEqual(model.calls, 2)
 
     def test_screen_work_is_inferred_from_the_grounded_topic(self) -> None:
         architecture_topic = topic(

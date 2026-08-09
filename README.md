@@ -424,6 +424,9 @@ browser autoplay, or a provider call fails. Slow hosted TTS falls back to the
 device voice rather than blocking the interview. On suitable primary questions,
 the interviewer automatically asks the candidate to draw an architecture,
 derive an equation, state assumptions and estimates, or write code/pseudocode.
+Each turn is limited to one atomic objective; a screen instruction changes only
+the response format and cannot append trade-offs, edge cases, testing, or other
+subquestions. Compound drafts are rejected and regenerated before display.
 That instruction appears in the question card and voice narration. Browser
 privacy still requires one candidate click to choose a shared window; sharing
 stays local until the candidate explicitly sends a still checkpoint. Raw audio and screen frames are
