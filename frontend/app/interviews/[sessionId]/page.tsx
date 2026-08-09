@@ -260,6 +260,7 @@ export default function InterviewWorkspace() {
   const [listeningPaused, setListeningPaused] = useState(false);
   const [transitionTurnIndex, setTransitionTurnIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
   const loadedAtRef = useRef(Date.now());
   const lastSpokenRef = useRef<number | null>(null);
   const speech = useInterviewerSpeech();
@@ -277,38 +278,75 @@ export default function InterviewWorkspace() {
     setOperation("idle");
   }, []);
 
+  const acceptSubmittedAnswer = useCallback(async (
+    updated: InterviewSession,
+    answeredTurnIndex: number,
+  ) => {
+    const settledTurn = updated.turns.find(
+      (turn) => turn.turn_index === answeredTurnIndex,
+    );
+    const reaction = settledTurn?.interviewer_reaction?.trim() ?? "";
+    loadedAtRef.current = Date.now();
+    if (reaction) setTransitionTurnIndex(answeredTurnIndex);
+    setInterview(updated);
+    setAnswer("");
+    setTranscriptCorrected(false);
+    setSubmitError("");
+    endOperation();
+    if (reaction) {
+      try {
+        await speech.speakReaction(sessionId, answeredTurnIndex, reaction);
+      } catch {
+        setError("Your answer was saved, but spoken feedback could not be played.");
+      } finally {
+        setTransitionTurnIndex(null);
+      }
+    }
+    if (["completed", "abandoned"].includes(updated.status)) {
+      beginOperation("loading_report");
+      try {
+        setReport(await apiFetch<InterviewReport>(`/interviews/${sessionId}/report`));
+      } catch (failure) {
+        setError((failure as Error).message || "Your answer was saved, but the report could not be loaded.");
+      }
+    }
+  }, [beginOperation, endOperation, sessionId, speech.speakReaction]);
+
   const submitAnswer = useCallback(async (text: string, corrected: boolean) => {
     const value = text.trim();
     if (!value || !current || !interview || interview.status !== "active" || busy) return;
+    const answeredTurnIndex = current.turn_index;
     beginOperation("submitting_answer");
     setError("");
+    setSubmitError("");
     try {
-      const answeredTurnIndex = current.turn_index;
       const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/answers`, { method: "POST", body: JSON.stringify({ answer_text: value, transcript_corrected: corrected }) });
-      const settledTurn = updated.turns.find(
-        (turn) => turn.turn_index === answeredTurnIndex,
-      );
-      const reaction = settledTurn?.interviewer_reaction?.trim() ?? "";
-      loadedAtRef.current = Date.now();
-      if (reaction) setTransitionTurnIndex(answeredTurnIndex);
-      setInterview(updated);
-      setAnswer("");
-      setTranscriptCorrected(false);
-      endOperation();
-      if (reaction) {
-        await speech.speakReaction(sessionId, answeredTurnIndex, reaction);
-        setTransitionTurnIndex(null);
-      }
-      if (["completed", "abandoned"].includes(updated.status)) {
-        beginOperation("loading_report");
-        setReport(await apiFetch<InterviewReport>(`/interviews/${sessionId}/report`));
-      }
+      await acceptSubmittedAnswer(updated, answeredTurnIndex);
     } catch (failure) {
-      setError((failure as Error).message || "That answer could not be evaluated.");
+      // A proxy or browser can lose the response after the API has committed
+      // the turn. Reload before telling the candidate to resend, otherwise a
+      // successful answer can look lost and be submitted twice.
+      beginOperation("checking_submission");
+      try {
+        const recovered = await apiFetch<InterviewSession>(`/interviews/${sessionId}`);
+        const saved = recovered.turns.find(
+          (turn) => turn.turn_index === answeredTurnIndex,
+        );
+        if (saved?.answer_text) {
+          await acceptSubmittedAnswer(recovered, answeredTurnIndex);
+        } else {
+          const reason = (failure as Error).message || "The evaluator did not finish.";
+          setSubmitError(`Your answer was not submitted. Your draft is preserved. ${reason}`);
+        }
+      } catch {
+        setSubmitError(
+          "The app could not confirm whether the answer was saved. Your draft is preserved; check your connection before retrying.",
+        );
+      }
     } finally {
       endOperation();
     }
-  }, [beginOperation, busy, current, endOperation, interview, sessionId, speech.speakReaction]);
+  }, [acceptSubmittedAnswer, beginOperation, busy, current, endOperation, interview, sessionId]);
 
   const handleRecording = useCallback(async (recording: Blob) => {
     const transcript = await transcribeInterviewRecording(recording, sessionId);
@@ -657,6 +695,28 @@ export default function InterviewWorkspace() {
                       <p className="mt-2 text-xs leading-5 text-muted-foreground">
                         Thinking pauses are safe. Each spoken segment is appended here, and you decide when the complete answer is ready.
                       </p>
+                      {operation === "submitting_answer" ? (
+                        <div className="mt-3 rounded-lg border border-primary/25 bg-primary/[0.035] p-3 text-xs leading-5" role="status" aria-live="polite">
+                          <p className="font-medium">Evaluating and saving your answer · {operationElapsed ?? 0}s</p>
+                          <p className="text-muted-foreground">
+                            Comparing it with source evidence, validating feedback, and preparing one focused next question. Your draft stays here until the save is confirmed.
+                          </p>
+                          {(operationElapsed ?? 0) >= 15 ? (
+                            <p className="mt-1 font-medium text-amber-700 dark:text-amber-300">
+                              The interview model is taking longer than usual. Please do not resend; recovery will check whether this turn was saved.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : operation === "checking_submission" ? (
+                        <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-3 text-xs leading-5" role="status" aria-live="polite">
+                          <p className="font-medium">Checking the saved session before enabling retry…</p>
+                          <p className="text-muted-foreground">Your answer remains in the editor during this check.</p>
+                        </div>
+                      ) : submitError ? (
+                        <Alert variant="destructive" className="mt-3">
+                          <AlertDescription>{submitError}</AlertDescription>
+                        </Alert>
+                      ) : null}
                       <div className="mt-3 flex items-center justify-between gap-3">
                         {voice.mode === "push_to_talk" && voice.status !== "idle" ? (
                           <Button type="button" variant="secondary" onPointerDown={voice.beginPush} onPointerUp={voice.endPush} onPointerCancel={voice.endPush}>
@@ -676,16 +736,18 @@ export default function InterviewWorkspace() {
                             ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" />
                             : <Send aria-hidden />}
                           {operation === "submitting_answer"
-                            ? "Evaluating answer…"
-                            : operation === "screen_checkpoint"
-                              ? "Analyzing screen…"
-                              : busy
-                                ? "Processing…"
-                            : voice.status === "recording"
-                              ? "Finish speaking…"
-                              : voice.status === "processing"
-                                ? "Transcribing speech…"
-                                : "Send answer"}
+                            ? `Evaluating answer… ${operationElapsed ?? 0}s`
+                            : operation === "checking_submission"
+                              ? "Confirming save…"
+                              : operation === "screen_checkpoint"
+                                ? "Analyzing screen…"
+                                : busy
+                                  ? "Processing…"
+                                  : voice.status === "recording"
+                                    ? "Finish speaking…"
+                                    : voice.status === "processing"
+                                      ? "Transcribing speech…"
+                                      : "Send answer"}
                         </Button>
                       </div>
                     </CardContent>

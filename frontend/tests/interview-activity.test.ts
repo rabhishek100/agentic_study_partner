@@ -40,6 +40,16 @@ describe("interview processing status", () => {
     ).toBe("Capturing your answer");
   });
 
+  it("makes submission recovery explicit", () => {
+    const activity = describeInterviewActivity({
+      ...base,
+      operation: "checking_submission",
+    });
+
+    expect(activity.title).toBe("Confirming whether your answer was saved");
+    expect(activity.detail).toContain("before asking you to retry");
+  });
+
   it("distinguishes feedback audio from question audio", () => {
     expect(
       describeInterviewActivity({

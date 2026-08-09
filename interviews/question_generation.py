@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from difflib import SequenceMatcher
 from typing import Any
@@ -18,6 +19,9 @@ from .contracts import (
 from .evaluation import InterviewValidationError, validate_question
 from .models import InterviewModelError, invoke_structured, structured_model
 from .prompts import build_question_messages
+
+
+logger = logging.getLogger("study_partner.interviews.questions")
 
 
 MAX_QUESTIONS_PER_TOPIC = 2
@@ -71,6 +75,74 @@ DEFAULT_WORK_SAMPLE_PROMPTS: dict[WorkSampleKind, str] = {
         "Share your screen and list the three assumptions that most affect your answer."
     ),
 }
+
+
+def _fallback_evidence(topic: Topic) -> tuple[str, str]:
+    """Return one real marker and a short source excerpt for a safe fallback."""
+
+    if not topic.allowed_markers:
+        raise InterviewModelError("the active topic has no citable evidence")
+    marker = min(
+        topic.allowed_markers,
+        key=lambda value: (
+            topic.evidence_text.find(value)
+            if value in topic.evidence_text
+            else len(topic.evidence_text)
+        ),
+    )
+    after_marker = topic.evidence_text.split(marker, 1)[-1]
+    next_marker = re.search(r"\[(?:N\d+:P\d+|S\d+)\]", after_marker)
+    excerpt = after_marker[: next_marker.start() if next_marker else None]
+    words = " ".join(excerpt.split()).split()
+    excerpt = " ".join(words[:80]).strip(" -:;,.")
+    if not excerpt:
+        raise InterviewModelError("the active topic has no readable evidence")
+    return marker, excerpt
+
+
+def grounded_fallback_question(
+    *,
+    topic: Topic,
+    target_level: TargetLevel,
+    kind: QuestionKind,
+    recent_questions: list[InterviewQuestion],
+) -> InterviewQuestion:
+    """Build one atomic cited question without another provider call.
+
+    This is a continuity fallback, not a second generation strategy. It keeps
+    an already-evaluated answer from being lost when both authored next-question
+    drafts fail deterministic validation.
+    """
+
+    marker, excerpt = _fallback_evidence(topic)
+    label = (topic.label.split(" :: ")[-1].strip() or "this topic")
+    label = " ".join(label.split()[:16])
+    if kind == "primary":
+        text = f"What is the central idea behind {label}?"
+    else:
+        text = f"State one source-grounded point about {label}."
+    question = InterviewQuestion(
+        topic_key=topic.key,
+        topic_label=topic.label,
+        kind=kind,
+        text=text,
+        expected_points=[excerpt[:180]],
+        suggested_answer=f"{excerpt}. {marker}",
+        citation_markers=[marker],
+        difficulty=target_level,
+        interviewer_note="Deterministic continuity fallback after question validation.",
+        work_sample="none",
+        work_sample_prompt=None,
+    )
+    question = validate_question_focus(validate_question(question, topic))
+    try:
+        return validate_question_progression(question, recent_questions)
+    except InterviewValidationError:
+        # Same-topic fallbacks use a different atomic shape. A source with one
+        # unusually repetitive label must still never lose the saved answer.
+        return question.model_copy(
+            update={"text": "State one important source-grounded point we have not covered yet."}
+        )
 
 
 def _normalized_question(text: str) -> str:
@@ -276,4 +348,20 @@ def generate_question(
             return validate_question_focus(focused), total_cost
         except InterviewValidationError as error:
             last_error = error
-    raise InterviewModelError(str(last_error or "question validation failed"))
+    logger.warning(
+        "Using grounded fallback after question generation failed validation",
+        extra={
+            "topic_key": topic.key,
+            "question_kind": kind,
+            "reason": str(last_error or "question validation failed"),
+        },
+    )
+    return (
+        grounded_fallback_question(
+            topic=topic,
+            target_level=target_level,
+            kind=kind,
+            recent_questions=recent_questions,
+        ),
+        total_cost,
+    )

@@ -5,6 +5,7 @@ export type InterviewOperation =
   | "idle"
   | "loading_session"
   | "submitting_answer"
+  | "checking_submission"
   | "screen_checkpoint"
   | "pausing"
   | "resuming"
@@ -54,6 +55,14 @@ export function describeInterviewActivity({
         detail:
           "The server is comparing your response with the selected source, scoring it, and deciding whether to follow up or advance.",
         stages: ["Source grounding", "Answer evaluation", "Next-turn planning"],
+      };
+    case "checking_submission":
+      return {
+        tone: "working",
+        title: "Confirming whether your answer was saved",
+        detail:
+          "The submission response failed, so the app is reloading this turn before asking you to retry.",
+        stages: ["Reload session", "Match answered turn", "Restore next question"],
       };
     case "screen_checkpoint":
       return {

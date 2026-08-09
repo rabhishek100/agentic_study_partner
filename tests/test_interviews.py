@@ -30,6 +30,7 @@ from interviews.planning import detect_format, estimate_duration
 from interviews.question_generation import (
     apply_work_sample_policy,
     generate_question,
+    grounded_fallback_question,
     validate_question_focus,
     validate_question_progression,
 )
@@ -325,6 +326,47 @@ class GroundingTests(unittest.TestCase):
 
         self.assertEqual(generated.text, focused.text)
         self.assertEqual(model.calls, 2)
+
+    def test_invalid_retries_fall_back_without_losing_the_turn(self) -> None:
+        overloaded = question().model_copy(
+            update={
+                "text": (
+                    "Explain logistic regression, and then discuss calibration, "
+                    "failure modes, and implementation?"
+                )
+            }
+        )
+        model = SequenceStructuredModel(overloaded, overloaded)
+
+        generated, cost = generate_question(
+            inventory=inventory(),
+            topic=topic(),
+            interview_format="concept",
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+            model=model,
+        )
+
+        self.assertEqual(generated.text, "What is the central idea behind Logistic regression?")
+        self.assertEqual(generated.citation_markers, ["[N7:P42]"])
+        self.assertIn("[N7:P42]", generated.suggested_answer)
+        self.assertEqual(generated.work_sample, "none")
+        self.assertEqual(cost, 0.002)
+
+    def test_fallback_changes_shape_after_a_repeated_question(self) -> None:
+        previous = question().model_copy(
+            update={"text": "What is the central idea behind Logistic regression?"}
+        )
+
+        generated = grounded_fallback_question(
+            topic=topic(),
+            target_level="mid",
+            kind="primary",
+            recent_questions=[previous],
+        )
+
+        self.assertIn("not covered yet", generated.text)
 
     def test_screen_work_is_inferred_from_the_grounded_topic(self) -> None:
         architecture_topic = topic(
