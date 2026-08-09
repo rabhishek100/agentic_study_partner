@@ -45,10 +45,13 @@ The source is classified before the interview:
 - source-led: the order already used by a source that presents an interview.
 
 The deterministic topic inventory establishes coverage before any generation
-call. Luna writes one question or follow-up at a time. The first two answers
-calibrate within the selected target level. Two strong answers increase depth;
-a weak answer receives one clarifying probe, then at most two progressively
-more explicit hints. Hints reduce independence, not correctness.
+call. Luna writes one question or follow-up at a time. Two strong answers
+increase depth. A topic receives one primary question and, only when useful,
+at most one materially different clarifying or diagnostic follow-up; the graph
+then records remaining gaps for revision and moves forward. Before a question
+is shown, a deterministic similarity guard compares it with the recent turn
+history and gives generation one repair attempt if it is a restatement. Hints
+reduce independence, not correctness.
 
 Realistic mode gives only natural acknowledgements and probes during the
 session. Guided mode adds concise correction after each turn. Exact questions
@@ -98,10 +101,20 @@ provider deadline prevents speech generation from blocking the turn;
 when hosted TTS is slow or unavailable, the already-unlocked device voice
 speaks the question automatically at no provider cost.
 
-Screen sharing is checkpoint-based. The browser shows a local live preview,
-but uploads no continuous video. The candidate explicitly submits a still when
-code, a diagram, or a whiteboard is ready. Luna returns a structured observation
-for the active question; the raw frame is discarded immediately.
+Screen sharing is checkpoint-based and driven by the interview question. For a
+grounded primary question where visible work gives useful interview signal,
+the planner requests one of four work samples: an architecture/data-flow
+diagram, an equation derivation, code or pseudocode, or written assumptions,
+constraints, and estimates. The task is shown prominently and included in
+automatic narration. Follow-ups stay verbal, and screen tasks are not placed on
+consecutive questions.
+
+Browser privacy rules prevent a page from silently starting screen capture, so
+the request automatically foregrounds a **Start screen task** control and the
+candidate performs the single required window-selection click. The browser then
+shows a local live preview but uploads no continuous video. The candidate
+explicitly submits a still when the artifact is ready. Luna returns a structured
+observation for the active question; the raw frame is discarded immediately.
 
 Raw microphone audio and screen images are never persisted. Session state,
 transcripts, source citations, structured screen observations, scores, and

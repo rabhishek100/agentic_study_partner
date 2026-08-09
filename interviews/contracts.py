@@ -15,6 +15,13 @@ FormatChoice = Literal["auto", "concept", "system_design", "source_led"]
 TargetLevel = Literal["entry", "mid", "senior"]
 InterviewStatus = Literal["ready", "active", "paused", "completed", "abandoned"]
 QuestionKind = Literal["primary", "follow_up", "clarifying", "hint", "synthesis"]
+WorkSampleKind = Literal[
+    "none",
+    "architecture_diagram",
+    "equation_derivation",
+    "code",
+    "assumptions",
+]
 AnswerClassification = Literal[
     "source_aligned",
     "correct_extension",
@@ -87,6 +94,17 @@ class InterviewQuestion(ContractModel):
     citation_markers: list[str] = Field(default_factory=list, max_length=20)
     difficulty: TargetLevel = "mid"
     interviewer_note: str = Field(default="", max_length=500)
+    work_sample: WorkSampleKind = "none"
+    work_sample_prompt: str | None = Field(default=None, max_length=1_000)
+
+    @model_validator(mode="after")
+    def work_sample_has_an_instruction(self) -> "InterviewQuestion":
+        prompt = (self.work_sample_prompt or "").strip()
+        if self.work_sample == "none" and prompt:
+            raise ValueError("a verbal question cannot include a work-sample prompt")
+        if self.work_sample != "none" and not prompt:
+            raise ValueError("a work-sample question requires an instruction")
+        return self
 
 
 class ScreenObservation(ContractModel):

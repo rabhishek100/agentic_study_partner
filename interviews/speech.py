@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from .contracts import InterviewQuestion
+
 
 OPENROUTER_SPEECH_URL = "https://openrouter.ai/api/v1/audio/speech"
 DEFAULT_TTS_MODEL = "mistralai/voxtral-mini-tts-2603"
@@ -27,6 +29,15 @@ class SpeechAudio:
     cost_usd: float
     model: str
     voice: str
+
+
+def spoken_question_text(question: InterviewQuestion) -> str:
+    """Include an automatically requested work sample in voice narration."""
+
+    parts = [question.text.strip()]
+    if question.work_sample != "none" and question.work_sample_prompt:
+        parts.append(question.work_sample_prompt.strip())
+    return " ".join(part for part in parts if part)
 
 
 def synthesize_interviewer_speech(

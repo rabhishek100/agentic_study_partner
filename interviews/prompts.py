@@ -20,7 +20,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v1"
+PROMPT_VERSION = "adaptive-interview-v2"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -62,6 +62,7 @@ def build_question_messages(
     prior_question: InterviewQuestion | None = None,
     candidate_answer: str | None = None,
     purpose: str | None = None,
+    recent_questions: list[InterviewQuestion] | None = None,
 ) -> list[Any]:
     context = [
         f"Source: {inventory.source_title}",
@@ -77,6 +78,11 @@ def build_question_messages(
         context.append(f"Candidate answer: {candidate_answer}")
     if purpose:
         context.append(f"Adaptive purpose: {purpose}")
+    if recent_questions:
+        context.append(
+            "Recent questions — do not restate or circle back to these:\n"
+            + "\n".join(f"- {item.text}" for item in recent_questions[-4:])
+        )
     context.append(f"Evidence:\n{topic.evidence_text}")
     instruction = """
 Return one interview question. `text` is what the candidate hears and must not
@@ -84,6 +90,19 @@ contain citation markers. `expected_points` are private short rubric items.
 `suggested_answer` is a private, speakable model answer with inline citations.
 `citation_markers` lists every marker used by that answer. Use only markers in
 the evidence. Keep the question appropriate for the target level and kind.
+
+Use `work_sample` when a real interviewer would learn more by watching the
+candidate work than by hearing another verbal explanation:
+- `architecture_diagram` for components, interfaces, data flows, or system design;
+- `equation_derivation` for mathematical derivations or proofs;
+- `code` for implementation, pseudocode, debugging, complexity, or tests;
+- `assumptions` for requirements, estimates, constraints, and capacity reasoning;
+- `none` for an ordinary verbal answer.
+When work is requested, provide a concise `work_sample_prompt` telling the
+candidate what to put on screen and narrate. It must not contain citation
+markers. Otherwise it must be null. Do not request screen work on a clarifying
+or hint question. Vary question shape and advance the interview; never
+paraphrase a recent question.
 """.strip()
     return [
         SystemMessage(content=LOCKED_INTERVIEW_PROMPT),
@@ -125,6 +144,8 @@ Attempt on this topic: {attempts}
 Hints already used: {hints_used}
 
 Question: {question.text}
+Requested work sample: {question.work_sample}
+Work-sample instruction: {question.work_sample_prompt or 'None'}
 Private expected points:
 {chr(10).join(f'- {point}' for point in question.expected_points)}
 
@@ -146,7 +167,9 @@ Use `correct_extension` only for a correct material addition outside the
 source. Ask for external verification only if it could change correctness.
 Set `needs_clarifying_probe` only when one short probe could distinguish an
 incomplete explanation from a misconception. Set `topic_complete` when another
-question on this topic would add little interview signal. The recommended
+question on this topic would add little interview signal. If a work sample was
+requested but no screen observation was submitted, do not invent one; assess
+the verbal answer and record any missing demonstration as a gap. The recommended
 answer and corrective claims must use inline source markers, and
 `citation_markers` must list every one used.
 

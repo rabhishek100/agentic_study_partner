@@ -61,6 +61,8 @@ import { transcribeInterviewRecording } from "@/lib/dictation";
 import {
   appendTranscriptSegment,
   pendingTurn,
+  spokenInterviewQuestion,
+  workSampleLabel,
   type AnswerEvaluation,
   type InterviewReport,
   type InterviewSession,
@@ -286,7 +288,11 @@ export default function InterviewWorkspace() {
       current.turn_index === lastSpokenRef.current
     ) return;
     lastSpokenRef.current = current.turn_index;
-    void speech.speak(sessionId, current.turn_index, current.question.text);
+    void speech.speak(
+      sessionId,
+      current.turn_index,
+      spokenInterviewQuestion(current.question),
+    );
   }, [current, interview?.status, sessionId, speech.speak]);
 
   const elapsed = useMemo(() => {
@@ -394,7 +400,11 @@ export default function InterviewWorkspace() {
                             if (speech.speaking) speech.stop();
                             else {
                               lastSpokenRef.current = current.turn_index;
-                              void speech.speak(sessionId, current.turn_index, current.question.text);
+                              void speech.speak(
+                                sessionId,
+                                current.turn_index,
+                                spokenInterviewQuestion(current.question),
+                              );
                             }
                           }}
                         >
@@ -421,6 +431,47 @@ export default function InterviewWorkspace() {
                           </Button>
                         ) : null}
                       </div>
+                      {current.question.work_sample !== "none" && current.question.work_sample_prompt ? (
+                        <div className="mt-4 rounded-xl border border-primary/25 bg-primary/[0.045] p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="flex items-center gap-2 text-sm font-semibold text-primary">
+                                <MonitorUp aria-hidden className="size-4" />
+                                {workSampleLabel(current.question.work_sample)}
+                              </p>
+                              <p className="mt-2 text-sm leading-6">
+                                {current.question.work_sample_prompt}
+                              </p>
+                              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                                The interviewer requested this automatically. Your browser requires you to choose the shared window; only a still checkpoint is uploaded when you submit it.
+                              </p>
+                            </div>
+                            {!screen.sharing ? (
+                              <Button
+                                size="sm"
+                                disabled={!screen.supported || interview.status !== "active"}
+                                onClick={() => void screen.start()}
+                              >
+                                <MonitorUp aria-hidden />
+                                Start screen task
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                disabled={screenBusy}
+                                onClick={() => void submitScreen()}
+                              >
+                                {screenBusy ? "Analyzing…" : "Submit current screen"}
+                              </Button>
+                            )}
+                          </div>
+                          {!screen.supported ? (
+                            <p className="mt-3 text-xs text-destructive">
+                              Screen sharing is unavailable in this browser. You can still describe the work in your answer.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {current.screen_observation ? <Alert className="mt-4"><MonitorUp aria-hidden /><AlertDescription>Screen checkpoint received: {current.screen_observation.summary}</AlertDescription></Alert> : null}
                     </CardContent>
                   </Card>
@@ -550,7 +601,7 @@ export default function InterviewWorkspace() {
               </div>
 
               <aside className="space-y-4">
-                <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><MonitorUp aria-hidden className="size-4" />Screen checkpoint</CardTitle></CardHeader><CardContent><p className="text-xs leading-5 text-muted-foreground">Share locally, then submit one still when your code, diagram, or whiteboard is ready. Nothing is continuously uploaded.</p><video ref={screen.videoRef} muted playsInline className={cn("mt-3 aspect-video w-full rounded-lg border bg-black object-contain", !screen.sharing && "hidden")} /> <div className="mt-3 flex gap-2">{!screen.sharing ? <Button variant="outline" size="sm" className="w-full" disabled={!screen.supported || interview.status !== "active"} onClick={() => void screen.start()}><MonitorUp aria-hidden />Share screen</Button> : <><Button size="sm" className="flex-1" disabled={screenBusy} onClick={() => void submitScreen()}>{screenBusy ? "Analyzing…" : "Submit screen"}</Button><Button variant="outline" size="icon-sm" aria-label="Stop sharing" onClick={screen.stop}><Square aria-hidden /></Button></>}</div></CardContent></Card>
+                <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><MonitorUp aria-hidden className="size-4" />Screen workspace</CardTitle></CardHeader><CardContent><p className="text-xs leading-5 text-muted-foreground">{current && current.question.work_sample !== "none" && current.question.work_sample_prompt ? `${workSampleLabel(current.question.work_sample)} requested. Share your drawing, derivation, assumptions, or code when it is ready.` : "Keep this available for drawing, derivation, assumptions, or code tasks the interviewer requests."} Nothing is continuously uploaded.</p><video ref={screen.videoRef} muted playsInline className={cn("mt-3 aspect-video w-full rounded-lg border bg-black object-contain", !screen.sharing && "hidden")} /> <div className="mt-3 flex gap-2">{!screen.sharing ? <Button variant="outline" size="sm" className="w-full" disabled={!screen.supported || interview.status !== "active"} onClick={() => void screen.start()}><MonitorUp aria-hidden />Share screen</Button> : <><Button size="sm" className="flex-1" disabled={screenBusy} onClick={() => void submitScreen()}>{screenBusy ? "Analyzing…" : "Submit screen"}</Button><Button variant="outline" size="icon-sm" aria-label="Stop sharing" onClick={screen.stop}><Square aria-hidden /></Button></>}</div></CardContent></Card>
                 <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Clock3 aria-hidden className="size-4" />Session budget</CardTitle></CardHeader><CardContent><div className="flex items-end justify-between"><div><p className="font-heading text-2xl font-semibold">${interview.total_cost_usd.toFixed(4)}</p><p className="text-xs text-muted-foreground">≈₹{(interview.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)} provider cost</p></div><span className="text-xs text-muted-foreground">Target ₹5–10</span></div><Progress className="mt-3" value={Math.min(100, (interview.total_cost_usd * INR_PER_USD_ESTIMATE / 10) * 100)} /><p className="mt-3 text-xs leading-5 text-muted-foreground">Raw audio and screen images are discarded after processing.</p></CardContent></Card>
               </aside>
             </div>

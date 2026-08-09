@@ -27,10 +27,16 @@ from interviews.evaluation import (
 )
 from interviews.graph import AnswerGraphContext, answer_graph
 from interviews.planning import detect_format, estimate_duration
+from interviews.question_generation import (
+    apply_work_sample_policy,
+    generate_question,
+    validate_question_progression,
+)
 from interviews.speech import (
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
     SpeechError,
+    spoken_question_text,
     synthesize_interviewer_speech,
 )
 
@@ -133,6 +139,17 @@ class FakeStructuredModel:
         return {"parsed": self.value, "raw": RawResponse()}
 
 
+class SequenceStructuredModel:
+    def __init__(self, *values) -> None:
+        self.values = list(values)
+        self.calls = 0
+
+    def invoke(self, messages):
+        value = self.values[self.calls]
+        self.calls += 1
+        return {"parsed": value, "raw": RawResponse()}
+
+
 class PlanningTests(unittest.TestCase):
     def test_detects_source_led_before_generic_system_design(self) -> None:
         scope = inventory(
@@ -204,6 +221,112 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(citations[0].page, 42)
         self.assertEqual(citations[0].node_id, 7)
 
+    def test_near_duplicate_question_is_rejected(self) -> None:
+        duplicate = question().model_copy(
+            update={"text": "What exactly does a logistic regression model?"}
+        )
+
+        with self.assertRaises(InterviewValidationError):
+            validate_question_progression(duplicate, [question()])
+
+    def test_question_generation_retries_a_repeated_draft(self) -> None:
+        replacement = question().model_copy(
+            update={"text": "Why are log odds useful for this model?"}
+        )
+        model = SequenceStructuredModel(question(), replacement)
+
+        generated, cost = generate_question(
+            inventory=inventory(),
+            topic=topic(),
+            interview_format="concept",
+            target_level="mid",
+            kind="primary",
+            recent_questions=[question()],
+            model=model,
+        )
+
+        self.assertEqual(generated.text, replacement.text)
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(cost, 0.002)
+
+    def test_screen_work_is_inferred_from_the_grounded_topic(self) -> None:
+        architecture_topic = topic(
+            evidence=(
+                "[N7:P42]\nEstimate throughput, then design the services, "
+                "storage, and data flow."
+            )
+        )
+        requested = apply_work_sample_policy(
+            question().model_copy(
+                update={"text": "What throughput assumptions would you start with?"}
+            ),
+            topic=architecture_topic,
+            interview_format="system_design",
+            recent_questions=[],
+        )
+
+        self.assertEqual(requested.work_sample, "assumptions")
+        self.assertIn("assumptions", requested.work_sample_prompt.lower())
+
+    def test_screen_work_is_not_requested_on_consecutive_questions(self) -> None:
+        prior = question().model_copy(
+            update={
+                "work_sample": "equation_derivation",
+                "work_sample_prompt": "Derive the log-odds equation.",
+            }
+        )
+
+        requested = apply_work_sample_policy(
+            question().model_copy(
+                update={
+                    "text": (
+                        "State the throughput assumptions, then design the services "
+                        "and data flow."
+                    )
+                }
+            ),
+            topic=topic(),
+            interview_format="concept",
+            recent_questions=[prior],
+        )
+
+        self.assertEqual(requested.work_sample, "none")
+        self.assertIsNone(requested.work_sample_prompt)
+
+    def test_screen_work_rotates_to_another_relevant_artifact(self) -> None:
+        assumptions = question().model_copy(
+            update={
+                "work_sample": "assumptions",
+                "work_sample_prompt": "Write the capacity assumptions.",
+            }
+        )
+        verbal = question().model_copy(
+            update={"text": "Which failure mode concerns you most?"}
+        )
+        architecture_topic = topic(
+            evidence=(
+                "[N7:P42]\nEstimate throughput, then design the services, "
+                "storage, API, and data flow."
+            )
+        )
+
+        requested = apply_work_sample_policy(
+            question().model_copy(
+                update={
+                    "text": (
+                        "State the throughput assumptions, then design the services "
+                        "and data flow."
+                    )
+                }
+            ),
+            topic=architecture_topic,
+            interview_format="system_design",
+            recent_questions=[assumptions, verbal],
+        )
+
+        self.assertEqual(requested.work_sample, "architecture_diagram")
+        self.assertIn("architecture", requested.work_sample_prompt.lower())
+
 
 class GraphTests(unittest.TestCase):
     def test_strong_answer_finishes_when_source_is_exhausted(self) -> None:
@@ -261,8 +384,85 @@ class GraphTests(unittest.TestCase):
         self.assertIsNone(output["next_question"])
         self.assertIn("duration ceiling", output["finish_reason"])
 
+    def test_second_weak_answer_advances_to_the_next_topic(self) -> None:
+        second = Topic(
+            key="node:8",
+            ordinal=1,
+            label="Model calibration",
+            required=True,
+            evidence_text="[N8:P50]\nCalibration aligns predicted and observed rates.",
+            allowed_markers=frozenset({"[N8:P50]"}),
+            node_id=8,
+            start_page=50,
+            end_page=52,
+        )
+        scope = inventory()
+        scope = ScopeInventory(
+            source_kind=scope.source_kind,
+            scope_key=scope.scope_key,
+            title=scope.title,
+            source_title=scope.source_title,
+            outline="- Logistic regression\n- Model calibration",
+            topics=(topic(), second),
+        )
+        live = session().model_copy(
+            update={
+                "checkpoint": InterviewCheckpoint(
+                    topics=[
+                        TopicState(
+                            key="node:7",
+                            label="Logistic regression",
+                            attempts=1,
+                        ),
+                        TopicState(key="node:8", label="Model calibration"),
+                    ],
+                    active_topic_key="node:7",
+                )
+            }
+        )
+        next_question = InterviewQuestion(
+            topic_key="node:8",
+            topic_label="Model calibration",
+            text="How would you assess whether this classifier is calibrated?",
+            expected_points=["Compare predicted and observed rates."],
+            suggested_answer="Compare predicted and observed rates. [N8:P50]",
+            citation_markers=["[N8:P50]"],
+            difficulty="mid",
+        )
+
+        output = answer_graph.invoke(
+            {
+                "session": live,
+                "inventory": scope,
+                "current_turn": InterviewTurn(turn_index=1, question=question()),
+                "answer_text": "It predicts a class.",
+            },
+            context=AnswerGraphContext(
+                evaluation_model=FakeStructuredModel(evaluation(complete=False)),
+                question_model=FakeStructuredModel(next_question),
+            ),
+        )
+
+        self.assertEqual(output["checkpoint"].topics[0].attempts, 2)
+        self.assertTrue(output["checkpoint"].topics[0].completed)
+        self.assertEqual(output["next_question"].topic_key, "node:8")
+        self.assertEqual(output["next_question"].kind, "primary")
+
 
 class SpeechTests(unittest.TestCase):
+    def test_question_narration_includes_the_requested_screen_task(self) -> None:
+        requested = question().model_copy(
+            update={
+                "work_sample": "equation_derivation",
+                "work_sample_prompt": "Derive the log-odds equation on screen.",
+            }
+        )
+
+        spoken = spoken_question_text(requested)
+
+        self.assertIn(question().text, spoken)
+        self.assertIn("Derive the log-odds equation on screen.", spoken)
+
     def test_realistic_session_exposes_reaction_but_not_private_evaluation(self) -> None:
         live = session().model_copy(
             update={

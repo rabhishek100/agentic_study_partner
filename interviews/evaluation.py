@@ -65,6 +65,10 @@ def validate_question(question: InterviewQuestion, topic: Topic) -> InterviewQue
         raise InterviewValidationError("the generated model answer cites outside its topic")
     if ANY_MARKER.search(question.text):
         raise InterviewValidationError("the candidate-facing question reveals source markers")
+    if question.work_sample_prompt and ANY_MARKER.search(question.work_sample_prompt):
+        raise InterviewValidationError(
+            "the candidate-facing work-sample instruction reveals source markers"
+        )
     return question.model_copy(update={"citation_markers": sorted(markers)})
 
 

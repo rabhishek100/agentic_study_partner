@@ -42,7 +42,11 @@ from interviews.service import (
     report_for,
     start_interview,
 )
-from interviews.speech import SpeechError, synthesize_interviewer_speech
+from interviews.speech import (
+    SpeechError,
+    spoken_question_text,
+    synthesize_interviewer_speech,
+)
 from storage.database import connection as database_connection
 from study.dictation import (
     MAXIMUM_QUESTION_BYTES,
@@ -470,7 +474,7 @@ async def speech(
             )
             if turn is None:
                 raise store.InterviewStateError("interview question not found")
-            audio = synthesize_interviewer_speech(turn.question.text)
+            audio = synthesize_interviewer_speech(spoken_question_text(turn.question))
             store.add_cost(
                 connection,
                 session_id,

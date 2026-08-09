@@ -16,14 +16,9 @@ from .contracts import (
     SessionReport,
     TargetLevel,
 )
-from .evaluation import (
-    InterviewValidationError,
-    aggregate_metrics,
-    resolve_citations,
-    validate_question,
-)
+from .evaluation import aggregate_metrics, resolve_citations
 from .graph import AnswerGraphContext, answer_graph
-from .models import InterviewModelError, invoke_structured, model_name, structured_model
+from .models import model_name
 from .planning import (
     InterviewSourceError,
     initial_checkpoint,
@@ -32,7 +27,8 @@ from .planning import (
     preflight,
     topic_by_key,
 )
-from .prompts import build_question_messages, prompt_version
+from .prompts import prompt_version
+from .question_generation import generate_question
 from . import store
 
 
@@ -134,43 +130,15 @@ def _generate_question(
     topic,
     model: Any | None = None,
 ) -> tuple[InterviewQuestion, float]:
-    client = model or structured_model(InterviewQuestion)
-    last_error: Exception | None = None
-    total_cost = 0.0
-    for attempt in range(2):
-        question, cost = invoke_structured(
-            client,
-            build_question_messages(
-                inventory=inventory,
-                topic=topic,
-                interview_format=session.interview_format,
-                target_level=session.target_level,
-                kind="primary",
-                purpose=(
-                    "Repair the prior draft: its private model answer must use only "
-                    "the active evidence markers."
-                    if attempt
-                    else None
-                ),
-            ),
-            InterviewQuestion,
-        )
-        total_cost += cost
-        try:
-            return (
-                validate_question(question, topic).model_copy(
-                    update={
-                        "topic_key": topic.key,
-                        "topic_label": topic.label,
-                        "kind": "primary",
-                        "difficulty": session.target_level,
-                    }
-                ),
-                total_cost,
-            )
-        except InterviewValidationError as error:
-            last_error = error
-    raise InterviewModelError(str(last_error or "question validation failed"))
+    return generate_question(
+        inventory=inventory,
+        topic=topic,
+        interview_format=session.interview_format,
+        target_level=session.target_level,
+        kind="primary",
+        recent_questions=[turn.question for turn in session.turns],
+        model=model,
+    )
 
 
 def start_interview(

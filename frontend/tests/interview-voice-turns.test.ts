@@ -9,7 +9,11 @@ import {
   primeInterviewerSpeech,
   useInterviewerSpeech,
 } from "@/hooks/use-interviewer-speech";
-import { appendTranscriptSegment } from "@/lib/interview-types";
+import {
+  appendTranscriptSegment,
+  spokenInterviewQuestion,
+  type InterviewQuestion,
+} from "@/lib/interview-types";
 
 afterEach(() => {
   releasePrimedInterviewAudio();
@@ -145,6 +149,28 @@ describe("continuous interview transcription", () => {
   it("ignores empty silence segments", () => {
     expect(appendTranscriptSegment("Existing draft", "   ")).toBe(
       "Existing draft",
+    );
+  });
+});
+
+describe("interview work-sample narration", () => {
+  it("includes an automatically requested screen task", () => {
+    const question: InterviewQuestion = {
+      topic_key: "node:7",
+      topic_label: "Logistic regression",
+      kind: "primary",
+      text: "How is the logistic-regression objective constructed?",
+      expected_points: [],
+      suggested_answer: "",
+      citation_markers: [],
+      difficulty: "mid",
+      interviewer_note: "",
+      work_sample: "equation_derivation",
+      work_sample_prompt: "Derive the objective step by step on screen.",
+    };
+
+    expect(spokenInterviewQuestion(question)).toBe(
+      "How is the logistic-regression objective constructed? Derive the objective step by step on screen.",
     );
   });
 });

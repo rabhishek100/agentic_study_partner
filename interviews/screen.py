@@ -53,6 +53,9 @@ def analyze_screen_checkpoint(
                     "type": "text",
                     "text": (
                         f"Question: {question.text}\n"
+                        f"Requested work sample: {question.work_sample}\n"
+                        f"Work-sample instruction: "
+                        f"{question.work_sample_prompt or 'None'}\n"
                         f"Active topic: {topic.label}\n"
                         f"Private expected points: {question.expected_points}\n"
                         "Identify relevant visible strengths, issues, and one useful "

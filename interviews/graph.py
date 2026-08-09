@@ -19,10 +19,15 @@ from .contracts import (
     InterviewTurn,
     WebSource,
 )
-from .evaluation import sanitize_evaluation, validate_question
+from .evaluation import InterviewValidationError, sanitize_evaluation
 from .models import invoke_structured, structured_model
 from .planning import next_topic, topic_by_key
-from .prompts import build_evaluation_messages, build_question_messages
+from .prompts import build_evaluation_messages
+from .question_generation import (
+    MAX_QUESTIONS_PER_TOPIC,
+    generate_question,
+    validate_question_progression,
+)
 
 DURATION_SOFT_STOP_SECONDS = 30
 
@@ -184,7 +189,13 @@ def adapt(state: AnswerGraphState) -> dict:
         evaluation.scores.technical_correctness >= 4
         and evaluation.scores.depth_completeness >= 4
     )
-    if evaluation.topic_complete or strong or topic_state.attempts >= 4:
+    # One primary question plus at most one diagnostic follow-up. A weak topic
+    # is recorded for revision, not allowed to consume the rest of the session.
+    if (
+        evaluation.topic_complete
+        or strong
+        or topic_state.attempts >= MAX_QUESTIONS_PER_TOPIC
+    ):
         topic_state.completed = True
         checkpoint.strong_streak = checkpoint.strong_streak + 1 if strong else 0
     else:
@@ -240,6 +251,12 @@ def compose_next(
     current_state = next(item for item in checkpoint.topics if item.key == current_topic.key)
     session = state["session"]
     evaluation = state["evaluation"]
+    recent_questions = [turn.question for turn in session.turns]
+    if (
+        not recent_questions
+        or recent_questions[-1].text != state["current_turn"].question.text
+    ):
+        recent_questions.append(state["current_turn"].question)
 
     if not current_state.completed:
         topic = current_topic
@@ -255,40 +272,49 @@ def compose_next(
                 difficulty=session.target_level,
                 interviewer_note="Clarify before applying the rubric.",
             )
-            cost = 0.0
-        else:
-            current_state.hints_used = min(2, current_state.hints_used + 1)
-            client = runtime.context.question_model or structured_model(InterviewQuestion)
-            question, cost = invoke_structured(
-                client,
-                build_question_messages(
+            try:
+                question = validate_question_progression(question, recent_questions)
+                cost = 0.0
+            except InterviewValidationError:
+                current_state.hints_used = 1
+                question, cost = generate_question(
                     inventory=state["inventory"],
                     topic=topic,
                     interview_format=session.interview_format,
                     target_level=session.target_level,
                     kind="hint",
+                    recent_questions=recent_questions,
                     prior_question=state["current_turn"].question,
                     candidate_answer=state["answer_text"],
                     purpose=(
-                        f"Give hint {current_state.hints_used} of 2 without stating "
-                        "the complete answer, then ask one focused question."
+                        "Ask one final diagnostic question from a different angle. "
+                        "Do not restate the previous question; the interview advances "
+                        "to the next topic after this answer."
                     ),
+                    model=runtime.context.question_model,
+                )
+        else:
+            current_state.hints_used = 1
+            question, cost = generate_question(
+                inventory=state["inventory"],
+                topic=topic,
+                interview_format=session.interview_format,
+                target_level=session.target_level,
+                kind="hint",
+                recent_questions=recent_questions,
+                prior_question=state["current_turn"].question,
+                candidate_answer=state["answer_text"],
+                purpose=(
+                    "Give one concise hint, then ask one final focused question "
+                    "from a materially different angle. The interview advances to "
+                    "the next topic after this answer."
                 ),
-                InterviewQuestion,
-            )
-            question = validate_question(question, topic).model_copy(
-                update={
-                    "topic_key": topic.key,
-                    "topic_label": topic.label,
-                    "kind": "hint",
-                    "difficulty": session.target_level,
-                }
+                model=runtime.context.question_model,
             )
     else:
         topic = next_topic(state["inventory"], checkpoint)
         assert topic is not None
         checkpoint.active_topic_key = topic.key
-        client = runtime.context.question_model or structured_model(InterviewQuestion)
         purpose = None
         if checkpoint.strong_streak >= 2:
             purpose = (
@@ -296,25 +322,15 @@ def compose_next(
                 "grounded in its evidence, but ask for a deeper edge case, failure "
                 "mode, or trade-off appropriate to the target level."
             )
-        question, cost = invoke_structured(
-            client,
-            build_question_messages(
-                inventory=state["inventory"],
-                topic=topic,
-                interview_format=session.interview_format,
-                target_level=session.target_level,
-                kind="primary",
-                purpose=purpose,
-            ),
-            InterviewQuestion,
-        )
-        question = validate_question(question, topic).model_copy(
-            update={
-                "topic_key": topic.key,
-                "topic_label": topic.label,
-                "kind": "primary",
-                "difficulty": session.target_level,
-            }
+        question, cost = generate_question(
+            inventory=state["inventory"],
+            topic=topic,
+            interview_format=session.interview_format,
+            target_level=session.target_level,
+            kind="primary",
+            recent_questions=recent_questions,
+            purpose=purpose,
+            model=runtime.context.question_model,
         )
 
     return {

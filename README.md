@@ -400,9 +400,11 @@ covered, and strong answers complete a topic without filler follow-ups.
 
 Before the first model call, the selected scope is inventoried deterministically
 and classified as concept, system-design, or source-led interview material. The
-LangGraph turn workflow evaluates against that topic's evidence, requests a
-clarifying answer and at most two graduated hints when needed, optionally
-verifies a material answer extension on the web, and either advances or closes.
+LangGraph turn workflow evaluates against that topic's evidence, permits at
+most one materially different diagnostic follow-up, optionally verifies a
+material answer extension on the web, and then advances or closes. Recent
+question similarity is validated before a generated question can reach the
+candidate, so the interview cannot keep paraphrasing the same prompt.
 Realistic mode withholds rubrics, detailed coaching, scores, and topic order
 until the report while still giving a natural short reaction after each
 answer; guided mode returns the detailed feedback after each turn. Reports retain the
@@ -419,8 +421,12 @@ interviewer writes and speaks a concise reaction before revealing and speaking
 the next question. Clips are transcribed through
 `OPENROUTER_INTERVIEW_STT_MODEL`; both remain usable as text if media access,
 browser autoplay, or a provider call fails. Slow hosted TTS falls back to the
-device voice rather than blocking the interview. Screen sharing stays local until the
-candidate explicitly sends a still checkpoint. Raw audio and screen frames are
+device voice rather than blocking the interview. On suitable primary questions,
+the interviewer automatically asks the candidate to draw an architecture,
+derive an equation, state assumptions and estimates, or write code/pseudocode.
+That instruction appears in the question card and voice narration. Browser
+privacy still requires one candidate click to choose a shared window; sharing
+stays local until the candidate explicitly sends a still checkpoint. Raw audio and screen frames are
 processed ephemerally and never stored; only transcripts and structured screen
 observations survive. Explicit Pause stops the clock, while a refresh restores
 the live question and voice controls instead of silently pausing the session.

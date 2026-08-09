@@ -3,6 +3,12 @@ export type InterviewMode = "realistic" | "guided";
 export type InterviewFormat = "concept" | "system_design" | "source_led";
 export type InterviewFormatChoice = "auto" | InterviewFormat;
 export type TargetLevel = "entry" | "mid" | "senior";
+export type WorkSampleKind =
+  | "none"
+  | "architecture_diagram"
+  | "equation_derivation"
+  | "code"
+  | "assumptions";
 export type InterviewStatus =
   | "ready"
   | "active"
@@ -37,6 +43,8 @@ export interface InterviewQuestion {
   citation_markers: string[];
   difficulty: TargetLevel;
   interviewer_note: string;
+  work_sample: WorkSampleKind;
+  work_sample_prompt: string | null;
 }
 
 export interface ScreenObservation {
@@ -178,6 +186,30 @@ export function pendingTurn(session: InterviewSession): InterviewTurn | null {
 
 export function appendTranscriptSegment(draft: string, segment: string): string {
   return [draft.trim(), segment.trim()].filter(Boolean).join(" ");
+}
+
+export function spokenInterviewQuestion(question: InterviewQuestion): string {
+  return [
+    question.text.trim(),
+    question.work_sample !== "none" ? question.work_sample_prompt?.trim() : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function workSampleLabel(kind: WorkSampleKind): string {
+  switch (kind) {
+    case "architecture_diagram":
+      return "Architecture exercise";
+    case "equation_derivation":
+      return "Equation exercise";
+    case "code":
+      return "Coding exercise";
+    case "assumptions":
+      return "Assumptions exercise";
+    default:
+      return "Screen exercise";
+  }
 }
 
 export function formatDuration(minutes: number): string {
