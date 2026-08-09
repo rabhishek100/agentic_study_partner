@@ -223,9 +223,9 @@ def adapt(state: AnswerGraphState) -> dict:
         or topic_state.attempts >= MAX_QUESTIONS_PER_TOPIC
     ):
         topic_state.completed = True
-        checkpoint.strong_streak = checkpoint.strong_streak + 1 if strong else 0
-    else:
-        checkpoint.strong_streak = 0
+    # Strong answers should advance the plan, not trigger gratuitous edge-case
+    # drilling on the next local source node.
+    checkpoint.strong_streak = 0
 
     checkpoint.questions_asked += 1
     checkpoint.screen_observation = None
@@ -256,7 +256,7 @@ def finish(state: AnswerGraphState) -> dict:
         "The interview closed at the selected duration ceiling."
         if session.elapsed_seconds
         >= session.maximum_duration_minutes * 60 - DURATION_SOFT_STOP_SECONDS
-        else "All substantive source topics were covered."
+        else "All planned chapter areas were covered."
     )
     checkpoint = state["checkpoint"].model_copy(
         update={"closing_reason": reason, "active_topic_key": None}
@@ -284,82 +284,91 @@ def compose_next(
     ):
         recent_questions.append(state["current_turn"].question)
 
-    if not current_state.completed:
+    if (
+        not current_state.completed
+        and current_state.attempts == 1
+        and evaluation.needs_clarifying_probe
+    ):
         topic = current_topic
-        if current_state.attempts == 1 and evaluation.needs_clarifying_probe:
-            question, cost = generate_question(
-                inventory=state["inventory"],
-                topic=topic,
-                interview_format=session.interview_format,
-                target_level=session.target_level,
-                kind="clarifying",
-                recent_questions=recent_questions,
-                prior_question=state["current_turn"].question,
-                candidate_answer=state["answer_text"],
-                purpose=(
-                    "The answer to the explicit question was ambiguous. Ask one "
-                    "neutral question targeting this uncertainty: "
-                    f"{evaluation.clarifying_probe}. Do not give a hint or introduce "
-                    "an unasked topic. The private rubric must cover only this probe."
-                ),
-                model=runtime.context.question_model,
-            )
-        elif current_state.attempts == 1 and evaluation.needs_depth_follow_up:
-            question, cost = generate_question(
-                inventory=state["inventory"],
-                topic=topic,
-                interview_format=session.interview_format,
-                target_level=session.target_level,
-                kind="follow_up",
-                recent_questions=recent_questions,
-                prior_question=state["current_turn"].question,
-                candidate_answer=state["answer_text"],
-                purpose=(
-                    "The candidate correctly and completely answered the question "
-                    "that was asked. Acknowledge that implicitly by asking one new, "
-                    "direct question about this previously unasked area: "
-                    f"{evaluation.depth_follow_up_focus}. Do not frame it as a "
-                    "correction, omission, hint, or request to remember the source. "
-                    "The new private rubric must cover only this explicit follow-up."
-                ),
-                model=runtime.context.question_model,
-            )
-        else:
-            current_state.hints_used = 1
-            question, cost = generate_question(
-                inventory=state["inventory"],
-                topic=topic,
-                interview_format=session.interview_format,
-                target_level=session.target_level,
-                kind="hint",
-                recent_questions=recent_questions,
-                prior_question=state["current_turn"].question,
-                candidate_answer=state["answer_text"],
-                purpose=(
-                    "Give one concise hint, then ask one final focused question "
-                    "from a materially different angle. The interview advances to "
-                    "the next topic after this answer."
-                ),
-                model=runtime.context.question_model,
-            )
+        question, cost = generate_question(
+            inventory=state["inventory"],
+            topic=topic,
+            interview_format=session.interview_format,
+            target_level=session.target_level,
+            kind="clarifying",
+            recent_questions=recent_questions,
+            prior_question=state["current_turn"].question,
+            candidate_answer=state["answer_text"],
+            purpose=(
+                "The answer to the explicit question was ambiguous. Ask one "
+                "neutral question targeting this uncertainty: "
+                f"{evaluation.clarifying_probe}. Do not give a hint or introduce "
+                "an unasked topic. The private rubric must cover only this probe."
+            ),
+            model=runtime.context.question_model,
+        )
     else:
         topic = next_topic(state["inventory"], checkpoint)
         assert topic is not None
         checkpoint.active_topic_key = topic.key
-        purpose = None
-        if checkpoint.strong_streak >= 2:
+        selected_state = next(
+            item for item in checkpoint.topics if item.key == topic.key
+        )
+        if selected_state.attempts == 0:
+            kind = "primary"
+            covered = sum(item.attempts > 0 for item in checkpoint.required_topics)
             purpose = (
-                "The candidate answered the last two topics strongly. Keep this topic "
-                "grounded in its evidence, but ask for a deeper edge case, failure "
-                "mode, or trade-off appropriate to the target level."
+                "Continue the breadth-first chapter plan. Ask the most central "
+                "reasoning question supported by this area, not a narrow detail. "
+                f"{covered} of {len(checkpoint.required_topics)} planned areas have "
+                "already been visited."
+            )
+            prior_question = None
+            candidate_answer = None
+        else:
+            kind = "follow_up"
+            if topic.key == current_topic.key:
+                prior_turn = None
+                prior_question = state["current_turn"].question
+                candidate_answer = state["answer_text"]
+                prior_evaluation = evaluation
+            else:
+                prior_turn = next(
+                    (
+                        turn
+                        for turn in reversed(session.turns)
+                        if turn.question.topic_key == topic.key
+                        and turn.answer_text is not None
+                    ),
+                    None,
+                )
+                prior_question = prior_turn.question if prior_turn else None
+                candidate_answer = prior_turn.answer_text if prior_turn else None
+                prior_evaluation = prior_turn.evaluation if prior_turn else None
+            focus = (
+                prior_evaluation.depth_follow_up_focus
+                if prior_evaluation and prior_evaluation.needs_depth_follow_up
+                else (
+                    prior_evaluation.gaps[0]
+                    if prior_evaluation and prior_evaluation.gaps
+                    else "the unresolved core decision in this topic"
+                )
+            )
+            purpose = (
+                "This is a deliberate second-pass revisit after broad chapter "
+                "coverage, not an immediate local drill-down. Ask one direct, "
+                f"self-contained question about: {focus}. Do not test source recall "
+                "or imply the candidate should have read your mind."
             )
         question, cost = generate_question(
             inventory=state["inventory"],
             topic=topic,
             interview_format=session.interview_format,
             target_level=session.target_level,
-            kind="primary",
+            kind=kind,
             recent_questions=recent_questions,
+            prior_question=prior_question,
+            candidate_answer=candidate_answer,
             purpose=purpose,
             model=runtime.context.question_model,
         )

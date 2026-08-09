@@ -20,7 +20,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v5"
+PROMPT_VERSION = "adaptive-interview-v6"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -49,6 +49,11 @@ Ask exactly one concise, self-contained question at a time. Test reasoning and
 technical judgment, not recall of the source's wording, headings, list order, or
 obscure examples. Stay on the selected source. Do not pad an interview after
 meaningful coverage is complete.
+
+Move through a chapter breadth-first. A primary question should test the core
+of its planned area. Do not remain on one local detail while planned chapter
+areas are still unseen. Revisit a topic only for a genuine ambiguity, a weak
+core prerequisite, or high-value depth after broad coverage.
 """.strip()
 
 
@@ -114,13 +119,20 @@ Ask for exactly one objective: do not combine requirements, estimation,
 architecture, trade-offs, failure modes, coding, or testing in the same turn.
 Do not join a second request with "and", "then", or another question mark.
 
-Use `work_sample` when a real interviewer would learn more by watching the
-candidate work than by hearing another verbal explanation:
-- `architecture_diagram` for components, interfaces, data flows, or system design;
-- `equation_derivation` for mathematical derivations or proofs;
-- `code` for implementation, pseudocode, debugging, complexity, or tests;
-- `assumptions` for requirements, estimates, constraints, and capacity reasoning;
+Use `work_sample` only when a real interviewer would learn more by watching the
+candidate produce a visual artifact than by hearing an answer:
+- `architecture_diagram` only when the question explicitly requires drawing
+  components, interfaces, boundaries, or data flow;
+- `equation_derivation` only when the question explicitly names a relationship
+  whose intermediate derivation steps matter;
+- `code` only when actual code, pseudocode, or debugging work is the object of
+  the question;
 - `none` for an ordinary verbal answer.
+Always use `none` for stating assumptions, requirements, estimates, constraints,
+trade-offs, comparisons, definitions, explanations, or lists that can be said
+out loud. Never use `assumptions` for a new question; it exists only for stored
+data compatibility. Do not request a screen merely because the source is about
+system design or mathematics.
 When work is requested, provide a `work_sample_prompt` of at most 20 words. It
 changes only the response format for the same objective; it must never add
 complexity analysis, edge cases, testing, trade-offs, or any other second task.
@@ -171,7 +183,7 @@ Candidate asks before answering: {candidate_question}
 
 Return one direct, natural interviewer response of at most 80 words. Clarify
 ambiguous wording, scope, terms, constraints, and the requested response format.
-If an equation, diagram, code, or assumptions task is present, name exactly what
+If an equation, diagram, or code task is present, name exactly what
 the artifact represents and what the candidate should demonstrate. If the work
 sample conflicts with the interview question, explicitly correct the conflict
 and state which task to answer. Do not solve the interview question, reveal
@@ -264,8 +276,12 @@ source. Ask for external verification only if it could change correctness.
 Set `needs_clarifying_probe` only when the answer to the asked question is
 ambiguous and one short probe could distinguish an incomplete explanation from
 a misconception. If the candidate correctly answered the question but one
-different, previously unasked detail would add meaningful signal, set
+different, previously unasked detail is essential to assessing the core topic,
+set
 `needs_depth_follow_up` and name only that detail in `depth_follow_up_focus`.
+Do not request depth for optional implementation specifics, another source
+example, trivia, or a detail that can be recorded for later review. Broad
+chapter coverage takes priority over immediate local depth.
 That unasked detail must not appear in `gaps`, reduce any score, or be framed as
 something the candidate should already have said. Set `topic_complete` when
 another question on this topic would add little interview signal. If a work sample was

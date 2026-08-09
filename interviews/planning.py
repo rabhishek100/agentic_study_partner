@@ -136,10 +136,70 @@ def preflight(
     )
 
 
-def initial_checkpoint(inventory: ScopeInventory) -> InterviewCheckpoint:
+MINUTES_PER_PLANNED_TOPIC = {
+    "entry": 2.5,
+    "mid": 3.0,
+    "senior": 3.5,
+}
+
+
+def planned_topics(
+    inventory: ScopeInventory,
+    *,
+    maximum_duration_minutes: int,
+    target_level: TargetLevel,
+) -> tuple[Topic, ...]:
+    """Select a chapter-wide primary-question plan that fits the time ceiling."""
+
+    required = list(inventory.required_topics)
+    if not required:
+        return ()
+    usable_minutes = max(8.0, maximum_duration_minutes - 3.0)
+    capacity = max(
+        3,
+        int(usable_minutes / MINUTES_PER_PLANNED_TOPIC[target_level]),
+    )
+    if len(required) <= capacity:
+        return tuple(required)
+
+    selected: list[Topic] = []
+    for index in range(capacity):
+        start = index * len(required) // capacity
+        end = (index + 1) * len(required) // capacity
+        window = required[start:max(start + 1, end)]
+        representative = min(
+            window,
+            key=lambda item: (
+                len([part for part in item.label.split(" :: ") if part.strip()]),
+                -len(item.evidence_text),
+                item.ordinal,
+            ),
+        )
+        selected.append(representative)
+    return tuple(sorted(dict.fromkeys(selected), key=lambda item: item.ordinal))
+
+
+def initial_checkpoint(
+    inventory: ScopeInventory,
+    *,
+    maximum_duration_minutes: int = 120,
+    target_level: TargetLevel = "mid",
+) -> InterviewCheckpoint:
+    planned_keys = {
+        topic.key
+        for topic in planned_topics(
+            inventory,
+            maximum_duration_minutes=maximum_duration_minutes,
+            target_level=target_level,
+        )
+    }
     return InterviewCheckpoint(
         topics=[
-            TopicState(key=topic.key, label=topic.label, required=topic.required)
+            TopicState(
+                key=topic.key,
+                label=topic.label,
+                required=topic.required and topic.key in planned_keys,
+            )
             for topic in inventory.topics
         ]
     )
@@ -156,8 +216,23 @@ def next_topic(
     inventory: ScopeInventory, checkpoint: InterviewCheckpoint
 ) -> Topic | None:
     by_key = {topic.key: topic for topic in checkpoint.topics}
+    # Breadth first: visit every planned area before revisiting a local gap.
     for topic in inventory.topics:
         state = by_key.get(topic.key)
-        if state and state.required and not state.completed:
+        if state and state.required and state.attempts == 0:
             return topic
-    return None
+    incomplete = [
+        topic
+        for topic in inventory.topics
+        if (
+            (state := by_key.get(topic.key))
+            and state.required
+            and not state.completed
+        )
+    ]
+    if not incomplete:
+        return None
+    return min(
+        incomplete,
+        key=lambda topic: (by_key[topic.key].best_score, topic.ordinal),
+    )

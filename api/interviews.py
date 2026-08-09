@@ -400,6 +400,10 @@ async def screen_checkpoint(
             )
             if current is None:
                 raise store.InterviewStateError("there is no active question")
+            if current.question.work_sample == "none":
+                raise store.InterviewStateError(
+                    "this question does not require a screen checkpoint"
+                )
             from interviews.planning import topic_by_key
 
             inventory = load_session_inventory(connection, session, owner_id)

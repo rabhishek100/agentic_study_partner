@@ -104,7 +104,11 @@ def create_interview(
         maximum_duration_minutes=request.maximum_duration_minutes,
         estimated_min_minutes=preview.estimated_min_minutes,
         estimated_max_minutes=preview.estimated_max_minutes,
-        checkpoint=initial_checkpoint(source.inventory),
+        checkpoint=initial_checkpoint(
+            source.inventory,
+            maximum_duration_minutes=request.maximum_duration_minutes,
+            target_level=request.target_level,
+        ),
         generation_model=model_name(),
         prompt_version=prompt_version(),
     )
@@ -132,6 +136,7 @@ def _generate_question(
     topic,
     model: Any | None = None,
 ) -> tuple[InterviewQuestion, float]:
+    planned_count = len(session.checkpoint.required_topics)
     return generate_question(
         inventory=inventory,
         topic=topic,
@@ -139,6 +144,11 @@ def _generate_question(
         target_level=session.target_level,
         kind="primary",
         recent_questions=[turn.question for turn in session.turns],
+        purpose=(
+            "This is the first-pass chapter coverage plan. Ask the most central "
+            "reasoning question supported by this topic, not a narrow detail. "
+            f"This topic is one of {planned_count} planned chapter areas."
+        ),
         model=model,
     )
 
@@ -165,7 +175,7 @@ def start_interview(
     inventory = load_session_inventory(connection, session, owner_id)
     topic = next_topic(inventory, session.checkpoint)
     if topic is None:
-        session.checkpoint.closing_reason = "All substantive source topics were covered."
+        session.checkpoint.closing_reason = "All planned chapter areas were covered."
         return store.complete_session(
             connection,
             session_id,

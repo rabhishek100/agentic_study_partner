@@ -57,9 +57,14 @@ def _turn(row: dict[str, Any]) -> InterviewTurn:
     # Older sessions may contain the emergency wording "source-grounded
     # point". Normalize it in memory so the displayed question, narration,
     # evaluation, and report all use the same reasoning-oriented scope.
-    from .question_generation import repair_legacy_recall_fallback
+    from .question_generation import (
+        repair_legacy_recall_fallback,
+        repair_nonvisual_work_sample,
+    )
 
-    question = repair_legacy_recall_fallback(question)
+    question = repair_nonvisual_work_sample(
+        repair_legacy_recall_fallback(question)
+    )
     evaluation = (
         AnswerEvaluation.model_validate(row["evaluation_json"])
         if row["evaluation_json"]

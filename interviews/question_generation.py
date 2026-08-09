@@ -64,11 +64,6 @@ CODE_REQUEST = re.compile(
     r"\b(?:pseudocode|code)\b",
     re.IGNORECASE,
 )
-ASSUMPTIONS_REQUEST = re.compile(
-    r"\b(?:assumption|requirement|estimate|capacity estimate|constraint|qps|"
-    r"throughput estimate|traffic estimate|slo|sla)s?\b",
-    re.IGNORECASE,
-)
 VAGUE_MATH_REQUEST = re.compile(
     r"\b(?:the|an?|one|this|single|key|single key)\s+"
     r"(?:key\s+)?(?:equation|formula)\b",
@@ -93,9 +88,9 @@ DEFAULT_WORK_SAMPLE_PROMPTS: dict[WorkSampleKind, str] = {
     "code": (
         "Use the shared screen to write the requested code or pseudocode."
     ),
-    "assumptions": (
-        "Use the shared screen to list the assumptions requested in the question."
-    ),
+    # Retained only so old persisted questions remain parseable. New
+    # assumption and requirements questions are deliberately verbal.
+    "assumptions": "",
 }
 
 
@@ -246,6 +241,22 @@ def repair_legacy_recall_fallback(question: InterviewQuestion) -> InterviewQuest
     )
 
 
+def repair_nonvisual_work_sample(question: InterviewQuestion) -> InterviewQuestion:
+    """Remove legacy screen tasks that merely ask the candidate to write text."""
+
+    if question.work_sample != "assumptions":
+        return question
+    return question.model_copy(
+        update={
+            "work_sample": "none",
+            "work_sample_prompt": None,
+            "interviewer_note": (
+                "Converted a text-only assumptions exercise to a verbal answer."
+            ),
+        }
+    )
+
+
 def grounded_fallback_question(
     *,
     topic: Topic,
@@ -389,7 +400,6 @@ def _matching_work_samples(
     for pattern, kind in (
         (CODE_REQUEST, "code"),
         (EQUATION_REQUEST, "equation_derivation"),
-        (ASSUMPTIONS_REQUEST, "assumptions"),
         (ARCHITECTURE_REQUEST, "architecture_diagram"),
     ):
         if pattern.search(question.text) and kind not in candidates:
@@ -422,7 +432,7 @@ def apply_work_sample_policy(
     # add an artifact to a different candidate-facing objective. The screenshot
     # task is inferred only from the words the candidate actually hears.
     candidates = _matching_work_samples(question)
-    if question.work_sample != "none":
+    if question.work_sample not in {"none", "assumptions"}:
         candidates.insert(0, question.work_sample)
         candidates = list(dict.fromkeys(candidates))
     recently_used = {

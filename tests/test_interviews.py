@@ -30,13 +30,20 @@ from interviews.evaluation import (
 )
 from interviews.graph import AnswerGraphContext, answer_graph
 from interviews.models import structured_model
-from interviews.planning import detect_format, estimate_duration
+from interviews.planning import (
+    detect_format,
+    estimate_duration,
+    initial_checkpoint,
+    next_topic,
+    planned_topics,
+)
 from interviews.prompts import build_evaluation_messages, build_question_messages
 from interviews.question_generation import (
     apply_work_sample_policy,
     generate_question,
     grounded_fallback_question,
     repair_legacy_recall_fallback,
+    repair_nonvisual_work_sample,
     validate_question_focus,
     validate_question_progression,
 )
@@ -280,6 +287,52 @@ class GroundingTests(unittest.TestCase):
         citations = resolve_citations(["[N7:P42]"], topic())
         self.assertEqual(citations[0].page, 42)
         self.assertEqual(citations[0].node_id, 7)
+
+    def test_short_interview_samples_across_a_large_chapter(self) -> None:
+        topics = tuple(
+            replace(
+                topic(),
+                key=f"node:{index}",
+                ordinal=index,
+                label=f"Chapter :: Section {index}",
+                node_id=index,
+            )
+            for index in range(20)
+        )
+        scope = replace(inventory(), topics=topics)
+
+        selected = planned_topics(
+            scope,
+            maximum_duration_minutes=15,
+            target_level="mid",
+        )
+        checkpoint = initial_checkpoint(
+            scope,
+            maximum_duration_minutes=15,
+            target_level="mid",
+        )
+
+        self.assertEqual(len(selected), 4)
+        self.assertEqual(len(checkpoint.required_topics), 4)
+        self.assertLess(selected[0].ordinal, 5)
+        self.assertGreaterEqual(selected[-1].ordinal, 15)
+
+    def test_next_topic_finishes_breadth_before_revisiting_a_gap(self) -> None:
+        second = replace(topic(), key="node:8", ordinal=1, label="Calibration")
+        scope = replace(inventory(), topics=(topic(), second))
+        checkpoint = InterviewCheckpoint(
+            topics=[
+                TopicState(
+                    key="node:7",
+                    label="Logistic regression",
+                    attempts=1,
+                    best_score=2.0,
+                ),
+                TopicState(key="node:8", label="Calibration"),
+            ]
+        )
+
+        self.assertEqual(next_topic(scope, checkpoint).key, "node:8")
 
     def test_near_duplicate_question_is_rejected(self) -> None:
         duplicate = question().model_copy(
@@ -536,7 +589,7 @@ class GroundingTests(unittest.TestCase):
         )
         self.assertIs(validate_question_focus(generated), generated)
 
-    def test_screen_work_is_inferred_from_the_candidate_facing_question(self) -> None:
+    def test_assumptions_are_answered_verbally(self) -> None:
         architecture_topic = topic(
             evidence=(
                 "[N7:P42]\nEstimate throughput, then design the services, "
@@ -552,8 +605,22 @@ class GroundingTests(unittest.TestCase):
             recent_questions=[],
         )
 
-        self.assertEqual(requested.work_sample, "assumptions")
-        self.assertIn("assumptions", requested.work_sample_prompt.lower())
+        self.assertEqual(requested.work_sample, "none")
+        self.assertIsNone(requested.work_sample_prompt)
+
+    def test_saved_assumptions_screen_task_is_repaired_on_load(self) -> None:
+        legacy = question().model_copy(
+            update={
+                "text": "Which throughput assumptions would you use?",
+                "work_sample": "assumptions",
+                "work_sample_prompt": "Write the capacity assumptions.",
+            }
+        )
+
+        repaired = repair_nonvisual_work_sample(legacy)
+
+        self.assertEqual(repaired.work_sample, "none")
+        self.assertIsNone(repaired.work_sample_prompt)
 
     def test_business_objective_does_not_infer_an_equation_from_topic_evidence(self) -> None:
         objective_topic = topic(
@@ -857,6 +924,65 @@ class GraphTests(unittest.TestCase):
         )
         self.assertEqual(output["evaluation"].gaps, [])
         self.assertNotIn("expected", output["evaluation"].concise_feedback.lower())
+
+    def test_depth_is_deferred_until_planned_breadth_is_covered(self) -> None:
+        second = Topic(
+            key="node:8",
+            ordinal=1,
+            label="Model calibration",
+            required=True,
+            evidence_text="[N8:P50]\nCalibration aligns predicted and observed rates.",
+            allowed_markers=frozenset({"[N8:P50]"}),
+            node_id=8,
+            start_page=50,
+            end_page=52,
+        )
+        scope = replace(inventory(), topics=(topic(), second))
+        live = session().model_copy(
+            update={
+                "checkpoint": InterviewCheckpoint(
+                    topics=[
+                        TopicState(key="node:7", label="Logistic regression"),
+                        TopicState(key="node:8", label="Model calibration"),
+                    ],
+                    active_topic_key="node:7",
+                )
+            }
+        )
+        scoped = evaluation(complete=False).model_copy(
+            update={
+                "question_complete": True,
+                "needs_depth_follow_up": True,
+                "depth_follow_up_focus": "calibration after fitting",
+                "gaps": [],
+            }
+        )
+        breadth_question = InterviewQuestion(
+            topic_key="node:8",
+            topic_label="Model calibration",
+            text="How would you assess whether this classifier is calibrated?",
+            expected_points=["Compare predicted and observed rates."],
+            suggested_answer="Compare predicted and observed rates. [N8:P50]",
+            citation_markers=["[N8:P50]"],
+            difficulty="mid",
+        )
+
+        output = answer_graph.invoke(
+            {
+                "session": live,
+                "inventory": scope,
+                "current_turn": InterviewTurn(turn_index=0, question=question()),
+                "answer_text": "It models log odds as a linear function.",
+            },
+            context=AnswerGraphContext(
+                evaluation_model=FakeStructuredModel(scoped),
+                question_model=FakeStructuredModel(breadth_question),
+            ),
+        )
+
+        self.assertEqual(output["next_question"].topic_key, "node:8")
+        self.assertEqual(output["next_question"].kind, "primary")
+        self.assertFalse(output["checkpoint"].topics[0].completed)
 
     def test_no_new_question_starts_near_the_duration_ceiling(self) -> None:
         timed = session().model_copy(update={"elapsed_seconds": 30 * 60 - 20})
