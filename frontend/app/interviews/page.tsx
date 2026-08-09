@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import { MicrophoneSetup } from "@/components/interviews/microphone-setup";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { primeInterviewerSpeech } from "@/hooks/use-interviewer-speech";
@@ -103,6 +104,7 @@ export default function InterviewsPage() {
   const [preview, setPreview] = useState<InterviewPreflight | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [microphoneReady, setMicrophoneReady] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -301,9 +303,24 @@ export default function InterviewsPage() {
                   <div className="space-y-1.5"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
                 </div>
 
-                <Button className="w-full" size="lg" disabled={!payload || busy} onClick={() => void (preview ? begin() : review())}>
+                <MicrophoneSetup
+                  disabled={busy}
+                  onReadyChange={setMicrophoneReady}
+                />
+
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={!payload || busy || Boolean(preview && !microphoneReady)}
+                  onClick={() => void (preview ? begin() : review())}
+                >
                   {busy ? "Preparing…" : preview ? "Start interview" : "Review setup"}<ArrowRight aria-hidden />
                 </Button>
+                {preview && !microphoneReady ? (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Test your microphone once before starting so the interview cannot begin on the wrong input.
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -325,7 +342,7 @@ export default function InterviewsPage() {
               </Card>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 <div className="rounded-xl border bg-card p-4"><ShieldCheck aria-hidden className="size-5 text-primary" /><p className="mt-3 text-sm font-medium">Grounded scoring</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Corrections and suggested answers trace back to pages, timestamps, or verified external sources.</p></div>
-                <div className="rounded-xl border bg-card p-4"><MessagesSquare aria-hidden className="size-5 text-primary" /><p className="mt-3 text-sm font-medium">Voice and screen ready</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Automatic turn detection, Kokoro speech, and explicit screen checkpoints—with no raw media retained.</p></div>
+                <div className="rounded-xl border bg-card p-4"><MessagesSquare aria-hidden className="size-5 text-primary" /><p className="mt-3 text-sm font-medium">Voice and screen ready</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Adaptive microphone detection, natural interviewer speech, and explicit screen checkpoints—with no raw media retained.</p></div>
               </div>
             </div>
           </div>

@@ -153,6 +153,41 @@ export function microphoneConstraint(): MediaTrackConstraints | true {
   return selectedId ? { deviceId: { exact: selectedId } } : true;
 }
 
+/**
+ * Open the selected input with browser speech processing enabled.
+ *
+ * This is shared by the interview preflight and the live session so the mic
+ * that passes the test is exactly the mic that records the answer. If a
+ * remembered USB device disappeared, retry the system default and clear the
+ * stale choice instead of leaving the interview silently listening to
+ * nothing.
+ */
+export async function openSpeechMicrophone(): Promise<MediaStream> {
+  const selected = microphoneConstraint();
+  const processing = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  };
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: selected === true ? processing : { ...selected, ...processing },
+    });
+    await refreshMicrophones();
+    return stream;
+  } catch (failure) {
+    const missing =
+      selected !== true &&
+      failure instanceof DOMException &&
+      (failure.name === "OverconstrainedError" || failure.name === "NotFoundError");
+    if (!missing) throw failure;
+    selectMicrophone(null);
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: processing });
+    await refreshMicrophones();
+    return stream;
+  }
+}
+
 /** Test seam: drop everything this module remembers. */
 export function resetMicrophones(): void {
   snapshot = EMPTY;

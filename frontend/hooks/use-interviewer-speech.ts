@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, errorDetail, uploadUrl } from "@/lib/api";
 import { accessToken } from "@/lib/supabase";
 
-const REMOTE_SPEECH_TIMEOUT_MS = 10_000;
+const REMOTE_SPEECH_TIMEOUT_MS = 20_000;
 
 export function primeInterviewerSpeech(): void {
   if (

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useMicrophones } from "@/hooks/use-microphones";
 import { microphoneProblem, recordingMimeType } from "@/lib/dictation";
-import { microphoneConstraint, selectMicrophone } from "@/lib/microphone";
+import { openSpeechMicrophone } from "@/lib/microphone";
 
 export type InterviewVoiceMode = "automatic" | "push_to_talk";
 export type InterviewVoiceStatus =
@@ -16,8 +17,11 @@ export type InterviewVoiceStatus =
 const SILENCE_MS = 1_200;
 const MINIMUM_SPEECH_MS = 280;
 const MAXIMUM_SPEECH_MS = 180_000;
-const RMS_THRESHOLD = 0.028;
-const LOUD_FRAMES_TO_START = 3;
+const CALIBRATION_MS = 450;
+const MINIMUM_RMS_THRESHOLD = 0.0045;
+const MAXIMUM_RMS_THRESHOLD = 0.025;
+const NOISE_MULTIPLIER = 1.8;
+const LOUD_FRAMES_TO_START = 2;
 
 let primedAudioContext: AudioContext | null = null;
 
@@ -43,33 +47,6 @@ function audioContext(): AudioContext {
   return new AudioContext();
 }
 
-async function microphone(): Promise<MediaStream> {
-  const audio = microphoneConstraint();
-  try {
-    return await navigator.mediaDevices.getUserMedia({
-      audio:
-        audio === true
-          ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-          : {
-              ...audio,
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-    });
-  } catch (failure) {
-    const missing =
-      audio !== true &&
-      failure instanceof DOMException &&
-      (failure.name === "OverconstrainedError" || failure.name === "NotFoundError");
-    if (!missing) throw failure;
-    selectMicrophone(null);
-    return navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
-  }
-}
-
 export function useInterviewVoice({
   onRecording,
   onVoiceStart,
@@ -77,8 +54,10 @@ export function useInterviewVoice({
   onRecording: (recording: Blob) => Promise<void>;
   onVoiceStart?: () => void;
 }) {
+  const microphones = useMicrophones();
   const [mode, setMode] = useState<InterviewVoiceMode>("automatic");
   const [status, setStatus] = useState<InterviewVoiceStatus>("idle");
+  const [inputLevel, setInputLevel] = useState(0);
   const [error, setError] = useState("");
   const streamRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
@@ -95,6 +74,10 @@ export function useInterviewVoice({
   const loudFramesRef = useRef(0);
   const startedAtRef = useRef(0);
   const lastLoudAtRef = useRef(0);
+  const calibrationUntilRef = useRef(0);
+  const noiseFloorRef = useRef(0.0025);
+  const lastMeterAtRef = useRef(0);
+  const samplesRef = useRef<Float32Array<ArrayBuffer> | null>(null);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -118,6 +101,10 @@ export function useInterviewVoice({
     void contextRef.current?.close();
     contextRef.current = null;
     analyserRef.current = null;
+    samplesRef.current = null;
+    loudFramesRef.current = 0;
+    noiseFloorRef.current = 0.0025;
+    setInputLevel(0);
     setStatus("idle");
   }, []);
 
@@ -185,20 +172,45 @@ export function useInterviewVoice({
   const monitor = useCallback(() => {
     const analyser = analyserRef.current;
     if (!listeningRef.current || !analyser) return;
-    const samples = new Float32Array(analyser.fftSize);
+    const samples = samplesRef.current ?? new Float32Array(analyser.fftSize);
+    samplesRef.current = samples;
     analyser.getFloatTimeDomainData(samples);
     let energy = 0;
     for (const sample of samples) energy += sample * sample;
-    const loud = Math.sqrt(energy / samples.length) >= RMS_THRESHOLD;
+    const rms = Math.sqrt(energy / samples.length);
     const now = Date.now();
     const recorder = recorderRef.current;
+    const threshold = Math.max(
+      MINIMUM_RMS_THRESHOLD,
+      Math.min(MAXIMUM_RMS_THRESHOLD, noiseFloorRef.current * NOISE_MULTIPLIER),
+    );
+    const loud = rms >= threshold && rms - noiseFloorRef.current >= 0.001;
+
+    if (now - lastMeterAtRef.current >= 80) {
+      const db = 20 * Math.log10(Math.max(rms, 0.001));
+      setInputLevel(Math.max(0, Math.min(1, (db + 60) / 45)));
+      lastMeterAtRef.current = now;
+    }
 
     if (modeRef.current === "automatic") {
       if (!recorder) {
-        loudFramesRef.current = loud ? loudFramesRef.current + 1 : 0;
-        if (loudFramesRef.current >= LOUD_FRAMES_TO_START) beginRecording();
+        if (now < calibrationUntilRef.current) {
+          // Learn this device's room tone before deciding what speech looks
+          // like. This replaces the old one-size threshold that ignored quiet
+          // laptop and headset microphones entirely.
+          noiseFloorRef.current = noiseFloorRef.current * 0.85 + rms * 0.15;
+          loudFramesRef.current = 0;
+        } else {
+          loudFramesRef.current = loud ? loudFramesRef.current + 1 : 0;
+          if (!loud && rms < threshold) {
+            noiseFloorRef.current = noiseFloorRef.current * 0.985 + rms * 0.015;
+          }
+          if (loudFramesRef.current >= LOUD_FRAMES_TO_START) beginRecording();
+        }
       } else if (recorder.state === "recording") {
-        if (loud) lastLoudAtRef.current = now;
+        // A slightly softer continuation threshold avoids chopping off the
+        // end of a sentence after speech has already been established.
+        if (rms >= threshold * 0.72) lastLoudAtRef.current = now;
         const silentLongEnough = now - lastLoudAtRef.current >= SILENCE_MS;
         const tooLong = now - startedAtRef.current >= MAXIMUM_SPEECH_MS;
         if (silentLongEnough || tooLong) finishRecording();
@@ -225,7 +237,7 @@ export function useInterviewVoice({
       return;
     }
     try {
-      const stream = await microphone();
+      const stream = await openSpeechMicrophone();
       const source = context.createMediaStreamSource(stream);
       const analyser = context.createAnalyser();
       analyser.fftSize = 1024;
@@ -234,6 +246,9 @@ export function useInterviewVoice({
       streamRef.current = stream;
       contextRef.current = context;
       analyserRef.current = analyser;
+      samplesRef.current = new Float32Array(analyser.fftSize);
+      noiseFloorRef.current = 0.0025;
+      calibrationUntilRef.current = Date.now() + CALIBRATION_MS;
       listeningRef.current = true;
       setStatus("listening");
       frameRef.current = requestAnimationFrame(monitor);
@@ -261,6 +276,8 @@ export function useInterviewVoice({
     mode,
     setMode,
     status,
+    inputLevel,
+    microphones,
     error,
     dismissError: () => setError(""),
     start,

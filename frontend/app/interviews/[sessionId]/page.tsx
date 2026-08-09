@@ -70,6 +70,7 @@ import { accessToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 const INR_PER_USD_ESTIMATE = Number(process.env.NEXT_PUBLIC_USD_INR_RATE ?? "90");
+const SYSTEM_DEFAULT_MICROPHONE = "__system_default__";
 
 function clock(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
@@ -206,7 +207,9 @@ export default function InterviewWorkspace() {
       interview?.status === "active" &&
       current !== null &&
       !busy &&
-      !listeningPaused;
+      !listeningPaused &&
+      !speech.loading &&
+      !speech.speaking;
     if (!shouldListen) {
       if (voice.status !== "idle") voice.stop();
       return;
@@ -214,7 +217,7 @@ export default function InterviewWorkspace() {
     if (voice.supported && voice.status === "idle" && !voice.error) {
       void voice.start();
     }
-  }, [busy, current, interview?.status, listeningPaused, voice.error, voice.start, voice.status, voice.stop, voice.supported]);
+  }, [busy, current, interview?.status, listeningPaused, speech.loading, speech.speaking, voice.error, voice.start, voice.status, voice.stop, voice.supported]);
 
   useEffect(() => {
     if (!authSession || interview?.status !== "active") return;
@@ -341,6 +344,7 @@ export default function InterviewWorkspace() {
                           <Button
                             variant={voice.status === "idle" ? "outline" : "secondary"}
                             size="sm"
+                            disabled={speech.loading || speech.speaking}
                             onClick={() => {
                               if (voice.status === "idle") {
                                 setListeningPaused(false);
@@ -367,8 +371,25 @@ export default function InterviewWorkspace() {
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className={cn("size-2 rounded-full", voice.status === "recording" ? "bg-destructive motion-safe:animate-pulse" : voice.status === "listening" ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                          {voice.status !== "idle" ? (
+                            <span
+                              className="h-1.5 w-16 overflow-hidden rounded-full bg-muted"
+                              role="meter"
+                              aria-label="Live microphone level"
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={Math.round(voice.inputLevel * 100)}
+                            >
+                              <span
+                                className="block h-full rounded-full bg-emerald-500 transition-[width] duration-75"
+                                style={{ width: `${Math.round(voice.inputLevel * 100)}%` }}
+                              />
+                            </span>
+                          ) : null}
                           <span className="text-xs text-muted-foreground">
-                            {voice.status === "recording"
+                            {speech.loading || speech.speaking
+                              ? "Interviewer speaking — listening starts automatically next"
+                              : voice.status === "recording"
                               ? "Capturing this part of your answer…"
                               : voice.status === "processing"
                                 ? "Adding speech to your draft — keep speaking when ready"
@@ -379,15 +400,35 @@ export default function InterviewWorkspace() {
                                   : "Type your answer or start listening"}
                           </span>
                         </div>
-                        {voice.status !== "idle" ? (
-                          <Select value={voice.mode} onValueChange={(value) => voice.setMode(value as "automatic" | "push_to_talk")}>
-                            <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                        <div className="flex flex-wrap gap-2">
+                          <Select
+                            value={voice.microphones.selectedId ?? SYSTEM_DEFAULT_MICROPHONE}
+                            onValueChange={(value) => {
+                              voice.stop();
+                              voice.microphones.select(
+                                value === SYSTEM_DEFAULT_MICROPHONE ? null : value,
+                              );
+                              setListeningPaused(false);
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-44 text-xs" aria-label="Interview microphone"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="automatic">Continuous listening</SelectItem>
-                              <SelectItem value="push_to_talk">Push to talk</SelectItem>
+                              <SelectItem value={SYSTEM_DEFAULT_MICROPHONE}>System default mic</SelectItem>
+                              {voice.microphones.devices.map((device) => (
+                                <SelectItem key={device.deviceId} value={device.deviceId}>{device.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
-                        ) : null}
+                          {voice.status !== "idle" ? (
+                            <Select value={voice.mode} onValueChange={(value) => voice.setMode(value as "automatic" | "push_to_talk")}>
+                              <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="automatic">Continuous listening</SelectItem>
+                                <SelectItem value="push_to_talk">Push to talk</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : null}
+                        </div>
                       </div>
                       <Textarea
                         value={answer}

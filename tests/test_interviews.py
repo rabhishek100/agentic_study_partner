@@ -28,6 +28,7 @@ from interviews.planning import detect_format, estimate_duration
 from interviews.speech import (
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
+    SpeechError,
     synthesize_interviewer_speech,
 )
 
@@ -260,7 +261,7 @@ class GraphTests(unittest.TestCase):
 
 
 class SpeechTests(unittest.TestCase):
-    def test_kokoro_is_the_default_and_cost_is_character_bounded(self) -> None:
+    def test_voxtral_is_the_default_and_cost_is_character_bounded(self) -> None:
         requests: list[httpx.Request] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -276,6 +277,18 @@ class SpeechTests(unittest.TestCase):
         self.assertIn(DEFAULT_TTS_VOICE, body)
         self.assertEqual(result.content, b"mp3")
         self.assertLess(result.cost_usd, 0.001)
+
+    def test_rejects_a_success_response_that_is_not_audio(self) -> None:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={"error": "provider returned no audio"},
+                headers={"content-type": "application/json"},
+            )
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            with self.assertRaisesRegex(SpeechError, "invalid audio"):
+                synthesize_interviewer_speech("Begin the interview.", client=client)
 
 
 if __name__ == "__main__":

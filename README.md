@@ -409,7 +409,9 @@ transcript, six dimension scores, recommended answers, citations, cost, and
 missed topics without inventing percentiles.
 
 Voice answers listen continuously by default, with push-to-talk as a fallback.
-Silence transcribes one segment into the editable draft but never submits it;
+The setup includes an input picker and live mic check, and session capture
+calibrates to that device's noise floor. Silence transcribes one segment into
+the editable draft but never submits it;
 the candidate explicitly sends the complete answer. New questions are spoken
 automatically through `OPENROUTER_TTS_MODEL`, and clips are transcribed through
 `OPENROUTER_INTERVIEW_STT_MODEL`; both remain usable as text if media access,
@@ -421,8 +423,9 @@ observations survive. Pausing, navigating away, or refreshing stops the clock,
 and the persisted session can be resumed.
 
 The default interview stack is `openai/gpt-5.6-luna` for reasoning,
-`openai/whisper-large-v3-turbo` for STT, and `hexgrad/kokoro-82m` with
-`af_heart` for TTS. See [`docs/interview-session-spec.md`](docs/interview-session-spec.md)
+`openai/whisper-large-v3-turbo` for STT, and
+`mistralai/voxtral-mini-tts-2603` with `en_paul_neutral` for TTS. See
+[`docs/interview-session-spec.md`](docs/interview-session-spec.md)
 for the complete product and evidence contract.
 
 **Flashcards** turn one chapter, or one lecture, into cards you can review in a

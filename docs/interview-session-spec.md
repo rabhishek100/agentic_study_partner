@@ -67,18 +67,24 @@ produces a report.
 ## Voice and screen sharing
 
 The existing OpenRouter Whisper path transcribes candidate speech. Listening
-starts automatically and remains active through the answer. Roughly 1.2
+starts automatically after the interviewer finishes speaking and remains
+active through the answer. Before the session, the candidate explicitly
+chooses an input and verifies it with a live level meter; the same remembered
+device is used by capture. Speech detection calibrates against that device's
+room tone instead of relying on a fixed volume threshold. Roughly 1.2
 seconds of silence closes only the current audio segment and appends its
 transcript to an editable draft; it never submits the answer. The candidate
 may pause to think, continue speaking across as many segments as needed, and
 explicitly sends the completed draft. Push-to-talk remains available in noisy
-or unsupported environments. Candidate speech interrupts TTS. Every new
-interviewer question is spoken automatically, with a one-click replay/unlock
-fallback where browser autoplay policy requires a gesture.
+or unsupported environments. Capture is suspended while TTS plays so speaker
+audio cannot be mistaken for the candidate. Every new interviewer question is
+spoken automatically, with a one-click replay/unlock fallback where browser
+autoplay policy requires a gesture.
 
-Kokoro 82M is the default TTS model, selected for modern voice quality at
-low per-character cost. Model and voice remain environment-configurable. A
-short provider deadline prevents speech generation from blocking the turn;
+Voxtral Mini TTS with a neutral English voice is the default, selected for
+natural delivery, low latency, and a per-character price that stays within the
+session budget. Model and voice remain environment-configurable. A bounded
+provider deadline prevents speech generation from blocking the turn;
 when hosted TTS is slow or unavailable, the already-unlocked device voice
 speaks the question automatically at no provider cost.
 
