@@ -94,6 +94,14 @@ without exposing scores, rubric fields, citations, or the complete model
 answer; guided mode additionally retains its detailed live coaching. The final
 answer receives the same reaction before the report opens.
 
+The interface exposes the current media or server operation in a persistent
+ARIA live region. Source preflight, session creation, first-question
+generation, answer grounding/scoring/next-turn planning, Whisper transcription,
+question TTS, feedback TTS, screen analysis, pause/resume, and report loading
+have distinct labels and control-level spinners. Long indeterminate requests
+show elapsed time and name the work included, but never invent a percentage or
+claim to know an internal substep the API has not reported.
+
 Voxtral Mini TTS with a neutral English voice is the default, selected for
 natural delivery, low latency, and a per-character price that stays within the
 session budget. Model and voice remain environment-configurable. A bounded

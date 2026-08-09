@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   Clock3,
+  Loader2,
   LogOut,
   MessagesSquare,
   ShieldCheck,
@@ -38,7 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { signOut, useSession } from "@/hooks/use-session";
 import {
   primeInterviewAudio,
@@ -72,6 +72,32 @@ type SetupPayload = {
   interview_format: InterviewFormatChoice;
 };
 
+type SetupOperation =
+  | "idle"
+  | "reviewing_source"
+  | "creating_session"
+  | "generating_question"
+  | "opening_workspace";
+
+const SETUP_ACTIVITY: Record<Exclude<SetupOperation, "idle">, { title: string; detail: string }> = {
+  reviewing_source: {
+    title: "Reviewing the selected source",
+    detail: "Checking evidence readiness, detecting the interview format, and estimating topic coverage.",
+  },
+  creating_session: {
+    title: "Creating your interview session",
+    detail: "Saving the selected source, level, duration ceiling, and feedback mode.",
+  },
+  generating_question: {
+    title: "Generating the first grounded question",
+    detail: "Selecting the opening topic and validating its model answer against source evidence.",
+  },
+  opening_workspace: {
+    title: "Opening the interview workspace",
+    detail: "The first question is ready. Restoring voice narration and microphone capture.",
+  },
+};
+
 const LEVELS: Array<{ value: TargetLevel; label: string; note: string }> = [
   { value: "entry", label: "Entry", note: "Foundations and clear explanations" },
   { value: "mid", label: "Mid-level", note: "Depth, applications, and trade-offs" },
@@ -103,9 +129,11 @@ export default function InterviewsPage() {
   const [format, setFormat] = useState<InterviewFormatChoice>("auto");
   const [preview, setPreview] = useState<InterviewPreflight | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [loadingChapters, setLoadingChapters] = useState(false);
+  const [operation, setOperation] = useState<SetupOperation>("idle");
   const [microphoneReady, setMicrophoneReady] = useState(false);
   const [error, setError] = useState("");
+  const busy = operation !== "idle";
 
   const load = useCallback(async () => {
     try {
@@ -136,16 +164,27 @@ export default function InterviewsPage() {
   useEffect(() => {
     setPreview(null);
     if (!bookId) {
+      setLoadingChapters(false);
       setChapters([]);
       setNodeId("");
       return;
     }
     setNodeId("");
+    setLoadingChapters(true);
+    let active = true;
     void apiFetch<ChapterListResponse>(`/books/${bookId}/chapters`)
-      .then((payload) => setChapters(payload.chapters))
-      .catch((failure) =>
-        setError((failure as Error).message || "Could not load chapters."),
-      );
+      .then((payload) => {
+        if (active) setChapters(payload.chapters);
+      })
+      .catch((failure) => {
+        if (active) setError((failure as Error).message || "Could not load chapters.");
+      })
+      .finally(() => {
+        if (active) setLoadingChapters(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [bookId]);
 
   useEffect(() => setPreview(null), [sourceKind, nodeId, videoId, duration, level, mode, format]);
@@ -167,7 +206,7 @@ export default function InterviewsPage() {
 
   const review = useCallback(async () => {
     if (!payload) return;
-    setBusy(true);
+    setOperation("reviewing_source");
     setError("");
     try {
       setPreview(
@@ -179,7 +218,7 @@ export default function InterviewsPage() {
     } catch (failure) {
       setError((failure as Error).message || "Could not inspect this source.");
     } finally {
-      setBusy(false);
+      setOperation("idle");
     }
   }, [payload]);
 
@@ -187,26 +226,28 @@ export default function InterviewsPage() {
     if (!payload) return;
     primeInterviewAudio();
     primeInterviewerSpeech();
-    setBusy(true);
+    setOperation("creating_session");
     setError("");
     try {
       const created = await apiFetch<InterviewSession>("/interviews", {
         method: "POST",
         body: JSON.stringify(payload),
       });
+      setOperation("generating_question");
       await apiFetch<InterviewSession>(`/interviews/${created.session_id}/start`, {
         method: "POST",
       });
+      setOperation("opening_workspace");
       router.push(`/interviews/${created.session_id}`);
     } catch (failure) {
       releasePrimedInterviewAudio();
       setError((failure as Error).message || "Could not start the interview.");
-      setBusy(false);
+      setOperation("idle");
     }
   }, [payload, router]);
 
   if (sessionLoading) {
-    return <div className="grid h-dvh place-items-center"><Skeleton className="h-6 w-52" /></div>;
+    return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-5" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-0.5 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">Checking your session</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Verifying sign-in before loading interview sources and history.</p></div></div></div>;
   }
   if (!session) {
     return (
@@ -286,7 +327,7 @@ export default function InterviewsPage() {
                   {sourceKind === "book" ? (
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                       <div className="min-w-0 space-y-1.5"><Label htmlFor="interview-book">Book</Label><Select value={bookId} onValueChange={setBookId}><SelectTrigger id="interview-book" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loaded ? "Choose a book" : "Loading…"} /></SelectTrigger><SelectContent>{books.map((book) => <SelectItem key={book.book_id} value={String(book.book_id)}>{book.title}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="min-w-0 space-y-1.5"><Label htmlFor="interview-chapter">Chapter</Label><Select value={nodeId} onValueChange={setNodeId} disabled={!bookId || chapters.length === 0}><SelectTrigger id="interview-chapter" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={bookId ? "Choose a chapter" : "Choose a book first"} /></SelectTrigger><SelectContent>{chapters.map((chapter) => <SelectItem key={chapter.node_id} value={String(chapter.node_id)}>{chapter.title}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="min-w-0 space-y-1.5"><Label htmlFor="interview-chapter">Chapter</Label><Select value={nodeId} onValueChange={setNodeId} disabled={!bookId || loadingChapters || chapters.length === 0}><SelectTrigger id="interview-chapter" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loadingChapters ? "Loading chapters…" : bookId ? "Choose a chapter" : "Choose a book first"} /></SelectTrigger><SelectContent>{chapters.map((chapter) => <SelectItem key={chapter.node_id} value={String(chapter.node_id)}>{chapter.title}</SelectItem>)}</SelectContent></Select></div>
                     </div>
                   ) : (
                     <div className="space-y-1.5"><Label htmlFor="interview-video">Lecture</Label><Select value={videoId} onValueChange={setVideoId}><SelectTrigger id="interview-video"><SelectValue placeholder="Choose a processed lecture" /></SelectTrigger><SelectContent>{videos.map((video) => <SelectItem key={video.video_id} value={video.video_id}>{video.title}</SelectItem>)}</SelectContent></Select></div>
@@ -313,8 +354,31 @@ export default function InterviewsPage() {
                   disabled={!payload || busy || Boolean(preview && !microphoneReady)}
                   onClick={() => void (preview ? begin() : review())}
                 >
-                  {busy ? "Preparing…" : preview ? "Start interview" : "Review setup"}<ArrowRight aria-hidden />
+                  {busy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}
+                  {operation === "reviewing_source"
+                    ? "Reviewing source…"
+                    : operation === "creating_session"
+                      ? "Creating session…"
+                      : operation === "generating_question"
+                        ? "Generating first question…"
+                        : operation === "opening_workspace"
+                          ? "Opening interview…"
+                          : preview
+                            ? "Start interview"
+                            : "Review setup"}
+                  {!busy ? <ArrowRight aria-hidden /> : null}
                 </Button>
+                {operation !== "idle" ? (
+                  <div className="rounded-lg border border-primary/25 bg-primary/[0.035] p-3" role="status" aria-live="polite" aria-atomic="true">
+                    <div className="flex items-start gap-2.5">
+                      <Loader2 aria-hidden className="mt-0.5 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
+                      <div>
+                        <p className="text-sm font-medium">{SETUP_ACTIVITY[operation].title}</p>
+                        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{SETUP_ACTIVITY[operation].detail}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 {preview && !microphoneReady ? (
                   <p className="text-center text-xs text-muted-foreground">
                     Test your microphone once before starting so the interview cannot begin on the wrong input.

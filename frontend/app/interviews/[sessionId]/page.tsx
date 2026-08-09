@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  Loader2,
   LogOut,
   Mic,
   MonitorUp,
@@ -43,7 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   primeInterviewerSpeech,
@@ -58,6 +58,11 @@ import { useScreenShare } from "@/hooks/use-screen-share";
 import { signOut, useSession } from "@/hooks/use-session";
 import { ApiError, apiFetch, errorDetail, uploadUrl } from "@/lib/api";
 import { transcribeInterviewRecording } from "@/lib/dictation";
+import {
+  describeInterviewActivity,
+  type InterviewActivity,
+  type InterviewOperation,
+} from "@/lib/interview-activity";
 import {
   appendTranscriptSegment,
   pendingTurn,
@@ -92,6 +97,65 @@ function scoreColor(score: number): string {
   if (score >= 4) return "bg-emerald-500";
   if (score >= 3) return "bg-amber-500";
   return "bg-rose-500";
+}
+
+function ActivityStatus({
+  activity,
+  elapsedSeconds,
+}: {
+  activity: InterviewActivity;
+  elapsedSeconds: number | null;
+}) {
+  const working = activity.tone === "working";
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border bg-card",
+        working && "border-primary/30 bg-primary/[0.035]",
+        activity.tone === "live" && "border-emerald-500/30 bg-emerald-500/[0.035]",
+        activity.tone === "paused" && "border-amber-500/30 bg-amber-500/[0.035]",
+      )}
+    >
+      {working ? (
+        <div className="h-1 w-full bg-primary/15">
+          <div className="h-full w-full bg-primary/70 motion-safe:animate-pulse" />
+        </div>
+      ) : null}
+      <div className="flex items-start gap-3 px-4 py-3.5">
+        <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-muted">
+          {working ? (
+            <Loader2 aria-hidden className="size-4 animate-spin text-primary motion-reduce:animate-none" />
+          ) : activity.tone === "live" ? (
+            <span className="size-2.5 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+          ) : activity.tone === "paused" ? (
+            <Pause aria-hidden className="size-4 text-amber-600" />
+          ) : (
+            <CheckCircle2 aria-hidden className="size-4 text-emerald-600" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1" role="status" aria-live="polite" aria-atomic="true">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold">{activity.title}</p>
+            {working && elapsedSeconds !== null ? (
+              <span className="text-xs tabular-nums text-muted-foreground" aria-hidden="true">
+                {elapsedSeconds < 2 ? "Just started" : `${elapsedSeconds}s elapsed`}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{activity.detail}</p>
+          {activity.stages?.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Work included in this request">
+              {activity.stages.map((stage) => (
+                <span key={stage} className="rounded-full border bg-background/70 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {stage}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Feedback({
@@ -191,8 +255,8 @@ export default function InterviewWorkspace() {
   const [answer, setAnswer] = useState("");
   const [transcriptCorrected, setTranscriptCorrected] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const [busy, setBusy] = useState(false);
-  const [screenBusy, setScreenBusy] = useState(false);
+  const [operation, setOperation] = useState<InterviewOperation>("idle");
+  const [activityStartedAt, setActivityStartedAt] = useState(Date.now());
   const [listeningPaused, setListeningPaused] = useState(false);
   const [transitionTurnIndex, setTransitionTurnIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -203,11 +267,20 @@ export default function InterviewWorkspace() {
 
   const pending = interview ? pendingTurn(interview) : null;
   const current = transitionTurnIndex === null ? pending : null;
+  const busy = operation !== "idle";
+  const screenBusy = operation === "screen_checkpoint";
+
+  const beginOperation = useCallback((next: InterviewOperation) => {
+    setOperation(next);
+  }, []);
+  const endOperation = useCallback(() => {
+    setOperation("idle");
+  }, []);
 
   const submitAnswer = useCallback(async (text: string, corrected: boolean) => {
     const value = text.trim();
     if (!value || !current || !interview || interview.status !== "active" || busy) return;
-    setBusy(true);
+    beginOperation("submitting_answer");
     setError("");
     try {
       const answeredTurnIndex = current.turn_index;
@@ -221,20 +294,21 @@ export default function InterviewWorkspace() {
       setInterview(updated);
       setAnswer("");
       setTranscriptCorrected(false);
-      setBusy(false);
+      endOperation();
       if (reaction) {
         await speech.speakReaction(sessionId, answeredTurnIndex, reaction);
         setTransitionTurnIndex(null);
       }
       if (["completed", "abandoned"].includes(updated.status)) {
+        beginOperation("loading_report");
         setReport(await apiFetch<InterviewReport>(`/interviews/${sessionId}/report`));
       }
     } catch (failure) {
       setError((failure as Error).message || "That answer could not be evaluated.");
     } finally {
-      setBusy(false);
+      endOperation();
     }
-  }, [busy, current, interview, sessionId, speech.speakReaction]);
+  }, [beginOperation, busy, current, endOperation, interview, sessionId, speech.speakReaction]);
 
   const handleRecording = useCallback(async (recording: Blob) => {
     const transcript = await transcribeInterviewRecording(recording, sessionId);
@@ -245,6 +319,7 @@ export default function InterviewWorkspace() {
   const voice = useInterviewVoice({ onRecording: handleRecording, onVoiceStart: speech.stop });
 
   const load = useCallback(async () => {
+    beginOperation("loading_session");
     try {
       // Reloading or remounting must preserve a live interview. The previous
       // implementation converted every active reload into a pause, which
@@ -258,8 +333,10 @@ export default function InterviewWorkspace() {
       }
     } catch (failure) {
       setError((failure as Error).message || "Could not load this interview.");
+    } finally {
+      endOperation();
     }
-  }, [sessionId]);
+  }, [beginOperation, endOperation, sessionId]);
 
   useEffect(() => { if (authSession) void load(); }, [authSession, load]);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(timer); }, []);
@@ -301,29 +378,46 @@ export default function InterviewWorkspace() {
   }, [interview, now]);
   const remaining = Math.max(0, (interview?.maximum_duration_minutes ?? 0) * 60 - elapsed);
   const coverage = interview?.metrics.topics_required ? (interview.metrics.topics_covered / interview.metrics.topics_required) * 100 : interview?.checkpoint.topics.length ? (interview.checkpoint.topics.filter((topic) => topic.required && topic.completed).length / interview.checkpoint.topics.filter((topic) => topic.required).length) * 100 : 0;
+  const activity = useMemo(
+    () => describeInterviewActivity({
+      operation,
+      interviewStatus: interview?.status ?? "ready",
+      transitionInProgress: transitionTurnIndex !== null,
+      speechLoading: speech.loading,
+      speechSpeaking: speech.speaking,
+      voiceStatus: voice.status,
+      listeningPaused,
+      hasCurrentQuestion: current !== null,
+    }),
+    [current, interview?.status, listeningPaused, operation, speech.loading, speech.speaking, transitionTurnIndex, voice.status],
+  );
+  useEffect(() => setActivityStartedAt(Date.now()), [activity.title]);
+  const operationElapsed = activity.tone !== "working"
+    ? null
+    : Math.max(0, Math.floor((now - activityStartedAt) / 1_000));
 
   const pause = useCallback(async () => {
-    voice.stop(); speech.stop(); setBusy(true);
+    voice.stop(); speech.stop(); beginOperation("pausing");
     try { const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/pause`, { method: "POST" }); loadedAtRef.current = Date.now(); setInterview(updated); }
     catch (failure) { setError((failure as Error).message); }
-    finally { setBusy(false); }
-  }, [sessionId, speech.stop, voice.stop]);
+    finally { endOperation(); }
+  }, [beginOperation, endOperation, sessionId, speech.stop, voice.stop]);
   const resume = useCallback(async () => {
     primeInterviewAudio();
     primeInterviewerSpeech();
     lastSpokenRef.current = null;
     setListeningPaused(false);
-    setBusy(true);
+    beginOperation("resuming");
     try { const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/resume`, { method: "POST" }); loadedAtRef.current = Date.now(); setInterview(updated); }
     catch (failure) { releasePrimedInterviewAudio(); setError((failure as Error).message); }
-    finally { setBusy(false); }
-  }, [sessionId]);
+    finally { endOperation(); }
+  }, [beginOperation, endOperation, sessionId]);
   const finish = useCallback(async () => {
-    voice.stop(); speech.stop(); setBusy(true);
-    try { const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/finish`, { method: "POST" }); setInterview(updated); setReport(await apiFetch<InterviewReport>(`/interviews/${sessionId}/report`)); }
+    voice.stop(); speech.stop(); beginOperation("finishing");
+    try { const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/finish`, { method: "POST" }); setInterview(updated); beginOperation("loading_report"); setReport(await apiFetch<InterviewReport>(`/interviews/${sessionId}/report`)); }
     catch (failure) { setError((failure as Error).message); }
-    finally { setBusy(false); }
-  }, [sessionId, speech.stop, voice.stop]);
+    finally { endOperation(); }
+  }, [beginOperation, endOperation, sessionId, speech.stop, voice.stop]);
 
   useEffect(() => {
     if (!interview || interview.status !== "active" || busy) return;
@@ -332,7 +426,7 @@ export default function InterviewWorkspace() {
   }, [busy, elapsed, finish, interview]);
 
   const submitScreen = useCallback(async () => {
-    setScreenBusy(true); setError("");
+    beginOperation("screen_checkpoint"); setError("");
     try {
       const blob = await screen.capture();
       const token = await accessToken();
@@ -340,10 +434,10 @@ export default function InterviewWorkspace() {
       if (!response.ok) throw new ApiError(await errorDetail(response), response.status);
       setInterview((await response.json()) as InterviewSession);
     } catch (failure) { setError((failure as Error).message || "Screen checkpoint failed."); }
-    finally { setScreenBusy(false); }
-  }, [screen, sessionId]);
+    finally { endOperation(); }
+  }, [beginOperation, endOperation, screen, sessionId]);
 
-  if (sessionLoading || (authSession && !interview && !error)) return <div className="grid h-dvh place-items-center"><Skeleton className="h-6 w-56" /></div>;
+  if (sessionLoading || (authSession && !interview && !error)) return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-5" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-0.5 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">{sessionLoading ? "Checking your session" : "Restoring your interview"}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{sessionLoading ? "Verifying sign-in before loading interview data." : "Loading the saved question, transcript, timer, and media state."}</p></div></div></div>;
   if (!authSession) return <div className="relative grid h-dvh place-items-center p-6"><div className="absolute right-3 top-3"><ThemeToggle /></div><AuthGate /></div>;
   if (!interview) return <div className="grid h-dvh place-items-center p-6"><Alert variant="destructive" className="max-w-lg"><AlertDescription>{error || "Interview not found."}</AlertDescription></Alert></div>;
 
@@ -361,8 +455,10 @@ export default function InterviewWorkspace() {
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
               <div className="flex items-center gap-3"><div className={cn("size-2.5 rounded-full", interview.status === "active" ? "bg-emerald-500 motion-safe:animate-pulse" : "bg-amber-500")} /><div><p className="text-sm font-medium">{titleCase(interview.status)}</p><p className="text-xs text-muted-foreground">{clock(elapsed)} elapsed · {remaining > 0 ? `${clock(remaining)} remaining` : "current answer only"}</p></div></div>
-              <div className="flex items-center gap-2">{interview.status === "active" ? <Button variant="outline" size="sm" onClick={() => void pause()} disabled={busy}><Pause aria-hidden />Pause</Button> : <Button variant="outline" size="sm" onClick={() => void resume()} disabled={busy}><Play aria-hidden />Resume</Button>}<Button variant="ghost" size="sm" onClick={() => void finish()} disabled={busy}>End interview</Button></div>
+              <div className="flex items-center gap-2">{interview.status === "active" ? <Button variant="outline" size="sm" onClick={() => void pause()} disabled={busy}>{operation === "pausing" ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Pause aria-hidden />}{operation === "pausing" ? "Pausing…" : "Pause"}</Button> : <Button variant="outline" size="sm" onClick={() => void resume()} disabled={busy}>{operation === "resuming" ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Play aria-hidden />}{operation === "resuming" ? "Resuming…" : "Resume"}</Button>}<Button variant="ghost" size="sm" onClick={() => void finish()} disabled={busy}>{operation === "finishing" || operation === "loading_report" ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}{operation === "finishing" ? "Finishing…" : operation === "loading_report" ? "Loading report…" : "End interview"}</Button></div>
             </div>
+
+            <ActivityStatus activity={activity} elapsedSeconds={operationElapsed} />
 
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-5">
@@ -395,7 +491,7 @@ export default function InterviewWorkspace() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={speech.loading}
+                          disabled={busy || speech.loading}
                           onClick={() => {
                             if (speech.speaking) speech.stop();
                             else {
@@ -408,14 +504,14 @@ export default function InterviewWorkspace() {
                             }
                           }}
                         >
-                          {speech.speaking ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
-                          {speech.speaking ? "Stop voice" : speech.loading ? "Preparing voice…" : "Hear question again"}
+                          {speech.speaking ? <VolumeX aria-hidden /> : speech.loading ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Volume2 aria-hidden />}
+                          {speech.speaking ? "Stop voice" : speech.loading ? "Generating question voice…" : "Hear question again"}
                         </Button>
                         {voice.supported ? (
                           <Button
                             variant={voice.status === "idle" ? "outline" : "secondary"}
                             size="sm"
-                            disabled={speech.loading || speech.speaking}
+                            disabled={busy || speech.loading || speech.speaking}
                             onClick={() => {
                               if (voice.status === "idle") {
                                 setListeningPaused(false);
@@ -426,8 +522,8 @@ export default function InterviewWorkspace() {
                               }
                             }}
                           >
-                            <Mic aria-hidden />
-                            {voice.status === "idle" ? "Start listening" : "Pause listening"}
+                            {voice.status === "starting" ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Mic aria-hidden />}
+                            {voice.status === "starting" ? "Connecting mic…" : voice.status === "idle" ? "Start listening" : "Pause listening"}
                           </Button>
                         ) : null}
                       </div>
@@ -449,7 +545,7 @@ export default function InterviewWorkspace() {
                             {!screen.sharing ? (
                               <Button
                                 size="sm"
-                                disabled={!screen.supported || interview.status !== "active"}
+                                disabled={!screen.supported || interview.status !== "active" || busy}
                                 onClick={() => void screen.start()}
                               >
                                 <MonitorUp aria-hidden />
@@ -458,10 +554,11 @@ export default function InterviewWorkspace() {
                             ) : (
                               <Button
                                 size="sm"
-                                disabled={screenBusy}
+                                disabled={busy}
                                 onClick={() => void submitScreen()}
                               >
-                                {screenBusy ? "Analyzing…" : "Submit current screen"}
+                                {screenBusy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}
+                                {screenBusy ? "Analyzing checkpoint…" : "Submit current screen"}
                               </Button>
                             )}
                           </div>
@@ -499,12 +596,14 @@ export default function InterviewWorkspace() {
                             </span>
                           ) : null}
                           <span className="text-xs text-muted-foreground">
-                            {speech.loading || speech.speaking
-                              ? "Interviewer speaking — listening starts automatically next"
+                            {speech.loading
+                              ? "Generating interviewer voice — listening starts after playback"
+                              : speech.speaking
+                                ? "Interviewer speaking — listening starts automatically next"
                               : voice.status === "recording"
                               ? "Capturing this part of your answer…"
                               : voice.status === "processing"
-                                ? "Adding speech to your draft — keep speaking when ready"
+                                ? "Whisper is transcribing this segment into your draft…"
                                 : voice.status === "listening"
                                   ? voice.mode === "automatic"
                                     ? "Listening continuously — pauses only update the draft"
@@ -514,6 +613,7 @@ export default function InterviewWorkspace() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Select
+                            disabled={busy}
                             value={voice.microphones.selectedId ?? SYSTEM_DEFAULT_MICROPHONE}
                             onValueChange={(value) => {
                               voice.stop();
@@ -532,7 +632,7 @@ export default function InterviewWorkspace() {
                             </SelectContent>
                           </Select>
                           {voice.status !== "idle" ? (
-                            <Select value={voice.mode} onValueChange={(value) => voice.setMode(value as "automatic" | "push_to_talk")}>
+                            <Select disabled={busy} value={voice.mode} onValueChange={(value) => voice.setMode(value as "automatic" | "push_to_talk")}>
                               <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="automatic">Continuous listening</SelectItem>
@@ -570,14 +670,20 @@ export default function InterviewWorkspace() {
                           }
                           onClick={() => void submitAnswer(answer, transcriptCorrected)}
                         >
-                          {busy
-                            ? "Evaluating…"
+                          {busy || voice.status === "processing"
+                            ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" />
+                            : <Send aria-hidden />}
+                          {operation === "submitting_answer"
+                            ? "Evaluating answer…"
+                            : operation === "screen_checkpoint"
+                              ? "Analyzing screen…"
+                              : busy
+                                ? "Processing…"
                             : voice.status === "recording"
                               ? "Finish speaking…"
                               : voice.status === "processing"
-                                ? "Finishing transcript…"
+                                ? "Transcribing speech…"
                                 : "Send answer"}
-                          <Send aria-hidden />
                         </Button>
                       </div>
                     </CardContent>
@@ -592,8 +698,8 @@ export default function InterviewWorkspace() {
                         </p>
                       </div>
                       <Button onClick={() => void resume()} disabled={busy}>
-                        <Play aria-hidden />
-                        {busy ? "Resuming…" : "Resume interview"}
+                        {operation === "resuming" ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Play aria-hidden />}
+                        {operation === "resuming" ? "Restoring interview…" : "Resume interview"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -601,7 +707,7 @@ export default function InterviewWorkspace() {
               </div>
 
               <aside className="space-y-4">
-                <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><MonitorUp aria-hidden className="size-4" />Screen workspace</CardTitle></CardHeader><CardContent><p className="text-xs leading-5 text-muted-foreground">{current && current.question.work_sample !== "none" && current.question.work_sample_prompt ? `${workSampleLabel(current.question.work_sample)} requested. Share your drawing, derivation, assumptions, or code when it is ready.` : "Keep this available for drawing, derivation, assumptions, or code tasks the interviewer requests."} Nothing is continuously uploaded.</p><video ref={screen.videoRef} muted playsInline className={cn("mt-3 aspect-video w-full rounded-lg border bg-black object-contain", !screen.sharing && "hidden")} /> <div className="mt-3 flex gap-2">{!screen.sharing ? <Button variant="outline" size="sm" className="w-full" disabled={!screen.supported || interview.status !== "active"} onClick={() => void screen.start()}><MonitorUp aria-hidden />Share screen</Button> : <><Button size="sm" className="flex-1" disabled={screenBusy} onClick={() => void submitScreen()}>{screenBusy ? "Analyzing…" : "Submit screen"}</Button><Button variant="outline" size="icon-sm" aria-label="Stop sharing" onClick={screen.stop}><Square aria-hidden /></Button></>}</div></CardContent></Card>
+                <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><MonitorUp aria-hidden className="size-4" />Screen workspace</CardTitle></CardHeader><CardContent><p className="text-xs leading-5 text-muted-foreground">{current && current.question.work_sample !== "none" && current.question.work_sample_prompt ? `${workSampleLabel(current.question.work_sample)} requested. Share your drawing, derivation, assumptions, or code when it is ready.` : "Keep this available for drawing, derivation, assumptions, or code tasks the interviewer requests."} Nothing is continuously uploaded.</p><video ref={screen.videoRef} muted playsInline className={cn("mt-3 aspect-video w-full rounded-lg border bg-black object-contain", !screen.sharing && "hidden")} /> <div className="mt-3 flex gap-2">{!screen.sharing ? <Button variant="outline" size="sm" className="w-full" disabled={!screen.supported || interview.status !== "active" || busy} onClick={() => void screen.start()}><MonitorUp aria-hidden />Share screen</Button> : <><Button size="sm" className="flex-1" disabled={busy} onClick={() => void submitScreen()}>{screenBusy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}{screenBusy ? "Analyzing checkpoint…" : "Submit screen"}</Button><Button variant="outline" size="icon-sm" aria-label="Stop sharing" onClick={screen.stop}><Square aria-hidden /></Button></>}</div></CardContent></Card>
                 <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Clock3 aria-hidden className="size-4" />Session budget</CardTitle></CardHeader><CardContent><div className="flex items-end justify-between"><div><p className="font-heading text-2xl font-semibold">${interview.total_cost_usd.toFixed(4)}</p><p className="text-xs text-muted-foreground">≈₹{(interview.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)} provider cost</p></div><span className="text-xs text-muted-foreground">Target ₹5–10</span></div><Progress className="mt-3" value={Math.min(100, (interview.total_cost_usd * INR_PER_USD_ESTIMATE / 10) * 100)} /><p className="mt-3 text-xs leading-5 text-muted-foreground">Raw audio and screen images are discarded after processing.</p></CardContent></Card>
               </aside>
             </div>

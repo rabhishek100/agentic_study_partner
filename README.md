@@ -431,6 +431,11 @@ processed ephemerally and never stored; only transcripts and structured screen
 observations survive. Explicit Pause stops the clock, while a refresh restores
 the live question and voice controls instead of silently pausing the session.
 Persisted paused sessions can be resumed from a prominent in-session control.
+The workspace keeps one live activity panel visible throughout the turn. It
+distinguishes source-grounded answer evaluation, next-turn planning, Whisper
+transcription, question and feedback TTS, screen-checkpoint analysis,
+pause/resume, and final-report loading; indeterminate work shows elapsed time
+instead of a fabricated completion percentage.
 
 The default interview stack is `openai/gpt-5.6-luna` for reasoning,
 `openai/whisper-large-v3-turbo` for STT, and
