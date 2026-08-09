@@ -17,7 +17,12 @@ from .contracts import (
     WorkSampleKind,
 )
 from .evaluation import InterviewValidationError, validate_question
-from .models import InterviewModelError, invoke_structured, structured_model
+from .models import (
+    InterviewModelError,
+    InterviewProviderError,
+    invoke_structured,
+    structured_model,
+)
 from .prompts import build_question_messages
 
 
@@ -323,6 +328,9 @@ def generate_question(
                 ),
                 InterviewQuestion,
             )
+        except InterviewProviderError as error:
+            last_error = error
+            break
         except InterviewModelError as error:
             last_error = error
             continue

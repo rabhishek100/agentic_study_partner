@@ -26,6 +26,7 @@ from interviews.evaluation import (
     validate_question,
 )
 from interviews.graph import AnswerGraphContext, answer_graph
+from interviews.models import structured_model
 from interviews.planning import detect_format, estimate_duration
 from interviews.question_generation import (
     apply_work_sample_policy,
@@ -152,6 +153,15 @@ class SequenceStructuredModel:
         return {"parsed": value, "raw": RawResponse()}
 
 
+class FailingStructuredModel:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def invoke(self, messages):
+        self.calls += 1
+        raise TimeoutError("provider stalled")
+
+
 class PlanningTests(unittest.TestCase):
     def test_detects_source_led_before_generic_system_design(self) -> None:
         scope = inventory(
@@ -197,6 +207,18 @@ class PlanningTests(unittest.TestCase):
 
 
 class GroundingTests(unittest.TestCase):
+    @patch("langchain_openai.ChatOpenAI")
+    def test_interactive_model_has_a_short_deadline_without_hidden_retries(
+        self, chat_model
+    ) -> None:
+        with patch.dict(
+            "os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=True
+        ):
+            structured_model(InterviewQuestion)
+
+        self.assertEqual(chat_model.call_args.kwargs["timeout"], 15.0)
+        self.assertEqual(chat_model.call_args.kwargs["max_retries"], 0)
+
     def test_question_private_answer_must_stay_inside_topic(self) -> None:
         invalid = question().model_copy(
             update={
@@ -353,6 +375,23 @@ class GroundingTests(unittest.TestCase):
         self.assertIn("[N7:P42]", generated.suggested_answer)
         self.assertEqual(generated.work_sample, "none")
         self.assertEqual(cost, 0.002)
+
+    def test_provider_timeout_falls_back_without_a_second_wait(self) -> None:
+        model = FailingStructuredModel()
+
+        generated, cost = generate_question(
+            inventory=inventory(),
+            topic=topic(),
+            interview_format="concept",
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+            model=model,
+        )
+
+        self.assertEqual(model.calls, 1)
+        self.assertEqual(generated.citation_markers, ["[N7:P42]"])
+        self.assertEqual(cost, 0.0)
 
     def test_fallback_changes_shape_after_a_repeated_question(self) -> None:
         previous = question().model_copy(

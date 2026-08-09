@@ -17,6 +17,10 @@ class InterviewModelError(RuntimeError):
     pass
 
 
+class InterviewProviderError(InterviewModelError):
+    """The interactive provider did not return before its bounded deadline."""
+
+
 Schema = TypeVar("Schema", bound=BaseModel)
 
 
@@ -39,8 +43,11 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
         model=model_name(),
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "2")),
-        timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
+        # Interview turns are synchronous user interactions. Hidden retries on
+        # a 120-second timeout can lock the composer for minutes, so this path
+        # has a deliberately short independent deadline and fails once.
+        max_retries=int(os.getenv("OPENROUTER_INTERVIEW_MAX_RETRIES", "0")),
+        timeout=float(os.getenv("OPENROUTER_INTERVIEW_TIMEOUT_SECONDS", "15")),
         temperature=temperature,
         extra_body={
             "usage": {"include": True},
@@ -58,7 +65,12 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
 
 
 def invoke_structured(client: Any, messages: list[Any], schema: type[Schema]) -> tuple[Schema, float]:
-    response = client.invoke(messages)
+    try:
+        response = client.invoke(messages)
+    except InterviewModelError:
+        raise
+    except Exception as error:
+        raise InterviewProviderError("the interview model request timed out or failed") from error
     if isinstance(response, dict):
         parsed = response.get("parsed")
         raw = response.get("raw")

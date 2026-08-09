@@ -20,7 +20,7 @@ from .contracts import (
     WebSource,
 )
 from .evaluation import InterviewValidationError, sanitize_evaluation
-from .models import invoke_structured, structured_model
+from .models import InterviewModelError, invoke_structured, structured_model
 from .planning import next_topic, topic_by_key
 from .prompts import build_evaluation_messages
 from .question_generation import (
@@ -148,22 +148,37 @@ def verify_extension(
     topic = _active_topic(state)
     topic_state = next(item for item in session.checkpoint.topics if item.key == topic.key)
     client = runtime.context.evaluation_model or structured_model(AnswerEvaluation)
-    checked, cost = invoke_structured(
-        client,
-        build_evaluation_messages(
-            inventory=state["inventory"],
-            topic=topic,
-            question=state["current_turn"].question,
-            answer=state["answer_text"],
-            mode=session.feedback_mode,
-            target_level=session.target_level,
-            attempts=topic_state.attempts + 1,
-            hints_used=topic_state.hints_used,
-            screen_observation=state["current_turn"].screen_observation,
-            web_sources=web_sources,
-        ),
-        AnswerEvaluation,
-    )
+    try:
+        checked, cost = invoke_structured(
+            client,
+            build_evaluation_messages(
+                inventory=state["inventory"],
+                topic=topic,
+                question=state["current_turn"].question,
+                answer=state["answer_text"],
+                mode=session.feedback_mode,
+                target_level=session.target_level,
+                attempts=topic_state.attempts + 1,
+                hints_used=topic_state.hints_used,
+                screen_observation=state["current_turn"].screen_observation,
+                web_sources=web_sources,
+            ),
+            AnswerEvaluation,
+        )
+    except InterviewModelError:
+        return {
+            "web_sources": web_sources,
+            "evaluation": evaluation.model_copy(
+                update={
+                    "needs_external_verification": False,
+                    "classification": "partially_correct",
+                    "extension_summary": (
+                        (evaluation.extension_summary or "Extension")
+                        + " (external recheck unavailable)"
+                    ),
+                }
+            ),
+        }
     return {
         "web_sources": web_sources,
         "evaluation": sanitize_evaluation(

@@ -78,6 +78,12 @@ import { cn } from "@/lib/utils";
 
 const INR_PER_USD_ESTIMATE = Number(process.env.NEXT_PUBLIC_USD_INR_RATE ?? "90");
 const SYSTEM_DEFAULT_MICROPHONE = "__system_default__";
+const ANSWER_SUBMISSION_TIMEOUT_MS = 50_000;
+const SUBMISSION_RECONCILIATION_DELAYS_MS = [0, 2_000, 4_000, 6_000] as const;
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 function clock(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
@@ -264,6 +270,7 @@ export default function InterviewWorkspace() {
   const loadedAtRef = useRef(Date.now());
   const lastSpokenRef = useRef<number | null>(null);
   const draftEpochRef = useRef(0);
+  const submissionControllerRef = useRef<AbortController | null>(null);
   const speech = useInterviewerSpeech();
   const screen = useScreenShare();
 
@@ -325,8 +332,18 @@ export default function InterviewWorkspace() {
     beginOperation("submitting_answer");
     setError("");
     setSubmitError("");
+    const controller = new AbortController();
+    submissionControllerRef.current = controller;
+    const timeout = window.setTimeout(
+      () => controller.abort(new DOMException("Answer submission timed out", "AbortError")),
+      ANSWER_SUBMISSION_TIMEOUT_MS,
+    );
     try {
-      const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/answers`, { method: "POST", body: JSON.stringify({ answer_text: value, transcript_corrected: corrected }) });
+      const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/answers`, {
+        method: "POST",
+        body: JSON.stringify({ answer_text: value, transcript_corrected: corrected }),
+        signal: controller.signal,
+      });
       await acceptSubmittedAnswer(updated, answeredTurnIndex);
     } catch (failure) {
       // A proxy or browser can lose the response after the API has committed
@@ -334,14 +351,28 @@ export default function InterviewWorkspace() {
       // successful answer can look lost and be submitted twice.
       beginOperation("checking_submission");
       try {
-        const recovered = await apiFetch<InterviewSession>(`/interviews/${sessionId}`);
-        const saved = recovered.turns.find(
-          (turn) => turn.turn_index === answeredTurnIndex,
-        );
-        if (saved?.answer_text) {
+        const uncertainOutcome =
+          (failure as Error)?.name === "AbortError" || !(failure instanceof ApiError);
+        let recovered: InterviewSession | null = null;
+        let saved = false;
+        for (const delay of uncertainOutcome
+          ? SUBMISSION_RECONCILIATION_DELAYS_MS
+          : [0]) {
+          if (delay) await wait(delay);
+          recovered = await apiFetch<InterviewSession>(`/interviews/${sessionId}`);
+          saved = Boolean(
+            recovered.turns.find(
+              (turn) => turn.turn_index === answeredTurnIndex,
+            )?.answer_text,
+          );
+          if (saved) break;
+        }
+        if (saved && recovered) {
           await acceptSubmittedAnswer(recovered, answeredTurnIndex);
         } else {
-          const reason = (failure as Error).message || "The evaluator did not finish.";
+          const reason = (failure as Error)?.name === "AbortError"
+            ? "The evaluator exceeded its deadline."
+            : (failure as Error).message || "The evaluator did not finish.";
           setSubmitError(`Your answer was not submitted. Your draft is preserved. ${reason}`);
         }
       } catch {
@@ -350,6 +381,10 @@ export default function InterviewWorkspace() {
         );
       }
     } finally {
+      window.clearTimeout(timeout);
+      if (submissionControllerRef.current === controller) {
+        submissionControllerRef.current = null;
+      }
       endOperation();
     }
   }, [acceptSubmittedAnswer, beginOperation, current, endOperation, interview, sessionId, submissionLocked]);
@@ -718,6 +753,19 @@ export default function InterviewWorkspace() {
                             <p className="mt-1 font-medium text-amber-700 dark:text-amber-300">
                               The interview model is taking longer than usual. Please do not resend; recovery will check whether this turn was saved.
                             </p>
+                          ) : null}
+                          {(operationElapsed ?? 0) >= 40 ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="mt-2"
+                              onClick={() => submissionControllerRef.current?.abort(
+                                new DOMException("Candidate stopped waiting", "AbortError"),
+                              )}
+                            >
+                              Stop waiting and check status
+                            </Button>
                           ) : null}
                         </div>
                       ) : operation === "checking_submission" ? (
