@@ -50,7 +50,10 @@ describe("interview audio activation", () => {
   });
 
   it("uses the device voice when hosted speech is unavailable", async () => {
-    const speak = vi.fn((utterance: FakeUtterance) => utterance.onstart?.());
+    const speak = vi.fn((utterance: FakeUtterance) => {
+      utterance.onstart?.();
+      utterance.onend?.();
+    });
     class FakeUtterance {
       voice: SpeechSynthesisVoice | null = null;
       volume = 1;
@@ -77,6 +80,43 @@ describe("interview audio activation", () => {
     expect(speak).toHaveBeenCalledOnce();
     expect(speak.mock.calls[0]?.[0].text).toBe("Explain the trade-off.");
     expect(result.current.error).toBe("");
+  });
+
+  it("uses the settled turn for a spoken answer reaction", async () => {
+    const speak = vi.fn((utterance: FakeUtterance) => {
+      utterance.onstart?.();
+      utterance.onend?.();
+    });
+    class FakeUtterance {
+      voice: SpeechSynthesisVoice | null = null;
+      volume = 1;
+      rate = 1;
+      pitch = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public text: string) {}
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
+    vi.stubGlobal("speechSynthesis", {
+      speak,
+      cancel: vi.fn(),
+      getVoices: () => [],
+    });
+    const fetch = vi.fn(async (_url: string) => {
+      throw new Error("provider timeout");
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useInterviewerSpeech());
+
+    await act(() =>
+      result.current.speakReaction("session", 3, "That was well structured."),
+    );
+
+    expect(fetch.mock.calls[0]?.[0]).toContain(
+      "/interviews/session/turns/3/reaction-speech",
+    );
+    expect(speak.mock.calls[0]?.[0].text).toBe("That was well structured.");
   });
 });
 

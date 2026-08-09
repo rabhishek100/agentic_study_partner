@@ -21,6 +21,38 @@ class InterviewValidationError(RuntimeError):
     pass
 
 
+REACTION_FALLBACKS = {
+    "source_aligned": "That was a strong, well-grounded answer.",
+    "correct_extension": (
+        "That was a sound answer, and the added perspective was useful."
+    ),
+    "partially_correct": (
+        "You are on the right track, though part of the explanation needs more "
+        "precision."
+    ),
+    "incorrect": (
+        "There is an important issue in that reasoning that we should correct."
+    ),
+    "insufficient": (
+        "I need a little more substance before I can assess that idea fully."
+    ),
+}
+
+
+def interviewer_reaction(evaluation: AnswerEvaluation) -> str:
+    """Return a concise candidate-facing transition that is safe to speak.
+
+    The full rubric, scores, citations, and recommended answer remain private
+    in realistic mode. Citation markers are removed because hearing source IDs
+    between questions is unnatural even when the written feedback included
+    one by mistake.
+    """
+
+    reaction = ANY_MARKER.sub("", evaluation.concise_feedback)
+    reaction = " ".join(reaction.split()).strip()
+    return reaction or REACTION_FALLBACKS[evaluation.classification]
+
+
 def validate_question(question: InterviewQuestion, topic: Topic) -> InterviewQuestion:
     """Reject a private answer whose evidence markers leave its active topic."""
 

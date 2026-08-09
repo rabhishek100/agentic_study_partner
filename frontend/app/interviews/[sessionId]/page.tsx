@@ -92,15 +92,67 @@ function scoreColor(score: number): string {
   return "bg-rose-500";
 }
 
-function Feedback({ evaluation }: { evaluation: AnswerEvaluation }) {
+function Feedback({
+  evaluation,
+  showConcise = true,
+}: {
+  evaluation: AnswerEvaluation;
+  showConcise?: boolean;
+}) {
   return (
     <div className="mt-4 rounded-xl border border-primary/15 bg-primary/[0.035] p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">{titleCase(evaluation.classification)}</Badge>
         <span className="text-xs text-muted-foreground">Technical {evaluation.scores.technical_correctness}/5 · Depth {evaluation.scores.depth_completeness}/5</span>
       </div>
-      {evaluation.concise_feedback ? <p className="mt-3 text-sm leading-6">{evaluation.concise_feedback}</p> : null}
+      {showConcise && evaluation.concise_feedback ? <p className="mt-3 text-sm leading-6">{evaluation.concise_feedback}</p> : null}
       {evaluation.gaps.length ? <div className="mt-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Improve</p><ul className="mt-1 space-y-1 text-sm">{evaluation.gaps.map((gap) => <li key={gap}>• {gap}</li>)}</ul></div> : null}
+    </div>
+  );
+}
+
+function InterviewExchange({
+  turn,
+  reacting,
+  reactionLoading,
+  reactionSpeaking,
+}: {
+  turn: InterviewTurn;
+  reacting: boolean;
+  reactionLoading: boolean;
+  reactionSpeaking: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="max-w-[88%] rounded-2xl rounded-tl-sm border bg-card p-4">
+        <p className="text-xs font-medium text-primary">Interviewer</p>
+        <p className="mt-1.5 text-sm leading-6">{turn.question.text}</p>
+      </div>
+      <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground">
+        <p className="text-xs font-medium opacity-70">You</p>
+        <p className="mt-1.5 text-sm leading-6">{turn.answer_text}</p>
+      </div>
+      {turn.interviewer_reaction ? (
+        <div className="max-w-[88%] rounded-2xl rounded-tl-sm border border-primary/20 bg-primary/[0.035] p-4">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
+            <Volume2 aria-hidden className="size-3.5" />
+            Interviewer response
+          </p>
+          <p className="mt-1.5 text-sm leading-6">{turn.interviewer_reaction}</p>
+          {reacting ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {reactionLoading
+                ? "Preparing response…"
+                : reactionSpeaking
+                  ? "Speaking…"
+                  : "Finishing response…"}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {turn.evaluation ? (
+        <Feedback evaluation={turn.evaluation} showConcise={false} />
+      ) : null}
     </div>
   );
 }
@@ -140,27 +192,39 @@ export default function InterviewWorkspace() {
   const [busy, setBusy] = useState(false);
   const [screenBusy, setScreenBusy] = useState(false);
   const [listeningPaused, setListeningPaused] = useState(false);
+  const [transitionTurnIndex, setTransitionTurnIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const loadedAtRef = useRef(Date.now());
   const lastSpokenRef = useRef<number | null>(null);
   const speech = useInterviewerSpeech();
   const screen = useScreenShare();
 
-  const current = interview ? pendingTurn(interview) : null;
+  const pending = interview ? pendingTurn(interview) : null;
+  const current = transitionTurnIndex === null ? pending : null;
 
   const submitAnswer = useCallback(async (text: string, corrected: boolean) => {
     const value = text.trim();
-    if (!value || !interview || interview.status !== "active" || busy) return;
+    if (!value || !current || !interview || interview.status !== "active" || busy) return;
     setBusy(true);
     setError("");
     try {
+      const answeredTurnIndex = current.turn_index;
       const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/answers`, { method: "POST", body: JSON.stringify({ answer_text: value, transcript_corrected: corrected }) });
+      const settledTurn = updated.turns.find(
+        (turn) => turn.turn_index === answeredTurnIndex,
+      );
+      const reaction = settledTurn?.interviewer_reaction?.trim() ?? "";
       loadedAtRef.current = Date.now();
+      if (reaction) setTransitionTurnIndex(answeredTurnIndex);
       setInterview(updated);
       setAnswer("");
       setTranscriptCorrected(false);
+      setBusy(false);
+      if (reaction) {
+        await speech.speakReaction(sessionId, answeredTurnIndex, reaction);
+        setTransitionTurnIndex(null);
+      }
       if (["completed", "abandoned"].includes(updated.status)) {
-        speech.stop();
         setReport(await apiFetch<InterviewReport>(`/interviews/${sessionId}/report`));
       }
     } catch (failure) {
@@ -168,7 +232,7 @@ export default function InterviewWorkspace() {
     } finally {
       setBusy(false);
     }
-  }, [busy, interview, sessionId, speech.stop]);
+  }, [busy, current, interview, sessionId, speech.speakReaction]);
 
   const handleRecording = useCallback(async (recording: Blob) => {
     const transcript = await transcribeInterviewRecording(recording, sessionId);
@@ -311,7 +375,19 @@ export default function InterviewWorkspace() {
 
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
               <div className="space-y-5">
-                <div className="space-y-4">{interview.turns.filter((turn) => turn.answer_text).map((turn: InterviewTurn) => <div key={turn.turn_index} className="space-y-3"><div className="max-w-[88%] rounded-2xl rounded-tl-sm border bg-card p-4"><p className="text-xs font-medium text-primary">Interviewer</p><p className="mt-1.5 text-sm leading-6">{turn.question.text}</p></div><div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground"><p className="text-xs font-medium opacity-70">You</p><p className="mt-1.5 text-sm leading-6">{turn.answer_text}</p></div>{turn.evaluation ? <Feedback evaluation={turn.evaluation} /> : null}</div>)}</div>
+                <div className="space-y-4">
+                  {interview.turns
+                    .filter((turn) => turn.answer_text)
+                    .map((turn: InterviewTurn) => (
+                      <InterviewExchange
+                        key={turn.turn_index}
+                        turn={turn}
+                        reacting={transitionTurnIndex === turn.turn_index}
+                        reactionLoading={speech.loading}
+                        reactionSpeaking={speech.speaking}
+                      />
+                    ))}
+                </div>
 
                 {current ? (
                   <Card className="overflow-hidden border-primary/20 shadow-sm">

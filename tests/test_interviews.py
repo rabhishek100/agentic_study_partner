@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import httpx
 
+from api.interviews import _public
 from decks.topics import ScopeInventory, Topic
 from interviews.contracts import (
     AnswerEvaluation,
@@ -19,6 +20,7 @@ from interviews.contracts import (
 )
 from interviews.evaluation import (
     InterviewValidationError,
+    interviewer_reaction,
     resolve_citations,
     sanitize_evaluation,
     validate_question,
@@ -261,6 +263,39 @@ class GraphTests(unittest.TestCase):
 
 
 class SpeechTests(unittest.TestCase):
+    def test_realistic_session_exposes_reaction_but_not_private_evaluation(self) -> None:
+        live = session().model_copy(
+            update={
+                "turns": [
+                    InterviewTurn(
+                        turn_index=0,
+                        question=question(),
+                        answer_text="It models log odds.",
+                        evaluation=evaluation(complete=True),
+                    )
+                ]
+            }
+        )
+
+        public = _public(live)
+
+        self.assertIsNone(public.turns[0].evaluation)
+        self.assertEqual(public.turns[0].interviewer_reaction, "Grounded feedback.")
+        self.assertEqual(public.turns[0].question.expected_points, [])
+
+    def test_interviewer_reaction_is_spoken_and_hides_source_markers(self) -> None:
+        result = interviewer_reaction(evaluation(complete=True))
+
+        self.assertEqual(result, "Grounded feedback.")
+        self.assertNotIn("[N7:P42]", result)
+
+    def test_interviewer_reaction_has_a_natural_fallback(self) -> None:
+        incomplete = evaluation(complete=False).model_copy(
+            update={"concise_feedback": ""}
+        )
+
+        self.assertIn("right track", interviewer_reaction(incomplete))
+
     def test_voxtral_is_the_default_and_cost_is_character_bounded(self) -> None:
         requests: list[httpx.Request] = []
 

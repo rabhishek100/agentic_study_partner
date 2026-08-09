@@ -81,6 +81,15 @@ audio cannot be mistaken for the candidate. Every new interviewer question is
 spoken automatically, with a one-click replay/unlock fallback where browser
 autoplay policy requires a gesture.
 
+After every submitted answer, the evaluation produces a one- or two-sentence
+candidate-facing reaction. The interface writes and speaks that reaction while
+the next question remains hidden and microphone capture remains paused. Only
+after reaction playback settles does the next question appear and play. In
+realistic mode this transition communicates what was sound or needs precision
+without exposing scores, rubric fields, citations, or the complete model
+answer; guided mode additionally retains its detailed live coaching. The final
+answer receives the same reaction before the report opens.
+
 Voxtral Mini TTS with a neutral English voice is the default, selected for
 natural delivery, low latency, and a per-character price that stays within the
 session budget. Model and voice remain environment-configurable. A bounded

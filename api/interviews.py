@@ -24,6 +24,7 @@ from interviews.contracts import (
     SessionReport,
     TargetLevel,
 )
+from interviews.evaluation import interviewer_reaction
 from interviews.models import InterviewModelError
 from interviews.planning import InterviewSourceError
 from interviews.screen import (
@@ -112,7 +113,7 @@ NOT_FOUND = HTTPException(status_code=404, detail="interview session not found")
 
 
 def _public(session: InterviewSession) -> InterviewSession:
-    """Hide rubrics and realistic-mode feedback until the interview settles."""
+    """Expose a live reaction while hiding realistic-mode rubric details."""
 
     settled = session.status in {"completed", "abandoned"}
     realistic_live = not settled and session.feedback_mode == "realistic"
@@ -128,28 +129,23 @@ def _public(session: InterviewSession) -> InterviewSession:
                     "interviewer_note": "",
                 }
             )
-        hide_feedback = (
-            realistic_live
-            and turn.evaluation is not None
-        )
+        hide_feedback = realistic_live and turn.evaluation is not None
         observation = turn.screen_observation
         if realistic_live and observation is not None:
             observation = ScreenObservation(summary="Screen checkpoint received.")
-        turns.append(
-            turn.model_copy(
-                update=(
-                    {
-                        "question": question,
-                        "evaluation": None,
-                        "citations": [],
-                        "web_sources": [],
-                        "screen_observation": observation,
-                    }
-                    if hide_feedback
-                    else {"question": question, "screen_observation": observation}
-                )
-            )
+        reaction = interviewer_reaction(turn.evaluation) if turn.evaluation else ""
+        public_turn = turn.model_copy(
+            update={
+                "question": question,
+                "screen_observation": observation,
+                "interviewer_reaction": reaction,
+            }
         )
+        if hide_feedback:
+            public_turn = public_turn.model_copy(
+                update={"evaluation": None, "citations": [], "web_sources": []}
+            )
+        turns.append(public_turn)
     metrics = (
         InterviewMetrics()
         if not settled and session.feedback_mode == "realistic"
@@ -468,7 +464,10 @@ async def speech(
     def synthesize():
         with database_connection() as connection:
             session = store.load_session(connection, session_id, owner_id=owner_id)
-            turn = next((item for item in session.turns if item.turn_index == turn_index), None)
+            turn = next(
+                (item for item in session.turns if item.turn_index == turn_index),
+                None,
+            )
             if turn is None:
                 raise store.InterviewStateError("interview question not found")
             audio = synthesize_interviewer_speech(turn.question.text)
@@ -483,7 +482,58 @@ async def speech(
     try:
         audio = await run_in_threadpool(synthesize)
     except SpeechError as error:
-        raise HTTPException(status_code=502, detail="interviewer voice is unavailable") from error
+        raise HTTPException(
+            status_code=502,
+            detail="interviewer voice is unavailable",
+        ) from error
+    except Exception as error:
+        raise _translate(error) from error
+    return Response(
+        content=audio.content,
+        media_type=audio.media_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Interview-TTS-Model": audio.model,
+            "X-Interview-TTS-Voice": audio.voice,
+        },
+    )
+
+
+@router.get("/{session_id}/turns/{turn_index}/reaction-speech")
+async def reaction_speech(
+    session_id: UUID,
+    turn_index: int,
+    owner_id: UUID = Depends(current_owner),
+) -> Response:
+    """Speak the settled answer reaction before the next question begins."""
+
+    def synthesize():
+        with database_connection() as connection:
+            session = store.load_session(connection, session_id, owner_id=owner_id)
+            turn = next(
+                (item for item in session.turns if item.turn_index == turn_index),
+                None,
+            )
+            if turn is None or turn.evaluation is None:
+                raise store.InterviewStateError("interview reaction not found")
+            audio = synthesize_interviewer_speech(
+                interviewer_reaction(turn.evaluation)
+            )
+            store.add_cost(
+                connection,
+                session_id,
+                owner_id=owner_id,
+                cost_usd=audio.cost_usd,
+            )
+            return audio
+
+    try:
+        audio = await run_in_threadpool(synthesize)
+    except SpeechError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="interviewer reaction voice is unavailable",
+        ) from error
     except Exception as error:
         raise _translate(error) from error
     return Response(

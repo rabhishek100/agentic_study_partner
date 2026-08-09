@@ -403,8 +403,9 @@ and classified as concept, system-design, or source-led interview material. The
 LangGraph turn workflow evaluates against that topic's evidence, requests a
 clarifying answer and at most two graduated hints when needed, optionally
 verifies a material answer extension on the web, and either advances or closes.
-Realistic mode withholds rubrics, feedback, scores, and topic order until the
-report; guided mode returns feedback after each turn. Reports retain the
+Realistic mode withholds rubrics, detailed coaching, scores, and topic order
+until the report while still giving a natural short reaction after each
+answer; guided mode returns the detailed feedback after each turn. Reports retain the
 transcript, six dimension scores, recommended answers, citations, cost, and
 missed topics without inventing percentiles.
 
@@ -413,7 +414,9 @@ The setup includes an input picker and live mic check, and session capture
 calibrates to that device's noise floor. Silence transcribes one segment into
 the editable draft but never submits it;
 the candidate explicitly sends the complete answer. New questions are spoken
-automatically through `OPENROUTER_TTS_MODEL`, and clips are transcribed through
+automatically through `OPENROUTER_TTS_MODEL`. After each submission, the
+interviewer writes and speaks a concise reaction before revealing and speaking
+the next question. Clips are transcribed through
 `OPENROUTER_INTERVIEW_STT_MODEL`; both remain usable as text if media access,
 browser autoplay, or a provider call fails. Slow hosted TTS falls back to the
 device voice rather than blocking the interview. Screen sharing stays local until the

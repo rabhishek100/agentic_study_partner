@@ -149,6 +149,12 @@ incomplete explanation from a misconception. Set `topic_complete` when another
 question on this topic would add little interview signal. The recommended
 answer and corrective claims must use inline source markers, and
 `citation_markers` must list every one used.
+
+Write `concise_feedback` as one or two natural, speakable sentences addressed
+directly to the candidate. Briefly say what was sound and, when needed, what
+needs more precision. Do not include scores, rubric labels, citation markers,
+or a complete model answer. It will be spoken immediately before the next
+question, so make it feel like an interviewer reacting rather than a report.
 """.strip()
     return [
         SystemMessage(content=LOCKED_INTERVIEW_PROMPT),

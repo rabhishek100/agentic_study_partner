@@ -22,9 +22,16 @@ export function useInterviewerSpeech() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const deviceUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const urlRef = useRef<string | null>(null);
+  const completionRef = useRef<(() => void) | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const completePlayback = useCallback(() => {
+    const complete = completionRef.current;
+    completionRef.current = null;
+    complete?.();
+  }, []);
 
   const stop = useCallback(() => {
     const audio = audioRef.current;
@@ -36,8 +43,9 @@ export function useInterviewerSpeech() {
       window.speechSynthesis.cancel();
       deviceUtteranceRef.current = null;
     }
+    completePlayback();
     setSpeaking(false);
-  }, []);
+  }, [completePlayback]);
 
   const clear = useCallback(() => {
     stop();
@@ -48,7 +56,7 @@ export function useInterviewerSpeech() {
 
   useEffect(() => clear, [clear]);
 
-  const speakOnDevice = useCallback((text: string): boolean => {
+  const speakOnDevice = useCallback(async (text: string): Promise<boolean> => {
     if (
       !("speechSynthesis" in window) ||
       typeof SpeechSynthesisUtterance === "undefined"
@@ -63,23 +71,29 @@ export function useInterviewerSpeech() {
       ) ?? voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ?? null;
     utterance.rate = 0.96;
     utterance.pitch = 1;
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => {
-      deviceUtteranceRef.current = null;
-      setSpeaking(false);
-    };
-    utterance.onerror = () => {
-      deviceUtteranceRef.current = null;
-      setSpeaking(false);
-      setError("The interviewer voice could not be played. Read the question on screen.");
-    };
-    deviceUtteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
-    return true;
-  }, []);
+    return new Promise<boolean>((resolve) => {
+      completionRef.current = () => resolve(true);
+      utterance.onstart = () => setSpeaking(true);
+      utterance.onend = () => {
+        deviceUtteranceRef.current = null;
+        setSpeaking(false);
+        completePlayback();
+      };
+      utterance.onerror = () => {
+        deviceUtteranceRef.current = null;
+        setSpeaking(false);
+        setError(
+          "The interviewer voice could not be played. Read the response on screen.",
+        );
+        completePlayback();
+      };
+      deviceUtteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    });
+  }, [completePlayback]);
 
-  const speak = useCallback(
-    async (sessionId: string, turnIndex: number, fallbackText: string) => {
+  const play = useCallback(
+    async (path: string, fallbackText: string) => {
       clear();
       setLoading(true);
       setError("");
@@ -90,27 +104,35 @@ export function useInterviewerSpeech() {
       );
       try {
         const token = await accessToken();
-        const response = await fetch(
-          uploadUrl(`/interviews/${sessionId}/turns/${turnIndex}/speech`),
-          {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            signal: controller.signal,
-          },
-        );
+        const response = await fetch(uploadUrl(path), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controller.signal,
+        });
         if (!response.ok) throw new ApiError(await errorDetail(response), response.status);
         const url = URL.createObjectURL(await response.blob());
         urlRef.current = url;
         const audio = new Audio(url);
         audioRef.current = audio;
         audio.onplay = () => setSpeaking(true);
-        audio.onended = () => setSpeaking(false);
-        audio.onerror = () => {
-          setSpeaking(false);
-          setError("The interviewer voice could not be played.");
-        };
+        const finished = new Promise<void>((resolve) => {
+          completionRef.current = resolve;
+          audio.onended = () => {
+            setSpeaking(false);
+            completePlayback();
+          };
+          audio.onerror = () => {
+            setSpeaking(false);
+            setError("The interviewer voice could not be played.");
+            completePlayback();
+          };
+        });
+        setLoading(false);
         await audio.play();
+        await finished;
       } catch (failure) {
-        if (!speakOnDevice(fallbackText)) {
+        completePlayback();
+        setLoading(false);
+        if (!(await speakOnDevice(fallbackText))) {
           const blocked =
             failure instanceof DOMException && failure.name === "NotAllowedError";
           setError(
@@ -124,8 +146,23 @@ export function useInterviewerSpeech() {
         setLoading(false);
       }
     },
-    [clear, speakOnDevice],
+    [clear, completePlayback, speakOnDevice],
   );
 
-  return { speaking, loading, error, speak, stop };
+  const speak = useCallback(
+    (sessionId: string, turnIndex: number, fallbackText: string) =>
+      play(`/interviews/${sessionId}/turns/${turnIndex}/speech`, fallbackText),
+    [play],
+  );
+
+  const speakReaction = useCallback(
+    (sessionId: string, turnIndex: number, fallbackText: string) =>
+      play(
+        `/interviews/${sessionId}/turns/${turnIndex}/reaction-speech`,
+        fallbackText,
+      ),
+    [play],
+  );
+
+  return { speaking, loading, error, speak, speakReaction, stop };
 }

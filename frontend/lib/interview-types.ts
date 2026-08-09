@@ -80,6 +80,7 @@ export interface InterviewTurn {
   answer_text: string | null;
   transcript_corrected: boolean;
   evaluation: AnswerEvaluation | null;
+  interviewer_reaction: string;
   citations: InterviewCitation[];
   web_sources: WebSource[];
   screen_observation: ScreenObservation | null;

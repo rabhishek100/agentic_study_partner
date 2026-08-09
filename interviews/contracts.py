@@ -157,6 +157,10 @@ class InterviewTurn(ContractModel):
     answer_text: str | None = None
     transcript_corrected: bool = False
     evaluation: AnswerEvaluation | None = None
+    # Candidate-facing, speakable transition derived from the persisted
+    # evaluation. It is populated at the API boundary, so it needs no second
+    # source of truth in Postgres.
+    interviewer_reaction: str = Field(default="", max_length=2_000)
     citations: list[InterviewCitation] = Field(default_factory=list)
     web_sources: list[WebSource] = Field(default_factory=list)
     screen_observation: ScreenObservation | None = None
