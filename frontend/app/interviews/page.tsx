@@ -16,6 +16,7 @@ import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { primeInterviewerSpeech } from "@/hooks/use-interviewer-speech";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -183,6 +184,7 @@ export default function InterviewsPage() {
   const begin = useCallback(async () => {
     if (!payload) return;
     primeInterviewAudio();
+    primeInterviewerSpeech();
     setBusy(true);
     setError("");
     try {

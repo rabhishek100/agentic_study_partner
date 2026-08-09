@@ -1,9 +1,14 @@
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   primeInterviewAudio,
   releasePrimedInterviewAudio,
 } from "@/hooks/use-interview-voice";
+import {
+  primeInterviewerSpeech,
+  useInterviewerSpeech,
+} from "@/hooks/use-interviewer-speech";
 import { appendTranscriptSegment } from "@/lib/interview-types";
 
 afterEach(() => {
@@ -27,6 +32,51 @@ describe("interview audio activation", () => {
     expect(resume).toHaveBeenCalledOnce();
     releasePrimedInterviewAudio();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("unlocks the device voice during the setup click", () => {
+    const speak = vi.fn();
+    class FakeUtterance {
+      volume = 1;
+      constructor(public text: string) {}
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
+    vi.stubGlobal("speechSynthesis", { speak });
+
+    primeInterviewerSpeech();
+
+    expect(speak).toHaveBeenCalledOnce();
+    expect(speak.mock.calls[0]?.[0]).toMatchObject({ text: " ", volume: 0 });
+  });
+
+  it("uses the device voice when hosted speech is unavailable", async () => {
+    const speak = vi.fn((utterance: FakeUtterance) => utterance.onstart?.());
+    class FakeUtterance {
+      voice: SpeechSynthesisVoice | null = null;
+      volume = 1;
+      rate = 1;
+      pitch = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public text: string) {}
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
+    vi.stubGlobal("speechSynthesis", {
+      speak,
+      cancel: vi.fn(),
+      getVoices: () => [],
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("provider timeout");
+    }));
+    const { result } = renderHook(() => useInterviewerSpeech());
+
+    await act(() => result.current.speak("session", 0, "Explain the trade-off."));
+
+    expect(speak).toHaveBeenCalledOnce();
+    expect(speak.mock.calls[0]?.[0].text).toBe("Explain the trade-off.");
+    expect(result.current.error).toBe("");
   });
 });
 

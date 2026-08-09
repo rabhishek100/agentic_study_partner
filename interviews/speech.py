@@ -63,8 +63,9 @@ def synthesize_interviewer_speech(
         key = os.getenv("OPENROUTER_API_KEY", "").strip()
         if not key:
             raise SpeechError("OPENROUTER_API_KEY is required for text-to-speech")
+        timeout = float(os.getenv("OPENROUTER_TTS_TIMEOUT_SECONDS", "8"))
         with httpx.Client(
-            headers={"Authorization": f"Bearer {key}"}, timeout=60
+            headers={"Authorization": f"Bearer {key}"}, timeout=timeout
         ) as owned:
             response = post(owned)
     else:

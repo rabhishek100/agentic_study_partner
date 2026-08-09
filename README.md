@@ -413,7 +413,8 @@ Silence transcribes one segment into the editable draft but never submits it;
 the candidate explicitly sends the complete answer. New questions are spoken
 automatically through `OPENROUTER_TTS_MODEL`, and clips are transcribed through
 `OPENROUTER_INTERVIEW_STT_MODEL`; both remain usable as text if media access,
-browser autoplay, or a provider call fails. Screen sharing stays local until the
+browser autoplay, or a provider call fails. Slow hosted TTS falls back to the
+device voice rather than blocking the interview. Screen sharing stays local until the
 candidate explicitly sends a still checkpoint. Raw audio and screen frames are
 processed ephemerally and never stored; only transcripts and structured screen
 observations survive. Pausing, navigating away, or refreshing stops the clock,

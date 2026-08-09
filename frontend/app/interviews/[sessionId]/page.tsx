@@ -45,7 +45,10 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { useInterviewerSpeech } from "@/hooks/use-interviewer-speech";
+import {
+  primeInterviewerSpeech,
+  useInterviewerSpeech,
+} from "@/hooks/use-interviewer-speech";
 import {
   primeInterviewAudio,
   releasePrimedInterviewAudio,
@@ -233,7 +236,7 @@ export default function InterviewWorkspace() {
       current.turn_index === lastSpokenRef.current
     ) return;
     lastSpokenRef.current = current.turn_index;
-    void speech.speak(sessionId, current.turn_index);
+    void speech.speak(sessionId, current.turn_index, current.question.text);
   }, [current, interview?.status, sessionId, speech.speak]);
 
   const elapsed = useMemo(() => {
@@ -251,6 +254,7 @@ export default function InterviewWorkspace() {
   }, [sessionId, speech.stop, voice.stop]);
   const resume = useCallback(async () => {
     primeInterviewAudio();
+    primeInterviewerSpeech();
     setBusy(true);
     try { const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/resume`, { method: "POST" }); loadedAtRef.current = Date.now(); setInterview(updated); }
     catch (failure) { releasePrimedInterviewAudio(); setError((failure as Error).message); }
@@ -326,7 +330,7 @@ export default function InterviewWorkspace() {
                             if (speech.speaking) speech.stop();
                             else {
                               lastSpokenRef.current = current.turn_index;
-                              void speech.speak(sessionId, current.turn_index);
+                              void speech.speak(sessionId, current.turn_index, current.question.text);
                             }
                           }}
                         >

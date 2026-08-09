@@ -77,7 +77,10 @@ interviewer question is spoken automatically, with a one-click replay/unlock
 fallback where browser autoplay policy requires a gesture.
 
 Kokoro 82M is the default TTS model, selected for modern voice quality at
-low per-character cost. Model and voice remain environment-configurable.
+low per-character cost. Model and voice remain environment-configurable. A
+short provider deadline prevents speech generation from blocking the turn;
+when hosted TTS is slow or unavailable, the already-unlocked device voice
+speaks the question automatically at no provider cost.
 
 Screen sharing is checkpoint-based. The browser shows a local live preview,
 but uploads no continuous video. The candidate explicitly submits a still when
