@@ -33,6 +33,11 @@ export interface InterviewScores {
   independence: number;
 }
 
+export interface InterviewClarification {
+  candidate_question: string;
+  interviewer_response: string;
+}
+
 export interface InterviewQuestion {
   topic_key: string;
   topic_label: string;
@@ -45,6 +50,7 @@ export interface InterviewQuestion {
   interviewer_note: string;
   work_sample: WorkSampleKind;
   work_sample_prompt: string | null;
+  clarifications: InterviewClarification[];
 }
 
 export interface ScreenObservation {

@@ -10,6 +10,8 @@ from psycopg import Connection
 
 from .contracts import (
     FormatChoice,
+    InterviewClarification,
+    InterviewClarificationDraft,
     InterviewQuestion,
     InterviewSession,
     InterviewTurn,
@@ -18,7 +20,7 @@ from .contracts import (
 )
 from .evaluation import aggregate_metrics, resolve_citations
 from .graph import AnswerGraphContext, answer_graph
-from .models import model_name
+from .models import invoke_structured, model_name, structured_model
 from .planning import (
     InterviewSourceError,
     initial_checkpoint,
@@ -27,7 +29,7 @@ from .planning import (
     preflight,
     topic_by_key,
 )
-from .prompts import prompt_version
+from .prompts import build_candidate_clarification_messages, prompt_version
 from .question_generation import generate_question
 from . import store
 
@@ -283,6 +285,62 @@ def answer_interview(
                 checkpoint=output["checkpoint"],
                 metrics=metrics,
             )
+    return store.load_session(connection, session_id, owner_id=owner_id)
+
+
+def clarify_interview_question(
+    connection: Connection,
+    session_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    candidate_question: str,
+    model: Any | None = None,
+) -> InterviewSession:
+    """Answer a candidate's task clarification without settling the turn."""
+
+    session = store.load_session(connection, session_id, owner_id=owner_id)
+    if session.status != "active":
+        raise store.InterviewStateError(
+            "the interview must be active to ask a clarification"
+        )
+    current = next(
+        (turn for turn in reversed(session.turns) if turn.answer_text is None), None
+    )
+    if current is None:
+        raise store.InterviewStateError("the interview has no unanswered question")
+    if len(current.question.clarifications) >= 4:
+        raise store.InterviewStateError(
+            "this question has reached the clarification limit; answer or move on"
+        )
+
+    cleaned = " ".join(candidate_question.split())
+    if not cleaned:
+        raise ValueError("a clarification question is required")
+    inventory = load_session_inventory(connection, session, owner_id)
+    topic = topic_by_key(inventory, current.question.topic_key)
+    draft, cost = invoke_structured(
+        model or structured_model(InterviewClarificationDraft),
+        build_candidate_clarification_messages(
+            inventory=inventory,
+            topic=topic,
+            question=current.question,
+            candidate_question=cleaned,
+        ),
+        InterviewClarificationDraft,
+    )
+    clarification = InterviewClarification(
+        candidate_question=cleaned,
+        interviewer_response=" ".join(draft.interviewer_response.split()),
+    )
+    store.append_question_clarification(
+        connection,
+        session_id,
+        owner_id=owner_id,
+        turn_index=current.turn_index,
+        question=current.question,
+        clarification=clarification,
+        cost_usd=cost,
+    )
     return store.load_session(connection, session_id, owner_id=owner_id)
 
 

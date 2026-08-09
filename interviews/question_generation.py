@@ -43,41 +43,50 @@ SECOND_OBJECTIVE = re.compile(
     re.IGNORECASE,
 )
 
-ARCHITECTURE = re.compile(
-    r"\b(architect(?:ure|ural)|diagram|component|service|data[ -]?flow|pipeline|"
-    r"distributed|storage|database|cache|queue|api)\b",
+ARCHITECTURE_REQUEST = re.compile(
+    r"\b(?:draw|sketch|diagram|design|map|lay out)\b.{0,100}"
+    r"\b(?:architect(?:ure|ural)|system|component|service|data[ -]?flow|pipeline|"
+    r"layer|storage|database|cache|queue|api)\b",
     re.IGNORECASE,
 )
-EQUATION = re.compile(
-    r"\b(equation|derive|derivation|proof|gradient|loss|objective|probability|"
-    r"likelihood|log[ -]?odds|matrix|calculus|formula)\b",
+EQUATION_REQUEST = re.compile(
+    r"(?:\b(?:derive|prove|formulate|write|show|calculate)\b.{0,100}"
+    r"\b(?:equation|formula|function|gradient|loss|objective function|likelihood|"
+    r"log[ -]?odds|probability|matrix)\b)|"
+    r"(?:\b(?:equation|formula|gradient|loss|objective function|likelihood|"
+    r"log[ -]?odds)\b.{0,60}\b(?:derive|derivation|proof)\b)",
     re.IGNORECASE,
 )
-CODE = re.compile(
-    r"\b(code|coding|implement|implementation|pseudocode|algorithm|function|"
-    r"class|complexity|debug)\b",
+CODE_REQUEST = re.compile(
+    r"\b(?:code|implement|write|debug)\b.{0,100}"
+    r"\b(?:code|implementation|pseudocode|algorithm|function|class|test)\b|"
+    r"\b(?:pseudocode|code)\b",
     re.IGNORECASE,
 )
-ASSUMPTIONS = re.compile(
-    r"\b(assumption|requirement|estimate|capacity|scale|qps|throughput|latency|"
-    r"traffic|constraint|slo|sla)\b",
+ASSUMPTIONS_REQUEST = re.compile(
+    r"\b(?:assumption|requirement|estimate|capacity estimate|constraint|qps|"
+    r"throughput estimate|traffic estimate|slo|sla)s?\b",
+    re.IGNORECASE,
+)
+VAGUE_MATH_REQUEST = re.compile(
+    r"\b(?:the|an?|one|this|single|key|single key)\s+"
+    r"(?:key\s+)?(?:equation|formula)\b",
     re.IGNORECASE,
 )
 
 DEFAULT_WORK_SAMPLE_PROMPTS: dict[WorkSampleKind, str] = {
     "none": "",
     "architecture_diagram": (
-        "Share your screen and sketch only the core architecture, labeling the main "
-        "components and primary data flow."
+        "Use the shared screen to draw the architecture requested in the question."
     ),
     "equation_derivation": (
-        "Share your screen and derive the single key equation step by step."
+        "Use the shared screen to show each step of the requested derivation."
     ),
     "code": (
-        "Share your screen and write code or pseudocode for only the core approach."
+        "Use the shared screen to write the requested code or pseudocode."
     ),
     "assumptions": (
-        "Share your screen and list the three assumptions that most affect your answer."
+        "Use the shared screen to list the assumptions requested in the question."
     ),
 }
 
@@ -169,6 +178,10 @@ def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
         raise InterviewValidationError("the generated question contains multiple prompts")
     if SECOND_OBJECTIVE.search(text):
         raise InterviewValidationError("the generated question asks for multiple objectives")
+    if VAGUE_MATH_REQUEST.search(text):
+        raise InterviewValidationError(
+            "an equation question must name the relationship being derived"
+        )
     if prompt:
         # Starting screen capture is the response mode, not a second technical
         # objective. Validate only the instruction that follows that prefix.
@@ -185,6 +198,11 @@ def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
         ):
             raise InterviewValidationError(
                 "the work-sample instruction adds another objective"
+            )
+        supported = _matching_work_samples(question)
+        if question.work_sample not in supported:
+            raise InterviewValidationError(
+                "the work-sample instruction does not match the interview question"
             )
     if _word_count(text) + _word_count(prompt) > MAX_SPOKEN_TURN_WORDS:
         raise InterviewValidationError("the complete spoken turn asks too much at once")
@@ -211,27 +229,19 @@ def validate_question_progression(
 
 def _matching_work_samples(
     question: InterviewQuestion,
-    topic: Topic,
-    interview_format: InterviewFormat,
 ) -> list[WorkSampleKind]:
-    """Return relevant artifacts, preferring the actual question over context."""
+    """Return artifacts explicitly requested by the candidate-facing question."""
 
     candidates: list[WorkSampleKind] = []
 
-    def add_matches(text: str) -> None:
-        for pattern, kind in (
-            (CODE, "code"),
-            (EQUATION, "equation_derivation"),
-            (ASSUMPTIONS, "assumptions"),
-            (ARCHITECTURE, "architecture_diagram"),
-        ):
-            if pattern.search(text) and kind not in candidates:
-                candidates.append(kind)
-
-    add_matches(question.text)
-    add_matches("\n".join([topic.label, topic.evidence_text[:2_500]]))
-    if interview_format == "system_design" and "architecture_diagram" not in candidates:
-        candidates.append("architecture_diagram")
+    for pattern, kind in (
+        (CODE_REQUEST, "code"),
+        (EQUATION_REQUEST, "equation_derivation"),
+        (ASSUMPTIONS_REQUEST, "assumptions"),
+        (ARCHITECTURE_REQUEST, "architecture_diagram"),
+    ):
+        if pattern.search(question.text) and kind not in candidates:
+            candidates.append(kind)
     return candidates
 
 
@@ -256,7 +266,10 @@ def apply_work_sample_policy(
             update={"work_sample": "none", "work_sample_prompt": None}
         )
 
-    candidates = _matching_work_samples(question, topic, interview_format)
+    # Topic evidence can suggest future questions, but it must never silently
+    # add an artifact to a different candidate-facing objective. The screenshot
+    # task is inferred only from the words the candidate actually hears.
+    candidates = _matching_work_samples(question)
     if question.work_sample != "none":
         candidates.insert(0, question.work_sample)
         candidates = list(dict.fromkeys(candidates))
@@ -344,6 +357,7 @@ def generate_question(
                     "topic_label": topic.label,
                     "kind": kind,
                     "difficulty": target_level,
+                    "clarifications": [],
                 }
             )
             validated = validate_question_progression(validated, recent_questions)

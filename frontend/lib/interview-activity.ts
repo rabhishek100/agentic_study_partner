@@ -6,6 +6,7 @@ export type InterviewOperation =
   | "loading_session"
   | "submitting_answer"
   | "checking_submission"
+  | "asking_clarification"
   | "screen_checkpoint"
   | "pausing"
   | "resuming"
@@ -63,6 +64,14 @@ export function describeInterviewActivity({
         detail:
           "The submission response failed, so the app is reloading this turn before asking you to retry.",
         stages: ["Reload session", "Match answered turn", "Restore next question"],
+      };
+    case "asking_clarification":
+      return {
+        tone: "working",
+        title: "Clarifying the interview question",
+        detail:
+          "The interviewer is resolving the wording or requested response format without evaluating your answer or giving away the solution.",
+        stages: ["Interpret your question", "Check source context", "Clarify the task"],
       };
     case "screen_checkpoint":
       return {

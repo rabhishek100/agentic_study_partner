@@ -164,5 +164,27 @@ export function useInterviewerSpeech() {
     [play],
   );
 
-  return { speaking, loading, error, speak, speakReaction, stop };
+  const speakClarification = useCallback(
+    (
+      sessionId: string,
+      turnIndex: number,
+      clarificationIndex: number,
+      fallbackText: string,
+    ) =>
+      play(
+        `/interviews/${sessionId}/turns/${turnIndex}/clarifications/${clarificationIndex}/speech`,
+        fallbackText,
+      ),
+    [play],
+  );
+
+  return {
+    speaking,
+    loading,
+    error,
+    speak,
+    speakReaction,
+    speakClarification,
+    stop,
+  };
 }

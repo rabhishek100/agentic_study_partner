@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Loader2,
   LogOut,
+  MessageCircleQuestion,
   Mic,
   MonitorUp,
   Pause,
@@ -267,9 +268,13 @@ export default function InterviewWorkspace() {
   const [transitionTurnIndex, setTransitionTurnIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [clarificationOpen, setClarificationOpen] = useState(false);
+  const [clarificationQuestion, setClarificationQuestion] = useState("");
+  const [clarificationError, setClarificationError] = useState("");
   const loadedAtRef = useRef(Date.now());
   const lastSpokenRef = useRef<number | null>(null);
   const draftEpochRef = useRef(0);
+  const dictationTargetRef = useRef<"answer" | "clarification">("answer");
   const submissionControllerRef = useRef<AbortController | null>(null);
   const speech = useInterviewerSpeech();
   const screen = useScreenShare();
@@ -395,10 +400,71 @@ export default function InterviewWorkspace() {
     // Silence and low-information noise are expected while listening remains
     // automatic. The API returns an empty transcript for those segments.
     if (!transcript.trim() || draftEpoch !== draftEpochRef.current) return;
-    setAnswer((currentAnswer) => appendTranscriptSegment(currentAnswer, transcript));
+    if (dictationTargetRef.current === "clarification") {
+      setClarificationQuestion((currentQuestion) =>
+        appendTranscriptSegment(currentQuestion, transcript),
+      );
+    } else {
+      setAnswer((currentAnswer) => appendTranscriptSegment(currentAnswer, transcript));
+    }
   }, [sessionId]);
 
   const voice = useInterviewVoice({ onRecording: handleRecording, onVoiceStart: speech.stop });
+
+  const askClarification = useCallback(async () => {
+    const value = clarificationQuestion.trim();
+    if (!value || !current || !interview || interview.status !== "active") return;
+    const clarificationIndex = current.question.clarifications.length;
+    voice.stop();
+    speech.stop();
+    setListeningPaused(true);
+    setClarificationError("");
+    beginOperation("asking_clarification");
+    try {
+      const updated = await apiFetch<InterviewSession>(
+        `/interviews/${sessionId}/clarifications`,
+        {
+          method: "POST",
+          body: JSON.stringify({ question: value }),
+        },
+      );
+      setInterview(updated);
+      setClarificationQuestion("");
+      setClarificationOpen(false);
+      dictationTargetRef.current = "answer";
+      endOperation("asking_clarification");
+      const updatedTurn = updated.turns.find(
+        (turn) => turn.turn_index === current.turn_index,
+      );
+      const response = updatedTurn?.question.clarifications.at(-1)?.interviewer_response;
+      if (response) {
+        await speech.speakClarification(
+          sessionId,
+          current.turn_index,
+          clarificationIndex,
+          response,
+        );
+      }
+      setListeningPaused(false);
+    } catch (failure) {
+      setClarificationError(
+        (failure as Error).message || "The interviewer could not clarify that question.",
+      );
+      setListeningPaused(false);
+    } finally {
+      endOperation("asking_clarification");
+    }
+  }, [
+    beginOperation,
+    clarificationQuestion,
+    current,
+    endOperation,
+    interview,
+    sessionId,
+    speech.speakClarification,
+    speech.stop,
+    voice.stop,
+  ]);
 
   const load = useCallback(async () => {
     beginOperation("loading_session");
@@ -422,6 +488,12 @@ export default function InterviewWorkspace() {
 
   useEffect(() => { if (authSession) void load(); }, [authSession, load]);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(timer); }, []);
+  useEffect(() => {
+    setClarificationOpen(false);
+    setClarificationQuestion("");
+    setClarificationError("");
+    dictationTargetRef.current = "answer";
+  }, [current?.turn_index]);
 
   useEffect(() => {
     const shouldListen =
@@ -618,7 +690,84 @@ export default function InterviewWorkspace() {
                             {voice.status === "starting" ? "Connecting mic…" : voice.status === "idle" ? "Start listening" : "Pause listening"}
                           </Button>
                         ) : null}
+                        {current.question.clarifications.length < 4 ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={submissionLocked || operation === "asking_clarification"}
+                            onClick={() => {
+                              voice.stop();
+                              speech.stop();
+                              dictationTargetRef.current = "clarification";
+                              setListeningPaused(false);
+                              setClarificationOpen(true);
+                              setClarificationError("");
+                            }}
+                          >
+                            <MessageCircleQuestion aria-hidden />
+                            Ask a clarifying question
+                          </Button>
+                        ) : null}
                       </div>
+                      {current.question.clarifications.length ? (
+                        <div className="mt-4 space-y-3" aria-label="Question clarifications">
+                          {current.question.clarifications.map((item, index) => (
+                            <div key={`${index}-${item.candidate_question}`} className="rounded-lg border bg-muted/45 p-3 text-sm leading-6">
+                              <p><span className="font-medium">You asked:</span> {item.candidate_question}</p>
+                              <p className="mt-1 text-muted-foreground"><span className="font-medium text-foreground">Interviewer:</span> {item.interviewer_response}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {clarificationOpen ? (
+                        <div className="mt-4 rounded-xl border border-primary/25 bg-primary/[0.035] p-4">
+                          <label htmlFor="candidate-clarification" className="text-sm font-medium">
+                            What should the interviewer clarify?
+                          </label>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            Speak or type here. This is sent separately and will not be added to your answer.
+                          </p>
+                          <Textarea
+                            id="candidate-clarification"
+                            value={clarificationQuestion}
+                            onChange={(event) => setClarificationQuestion(event.target.value)}
+                            placeholder="For example: Which equation should I derive, and what does each variable represent?"
+                            className="mt-2 min-h-20 resize-y"
+                            maxLength={1000}
+                            autoFocus
+                            disabled={operation === "asking_clarification"}
+                          />
+                          {clarificationError ? (
+                            <p className="mt-2 text-sm text-destructive" role="alert">{clarificationError}</p>
+                          ) : null}
+                          <div className="mt-3 flex flex-wrap justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={operation === "asking_clarification"}
+                              onClick={() => {
+                                setClarificationOpen(false);
+                                setClarificationQuestion("");
+                                setClarificationError("");
+                                dictationTargetRef.current = "answer";
+                                setListeningPaused(false);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!clarificationQuestion.trim() || operation === "asking_clarification"}
+                              onClick={() => void askClarification()}
+                            >
+                              {operation === "asking_clarification" ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <MessageCircleQuestion aria-hidden />}
+                              {operation === "asking_clarification" ? "Clarifying…" : "Ask interviewer"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
                       {current.question.work_sample !== "none" && current.question.work_sample_prompt ? (
                         <div className="mt-4 rounded-xl border border-primary/25 bg-primary/[0.045] p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">

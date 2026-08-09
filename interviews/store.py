@@ -15,6 +15,7 @@ from .contracts import (
     AnswerEvaluation,
     InterviewCheckpoint,
     InterviewCitation,
+    InterviewClarification,
     InterviewMetrics,
     InterviewQuestion,
     InterviewSession,
@@ -467,6 +468,50 @@ def attach_screen_observation(
                 UUID(str(session_id)),
                 owner,
             ),
+        )
+
+
+def append_question_clarification(
+    connection: Connection,
+    session_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    turn_index: int,
+    question: InterviewQuestion,
+    clarification: InterviewClarification,
+    cost_usd: float,
+) -> None:
+    """Persist a clarification inside the pending question's existing JSON."""
+
+    owner = parse_owner_id(owner_id)
+    updated_question = question.model_copy(
+        update={"clarifications": [*question.clarifications, clarification]}
+    )
+    with connection.transaction():
+        result = connection.execute(
+            """
+            update public.interview_turns
+            set question_json = %s, cost_usd = cost_usd + %s
+            where session_id = %s and owner_id = %s and turn_index = %s
+              and answer_text is null
+            """,
+            (
+                Jsonb(updated_question.model_dump(mode="json")),
+                cost_usd,
+                UUID(str(session_id)),
+                owner,
+                turn_index,
+            ),
+        )
+        if result.rowcount != 1:
+            raise InterviewStateError("clarification requires an unanswered turn")
+        connection.execute(
+            """
+            update public.interview_sessions
+            set total_cost_usd = total_cost_usd + %s, updated_at = now()
+            where id = %s and owner_id = %s
+            """,
+            (cost_usd, UUID(str(session_id)), owner),
         )
 
 

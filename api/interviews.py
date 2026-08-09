@@ -35,6 +35,7 @@ from interviews.screen import (
 from interviews.service import (
     CreateInterview,
     answer_interview,
+    clarify_interview_question,
     create_interview,
     finish_interview,
     inspect_source,
@@ -103,6 +104,10 @@ class InterviewSetupRequest(ContractModel):
 class AnswerRequest(ContractModel):
     answer_text: str = Field(min_length=1, max_length=12_000)
     transcript_corrected: bool = False
+
+
+class ClarificationRequest(ContractModel):
+    question: str = Field(min_length=1, max_length=1_000)
 
 
 class InterviewListResponse(ContractModel):
@@ -309,6 +314,33 @@ async def answer(
         return _public(await run_in_threadpool(run))
     except Exception as error:
         logger.exception("Interview answer failed", extra={"session_id": str(session_id)})
+        raise _translate(error) from error
+
+
+@router.post("/{session_id}/clarifications", response_model=InterviewSession)
+async def clarify_question(
+    session_id: UUID,
+    request: ClarificationRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> InterviewSession:
+    """Clarify the active task without recording or evaluating an answer."""
+
+    def run():
+        with database_connection() as connection:
+            return clarify_interview_question(
+                connection,
+                session_id,
+                owner_id=owner_id,
+                candidate_question=request.question,
+            )
+
+    try:
+        return _public(await run_in_threadpool(run))
+    except Exception as error:
+        logger.exception(
+            "Interview clarification failed",
+            extra={"session_id": str(session_id)},
+        )
         raise _translate(error) from error
 
 
@@ -540,6 +572,61 @@ async def reaction_speech(
         raise HTTPException(
             status_code=502,
             detail="interviewer reaction voice is unavailable",
+        ) from error
+    except Exception as error:
+        raise _translate(error) from error
+    return Response(
+        content=audio.content,
+        media_type=audio.media_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Interview-TTS-Model": audio.model,
+            "X-Interview-TTS-Voice": audio.voice,
+        },
+    )
+
+
+@router.get(
+    "/{session_id}/turns/{turn_index}/clarifications/{clarification_index}/speech"
+)
+async def clarification_speech(
+    session_id: UUID,
+    turn_index: int,
+    clarification_index: int,
+    owner_id: UUID = Depends(current_owner),
+) -> Response:
+    """Speak one persisted interviewer clarification."""
+
+    def synthesize():
+        with database_connection() as connection:
+            session = store.load_session(connection, session_id, owner_id=owner_id)
+            turn = next(
+                (item for item in session.turns if item.turn_index == turn_index),
+                None,
+            )
+            if turn is None or not 0 <= clarification_index < len(
+                turn.question.clarifications
+            ):
+                raise store.InterviewStateError("interview clarification not found")
+            audio = synthesize_interviewer_speech(
+                turn.question.clarifications[
+                    clarification_index
+                ].interviewer_response
+            )
+            store.add_cost(
+                connection,
+                session_id,
+                owner_id=owner_id,
+                cost_usd=audio.cost_usd,
+            )
+            return audio
+
+    try:
+        audio = await run_in_threadpool(synthesize)
+    except SpeechError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="interviewer clarification voice is unavailable",
         ) from error
     except Exception as error:
         raise _translate(error) from error

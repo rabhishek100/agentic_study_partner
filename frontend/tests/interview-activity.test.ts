@@ -50,6 +50,16 @@ describe("interview processing status", () => {
     expect(activity.detail).toContain("before asking you to retry");
   });
 
+  it("shows when a pre-answer clarification is being prepared", () => {
+    const activity = describeInterviewActivity({
+      ...base,
+      operation: "asking_clarification",
+    });
+
+    expect(activity.title).toBe("Clarifying the interview question");
+    expect(activity.detail).toContain("without evaluating your answer");
+  });
+
   it("distinguishes feedback audio from question audio", () => {
     expect(
       describeInterviewActivity({

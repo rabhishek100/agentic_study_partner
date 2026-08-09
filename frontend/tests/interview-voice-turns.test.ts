@@ -122,6 +122,48 @@ describe("interview audio activation", () => {
     );
     expect(speak.mock.calls[0]?.[0].text).toBe("That was well structured.");
   });
+
+  it("speaks a saved pre-answer clarification", async () => {
+    const speak = vi.fn((utterance: FakeUtterance) => {
+      utterance.onstart?.();
+      utterance.onend?.();
+    });
+    class FakeUtterance {
+      voice: SpeechSynthesisVoice | null = null;
+      volume = 1;
+      rate = 1;
+      pitch = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(public text: string) {}
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
+    vi.stubGlobal("speechSynthesis", {
+      speak,
+      cancel: vi.fn(),
+      getVoices: () => [],
+    });
+    const fetch = vi.fn(async (_url: string) => {
+      throw new Error("provider timeout");
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() => useInterviewerSpeech());
+
+    await act(() =>
+      result.current.speakClarification(
+        "session",
+        2,
+        1,
+        "Derive the relationship between log odds and the feature vector.",
+      ),
+    );
+
+    expect(fetch.mock.calls[0]?.[0]).toContain(
+      "/interviews/session/turns/2/clarifications/1/speech",
+    );
+    expect(speak.mock.calls[0]?.[0].text).toContain("log odds");
+  });
 });
 
 describe("continuous interview transcription", () => {
@@ -167,6 +209,7 @@ describe("interview work-sample narration", () => {
       interviewer_note: "",
       work_sample: "equation_derivation",
       work_sample_prompt: "Derive the objective step by step on screen.",
+      clarifications: [],
     };
 
     expect(spokenInterviewQuestion(question)).toBe(

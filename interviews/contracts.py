@@ -84,6 +84,19 @@ class ScoreCard(ContractModel):
         return round(total, 2)
 
 
+class InterviewClarification(ContractModel):
+    """One candidate request for clarification before answering a turn."""
+
+    candidate_question: str = Field(min_length=1, max_length=1_000)
+    interviewer_response: str = Field(min_length=1, max_length=2_000)
+
+
+class InterviewClarificationDraft(ContractModel):
+    """Private structured output used to author a clarification response."""
+
+    interviewer_response: str = Field(min_length=1, max_length=2_000)
+
+
 class InterviewQuestion(ContractModel):
     topic_key: str = Field(min_length=1)
     topic_label: str = Field(min_length=1)
@@ -96,6 +109,10 @@ class InterviewQuestion(ContractModel):
     interviewer_note: str = Field(default="", max_length=500)
     work_sample: WorkSampleKind = "none"
     work_sample_prompt: str | None = Field(default=None, max_length=1_000)
+    clarifications: list[InterviewClarification] = Field(
+        default_factory=list,
+        max_length=4,
+    )
 
     @model_validator(mode="after")
     def work_sample_has_an_instruction(self) -> "InterviewQuestion":

@@ -12,6 +12,8 @@ from decks.topics import ScopeInventory, Topic
 from interviews.contracts import (
     AnswerEvaluation,
     InterviewCheckpoint,
+    InterviewClarification,
+    InterviewClarificationDraft,
     InterviewQuestion,
     InterviewSession,
     InterviewTurn,
@@ -35,6 +37,7 @@ from interviews.question_generation import (
     validate_question_focus,
     validate_question_progression,
 )
+from interviews.service import clarify_interview_question
 from interviews.speech import (
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
@@ -293,9 +296,13 @@ class GroundingTests(unittest.TestCase):
     def test_focused_screen_question_stays_within_one_turn_budget(self) -> None:
         focused = question().model_copy(
             update={
+                "text": (
+                    "Derive the log-odds equation that maps a feature vector to "
+                    "a class probability."
+                ),
                 "work_sample": "equation_derivation",
                 "work_sample_prompt": (
-                    "Share your screen and derive the single key equation step by step."
+                    "Use the shared screen to show each step of the requested derivation."
                 ),
             }
         )
@@ -407,7 +414,7 @@ class GroundingTests(unittest.TestCase):
 
         self.assertIn("not covered yet", generated.text)
 
-    def test_screen_work_is_inferred_from_the_grounded_topic(self) -> None:
+    def test_screen_work_is_inferred_from_the_candidate_facing_question(self) -> None:
         architecture_topic = topic(
             evidence=(
                 "[N7:P42]\nEstimate throughput, then design the services, "
@@ -425,6 +432,79 @@ class GroundingTests(unittest.TestCase):
 
         self.assertEqual(requested.work_sample, "assumptions")
         self.assertIn("assumptions", requested.work_sample_prompt.lower())
+
+    def test_business_objective_does_not_infer_an_equation_from_topic_evidence(self) -> None:
+        objective_topic = topic(
+            evidence=(
+                "[N7:P42]\nThe business objective protects privacy. The model "
+                "later uses a loss function and probability threshold."
+            )
+        )
+        requested = apply_work_sample_policy(
+            question().model_copy(
+                update={
+                    "text": (
+                        "What core business objective should this blurring system satisfy?"
+                    )
+                }
+            ),
+            topic=objective_topic,
+            interview_format="system_design",
+            recent_questions=[],
+        )
+
+        self.assertEqual(requested.work_sample, "none")
+        self.assertIsNone(requested.work_sample_prompt)
+
+    def test_mismatched_equation_exercise_is_rejected(self) -> None:
+        mismatched = question().model_copy(
+            update={
+                "text": "What business objective should this blurring system satisfy?",
+                "work_sample": "equation_derivation",
+                "work_sample_prompt": "Use the shared screen to show the derivation.",
+            }
+        )
+
+        with self.assertRaisesRegex(InterviewValidationError, "does not match"):
+            validate_question_focus(mismatched)
+
+    def test_generation_retries_when_screen_task_does_not_match_question(self) -> None:
+        mismatched = question().model_copy(
+            update={
+                "text": "What business objective should this blurring system satisfy?",
+                "work_sample": "equation_derivation",
+                "work_sample_prompt": "Use the shared screen to show the derivation.",
+            }
+        )
+        corrected = question().model_copy(
+            update={
+                "text": "What business objective should this blurring system satisfy?",
+                "work_sample": "none",
+                "work_sample_prompt": None,
+            }
+        )
+        model = SequenceStructuredModel(mismatched, corrected)
+
+        generated, _ = generate_question(
+            inventory=inventory(),
+            topic=topic(),
+            interview_format="system_design",
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+            model=model,
+        )
+
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(generated.work_sample, "none")
+
+    def test_vague_equation_request_is_rejected(self) -> None:
+        vague = question().model_copy(
+            update={"text": "Can you derive the key equation?"}
+        )
+
+        with self.assertRaisesRegex(InterviewValidationError, "name the relationship"):
+            validate_question_focus(vague)
 
     def test_screen_work_is_not_requested_on_consecutive_questions(self) -> None:
         prior = question().model_copy(
@@ -484,6 +564,68 @@ class GroundingTests(unittest.TestCase):
 
         self.assertEqual(requested.work_sample, "architecture_diagram")
         self.assertIn("architecture", requested.work_sample_prompt.lower())
+
+
+class ClarificationTests(unittest.TestCase):
+    @patch("interviews.service.store.append_question_clarification")
+    @patch("interviews.service.load_session_inventory")
+    @patch("interviews.service.store.load_session")
+    def test_candidate_can_clarify_without_settling_the_answer(
+        self,
+        load_session,
+        load_inventory,
+        append_clarification,
+    ) -> None:
+        active = session().model_copy(
+            update={"turns": [InterviewTurn(turn_index=0, question=question())]}
+        )
+        load_session.side_effect = [active, active]
+        load_inventory.return_value = inventory()
+        model = FakeStructuredModel(
+            InterviewClarificationDraft(
+                interviewer_response=(
+                    "Explain what quantity logistic regression models; you do not "
+                    "need to derive an equation for this question."
+                )
+            )
+        )
+
+        result = clarify_interview_question(
+            object(),
+            active.session_id,
+            owner_id="00000000-0000-0000-0000-000000000002",
+            candidate_question="Which equation should I write?",
+            model=model,
+        )
+
+        self.assertIs(result, active)
+        saved = append_clarification.call_args.kwargs["clarification"]
+        self.assertIsInstance(saved, InterviewClarification)
+        self.assertEqual(saved.candidate_question, "Which equation should I write?")
+        self.assertIsNone(active.turns[0].answer_text)
+
+    def test_public_live_question_keeps_clarifications_but_hides_rubric(self) -> None:
+        clarified = question().model_copy(
+            update={
+                "clarifications": [
+                    InterviewClarification(
+                        candidate_question="Which relationship?",
+                        interviewer_response="The relationship between log odds and features.",
+                    )
+                ]
+            }
+        )
+        active = session().model_copy(
+            update={"turns": [InterviewTurn(turn_index=0, question=clarified)]}
+        )
+
+        public = _public(active)
+
+        self.assertEqual(public.turns[0].question.expected_points, [])
+        self.assertEqual(
+            public.turns[0].question.clarifications[0].candidate_question,
+            "Which relationship?",
+        )
 
 
 class GraphTests(unittest.TestCase):
