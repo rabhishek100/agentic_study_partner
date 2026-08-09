@@ -52,6 +52,7 @@ from study.dictation import (
     MAXIMUM_QUESTION_BYTES,
     DictationError,
     audio_extension,
+    is_probable_silence_hallucination,
     transcribe_spoken_question_result,
 )
 
@@ -451,10 +452,12 @@ async def transcribe_answer(
         ) from error
     except Exception as error:
         raise _translate(error) from error
-    if not result.text:
-        raise HTTPException(status_code=422, detail="no speech was recorded")
+    # Continuous listening occasionally captures a brief environmental sound.
+    # Treat empty output and Whisper's short silence artifacts as a benign no-op
+    # instead of appending invented words or interrupting the interview.
+    text = "" if is_probable_silence_hallucination(result.text) else result.text
     return InterviewTranscriptionResponse(
-        text=result.text,
+        text=text,
         cost_usd=result.cost_usd,
     )
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -51,6 +52,26 @@ MAX_ATTEMPTS = 2
 
 logger = logging.getLogger("study_partner.dictation")
 
+# Whisper-family models can emit these short, subtitle-like phrases for room
+# noise or silence. This list is deliberately exact and conservative: a real
+# answer that merely starts or ends with the same words is preserved.
+_SILENCE_HALLUCINATIONS = frozenset(
+    {
+        "bye",
+        "goodbye",
+        "music",
+        "silence",
+        "thanks",
+        "thanks for listening",
+        "thanks for watching",
+        "thank you",
+        "thank you for listening",
+        "thank you for watching",
+        "thank you for your attention",
+        "you",
+    }
+)
+
 
 class DictationError(RuntimeError):
     """The provider could not be reached, or answered with nothing usable.
@@ -65,6 +86,16 @@ class DictationResult:
     text: str
     cost_usd: float = 0.0
     seconds: float = 0.0
+
+
+def is_probable_silence_hallucination(text: str) -> bool:
+    """Whether a complete transcript is a known Whisper silence artifact."""
+
+    normalized = " ".join(re.sub(r"[^\w']+", " ", text.casefold()).split())
+    if normalized in _SILENCE_HALLUCINATIONS:
+        return True
+    words = normalized.split()
+    return bool(words) and len(words) <= 8 and set(words) <= {"thank", "thanks", "you"}
 
 
 def audio_extension(media_type: str) -> str | None:

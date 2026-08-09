@@ -312,7 +312,9 @@ export default function InterviewWorkspace() {
 
   const handleRecording = useCallback(async (recording: Blob) => {
     const transcript = await transcribeInterviewRecording(recording, sessionId);
-    if (!transcript.trim()) throw new Error("No speech was recorded.");
+    // Silence and low-information noise are expected while listening remains
+    // automatic. The API returns an empty transcript for those segments.
+    if (!transcript.trim()) return;
     setAnswer((currentAnswer) => appendTranscriptSegment(currentAnswer, transcript));
   }, [sessionId]);
 

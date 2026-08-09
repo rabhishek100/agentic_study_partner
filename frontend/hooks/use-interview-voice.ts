@@ -21,7 +21,12 @@ const CALIBRATION_MS = 450;
 const MINIMUM_RMS_THRESHOLD = 0.0045;
 const MAXIMUM_RMS_THRESHOLD = 0.025;
 const NOISE_MULTIPLIER = 1.8;
-const LOUD_FRAMES_TO_START = 2;
+const LOUD_FRAMES_TO_START = 3;
+// A click, chair movement, or speaker echo can cross the level threshold for
+// one or two animation frames. Requiring sustained voiced frames prevents
+// those clips from reaching Whisper, where silence can become stock text such
+// as "Thank you."
+const MINIMUM_VOICED_FRAMES = 8;
 
 let primedAudioContext: AudioContext | null = null;
 
@@ -72,6 +77,7 @@ export function useInterviewVoice({
   const onRecordingRef = useRef(onRecording);
   const onVoiceStartRef = useRef(onVoiceStart);
   const loudFramesRef = useRef(0);
+  const voicedFramesRef = useRef(0);
   const startedAtRef = useRef(0);
   const lastLoudAtRef = useRef(0);
   const calibrationUntilRef = useRef(0);
@@ -103,6 +109,7 @@ export function useInterviewVoice({
     analyserRef.current = null;
     samplesRef.current = null;
     loudFramesRef.current = 0;
+    voicedFramesRef.current = 0;
     noiseFloorRef.current = 0.0025;
     setInputLevel(0);
     setStatus("idle");
@@ -127,13 +134,20 @@ export function useInterviewVoice({
     };
     recorder.onstop = () => {
       const duration = Date.now() - startedAtRef.current;
+      const voicedFrames = voicedFramesRef.current;
       const blob = new Blob(chunksRef.current, {
         type: recorder.mimeType || mimeType || "audio/webm",
       });
       chunksRef.current = [];
       recorderRef.current = null;
       loudFramesRef.current = 0;
-      if (!listeningRef.current || duration < MINIMUM_SPEECH_MS || !blob.size) {
+      voicedFramesRef.current = 0;
+      if (
+        !listeningRef.current ||
+        duration < MINIMUM_SPEECH_MS ||
+        voicedFrames < MINIMUM_VOICED_FRAMES ||
+        !blob.size
+      ) {
         if (listeningRef.current) setStatus("listening");
         return;
       }
@@ -163,6 +177,7 @@ export function useInterviewVoice({
     };
     startedAtRef.current = Date.now();
     lastLoudAtRef.current = startedAtRef.current;
+    voicedFramesRef.current = loudFramesRef.current;
     recorderRef.current = recorder;
     recorder.start(250);
     setStatus("recording");
@@ -210,7 +225,10 @@ export function useInterviewVoice({
       } else if (recorder.state === "recording") {
         // A slightly softer continuation threshold avoids chopping off the
         // end of a sentence after speech has already been established.
-        if (rms >= threshold * 0.72) lastLoudAtRef.current = now;
+        if (rms >= threshold * 0.72) {
+          lastLoudAtRef.current = now;
+          voicedFramesRef.current += 1;
+        }
         const silentLongEnough = now - lastLoudAtRef.current >= SILENCE_MS;
         const tooLong = now - startedAtRef.current >= MAXIMUM_SPEECH_MS;
         if (silentLongEnough || tooLong) finishRecording();
