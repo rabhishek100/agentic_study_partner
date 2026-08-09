@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioLines, CheckCircle2, Mic, Square } from "lucide-react";
+import { AudioLines, CheckCircle2, Loader2, Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -21,14 +21,16 @@ const DEFAULT_DEVICE = "__system_default__";
 
 export function MicrophoneSetup({
   disabled = false,
-  onReadyChange,
+  onAccessChange,
 }: {
   disabled?: boolean;
-  onReadyChange?: (ready: boolean) => void;
+  onAccessChange?: (granted: boolean) => void;
 }) {
   const microphones = useMicrophones();
+  const [enabled, setEnabled] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [starting, setStarting] = useState(false);
+  const [enabling, setEnabling] = useState(false);
+  const [startingTest, setStartingTest] = useState(false);
   const [detected, setDetected] = useState(false);
   const [level, setLevel] = useState(0);
   const [error, setError] = useState("");
@@ -36,7 +38,7 @@ export function MicrophoneSetup({
   const contextRef = useRef<AudioContext | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  const stop = useCallback(() => {
+  const stopTest = useCallback(() => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -48,16 +50,34 @@ export function MicrophoneSetup({
     setLevel(0);
   }, []);
 
-  useEffect(() => stop, [stop]);
+  useEffect(() => stopTest, [stopTest]);
   useEffect(() => {
-    if (disabled) stop();
-  }, [disabled, stop]);
+    if (disabled) stopTest();
+  }, [disabled, stopTest]);
 
-  const start = useCallback(async () => {
-    stop();
-    setStarting(true);
+  const enable = useCallback(async () => {
+    stopTest();
+    setEnabling(true);
     setError("");
-    onReadyChange?.(false);
+    onAccessChange?.(false);
+    try {
+      const stream = await openSpeechMicrophone();
+      stream.getTracks().forEach((track) => track.stop());
+      setEnabled(true);
+      onAccessChange?.(true);
+    } catch (failure) {
+      setEnabled(false);
+      setError(microphoneProblem(failure));
+      onAccessChange?.(false);
+    } finally {
+      setEnabling(false);
+    }
+  }, [onAccessChange, stopTest]);
+
+  const startTest = useCallback(async () => {
+    stopTest();
+    setStartingTest(true);
+    setError("");
     try {
       const context = new AudioContext();
       await context.resume();
@@ -70,8 +90,9 @@ export function MicrophoneSetup({
       const samples = new Float32Array(analyser.fftSize);
       streamRef.current = stream;
       contextRef.current = context;
+      setEnabled(true);
       setTesting(true);
-      onReadyChange?.(true);
+      onAccessChange?.(true);
 
       const measure = () => {
         analyser.getFloatTimeDomainData(samples);
@@ -89,19 +110,17 @@ export function MicrophoneSetup({
       };
       frameRef.current = requestAnimationFrame(measure);
     } catch (failure) {
-      stop();
+      stopTest();
       setError(microphoneProblem(failure));
-      onReadyChange?.(false);
     } finally {
-      setStarting(false);
+      setStartingTest(false);
     }
-  }, [onReadyChange, stop]);
+  }, [onAccessChange, stopTest]);
 
   const choose = (value: string) => {
-    stop();
+    stopTest();
     microphones.select(value === DEFAULT_DEVICE ? null : value);
     setError("");
-    onReadyChange?.(false);
   };
 
   const selectedLabel =
@@ -110,14 +129,14 @@ export function MicrophoneSetup({
 
   return (
     <fieldset className="space-y-3 rounded-xl border bg-muted/25 p-4">
-      <legend className="px-1 text-sm font-medium">Microphone check <span className="font-normal text-muted-foreground">· optional</span></legend>
+      <legend className="px-1 text-sm font-medium">Microphone</legend>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <div className="space-y-1.5">
           <Label htmlFor="interview-microphone">Input device</Label>
           <Select
             value={microphones.selectedId ?? DEFAULT_DEVICE}
             onValueChange={choose}
-            disabled={disabled || starting}
+            disabled={disabled || enabling || startingTest}
           >
             <SelectTrigger id="interview-microphone">
               <SelectValue />
@@ -134,12 +153,12 @@ export function MicrophoneSetup({
         </div>
         <Button
           type="button"
-          variant={testing ? "secondary" : "outline"}
-          disabled={disabled || starting}
-          onClick={() => void (testing ? stop() : start())}
+          variant={enabled ? "secondary" : "outline"}
+          disabled={disabled || enabling || startingTest || enabled}
+          onClick={() => void enable()}
         >
-          {testing ? <Square aria-hidden /> : <Mic aria-hidden />}
-          {starting ? "Enabling…" : testing ? "Stop test" : "Test microphone"}
+          {enabling ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : enabled ? <CheckCircle2 aria-hidden /> : <Mic aria-hidden />}
+          {enabling ? "Requesting access…" : enabled ? "Microphone enabled" : "Enable microphone"}
         </Button>
       </div>
 
@@ -160,19 +179,33 @@ export function MicrophoneSetup({
             style={{ width: `${level}%` }}
           />
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {detected ? (
-            <CheckCircle2 className="size-4 text-emerald-600" aria-hidden />
-          ) : (
-            <AudioLines className={cn("size-4", testing && "text-primary")} aria-hidden />
-          )}
-          <span>
-            {testing
-              ? detected
-                ? `Input detected from ${selectedLabel}. This microphone is ready.`
-                : `Speak normally to test ${selectedLabel}.`
-              : "Optional: test voice now, or start the interview and answer by typing."}
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            {detected || enabled ? (
+              <CheckCircle2 className="size-4 shrink-0 text-emerald-600" aria-hidden />
+            ) : (
+              <AudioLines className={cn("size-4 shrink-0", testing && "text-primary")} aria-hidden />
+            )}
+            <span>
+              {testing
+                ? detected
+                  ? `Input detected from ${selectedLabel}.`
+                  : `Speak normally to test ${selectedLabel}.`
+                : enabled
+                  ? "Microphone access is enabled. Testing the input is optional."
+                  : "Enable access for voice answers. The live input test is optional."}
+            </span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={disabled || !enabled || enabling || startingTest}
+            onClick={() => void (testing ? stopTest() : startTest())}
+          >
+            {startingTest ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : testing ? <Square aria-hidden /> : <AudioLines aria-hidden />}
+            {startingTest ? "Starting test…" : testing ? "Stop test" : "Test input (optional)"}
+          </Button>
         </div>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>

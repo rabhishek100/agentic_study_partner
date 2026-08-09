@@ -128,6 +128,7 @@ export default function InterviewsPage() {
   const [mode, setMode] = useState<InterviewMode>("realistic");
   const [format, setFormat] = useState<InterviewFormatChoice>("auto");
   const [preview, setPreview] = useState<InterviewPreflight | null>(null);
+  const [microphoneAccess, setMicrophoneAccess] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [operation, setOperation] = useState<SetupOperation>("idle");
@@ -342,12 +343,15 @@ export default function InterviewsPage() {
                   <div className="space-y-1.5"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
                 </div>
 
-                <MicrophoneSetup disabled={busy} />
+                <MicrophoneSetup
+                  disabled={busy}
+                  onAccessChange={setMicrophoneAccess}
+                />
 
                 <Button
                   className="w-full"
                   size="lg"
-                  disabled={!payload || busy}
+                  disabled={!payload || busy || Boolean(preview && !microphoneAccess)}
                   onClick={() => void (preview ? begin() : review())}
                 >
                   {busy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}
@@ -360,7 +364,9 @@ export default function InterviewsPage() {
                         : operation === "opening_workspace"
                           ? "Opening interview…"
                           : preview
-                            ? "Start interview"
+                            ? microphoneAccess
+                              ? "Start interview"
+                              : "Enable microphone to start"
                             : "Review setup"}
                   {!busy ? <ArrowRight aria-hidden /> : null}
                 </Button>
@@ -377,7 +383,7 @@ export default function InterviewsPage() {
                 ) : null}
                 {preview ? (
                   <p className="text-center text-xs text-muted-foreground">
-                    The microphone check is optional. You can start with typing and enable voice from inside the interview.
+                    Microphone access is required for the voice interview. Testing the live input meter is optional.
                   </p>
                 ) : null}
               </CardContent>

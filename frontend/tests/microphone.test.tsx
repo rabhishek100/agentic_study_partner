@@ -132,26 +132,32 @@ describe("the microphone list", () => {
 });
 
 describe("choosing a microphone", () => {
-  it("presents the pre-interview microphone check as optional", async () => {
+  it("separates microphone access from the optional input test", async () => {
     stubDevices([BUILT_IN]);
+    const user = userEvent.setup();
 
     render(<MicrophoneSetup />);
 
-    expect(screen.getByText(/microphone check/i)).toHaveTextContent("optional");
+    await user.click(screen.getByRole("button", { name: "Enable microphone" }));
+
     expect(
-      screen.getByText(/start the interview and answer by typing/i),
-    ).toBeVisible();
+      await screen.findByRole("button", { name: "Microphone enabled" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Test input (optional)" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/testing the input is optional/i)).toBeVisible();
   });
 
   it("tests the selected input before an interview starts", async () => {
     const getUserMedia = stubDevices([BUILT_IN, HEADSET]);
-    const onReadyChange = vi.fn();
+    const onAccessChange = vi.fn();
     const user = userEvent.setup();
 
-    render(<MicrophoneSetup onReadyChange={onReadyChange} />);
+    render(<MicrophoneSetup onAccessChange={onAccessChange} />);
     await user.click(await screen.findByRole("combobox", { name: "Input device" }));
     await user.click(await screen.findByRole("option", { name: "USB Headset" }));
-    await user.click(screen.getByRole("button", { name: "Test microphone" }));
+    await user.click(screen.getByRole("button", { name: "Enable microphone" }));
 
     await waitFor(() =>
       expect(getUserMedia).toHaveBeenCalledWith({
@@ -163,7 +169,8 @@ describe("choosing a microphone", () => {
         },
       }),
     );
-    expect(onReadyChange).toHaveBeenLastCalledWith(true);
+    expect(onAccessChange).toHaveBeenLastCalledWith(true);
+    await user.click(screen.getByRole("button", { name: "Test input (optional)" }));
     expect(screen.getByRole("button", { name: "Stop test" })).toBeVisible();
   });
 
