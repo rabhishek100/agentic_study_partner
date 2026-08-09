@@ -9,6 +9,7 @@ from unittest.mock import patch
 import httpx
 
 from api.interviews import _public
+from decks.contracts import DeckFigure
 from decks.topics import ScopeInventory, Topic
 from interviews.contracts import (
     AnswerEvaluation,
@@ -296,6 +297,14 @@ class GroundingTests(unittest.TestCase):
                 ordinal=index,
                 label=f"Chapter :: Section {index}",
                 node_id=index,
+                figures=(
+                    DeckFigure(
+                        kind="book_image",
+                        book_id=1,
+                        node_id=index,
+                        block_id=index,
+                    ),
+                ),
             )
             for index in range(20)
         )

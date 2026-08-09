@@ -176,7 +176,10 @@ def planned_topics(
             ),
         )
         selected.append(representative)
-    return tuple(sorted(dict.fromkeys(selected), key=lambda item: item.ordinal))
+    # Windows do not overlap, so their representatives are already unique.
+    # Do not hash Topic objects: a book topic may contain Pydantic-backed
+    # figure references, which are intentionally unhashable.
+    return tuple(sorted(selected, key=lambda item: item.ordinal))
 
 
 def initial_checkpoint(

@@ -309,8 +309,6 @@ export default function InterviewsPage() {
             <p className="mt-3 text-base leading-7 text-muted-foreground">Choose one chapter or lecture. The interviewer follows its evidence, adapts to your answers, and finishes when the useful material is covered.</p>
           </div>
 
-          {error ? <Alert variant="destructive" className="mt-6"><AlertDescription>{error}</AlertDescription></Alert> : null}
-
           <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.78fr]">
             <Card>
               <CardHeader><CardTitle>Interview setup</CardTitle></CardHeader>
@@ -370,6 +368,11 @@ export default function InterviewsPage() {
                             : "Review setup"}
                   {!busy ? <ArrowRight aria-hidden /> : null}
                 </Button>
+                {error ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                ) : null}
                 {operation !== "idle" ? (
                   <div className="rounded-lg border border-primary/25 bg-primary/[0.035] p-3" role="status" aria-live="polite" aria-atomic="true">
                     <div className="flex items-start gap-2.5">
