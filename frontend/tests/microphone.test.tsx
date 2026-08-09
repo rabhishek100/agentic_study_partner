@@ -132,6 +132,17 @@ describe("the microphone list", () => {
 });
 
 describe("choosing a microphone", () => {
+  it("presents the pre-interview microphone check as optional", async () => {
+    stubDevices([BUILT_IN]);
+
+    render(<MicrophoneSetup />);
+
+    expect(screen.getByText(/microphone check/i)).toHaveTextContent("optional");
+    expect(
+      screen.getByText(/start the interview and answer by typing/i),
+    ).toBeVisible();
+  });
+
   it("tests the selected input before an interview starts", async () => {
     const getUserMedia = stubDevices([BUILT_IN, HEADSET]);
     const onReadyChange = vi.fn();

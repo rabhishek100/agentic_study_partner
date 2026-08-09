@@ -412,7 +412,8 @@ transcript, six dimension scores, recommended answers, citations, cost, and
 missed topics without inventing percentiles.
 
 Voice answers listen continuously by default, with push-to-talk as a fallback.
-The setup includes an input picker and live mic check, and session capture
+The setup includes an optional input picker and live mic check; neither blocks
+starting because typing is always supported. Session capture
 calibrates to that device's noise floor. Silence transcribes one segment into
 the editable draft but never submits it;
 the candidate explicitly sends the complete answer. New questions are spoken

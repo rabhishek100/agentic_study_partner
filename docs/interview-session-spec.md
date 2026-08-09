@@ -75,9 +75,10 @@ intentional early finish still produces a report.
 
 The existing OpenRouter Whisper path transcribes candidate speech. Listening
 starts automatically after the interviewer finishes speaking and remains
-active through the answer. Before the session, the candidate explicitly
-chooses an input and verifies it with a live level meter; the same remembered
-device is used by capture. Speech detection calibrates against that device's
+active through the answer. Before the session, the candidate may choose and
+verify an input with a live level meter, but this check never blocks starting;
+typing remains a complete fallback. The same remembered device is used by
+capture. Speech detection calibrates against that device's
 room tone instead of relying on a fixed volume threshold. Roughly 1.2
 seconds of silence closes only the current audio segment and appends its
 transcript to an editable draft; it never submits the answer. The candidate

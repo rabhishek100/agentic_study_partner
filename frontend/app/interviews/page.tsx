@@ -131,7 +131,6 @@ export default function InterviewsPage() {
   const [loaded, setLoaded] = useState(false);
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [operation, setOperation] = useState<SetupOperation>("idle");
-  const [microphoneReady, setMicrophoneReady] = useState(false);
   const [error, setError] = useState("");
   const busy = operation !== "idle";
 
@@ -343,15 +342,12 @@ export default function InterviewsPage() {
                   <div className="space-y-1.5"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
                 </div>
 
-                <MicrophoneSetup
-                  disabled={busy}
-                  onReadyChange={setMicrophoneReady}
-                />
+                <MicrophoneSetup disabled={busy} />
 
                 <Button
                   className="w-full"
                   size="lg"
-                  disabled={!payload || busy || Boolean(preview && !microphoneReady)}
+                  disabled={!payload || busy}
                   onClick={() => void (preview ? begin() : review())}
                 >
                   {busy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}
@@ -379,9 +375,9 @@ export default function InterviewsPage() {
                     </div>
                   </div>
                 ) : null}
-                {preview && !microphoneReady ? (
+                {preview ? (
                   <p className="text-center text-xs text-muted-foreground">
-                    Test your microphone once before starting so the interview cannot begin on the wrong input.
+                    The microphone check is optional. You can start with typing and enable voice from inside the interview.
                   </p>
                 ) : null}
               </CardContent>

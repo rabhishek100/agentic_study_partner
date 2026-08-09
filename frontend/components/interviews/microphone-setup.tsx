@@ -110,7 +110,7 @@ export function MicrophoneSetup({
 
   return (
     <fieldset className="space-y-3 rounded-xl border bg-muted/25 p-4">
-      <legend className="px-1 text-sm font-medium">Microphone check</legend>
+      <legend className="px-1 text-sm font-medium">Microphone check <span className="font-normal text-muted-foreground">· optional</span></legend>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <div className="space-y-1.5">
           <Label htmlFor="interview-microphone">Input device</Label>
@@ -171,7 +171,7 @@ export function MicrophoneSetup({
               ? detected
                 ? `Input detected from ${selectedLabel}. This microphone is ready.`
                 : `Speak normally to test ${selectedLabel}.`
-              : "Enable the mic once, choose the correct input, then confirm the meter moves."}
+              : "Optional: test voice now, or start the interview and answer by typing."}
           </span>
         </div>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
