@@ -276,6 +276,7 @@ export default function InterviewWorkspace() {
   const draftEpochRef = useRef(0);
   const dictationTargetRef = useRef<"answer" | "clarification">("answer");
   const submissionControllerRef = useRef<AbortController | null>(null);
+  const submissionInFlightRef = useRef(false);
   const speech = useInterviewerSpeech();
   const screen = useScreenShare();
 
@@ -328,7 +329,18 @@ export default function InterviewWorkspace() {
 
   const submitAnswer = useCallback(async (text: string, corrected: boolean) => {
     const value = text.trim();
-    if (!value || !current || !interview || interview.status !== "active" || submissionLocked) return;
+    if (
+      !value ||
+      !current ||
+      !interview ||
+      interview.status !== "active" ||
+      submissionLocked ||
+      submissionInFlightRef.current
+    ) return;
+    // React state does not disable the button until the next render. This ref
+    // closes that same-frame window so a double click cannot start two costly
+    // evaluations for the same pending turn.
+    submissionInFlightRef.current = true;
     const answeredTurnIndex = current.turn_index;
     // Everything visible at this instant is the submitted answer. A Whisper
     // request already in flight belongs to the old draft and must not append
@@ -390,6 +402,7 @@ export default function InterviewWorkspace() {
       if (submissionControllerRef.current === controller) {
         submissionControllerRef.current = null;
       }
+      submissionInFlightRef.current = false;
       endOperation();
     }
   }, [acceptSubmittedAnswer, beginOperation, current, endOperation, interview, sessionId, submissionLocked]);

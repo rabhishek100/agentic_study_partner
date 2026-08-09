@@ -130,7 +130,17 @@ def _practical_fallback_scope(
 ) -> tuple[str, list[str]]:
     """Build a reasoning prompt that never asks the candidate to recall text."""
 
-    clean_label = " ".join(label.split()[:16]) or "this topic"
+    # Section titles are source data and may themselves contain questions,
+    # sentence punctuation, or compound prompts. Never splice those verbatim
+    # into a candidate-facing fallback.
+    first_clause = re.split(
+        r"[.!?,;:]|\b(?:and\s+then|and\s+what|and\s+how|and\s+why|"
+        r"and\s+which)\b",
+        label,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    clean_label = " ".join(first_clause.split()[:12]) or "this technical decision"
     gerund_label = bool(re.match(r"^[A-Za-z]+ing\b", clean_label))
     natural_label = (
         clean_label[:1].lower() + clean_label[1:]
@@ -165,6 +175,35 @@ def _practical_fallback_scope(
     return (
         f"What practical consideration matters most when applying {clean_label}?",
         ["Identify one technically relevant practical consideration."],
+    )
+
+
+def _unconditional_fallback_question(
+    *,
+    topic: Topic,
+    target_level: TargetLevel,
+    kind: QuestionKind,
+    recent_questions: list[InterviewQuestion],
+) -> InterviewQuestion:
+    """Return a fixed atomic question when even a title-derived fallback fails."""
+
+    marker, excerpt = _fallback_evidence(topic)
+    primary = "What practical factor would guide your decision in this scenario?"
+    alternate = "Which trade-off would you examine next in this scenario?"
+    recent = {_normalized_question(item.text) for item in recent_questions[-4:]}
+    text = alternate if _normalized_question(primary) in recent else primary
+    return InterviewQuestion(
+        topic_key=topic.key,
+        topic_label=topic.label,
+        kind=kind,
+        text=text,
+        expected_points=["Identify one technically relevant decision factor."],
+        suggested_answer=f"{excerpt}. {marker}",
+        citation_markers=[marker],
+        difficulty=target_level,
+        interviewer_note="Unconditional continuity fallback after title sanitization.",
+        work_sample="none",
+        work_sample_prompt=None,
     )
 
 
@@ -237,7 +276,18 @@ def grounded_fallback_question(
         work_sample="none",
         work_sample_prompt=None,
     )
-    question = validate_question_focus(validate_question(question, topic))
+    try:
+        question = validate_question_focus(validate_question(question, topic))
+    except InterviewValidationError:
+        # Saving the candidate's answer must never depend on a section title
+        # surviving presentation validation. This fixed question has no title
+        # interpolation and is valid by construction.
+        return _unconditional_fallback_question(
+            topic=topic,
+            target_level=target_level,
+            kind=kind,
+            recent_questions=recent_questions,
+        )
     try:
         return validate_question_progression(question, recent_questions)
     except InterviewValidationError:

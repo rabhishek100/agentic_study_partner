@@ -498,6 +498,44 @@ class GroundingTests(unittest.TestCase):
         self.assertNotIn("source", repaired.text.lower())
         self.assertNotIn("source", repaired.expected_points[0].lower())
 
+    def test_punctuated_section_title_cannot_break_answer_progression(self) -> None:
+        punctuated = replace(
+            topic(),
+            label=(
+                "Choosing the right ML category? What assumptions should we make, "
+                "and how should we validate them?"
+            ),
+        )
+
+        generated = grounded_fallback_question(
+            topic=punctuated,
+            target_level="mid",
+            kind="follow_up",
+            recent_questions=[],
+        )
+
+        self.assertEqual(generated.text.count("?"), 1)
+        self.assertNotIn("What assumptions", generated.text)
+        self.assertIs(validate_question_focus(generated), generated)
+
+    @patch(
+        "interviews.question_generation._practical_fallback_scope",
+        return_value=("First prompt? Second prompt?", ["invalid"]),
+    )
+    def test_fixed_final_fallback_cannot_block_answer_saving(self, _scope) -> None:
+        generated = grounded_fallback_question(
+            topic=topic(),
+            target_level="mid",
+            kind="follow_up",
+            recent_questions=[],
+        )
+
+        self.assertEqual(
+            generated.text,
+            "What practical factor would guide your decision in this scenario?",
+        )
+        self.assertIs(validate_question_focus(generated), generated)
+
     def test_screen_work_is_inferred_from_the_candidate_facing_question(self) -> None:
         architecture_topic = topic(
             evidence=(
