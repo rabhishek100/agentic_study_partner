@@ -15,6 +15,7 @@ from .contracts import (
     InterviewQuestion,
     InterviewSession,
     InterviewTurn,
+    PythonCodingAnswer,
     SessionReport,
     TargetLevel,
 )
@@ -207,6 +208,7 @@ def answer_interview(
     *,
     owner_id: str | UUID,
     answer_text: str,
+    coding_answer: PythonCodingAnswer | None = None,
     transcript_corrected: bool = False,
     evaluation_model: Any | None = None,
     question_model: Any | None = None,
@@ -219,6 +221,11 @@ def answer_interview(
     )
     if current is None:
         raise store.InterviewStateError("the interview has no unanswered question")
+    expects_code = current.question.coding_exercise is not None
+    if expects_code and coding_answer is None:
+        raise ValueError("this coding question requires a submitted Python artifact")
+    if not expects_code and coding_answer is not None:
+        raise ValueError("this question does not accept a coding artifact")
     inventory = load_session_inventory(connection, session, owner_id)
 
     output = answer_graph.invoke(
@@ -227,6 +234,7 @@ def answer_interview(
             "inventory": inventory,
             "current_turn": current,
             "answer_text": answer_text.strip(),
+            "coding_answer": coding_answer,
         },
         config={
             "run_name": "interview_answer_turn",
@@ -248,6 +256,7 @@ def answer_interview(
     settled_preview = current.model_copy(
         update={
             "answer_text": answer_text.strip(),
+            "coding_answer": coding_answer,
             "transcript_corrected": transcript_corrected,
             "evaluation": evaluation,
             "citations": citations,
@@ -265,6 +274,7 @@ def answer_interview(
             owner_id=owner_id,
             turn_index=current.turn_index,
             answer_text=answer_text,
+            coding_answer=coding_answer,
             transcript_corrected=transcript_corrected,
             evaluation=evaluation,
             citations=citations,
@@ -295,6 +305,47 @@ def answer_interview(
                 checkpoint=output["checkpoint"],
                 metrics=metrics,
             )
+    return store.load_session(connection, session_id, owner_id=owner_id)
+
+
+def reveal_coding_hint(
+    connection: Connection,
+    session_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+) -> InterviewSession:
+    """Reveal one pre-generated hint in guided mode and charge independence."""
+
+    session = store.load_session(connection, session_id, owner_id=owner_id)
+    if session.status != "active":
+        raise store.InterviewStateError("the interview must be active to use a hint")
+    if session.feedback_mode != "guided":
+        raise store.InterviewStateError(
+            "coding hints are available only in guided interview mode"
+        )
+    current = next(
+        (turn for turn in reversed(session.turns) if turn.answer_text is None), None
+    )
+    if current is None or current.question.coding_exercise is None:
+        raise store.InterviewStateError("the active question is not a coding exercise")
+    available = len(current.question.coding_exercise.hints)
+    if current.hints_used >= available:
+        raise store.InterviewStateError("all coding hints for this question are visible")
+
+    checkpoint = session.checkpoint.model_copy(deep=True)
+    topic_state = next(
+        item for item in checkpoint.topics if item.key == current.question.topic_key
+    )
+    next_count = current.hints_used + 1
+    topic_state.hints_used = min(2, topic_state.hints_used + 1)
+    store.use_coding_hint(
+        connection,
+        session_id,
+        owner_id=owner_id,
+        turn_index=current.turn_index,
+        hints_used=next_count,
+        checkpoint=checkpoint,
+    )
     return store.load_session(connection, session_id, owner_id=owner_id)
 
 

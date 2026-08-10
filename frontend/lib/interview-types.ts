@@ -38,6 +38,36 @@ export interface InterviewClarification {
   interviewer_response: string;
 }
 
+export interface PythonCodingExercise {
+  language: "python";
+  starter_code: string;
+  visible_tests: string;
+  hints: string[];
+}
+
+export type PythonRunStatus =
+  | "passed"
+  | "failed"
+  | "error"
+  | "timed_out"
+  | "not_run";
+
+export interface PythonExecutionResult {
+  status: PythonRunStatus;
+  stdout: string;
+  error: string;
+  duration_ms: number;
+  official_tests_passed: boolean | null;
+  scratch_tests_passed: boolean | null;
+}
+
+export interface PythonCodingAnswer {
+  language: "python";
+  code: string;
+  scratch_tests: string;
+  execution: PythonExecutionResult;
+}
+
 export interface InterviewQuestion {
   topic_key: string;
   topic_label: string;
@@ -50,6 +80,7 @@ export interface InterviewQuestion {
   interviewer_note: string;
   work_sample: WorkSampleKind;
   work_sample_prompt: string | null;
+  coding_exercise?: PythonCodingExercise | null;
   clarifications: InterviewClarification[];
 }
 
@@ -95,6 +126,7 @@ export interface InterviewTurn {
   turn_index: number;
   question: InterviewQuestion;
   answer_text: string | null;
+  coding_answer?: PythonCodingAnswer | null;
   transcript_corrected: boolean;
   evaluation: AnswerEvaluation | null;
   interviewer_reaction: string;
@@ -102,6 +134,7 @@ export interface InterviewTurn {
   web_sources: WebSource[];
   screen_observation: ScreenObservation | null;
   hints_used: number;
+  available_coding_hints?: number;
   cost_usd: number;
   created_at: string | null;
   answered_at: string | null;

@@ -86,7 +86,7 @@ DEFAULT_WORK_SAMPLE_PROMPTS: dict[WorkSampleKind, str] = {
         "Use the shared screen to show each step of the requested derivation."
     ),
     "code": (
-        "Use the shared screen to write the requested code or pseudocode."
+        "Complete the Python scaffold in the coding workspace."
     ),
     # Retained only so old persisted questions remain parseable. New
     # assumption and requirements questions are deliberately verbal.
@@ -275,6 +275,7 @@ def repair_nonvisual_work_sample(question: InterviewQuestion) -> InterviewQuesti
         update={
             "work_sample": "none",
             "work_sample_prompt": None,
+            "coding_exercise": None,
             "interviewer_note": (
                 "Converted an irrelevant text-only screen exercise to a verbal answer."
             ),
@@ -392,6 +393,17 @@ def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
             raise InterviewValidationError(
                 "the work-sample instruction does not match the interview question"
             )
+    if question.work_sample == "code" and question.coding_exercise is None:
+        raise InterviewValidationError(
+            "a new coding question must include an executable Python scaffold"
+        )
+    if (
+        question.coding_exercise is not None
+        and not question.coding_exercise.hints
+    ):
+        raise InterviewValidationError(
+            "a new coding question must include at least one progressive hint"
+        )
     if _word_count(text) + _word_count(prompt) > MAX_SPOKEN_TURN_WORDS:
         raise InterviewValidationError("the complete spoken turn asks too much at once")
     return question
@@ -445,12 +457,20 @@ def apply_work_sample_policy(
     # second artifact is both repetitive and expensive.
     if question.kind != "primary":
         return question.model_copy(
-            update={"work_sample": "none", "work_sample_prompt": None}
+            update={
+                "work_sample": "none",
+                "work_sample_prompt": None,
+                "coding_exercise": None,
+            }
         )
     # Never request screen work on consecutive questions.
     if recent_questions and recent_questions[-1].work_sample != "none":
         return question.model_copy(
-            update={"work_sample": "none", "work_sample_prompt": None}
+            update={
+                "work_sample": "none",
+                "work_sample_prompt": None,
+                "coding_exercise": None,
+            }
         )
 
     # Topic evidence can suggest future questions, but it must never silently
@@ -471,7 +491,11 @@ def apply_work_sample_policy(
     )
     if work_sample == "none":
         return question.model_copy(
-            update={"work_sample": "none", "work_sample_prompt": None}
+            update={
+                "work_sample": "none",
+                "work_sample_prompt": None,
+                "coding_exercise": None,
+            }
         )
     authored_prompt = (
         (question.work_sample_prompt or "").strip()

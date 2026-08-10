@@ -17,6 +17,7 @@ from .contracts import (
     InterviewQuestion,
     InterviewSession,
     InterviewTurn,
+    PythonCodingAnswer,
     WebSource,
 )
 from .evaluation import sanitize_evaluation
@@ -36,6 +37,7 @@ class AnswerGraphInput(TypedDict):
     inventory: ScopeInventory
     current_turn: InterviewTurn
     answer_text: str
+    coding_answer: NotRequired[PythonCodingAnswer | None]
 
 
 class AnswerGraphState(AnswerGraphInput):
@@ -90,6 +92,7 @@ def evaluate_answer(
             attempts=topic_state.attempts + 1,
             hints_used=topic_state.hints_used,
             screen_observation=state["current_turn"].screen_observation,
+            coding_answer=state.get("coding_answer"),
         ),
         AnswerEvaluation,
     )
@@ -164,6 +167,7 @@ def verify_extension(
                 hints_used=topic_state.hints_used,
                 screen_observation=state["current_turn"].screen_observation,
                 web_sources=web_sources,
+                coding_answer=state.get("coding_answer"),
             ),
             AnswerEvaluation,
         )

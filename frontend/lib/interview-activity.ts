@@ -7,6 +7,7 @@ export type InterviewOperation =
   | "submitting_answer"
   | "checking_submission"
   | "asking_clarification"
+  | "revealing_coding_hint"
   | "screen_checkpoint"
   | "pausing"
   | "resuming"
@@ -74,6 +75,13 @@ export function describeInterviewActivity({
         detail:
           "The interviewer is resolving the wording or requested response format without evaluating your answer or giving away the solution.",
         stages: ["Interpret your question", "Check source context", "Clarify the task"],
+      };
+    case "revealing_coding_hint":
+      return {
+        tone: "working",
+        title: "Revealing a coding hint",
+        detail:
+          "Adding the next guided hint without changing your code. Using it will be reflected in the independence score.",
       };
     case "screen_checkpoint":
       return {

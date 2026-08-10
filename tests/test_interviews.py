@@ -19,6 +19,9 @@ from interviews.contracts import (
     InterviewQuestion,
     InterviewSession,
     InterviewTurn,
+    PythonCodingAnswer,
+    PythonCodingExercise,
+    PythonExecutionResult,
     ScoreCard,
     TopicState,
 )
@@ -49,7 +52,7 @@ from interviews.question_generation import (
     validate_question_focus,
     validate_question_progression,
 )
-from interviews.service import clarify_interview_question
+from interviews.service import clarify_interview_question, reveal_coding_hint
 from interviews.speech import (
     DEFAULT_TTS_MODEL,
     DEFAULT_TTS_VOICE,
@@ -94,6 +97,33 @@ def question() -> InterviewQuestion:
         suggested_answer="It models log odds as a linear function. [N7:P42]",
         citation_markers=["[N7:P42]"],
         difficulty="mid",
+    )
+
+
+def coding_question() -> InterviewQuestion:
+    return question().model_copy(
+        update={
+            "text": "Implement a Python function that converts a logit to probability.",
+            "work_sample": "code",
+            "work_sample_prompt": "Complete the Python scaffold in the coding workspace.",
+            "coding_exercise": PythonCodingExercise(
+                starter_code=(
+                    "import math\n\n"
+                    "def sigmoid(logit: float) -> float:\n"
+                    "    \"\"\"Convert a logit to probability.\"\"\"\n"
+                    "    # TODO: implement\n"
+                    "    raise NotImplementedError\n"
+                ),
+                visible_tests=(
+                    "assert abs(sigmoid(0.0) - 0.5) < 1e-9\n"
+                    "assert sigmoid(4.0) > sigmoid(-4.0)\n"
+                ),
+                hints=[
+                    "Recall the inverse of the log-odds transformation.",
+                    "Use math.exp with the negative logit in the denominator.",
+                ],
+            ),
+        }
     )
 
 
@@ -273,6 +303,49 @@ class GroundingTests(unittest.TestCase):
         self.assertIn("Score all six dimensions", instruction)
         self.assertIn("against that explicit scope", instruction)
         self.assertIn("must not appear in `gaps`", instruction)
+
+    def test_coding_evaluation_receives_code_and_browser_result_separately(self) -> None:
+        artifact = PythonCodingAnswer(
+            code="def sigmoid(value):\n    return 0.5",
+            scratch_tests="assert sigmoid(0) == 0.5",
+            execution=PythonExecutionResult(
+                status="failed",
+                error="AssertionError",
+                duration_ms=12,
+                official_tests_passed=False,
+                scratch_tests_passed=True,
+            ),
+        )
+        messages = build_evaluation_messages(
+            inventory=inventory(),
+            topic=topic(),
+            question=coding_question(),
+            answer="I used the inverse-logit transform.",
+            mode="guided",
+            target_level="mid",
+            attempts=1,
+            hints_used=1,
+            coding_answer=artifact,
+        )
+
+        instruction = str(messages[-1].content)
+        self.assertIn('"code": "def sigmoid(value):\\n', instruction)
+        self.assertIn('"official_tests_passed": false', instruction)
+        self.assertIn("supporting evidence rather than a trusted", instruction)
+
+    def test_new_coding_question_requires_a_scaffold(self) -> None:
+        missing = coding_question().model_copy(update={"coding_exercise": None})
+
+        with self.assertRaisesRegex(InterviewValidationError, "Python scaffold"):
+            validate_question_focus(missing)
+
+    def test_python_scaffold_requires_todos_and_visible_assertions(self) -> None:
+        with self.assertRaisesRegex(ValueError, "TODO"):
+            PythonCodingExercise(
+                starter_code="def sigmoid(value):\n    return value",
+                visible_tests="assert sigmoid(0) == 0",
+                hints=["Consider the inverse link."],
+            )
 
     def test_malformed_evaluation_falls_back_to_validated_model_answer(self) -> None:
         invalid = evaluation(complete=True).model_copy(
@@ -889,6 +962,61 @@ class ClarificationTests(unittest.TestCase):
         self.assertEqual(
             public.turns[0].question.clarifications[0].candidate_question,
             "Which relationship?",
+        )
+
+    @patch("interviews.service.store.use_coding_hint")
+    @patch("interviews.service.store.load_session")
+    def test_guided_coding_hint_is_revealed_without_editing_code(
+        self,
+        load_session,
+        use_hint,
+    ) -> None:
+        coding_turn = InterviewTurn(
+            turn_index=0,
+            question=coding_question(),
+            available_coding_hints=2,
+        )
+        guided = session().model_copy(
+            update={"feedback_mode": "guided", "turns": [coding_turn]}
+        )
+        load_session.side_effect = [guided, guided]
+
+        result = reveal_coding_hint(
+            object(),
+            guided.session_id,
+            owner_id="00000000-0000-0000-0000-000000000002",
+        )
+
+        self.assertIs(result, guided)
+        self.assertEqual(use_hint.call_args.kwargs["hints_used"], 1)
+        checkpoint = use_hint.call_args.kwargs["checkpoint"]
+        self.assertEqual(checkpoint.topics[0].hints_used, 1)
+
+    def test_public_coding_question_exposes_only_revealed_hints(self) -> None:
+        live = session().model_copy(
+            update={
+                "feedback_mode": "guided",
+                "turns": [
+                    InterviewTurn(
+                        turn_index=0,
+                        question=coding_question(),
+                        hints_used=1,
+                        available_coding_hints=2,
+                    )
+                ],
+            }
+        )
+
+        public = _public(live)
+
+        self.assertEqual(
+            public.turns[0].question.coding_exercise.hints,
+            ["Recall the inverse of the log-odds transformation."],
+        )
+        self.assertEqual(public.turns[0].available_coding_hints, 2)
+        self.assertEqual(
+            InterviewSession.model_validate(public.model_dump()).session_id,
+            live.session_id,
         )
 
 

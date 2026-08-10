@@ -20,6 +20,7 @@ from interviews.contracts import (
     InterviewMetrics,
     InterviewPreflight,
     InterviewSession,
+    PythonCodingAnswer,
     ScreenObservation,
     SessionReport,
     TargetLevel,
@@ -41,6 +42,7 @@ from interviews.service import (
     inspect_source,
     load_session_inventory,
     report_for,
+    reveal_coding_hint,
     start_interview,
 )
 from interviews.speech import (
@@ -104,6 +106,7 @@ class InterviewSetupRequest(ContractModel):
 class AnswerRequest(ContractModel):
     answer_text: str = Field(min_length=1, max_length=12_000)
     transcript_corrected: bool = False
+    coding_answer: PythonCodingAnswer | None = None
 
 
 class ClarificationRequest(ContractModel):
@@ -130,6 +133,16 @@ def _public(session: InterviewSession) -> InterviewSession:
     turns = []
     for turn in session.turns:
         question = turn.question
+        if question.coding_exercise is not None:
+            question = question.model_copy(
+                update={
+                    "coding_exercise": question.coding_exercise.model_copy(
+                        update={
+                            "hints": question.coding_exercise.hints[: turn.hints_used]
+                        }
+                    )
+                }
+            )
         if not settled:
             question = question.model_copy(
                 update={
@@ -308,12 +321,28 @@ async def answer(
                 owner_id=owner_id,
                 answer_text=request.answer_text,
                 transcript_corrected=request.transcript_corrected,
+                coding_answer=request.coding_answer,
             )
 
     try:
         return _public(await run_in_threadpool(run))
     except Exception as error:
         logger.exception("Interview answer failed", extra={"session_id": str(session_id)})
+        raise _translate(error) from error
+
+
+@router.post("/{session_id}/coding-hints", response_model=InterviewSession)
+async def coding_hint(
+    session_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> InterviewSession:
+    def run():
+        with database_connection() as connection:
+            return reveal_coding_hint(connection, session_id, owner_id=owner_id)
+
+    try:
+        return _public(await run_in_threadpool(run))
+    except Exception as error:
         raise _translate(error) from error
 
 
