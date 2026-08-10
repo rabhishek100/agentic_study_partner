@@ -43,7 +43,7 @@ COLUMNS = """
     heartbeat_at, cancellation_requested_at, last_error_code,
     last_error_message, last_error_retryable, provenance_json,
     created_at, started_at, stage_started_at, updated_at, completed_at,
-    awaiting_input_seconds
+    awaiting_input_seconds, document_type
 """
 
 MAXIMUM_FILENAME_LENGTH = 255
@@ -108,6 +108,7 @@ class IngestionJob:
     # outline review parks a job, and only completed pauses are counted here;
     # a pause still open is measured from ``stage_started_at``.
     awaiting_input_seconds: float
+    document_type: str = "book"
 
     @classmethod
     def from_row(cls, row: dict[str, Any]) -> "IngestionJob":
@@ -147,6 +148,7 @@ class IngestionJob:
             updated_at=row["updated_at"],
             completed_at=row["completed_at"],
             awaiting_input_seconds=float(row["awaiting_input_seconds"] or 0.0),
+            document_type=row.get("document_type", "book") or "book",
         )
 
     @property
@@ -257,6 +259,7 @@ def create_job(
     original_filename: str,
     content_type: str | None,
     content_length: int | None,
+    document_type: str = "book",
     limits: IngestionLimits | None = None,
 ) -> tuple[IngestionJob, bool]:
     """Create an ingestion job and reserve its immutable Storage path.
@@ -321,8 +324,8 @@ def create_job(
             insert into ingestion_jobs (
                 id, owner_id, idempotency_key, status, storage_bucket,
                 storage_path, original_filename, declared_content_type,
-                declared_size_bytes, max_attempts
-            ) values (%s, %s, %s, 'awaiting_upload', %s, %s, %s, %s, %s, %s)
+                declared_size_bytes, max_attempts, document_type
+            ) values (%s, %s, %s, 'awaiting_upload', %s, %s, %s, %s, %s, %s, %s)
             returning {COLUMNS}
             """,
             (
@@ -335,6 +338,7 @@ def create_job(
                 content_type,
                 content_length,
                 limits.max_attempts,
+                document_type,
             ),
         ).fetchone()
         append_event(
@@ -343,7 +347,7 @@ def create_job(
             job_id=job_id,
             event_type="created",
             status=Status.AWAITING_UPLOAD,
-            metadata={"declared_size_bytes": content_length},
+            metadata={"declared_size_bytes": content_length, "document_type": document_type},
         )
     return IngestionJob.from_row(row), True
 

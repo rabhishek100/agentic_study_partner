@@ -59,6 +59,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="Explicitly replace a book with the same PDF hash",
     )
     parser.add_argument(
+        "--document-type",
+        choices=["book", "paper"],
+        default="book",
+        help="Type of document (default: book)",
+    )
+    parser.add_argument(
         "--owner-id",
         help="Owner UUID; defaults to DEFAULT_OWNER_ID",
     )
@@ -100,6 +106,7 @@ def main() -> None:
             page_count=page_count,
             parser_version=PARSER_VERSION,
             metadata={"pdf": source_metadata},
+            document_type=args.document_type,
             replace=args.replace,
         )
     print(

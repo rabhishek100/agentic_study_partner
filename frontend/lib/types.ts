@@ -239,6 +239,7 @@ export interface BookSummary {
   chunk_count: number;
   embedding_count: number;
   retrieval_complete: boolean;
+  document_type?: "book" | "paper";
 }
 
 export interface BookListResponse {
@@ -310,6 +311,7 @@ export interface IngestionJob {
   retryable: boolean;
   page_count: number | null;
   book_id: number | null;
+  document_type?: "book" | "paper";
   error: JobError | null;
   cancellation_requested: boolean;
   /**
@@ -327,6 +329,13 @@ export interface IngestionJob {
 
 export interface IngestionJobList {
   jobs: IngestionJob[];
+}
+
+export interface CreateIngestionRequest {
+  original_filename: string;
+  content_type?: string | null;
+  content_length?: number | null;
+  document_type?: "book" | "paper";
 }
 
 /** The create response is deliberately narrower than a polled job. */

@@ -1,23 +1,23 @@
 "use client";
 
-import { BookOpen, Layers, MessagesSquare, Video } from "lucide-react";
+import { BookOpen, FileText, Layers, MessagesSquare, Video } from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
 
 /**
- * Books, Videos, and Cards are peers, not features hidden inside the reader.
+ * Books, Papers, Videos, and Cards are peers, not features hidden inside the reader.
  * The switcher lives in the header so none of them looks like a mode of
- * another — cards in particular are a daily habit that spans both libraries,
- * so burying them under one would misdescribe what they are.
+ * another.
  */
 export function SectionNav({
   active,
 }: {
-  active: "books" | "videos" | "decks" | "interviews";
+  active: "books" | "papers" | "videos" | "decks" | "interviews";
 }) {
   const sections = [
     { key: "books" as const, href: "/", label: "Books", icon: BookOpen },
+    { key: "papers" as const, href: "/papers", label: "Papers", icon: FileText },
     { key: "videos" as const, href: "/videos", label: "Videos", icon: Video },
     {
       key: "interviews" as const,

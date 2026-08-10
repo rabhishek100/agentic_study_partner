@@ -35,7 +35,7 @@ def derive_title(question: str) -> str:
 
 
 CONVERSATION_COLUMNS = """
-    id, title, book_ids, retrieval_mode, prompt_profile_json, state_json,
+    id, title, book_ids, document_type, retrieval_mode, prompt_profile_json, state_json,
     parent_conversation_id, anchors_json, created_at, updated_at
 """
 
@@ -47,6 +47,7 @@ def create_conversation(
     book_ids: Sequence[int],
     retrieval_mode: str,
     title: str,
+    document_type: str | None = None,
     prompt_profile: dict[str, Any] | None = None,
     parent_conversation_id: str | UUID | None = None,
     anchors: Sequence[dict[str, Any]] | None = None,
@@ -64,19 +65,28 @@ def create_conversation(
         raise ValueError("a conversation must be scoped to at least one book")
     if anchors and parent_conversation_id is None:
         raise ValueError("anchors require a parent conversation")
+
+    if document_type is None:
+        row = connection.execute(
+            "select document_type from books where id = any(%s) limit 1",
+            (scope,),
+        ).fetchone()
+        document_type = row["document_type"] if row and row.get("document_type") else "book"
+
     return connection.execute(
         f"""
         insert into conversations (
-            owner_id, title, book_ids, retrieval_mode, prompt_profile_json,
+            owner_id, title, book_ids, document_type, retrieval_mode, prompt_profile_json,
             parent_conversation_id, anchors_json, state_json
         )
-        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning {CONVERSATION_COLUMNS}
         """,
         (
             parse_owner_id(owner_id),
             title,
             scope,
+            document_type,
             retrieval_mode,
             Jsonb(prompt_profile or {}),
             parent_conversation_id,
@@ -111,6 +121,7 @@ def list_conversations(
     connection: Connection,
     *,
     owner_id: str | UUID,
+    document_type: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
     """List one owner's root conversations, most recently used first.
@@ -123,12 +134,25 @@ def list_conversations(
 
     if limit <= 0:
         raise ValueError("limit must be positive")
+
+    where_clause = """
+        where conversations.owner_id = %s
+          and conversations.parent_conversation_id is null
+    """
+    params: list[Any] = [parse_owner_id(owner_id)]
+    if document_type:
+        where_clause += " and conversations.document_type = %s"
+        params.append(document_type)
+
+    params.append(limit)
+
     return connection.execute(
-        """
+        f"""
         select
             conversations.id,
             conversations.title,
             conversations.book_ids,
+            conversations.document_type,
             conversations.retrieval_mode,
             conversations.created_at,
             conversations.updated_at,
@@ -143,13 +167,12 @@ def list_conversations(
         left join conversation_turns
           on conversation_turns.conversation_id = conversations.id
          and conversation_turns.owner_id = conversations.owner_id
-        where conversations.owner_id = %s
-          and conversations.parent_conversation_id is null
+        {where_clause}
         group by conversations.id
         order by conversations.updated_at desc
         limit %s
         """,
-        (parse_owner_id(owner_id), limit),
+        params,
     ).fetchall()
 
 

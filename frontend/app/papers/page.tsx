@@ -40,7 +40,7 @@ import type {
   RetrievalMode,
 } from "@/lib/types";
 
-export default function Page() {
+export default function PapersPage() {
   const { session, sessionLoading } = useSession();
   const [books, setBooks] = useState<BookSummary[]>([]);
   const [booksLoaded, setBooksLoaded] = useState(false);
@@ -66,16 +66,14 @@ export default function Page() {
     reset,
     resume,
   } = useChat();
-  const history = useConversations("book");
+  const history = useConversations("paper");
   const sideChats = useSideChats(conversationId, BOOK_SIDE_CHATS);
 
   const loadBooks = useCallback(async () => {
     setBooksError("");
     try {
-      const payload = await apiFetch<BookListResponse>("/books");
+      const payload = await apiFetch<BookListResponse>("/papers");
       setBooks(payload.books);
-      // Default to the whole library: cross-book study is the point, and
-      // narrowing is the deliberate exception rather than the starting point.
       setSelectedBookIds((current) =>
         current.length > 0
           ? current.filter((bookId) =>
@@ -84,10 +82,8 @@ export default function Page() {
           : payload.books.map((book) => book.book_id),
       );
     } catch (caught) {
-      // "You have no books" and "the library could not be loaded" are
-      // different situations and must not share one empty state.
       setBooksError(
-        (caught as Error).message || "Could not load your library.",
+        (caught as Error).message || "Could not load your scientific papers library.",
       );
     } finally {
       setBooksLoaded(true);
@@ -99,9 +95,6 @@ export default function Page() {
       loadBooks();
       history.refresh();
     }
-    // `history.refresh` is stable; depending on the whole hook object would
-    // re-run this on every list mutation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, loadBooks]);
 
   const hasBooks = books.length > 0;
@@ -118,63 +111,23 @@ export default function Page() {
     async (question: string, mentionedBookIds: number[] = []) => {
       const requestBookIds =
         selectedBookIds.length > 0 ? selectedBookIds : mentionedBookIds;
-      if (requestBookIds.length === 0) return;
       await send(question, {
         bookIds: requestBookIds,
         mentionedBookIds,
         retrievalMode,
         responseDepth,
       });
-      // The turn may have created a conversation or renamed nothing at all;
-      // refreshing afterwards keeps the sidebar honest either way.
-      await history.refresh();
+      history.refresh();
     },
     [send, selectedBookIds, retrievalMode, responseDepth, history],
   );
 
-  /**
-   * `?book=&page=` — where a card's "open the source" lands.
-   *
-   * Read from `window.location` rather than `useSearchParams`, which would
-   * force this page under a Suspense boundary purely to support a link that
-   * is followed once and then cleared from the URL.
-   */
-  useEffect(() => {
-    if (!session || !booksLoaded || books.length === 0) return;
-    const params = new URLSearchParams(window.location.search);
-    const bookId = Number(params.get("book"));
-    const page = Number(params.get("page"));
-    if (!bookId || !page) return;
-    const book = books.find((candidate) => candidate.book_id === bookId);
-    if (!book) return;
-    setPdfZoom(1);
-    setPdfPage(page);
-    setReadingMinimized(false);
-    setReading({
-      document: { kind: "book", bookId },
-      title: book.title,
-      page,
-    });
-    window.history.replaceState(null, "", window.location.pathname);
-  }, [session, booksLoaded, books]);
-
-  /**
-   * A card the reader could not recall, arriving from the review screen.
-   *
-   * Read once, after books load so the narrowing can be applied, and only for
-   * a book the caller still has: a deck outlives the book it was made from
-   * only if the book was deleted, and asking about it then would search the
-   * whole library and answer from the wrong one.
-   */
   useEffect(() => {
     if (!session || !booksLoaded || books.length === 0) return;
     const handoff = takeQuestion();
     if (!handoff) return;
-    const narrowed = (handoff.bookIds ?? []).filter((bookId) =>
-      books.some((book) => book.book_id === bookId),
-    );
-    const requestBookIds =
-      narrowed.length > 0 ? narrowed : books.map((book) => book.book_id);
+
+    const requestBookIds = books.map((b) => b.book_id);
     setSelectedBookIds(requestBookIds);
     void send(handoff.question, {
       bookIds: requestBookIds,
@@ -182,9 +135,6 @@ export default function Page() {
       retrievalMode,
       responseDepth,
     }).then(() => history.refresh());
-    // Runs once per arrival: `takeQuestion` clears the stash, so a re-render
-    // cannot re-ask it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, booksLoaded, books.length]);
 
   const handleOpenConversation = useCallback(
@@ -201,7 +151,6 @@ export default function Page() {
   const handleDeleteConversation = useCallback(
     async (id: string) => {
       await history.remove(id);
-      // Deleting the conversation on screen leaves nothing to continue.
       if (id === conversationId) {
         closeDocument();
         reset();
@@ -239,10 +188,7 @@ export default function Page() {
         title:
           reference.book_title ??
           books.find((book) => book.book_id === reference.book_id)?.title ??
-          "This book",
-        // The page the marker itself names, when it names one. A summary's
-        // evidence can span five pages, so opening its first would land the
-        // reader several pages from the sentence they clicked.
+          "This paper",
         page: targetPage,
         excerpt: reference.excerpt,
       });
@@ -250,15 +196,6 @@ export default function Page() {
     [books, reading?.document],
   );
 
-  /**
-   * Which recorded turn a passage came from, matched against this
-   * conversation's answers.
-   *
-   * Derived rather than assumed: attributing a pasted passage to whichever turn
-   * the window happens to be anchored to would resolve its citation markers
-   * against the wrong evidence. Whitespace is normalized on both sides because
-   * copying out of rendered Markdown does not preserve the source's line breaks.
-   */
   const resolveQuoteTurn = useCallback(
     (text: string) => {
       const flatten = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -285,10 +222,6 @@ export default function Page() {
     if (unchanged) return;
     closeDocument();
     setSelectedBookIds(bookIds);
-    // Earlier answers were grounded in the previous selection, so a different
-    // set of books is a different conversation. The server enforces the same
-    // rule; resetting here keeps the interface from showing turns that the
-    // next request will no longer carry.
     reset();
   }
 
@@ -310,8 +243,6 @@ export default function Page() {
   if (!session) {
     return (
       <div className="relative grid h-dvh overflow-y-auto place-items-center p-6">
-        {/* Reachable before sign-in: a reader who needs light mode should not
-            have to authenticate first to get it. */}
         <div className="absolute right-3 top-3">
           <ThemeToggle />
         </div>
@@ -322,7 +253,7 @@ export default function Page() {
 
   return (
     <AppShell
-      nav={<SectionNav active="books" />}
+      nav={<SectionNav active="papers" />}
       status={
         <span className="flex items-center gap-1.5">
           <span
@@ -431,6 +362,7 @@ export default function Page() {
           onRetrievalModeChange={setRetrievalMode}
           hasConversation={turns.length > 0}
           onBooksChanged={loadBooks}
+          documentType="paper"
           history={{
             conversations: history.conversations,
             loaded: history.loaded,

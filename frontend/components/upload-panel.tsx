@@ -116,7 +116,13 @@ interface TusUpload {
   resumeFromPreviousUpload: (previous: unknown) => void;
 }
 
-export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
+export function UploadPanel({
+  onBookReady,
+  documentType = "book",
+}: {
+  onBookReady: () => void;
+  documentType?: "book" | "paper";
+}) {
   // The job and the moment it arrived move together. Timing the arrival in an
   // effect instead put the stamp one render late, so the first frame after
   // every poll added a whole poll interval to the clock and then took it back.
@@ -273,6 +279,7 @@ export function UploadPanel({ onBookReady }: { onBookReady: () => void }) {
             original_filename: file.name,
             content_type: "application/pdf",
             content_length: file.size,
+            document_type: documentType,
           }),
         }),
         accessToken(),

@@ -61,6 +61,7 @@ class CreateIngestionRequest(ContractModel):
     original_filename: str
     content_type: str | None = None
     content_length: int | None = None
+    document_type: Literal["book", "paper"] = "book"
 
 
 class CreateIngestionResponse(ContractModel):
@@ -142,6 +143,7 @@ class JobResponse(ContractModel):
     retryable: bool
     page_count: int | None
     book_id: int | None
+    document_type: str = "book"
     error: JobError | None
     cancellation_requested: bool
     # Whether a browser can act on this job. A job whose source was imported
@@ -251,6 +253,7 @@ def _represent(job: IngestionJob) -> JobResponse:
         retryable=bool(job.last_error_retryable) and job.status is Status.FAILED,
         page_count=job.page_count,
         book_id=job.book_id,
+        document_type=getattr(job, "document_type", "book") or "book",
         error=error,
         cancellation_requested=job.cancellation_requested,
         driveable=not job.locally_sourced,
@@ -341,6 +344,7 @@ async def create_ingestion(
                 original_filename=request.original_filename,
                 content_type=request.content_type,
                 content_length=request.content_length,
+                document_type=request.document_type,
                 limits=limits,
             )
 

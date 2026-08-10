@@ -10,7 +10,7 @@ import type {
 } from "@/lib/types";
 
 /** The stored conversation list, and the operations that mutate it. */
-export function useConversations() {
+export function useConversations(documentType?: "book" | "paper") {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -18,15 +18,17 @@ export function useConversations() {
   const refresh = useCallback(async () => {
     setError("");
     try {
-      const payload =
-        await apiFetch<ConversationListResponse>("/conversations");
+      const endpoint = documentType
+        ? `/conversations?document_type=${documentType}`
+        : "/conversations";
+      const payload = await apiFetch<ConversationListResponse>(endpoint);
       setConversations(payload.conversations);
     } catch (caught) {
       setError((caught as Error).message || "Could not load your conversations.");
     } finally {
       setLoaded(true);
     }
-  }, []);
+  }, [documentType]);
 
   const open = useCallback(async (conversationId: string) => {
     return apiFetch<ConversationDetail>(`/conversations/${conversationId}`);

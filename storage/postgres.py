@@ -169,6 +169,7 @@ def ingest_book(
     source_storage_bucket: str | None = None,
     source_storage_path: str | None = None,
     ingestion_job_id: str | UUID | None = None,
+    document_type: str = "book",
     ready: bool = True,
     replace: bool = False,
 ) -> int:
@@ -214,9 +215,9 @@ def ingest_book(
                     owner_id, title, author, source_path, source_filename,
                     source_storage_bucket, source_storage_path, file_hash,
                     page_count, parser_version, parsed_at, metadata_json,
-                    ingestion_job_id, status, ready_at
+                    ingestion_job_id, document_type, status, ready_at
                 ) values (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 returning id
                 """,
@@ -234,6 +235,7 @@ def ingest_book(
                     now,
                     Jsonb(dict(metadata or {})),
                     job_id,
+                    document_type,
                     "ready" if ready else "processing",
                     now if ready else None,
                 ),
@@ -511,25 +513,34 @@ def list_books(
     *,
     owner_id: str | UUID,
     ready_only: bool = True,
+    document_type: str | None = None,
 ) -> list[dict[str, Any]]:
-    """List one owner's books, newest first.
+    """List one owner's books/papers, newest first.
 
     Study and retrieval entry points use the default: a book that is still
     being processed must never be selectable.
     """
 
     owner = parse_owner_id(owner_id)
-    predicate = "and status = 'ready'" if ready_only else ""
+    predicates = []
+    params: list[Any] = [owner]
+    if ready_only:
+        predicates.append("status = 'ready'")
+    if document_type:
+        predicates.append("document_type = %s")
+        params.append(document_type)
+
+    where_clause = " and ".join([""] + predicates) if predicates else ""
     return connection.execute(
         f"""
         select
             id, title, author, source_filename, page_count, status,
-            ready_at, parsed_at, ingestion_job_id
+            ready_at, parsed_at, ingestion_job_id, document_type
         from books
-        where owner_id = %s {predicate}
+        where owner_id = %s {where_clause}
         order by coalesce(ready_at, parsed_at) desc, id desc
         """,
-        (owner,),
+        params,
     ).fetchall()
 
 
@@ -539,7 +550,7 @@ def ready_book(
     *,
     owner_id: str | UUID,
 ) -> dict[str, Any] | None:
-    """Return one ready owner-scoped book, or None.
+    """Return one ready owner-scoped book or paper, or None.
 
     None covers "does not exist", "belongs to someone else", and "not ready
     yet" on purpose: callers turn all three into the same 404 so book IDs
@@ -549,7 +560,7 @@ def ready_book(
     owner = parse_owner_id(owner_id)
     return connection.execute(
         """
-        select id, title, author, page_count, status, ready_at
+        select id, title, author, page_count, status, ready_at, document_type
         from books
         where id = %s and owner_id = %s and status = 'ready'
         """,
