@@ -183,6 +183,7 @@ export interface InterviewSession {
   format_source: "detected" | "override";
   feedback_mode: InterviewMode;
   target_level: TargetLevel;
+  coding_exercise_requested: boolean;
   maximum_duration_minutes: number;
   estimated_min_minutes: number;
   estimated_max_minutes: number;
@@ -208,6 +209,7 @@ export interface InterviewPreflight {
   format_source: "detected" | "override";
   topic_count: number;
   required_topic_count: number;
+  coding_topic_count: number;
   estimated_min_minutes: number;
   estimated_max_minutes: number;
   warnings: string[];

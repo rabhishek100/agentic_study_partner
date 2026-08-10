@@ -287,6 +287,7 @@ class InterviewSession(ContractModel):
     format_source: Literal["detected", "override"]
     feedback_mode: InterviewMode
     target_level: TargetLevel
+    coding_exercise_requested: bool = False
     maximum_duration_minutes: int
     estimated_min_minutes: int
     estimated_max_minutes: int
@@ -312,6 +313,7 @@ class InterviewPreflight(ContractModel):
     format_source: Literal["detected", "override"]
     topic_count: int = Field(ge=1)
     required_topic_count: int = Field(ge=1)
+    coding_topic_count: int = Field(default=0, ge=0)
     estimated_min_minutes: int = Field(gt=0)
     estimated_max_minutes: int = Field(gt=0, le=120)
     warnings: list[str] = Field(default_factory=list)

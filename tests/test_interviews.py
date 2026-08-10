@@ -33,13 +33,15 @@ from interviews.evaluation import (
     validate_question,
 )
 from interviews.graph import AnswerGraphContext, answer_graph
-from interviews.models import structured_model
+from interviews.models import InterviewModelError, structured_model
 from interviews.planning import (
     detect_format,
     estimate_duration,
     initial_checkpoint,
+    next_coding_topic,
     next_topic,
     planned_topics,
+    topic_supports_coding,
 )
 from interviews.prompts import build_evaluation_messages, build_question_messages
 from interviews.question_generation import (
@@ -209,6 +211,36 @@ class FailingStructuredModel:
 
 
 class PlanningTests(unittest.TestCase):
+    def test_coding_topic_requires_multiple_executable_signals(self) -> None:
+        conceptual = topic(evidence="[N7:P42]\nA model is a useful abstraction.")
+        executable = topic(
+            evidence=(
+                "[N7:P42]\nThe algorithm computes a probability from an input "
+                "vector and returns the prediction."
+            )
+        )
+
+        self.assertFalse(topic_supports_coding(conceptual))
+        self.assertTrue(topic_supports_coding(executable))
+
+    def test_requested_coding_topic_is_selected_before_normal_order(self) -> None:
+        conceptual = replace(topic(), key="node:6", ordinal=0, label="Motivation")
+        executable = replace(
+            topic(
+                evidence=(
+                    "[N8:P43]\nThe algorithm computes a probability from an input "
+                    "vector and returns the prediction."
+                )
+            ),
+            key="node:8",
+            ordinal=1,
+            allowed_markers=frozenset({"[N8:P43]"}),
+        )
+        scope = replace(inventory(), topics=(conceptual, executable))
+        checkpoint = initial_checkpoint(scope)
+
+        self.assertEqual(next_coding_topic(scope, checkpoint).key, "node:8")
+
     def test_detects_source_led_before_generic_system_design(self) -> None:
         scope = inventory(
             title="A system design interview walkthrough",
@@ -947,6 +979,44 @@ class GroundingTests(unittest.TestCase):
 
         self.assertEqual(model.calls, 2)
         self.assertEqual(generated.work_sample, "none")
+
+    def test_requested_coding_exercise_retries_a_verbal_draft(self) -> None:
+        model = SequenceStructuredModel(question(), coding_question())
+
+        generated, _ = generate_question(
+            inventory=inventory(),
+            topic=topic(),
+            interview_format="concept",
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+            require_coding_exercise=True,
+            model=model,
+        )
+
+        self.assertEqual(model.calls, 2)
+        self.assertEqual(generated.work_sample, "code")
+        self.assertIsNotNone(generated.coding_exercise)
+
+    def test_requested_coding_exercise_never_silently_falls_back(self) -> None:
+        model = SequenceStructuredModel(question(), question())
+
+        with self.assertRaisesRegex(
+            InterviewModelError,
+            "could not generate the requested coding exercise",
+        ):
+            generate_question(
+                inventory=inventory(),
+                topic=topic(),
+                interview_format="concept",
+                target_level="mid",
+                kind="primary",
+                recent_questions=[],
+                require_coding_exercise=True,
+                model=model,
+            )
+
+        self.assertEqual(model.calls, 2)
 
     def test_vague_equation_request_is_rejected(self) -> None:
         vague = question().model_copy(

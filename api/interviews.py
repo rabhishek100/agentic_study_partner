@@ -73,6 +73,7 @@ class InterviewSetupRequest(ContractModel):
     target_level: TargetLevel = "mid"
     feedback_mode: Literal["realistic", "guided"] = "realistic"
     interview_format: FormatChoice = "auto"
+    coding_exercise_requested: bool = False
 
     @model_validator(mode="after")
     def exact_source_scope(self) -> "InterviewSetupRequest":
@@ -100,6 +101,7 @@ class InterviewSetupRequest(ContractModel):
             target_level=self.target_level,
             feedback_mode=self.feedback_mode,
             format_choice=self.interview_format,
+            coding_exercise_requested=self.coding_exercise_requested,
         )
 
 

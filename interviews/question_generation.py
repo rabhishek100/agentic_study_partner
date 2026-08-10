@@ -610,6 +610,7 @@ def generate_question(
     prior_question: InterviewQuestion | None = None,
     candidate_answer: str | None = None,
     purpose: str | None = None,
+    require_coding_exercise: bool = False,
     model: Any | None = None,
 ) -> tuple[InterviewQuestion, float]:
     """Generate with grounding and non-repetition validation, retrying once."""
@@ -628,7 +629,17 @@ def generate_question(
             if attempt
             else None
         )
-        adaptive_purpose = " ".join(value for value in [purpose, repair] if value)
+        required_format = (
+            "This turn must be a source-grounded Python coding exercise. The audible "
+            "question must explicitly ask the candidate to implement, write, or debug "
+            "code, and the response must include work_sample `code` plus a complete "
+            "coding_exercise scaffold. Do not substitute a verbal question."
+            if require_coding_exercise
+            else None
+        )
+        adaptive_purpose = " ".join(
+            value for value in [purpose, required_format, repair] if value
+        )
         try:
             question, cost = invoke_structured(
                 client,
@@ -671,10 +682,21 @@ def generate_question(
                 interview_format=interview_format,
                 recent_questions=recent_questions,
             )
-            return validate_question_focus(focused), total_cost
+            focused = validate_question_focus(focused)
+            if require_coding_exercise and (
+                focused.work_sample != "code" or focused.coding_exercise is None
+            ):
+                raise InterviewValidationError(
+                    "the requested coding exercise was replaced by a verbal question"
+                )
+            return focused, total_cost
         except InterviewValidationError as error:
             last_error = error
     reason = str(last_error or "question validation failed")
+    if require_coding_exercise:
+        raise InterviewModelError(
+            f"could not generate the requested coding exercise: {reason}"
+        ) from last_error
     logger.warning(
         "Using grounded fallback after question generation failed validation: %s",
         reason,

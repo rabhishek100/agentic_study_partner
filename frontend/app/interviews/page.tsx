@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   Clock3,
+  Code2,
   Loader2,
   LogOut,
   MessagesSquare,
@@ -23,6 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +72,7 @@ type SetupPayload = {
   target_level: TargetLevel;
   feedback_mode: InterviewMode;
   interview_format: InterviewFormatChoice;
+  coding_exercise_requested: boolean;
 };
 
 type SetupOperation =
@@ -127,6 +130,7 @@ export default function InterviewsPage() {
   const [level, setLevel] = useState<TargetLevel>("mid");
   const [mode, setMode] = useState<InterviewMode>("realistic");
   const [format, setFormat] = useState<InterviewFormatChoice>("auto");
+  const [codingExerciseRequested, setCodingExerciseRequested] = useState(false);
   const [preview, setPreview] = useState<InterviewPreflight | null>(null);
   const [microphoneAccess, setMicrophoneAccess] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -187,7 +191,7 @@ export default function InterviewsPage() {
     };
   }, [bookId]);
 
-  useEffect(() => setPreview(null), [sourceKind, nodeId, videoId, duration, level, mode, format]);
+  useEffect(() => setPreview(null), [sourceKind, nodeId, videoId, duration, level, mode, format, codingExerciseRequested]);
 
   const payload = useMemo<SetupPayload | null>(() => {
     if (sourceKind === "book" && (!bookId || !nodeId)) return null;
@@ -201,8 +205,9 @@ export default function InterviewsPage() {
       target_level: level,
       feedback_mode: mode,
       interview_format: format,
+      coding_exercise_requested: codingExerciseRequested,
     };
-  }, [bookId, duration, format, level, mode, nodeId, sourceKind, videoId]);
+  }, [bookId, codingExerciseRequested, duration, format, level, mode, nodeId, sourceKind, videoId]);
 
   const review = useCallback(async () => {
     if (!payload) return;
@@ -341,6 +346,24 @@ export default function InterviewsPage() {
                   <div className="space-y-1.5"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
                 </div>
 
+                <div className="flex items-start gap-3 rounded-lg border p-4">
+                  <Checkbox
+                    id="coding-exercise-requested"
+                    checked={codingExerciseRequested}
+                    disabled={busy}
+                    onCheckedChange={(checked) => setCodingExerciseRequested(checked === true)}
+                  />
+                  <div className="min-w-0">
+                    <Label htmlFor="coding-exercise-requested" className="flex cursor-pointer items-center gap-2">
+                      <Code2 aria-hidden className="size-4 text-primary" />
+                      Include a coding exercise
+                    </Label>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Open with one source-grounded Python scaffold, then continue the adaptive interview.
+                    </p>
+                  </div>
+                </div>
+
                 <MicrophoneSetup
                   disabled={busy}
                   onAccessChange={setMicrophoneAccess}
@@ -349,7 +372,12 @@ export default function InterviewsPage() {
                 <Button
                   className="w-full"
                   size="lg"
-                  disabled={!payload || busy || Boolean(preview && !microphoneAccess)}
+                  disabled={
+                    !payload ||
+                    busy ||
+                    Boolean(preview && !microphoneAccess) ||
+                    Boolean(preview && codingExerciseRequested && preview.coding_topic_count === 0)
+                  }
                   onClick={() => void (preview ? begin() : review())}
                 >
                   {busy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}
@@ -401,6 +429,13 @@ export default function InterviewsPage() {
                       <div><p className="text-sm font-medium">{preview.title}</p><p className="mt-1 text-xs text-muted-foreground">{preview.source_title}</p></div>
                       <div className="grid grid-cols-2 gap-3"><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Detected format</p><p className="mt-1 text-sm font-medium capitalize">{preview.selected_format.replace("_", " ")}</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Estimated finish</p><p className="mt-1 text-sm font-medium">{preview.estimated_min_minutes}–{preview.estimated_max_minutes} min</p></div></div>
                       <p className="text-sm text-muted-foreground">{preview.required_topic_count} substantive topics will define coverage. Exact questions stay hidden.</p>
+                      {codingExerciseRequested ? (
+                        preview.coding_topic_count > 0 ? (
+                          <Alert><Code2 aria-hidden /><AlertDescription>The opening question will include a Python coding workspace grounded in this source.</AlertDescription></Alert>
+                        ) : (
+                          <Alert variant="destructive"><AlertDescription>This source does not contain enough executable material for a grounded coding exercise.</AlertDescription></Alert>
+                        )
+                      ) : null}
                       {preview.warnings.map((warning) => <Alert key={warning}><AlertDescription>{warning}</AlertDescription></Alert>)}
                     </div>
                   ) : (

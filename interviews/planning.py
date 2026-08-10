@@ -30,6 +30,12 @@ SYSTEM_DESIGN = re.compile(
     r"requirements?|capacity|throughput|latency|failure\s+modes?|trade[ -]?offs?)\b",
     re.IGNORECASE,
 )
+CODING_SIGNAL = re.compile(
+    r"\b(?:algorithm|array|class|code|comput\w*|function|gradient|implement\w*|"
+    r"input|loss|matrix|model|output|predict\w*|probabil\w*|pseudocode|return|"
+    r"search|sort|tree|vector)\b",
+    re.IGNORECASE,
+)
 
 
 class InterviewSourceError(RuntimeError):
@@ -130,9 +136,39 @@ def preflight(
         format_source="detected" if format_choice == "auto" else "override",
         topic_count=len(inventory.topics),
         required_topic_count=len(inventory.required_topics),
+        coding_topic_count=sum(
+            topic_supports_coding(topic) for topic in inventory.required_topics
+        ),
         estimated_min_minutes=minimum,
         estimated_max_minutes=maximum,
         warnings=warnings,
+    )
+
+
+def topic_supports_coding(topic: Topic) -> bool:
+    """Whether this evidence can ground a small executable programming task."""
+
+    sample = f"{topic.label}\n{topic.evidence_text}"
+    signals = {match.group(0).casefold() for match in CODING_SIGNAL.finditer(sample)}
+    return len(signals) >= 2
+
+
+def next_coding_topic(
+    inventory: ScopeInventory,
+    checkpoint: InterviewCheckpoint,
+) -> Topic | None:
+    """Return the first unseen substantive topic that supports executable work."""
+
+    by_key = {topic.key: topic for topic in checkpoint.topics}
+    return next(
+        (
+            topic
+            for topic in inventory.required_topics
+            if (state := by_key.get(topic.key))
+            and state.attempts == 0
+            and topic_supports_coding(topic)
+        ),
+        None,
     )
 
 

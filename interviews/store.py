@@ -37,6 +37,7 @@ class InterviewStateError(RuntimeError):
 SESSION_COLUMNS = """
     id, source_kind, book_id, node_id, video_id, scope_key, title,
     source_title, interview_format, format_source, feedback_mode, target_level,
+    coding_exercise_requested,
     maximum_duration_minutes, estimated_min_minutes, estimated_max_minutes,
     status, elapsed_seconds, active_since, started_at, completed_at, state_json,
     metrics_json, total_cost_usd, created_at, updated_at
@@ -143,6 +144,7 @@ def _session(
         format_source=row["format_source"],
         feedback_mode=row["feedback_mode"],
         target_level=row["target_level"],
+        coding_exercise_requested=bool(row["coding_exercise_requested"]),
         maximum_duration_minutes=row["maximum_duration_minutes"],
         estimated_min_minutes=row["estimated_min_minutes"],
         estimated_max_minutes=row["estimated_max_minutes"],
@@ -175,6 +177,7 @@ def create_session(
     format_source: str,
     feedback_mode: str,
     target_level: str,
+    coding_exercise_requested: bool,
     maximum_duration_minutes: int,
     estimated_min_minutes: int,
     estimated_max_minutes: int,
@@ -189,11 +192,12 @@ def create_session(
             owner_id, source_kind, book_id, node_id, video_id,
             ingestion_version_id, scope_key, title, source_title,
             interview_format, format_source, feedback_mode, target_level,
+            coding_exercise_requested,
             maximum_duration_minutes, estimated_min_minutes,
             estimated_max_minutes, state_json, generation_model, prompt_version
         )
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s)
+                %s, %s, %s, %s, %s, %s, %s)
         returning {SESSION_COLUMNS}
         """,
         (
@@ -210,6 +214,7 @@ def create_session(
             format_source,
             feedback_mode,
             target_level,
+            coding_exercise_requested,
             maximum_duration_minutes,
             estimated_min_minutes,
             estimated_max_minutes,

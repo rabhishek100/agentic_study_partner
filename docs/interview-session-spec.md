@@ -144,6 +144,13 @@ the API never executes candidate code. Candidates may add scratch assertions
 and explicitly submit one structured artifact containing their source, scratch
 tests, browser-reported execution result, and spoken or typed explanation.
 Browser results are supporting evidence rather than a trusted grading oracle.
+
+Candidates may request one coding exercise during setup. The source preflight
+counts topics with enough executable signals to ground a small Python task. If
+the option is enabled, the opening question is generated from the first eligible
+topic and must include a validated scaffold, visible tests, and progressive
+hints. A provider or validation failure leaves the session ready to retry; it
+must never silently replace the requested exercise with a verbal fallback.
 Realistic mode offers clarification but no code hints. Guided mode reveals one
 text hint at a time without modifying the editor and records each hint against
 the independence score. Active coding drafts are restored per session and turn
