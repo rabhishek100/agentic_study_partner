@@ -66,7 +66,7 @@ export default function Page() {
     reset,
     resume,
   } = useChat();
-  const history = useConversations();
+  const history = useConversations("book");
   const sideChats = useSideChats(conversationId, BOOK_SIDE_CHATS);
 
   const loadBooks = useCallback(async () => {

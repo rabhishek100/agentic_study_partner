@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 from uuid import UUID
+from datetime import datetime, timezone
 
 from httpx import ASGITransport, AsyncClient
 
@@ -112,6 +113,39 @@ class ScientificPapersFeatureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["job_id"], str(job_id))
         mock_create.assert_called_once()
         _, kwargs = mock_create.call_args
+        self.assertEqual(kwargs.get("document_type"), "paper")
+
+    async def test_conversations_endpoint_filters_by_document_type(self) -> None:
+        now = datetime.now(timezone.utc)
+        conversations_mock = [
+            {
+                "id": UUID("55555555-5555-5555-5555-555555555555"),
+                "title": "Attention Paper Study",
+                "book_ids": [543],
+                "document_type": "paper",
+                "retrieval_mode": "hybrid_rerank",
+                "turn_count": 2,
+                "created_at": now,
+                "updated_at": now,
+                "side_thread_count": 0,
+            }
+        ]
+        with (
+            patch("api.main.database_connection") as open_connection,
+            patch("api.main.list_conversations", return_value=conversations_mock) as mock_list,
+        ):
+            open_connection.return_value.__enter__.return_value = MagicMock()
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get("/api/conversations?document_type=paper")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["conversations"]), 1)
+        self.assertEqual(payload["conversations"][0]["title"], "Attention Paper Study")
+        mock_list.assert_called_once()
+        _, kwargs = mock_list.call_args
         self.assertEqual(kwargs.get("document_type"), "paper")
 
 
