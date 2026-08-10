@@ -22,7 +22,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v8"
+PROMPT_VERSION = "adaptive-interview-v9"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -132,7 +132,9 @@ dimension from the private rubric. `suggested_answer` must be a compact answer
 to that same scope, not a summary of everything the source says about the topic.
 Ask for exactly one objective: do not combine requirements, estimation,
 architecture, trade-offs, failure modes, coding, or testing in the same turn.
-Do not join a second request with "and", "then", or another question mark.
+A request for the reason behind the candidate's main answer is part of that same
+objective. Do not join an unrelated second request with "and", "then", or
+another question mark.
 
 Use `work_sample` only when a real interviewer would learn more by watching the
 candidate produce a visual artifact than by hearing an answer:

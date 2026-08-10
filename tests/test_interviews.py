@@ -555,6 +555,113 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(generated.work_sample, "none")
         self.assertEqual(cost, 0.002)
 
+    def test_one_grounded_decision_may_request_its_justification(self) -> None:
+        grounded = question().model_copy(
+            update={
+                "text": (
+                    "Given labeled examples with real-valued features and targets, "
+                    "what is the model optimizing, and why does that objective "
+                    "support prediction?"
+                ),
+                "expected_points": [
+                    "Choose parameters that make predictions accurate.",
+                    "Connect the objective to predictions for new inputs.",
+                ],
+            }
+        )
+
+        self.assertIs(validate_question_focus(grounded), grounded)
+
+    def test_good_problem_statement_draft_is_not_replaced_by_heading_fallback(self) -> None:
+        problem_topic = replace(
+            topic(
+                evidence=(
+                    "[N4429:P29]\n3.1.1 Problem Statement\n\n"
+                    "[N4429:P29]\nWe have labeled examples with real-valued "
+                    "features and targets. The linear model predicts a target "
+                    "for a new input."
+                )
+            ),
+            key="node:4429",
+            label=(
+                "3 Fundamental Algorithms :: 3.1 Linear Regression :: "
+                "3.1.1 Problem Statement"
+            ),
+            allowed_markers=frozenset({"[N4429:P29]"}),
+        )
+        grounded = question().model_copy(
+            update={
+                "topic_key": problem_topic.key,
+                "topic_label": problem_topic.label,
+                "text": (
+                    "Given labeled examples with real-valued features and targets, "
+                    "what is the model optimizing, and why does that objective "
+                    "support prediction?"
+                ),
+                "expected_points": [
+                    "Choose parameters that make predictions accurate.",
+                    "Connect the objective to predictions for new inputs.",
+                ],
+                "suggested_answer": (
+                    "It chooses parameters that support accurate predictions. "
+                    "[N4429:P29]"
+                ),
+                "citation_markers": ["[N4429:P29]"],
+            }
+        )
+        model = SequenceStructuredModel(grounded)
+
+        generated, _ = generate_question(
+            inventory=ScopeInventory(
+                source_kind="book",
+                scope_key="book:1:node:4400",
+                title="3 Fundamental Algorithms",
+                source_title="Machine Learning",
+                outline=f"- {problem_topic.label}",
+                topics=(problem_topic,),
+            ),
+            topic=problem_topic,
+            interview_format="concept",
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+            model=model,
+        )
+
+        self.assertEqual(generated.text, grounded.text)
+        self.assertEqual(model.calls, 1)
+
+    def test_problem_statement_fallback_uses_parent_and_substantive_evidence(self) -> None:
+        problem_topic = replace(
+            topic(
+                evidence=(
+                    "[N4429:P29]\n3.1.1 Problem Statement\n\n"
+                    "[N4429:P29]\nWe have labeled examples with real-valued "
+                    "features and targets, and the linear model predicts the "
+                    "target for a new input."
+                )
+            ),
+            label=(
+                "3 Fundamental Algorithms :: 3.1 Linear Regression :: "
+                "3.1.1 Problem Statement"
+            ),
+            allowed_markers=frozenset({"[N4429:P29]"}),
+        )
+
+        generated = grounded_fallback_question(
+            topic=problem_topic,
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+        )
+
+        self.assertEqual(
+            generated.text,
+            "How would you use Linear Regression in a practical system?",
+        )
+        self.assertIn("labeled examples", generated.suggested_answer)
+        self.assertNotIn("Problem Statement.", generated.suggested_answer)
+
     def test_provider_timeout_falls_back_without_a_second_wait(self) -> None:
         model = FailingStructuredModel()
 
@@ -592,6 +699,27 @@ class GroundingTests(unittest.TestCase):
             update={
                 "topic_label": "3 Linear Regression",
                 "text": "How would you use 3 Linear Regression in a practical system?",
+                "interviewer_note": (
+                    "Deterministic continuity fallback after question validation."
+                ),
+            }
+        )
+
+        repaired = repair_numbered_fallback(legacy)
+
+        self.assertEqual(
+            repaired.text,
+            "How would you use Linear Regression in a practical system?",
+        )
+
+    def test_saved_generic_heading_fallback_uses_meaningful_parent(self) -> None:
+        legacy = question().model_copy(
+            update={
+                "topic_label": (
+                    "3 Fundamental Algorithms :: 3.1 Linear Regression :: "
+                    "3.1.1 Problem Statement"
+                ),
+                "text": "How would you use Problem Statement in a practical system?",
                 "interviewer_note": (
                     "Deterministic continuity fallback after question validation."
                 ),
