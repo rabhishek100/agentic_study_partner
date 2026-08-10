@@ -392,6 +392,62 @@ same thing. A device chosen and later unplugged does not silently demote to
 the laptop lid: the request fails against the exact device, the stored choice
 is dropped, and the recording restarts on the system default.
 
+**Interviews** run an adaptive, source-grounded mock interview over one book
+chapter or one lecture. Choose a 15, 30, 45, 60, 90, or 120 minute ceiling,
+entry/mid/senior level, and realistic or guided feedback. The ceiling is not a
+quota: a session closes early as soon as its substantive topic inventory is
+covered, and strong answers complete a topic without filler follow-ups.
+
+Before the first model call, the selected scope is inventoried deterministically
+and classified as concept, system-design, or source-led interview material. The
+LangGraph turn workflow evaluates against that topic's evidence, permits at
+most one materially different diagnostic follow-up, optionally verifies a
+material answer extension on the web, and then advances or closes. Recent
+question similarity is validated before a generated question can reach the
+candidate, so the interview cannot keep paraphrasing the same prompt.
+Realistic mode withholds rubrics, detailed coaching, scores, and topic order
+until the report while still giving a natural short reaction after each
+answer; guided mode returns the detailed feedback after each turn. Reports retain the
+transcript, six dimension scores, recommended answers, citations, cost, and
+missed topics without inventing percentiles.
+
+Voice answers listen continuously by default, with push-to-talk as a fallback.
+The setup separates required microphone access from the optional live input
+test, so candidates never need to prove input activity before starting. Session
+capture
+calibrates to that device's noise floor. Silence transcribes one segment into
+the editable draft but never submits it;
+the candidate explicitly sends the complete answer. New questions are spoken
+automatically through `OPENROUTER_TTS_MODEL`. After each submission, the
+interviewer writes and speaks a concise reaction before revealing and speaking
+the next question. Clips are transcribed through
+`OPENROUTER_INTERVIEW_STT_MODEL`; both remain usable as text if media access,
+browser autoplay, or a provider call fails. Slow hosted TTS falls back to the
+device voice rather than blocking the interview. On suitable primary questions,
+the interviewer automatically asks the candidate to draw an architecture,
+derive an equation, state assumptions and estimates, or write code/pseudocode.
+Each turn is limited to one atomic objective; a screen instruction changes only
+the response format and cannot append trade-offs, edge cases, testing, or other
+subquestions. Compound drafts are rejected and regenerated before display.
+That instruction appears in the question card and voice narration. Browser
+privacy still requires one candidate click to choose a shared window; sharing
+stays local until the candidate explicitly sends a still checkpoint. Raw audio and screen frames are
+processed ephemerally and never stored; only transcripts and structured screen
+observations survive. Explicit Pause stops the clock, while a refresh restores
+the live question and voice controls instead of silently pausing the session.
+Persisted paused sessions can be resumed from a prominent in-session control.
+The workspace keeps one live activity panel visible throughout the turn. It
+distinguishes source-grounded answer evaluation, next-turn planning, Whisper
+transcription, question and feedback TTS, screen-checkpoint analysis,
+pause/resume, and final-report loading; indeterminate work shows elapsed time
+instead of a fabricated completion percentage.
+
+The default interview stack is `openai/gpt-5.6-luna` for reasoning,
+`openai/whisper-large-v3-turbo` for STT, and
+`mistralai/voxtral-mini-tts-2603` with `en_paul_neutral` for TTS. See
+[`docs/interview-session-spec.md`](docs/interview-session-spec.md)
+for the complete product and evidence contract.
+
 **Flashcards** turn one chapter, or one lecture, into cards you can review in a
 few minutes a day. Pick a scope under **Cards** and generation runs as a durable
 background job; the deck appears when it lands.
@@ -431,7 +487,9 @@ The API exposes `GET /api/health`, `GET /api/books`,
 conversation CRUD, side chats (`POST|GET /api/conversations/{id}/side-chats`,
 `PATCH /api/side-chats/{id}`, `POST /api/side-chats/{id}/turns/stream`), decks
 (`POST|GET /api/decks`, `GET /api/decks/{id}`, `GET /api/decks/queue`,
-`POST /api/decks/cards/{id}/review`, `GET|PATCH /api/decks/preferences`), and the
+`POST /api/decks/cards/{id}/review`, `GET|PATCH /api/decks/preferences`), the
+interview lifecycle (`POST|GET /api/interviews`, preflight, start/resume/pause,
+answers, finish, report, transcription, speech, and screen checkpoints), and the
 `/api/ingestions` lifecycle. Everything except health requires a Supabase bearer
 token.
 

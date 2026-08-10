@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Layers, Video } from "lucide-react";
+import { BookOpen, Layers, MessagesSquare, Video } from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -14,11 +14,17 @@ import { cn } from "@/lib/utils";
 export function SectionNav({
   active,
 }: {
-  active: "books" | "videos" | "decks";
+  active: "books" | "videos" | "decks" | "interviews";
 }) {
   const sections = [
     { key: "books" as const, href: "/", label: "Books", icon: BookOpen },
     { key: "videos" as const, href: "/videos", label: "Videos", icon: Video },
+    {
+      key: "interviews" as const,
+      href: "/interviews",
+      label: "Interview",
+      icon: MessagesSquare,
+    },
     { key: "decks" as const, href: "/decks", label: "Cards", icon: Layers },
   ];
   return (

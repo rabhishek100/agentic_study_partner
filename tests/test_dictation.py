@@ -18,11 +18,31 @@ from study.dictation import (
     MAXIMUM_QUESTION_BYTES,
     DictationError,
     audio_extension,
+    is_probable_silence_hallucination,
     transcribe_spoken_question,
 )
 
 
 class DictationClientTests(unittest.TestCase):
+    def test_recognizes_only_complete_known_silence_hallucinations(self) -> None:
+        for text in (
+            "Thank you.",
+            " THANK  YOU! ",
+            "Thank you. Thank you.",
+            "Thanks for watching.",
+            "[Music]",
+        ):
+            with self.subTest(text=text):
+                self.assertTrue(is_probable_silence_hallucination(text))
+
+        for text in (
+            "Thank you. I would next estimate capacity.",
+            "The user data belongs in a durable store.",
+            "Music embeddings can support retrieval.",
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(is_probable_silence_hallucination(text))
+
     def test_posts_a_named_clip_and_returns_collapsed_text(self) -> None:
         requests: list[httpx.Request] = []
 

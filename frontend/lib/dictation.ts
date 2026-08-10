@@ -70,6 +70,32 @@ export async function transcribeRecording(
   return body.text ?? "";
 }
 
+/** Interview transcription uses its cost-tracked, low-cost Whisper route. */
+export async function transcribeInterviewRecording(
+  recording: Blob,
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const token = await accessToken();
+  const response = await fetch(
+    uploadUrl(`/interviews/${sessionId}/transcriptions`),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": recording.type || "audio/webm",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: recording,
+      signal,
+    },
+  );
+  if (!response.ok) {
+    throw new ApiError(await errorDetail(response), response.status);
+  }
+  const body = (await response.json()) as { text?: string };
+  return body.text ?? "";
+}
+
 export interface SplicedTranscript {
   value: string;
   caret: number;

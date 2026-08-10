@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MicButton } from "@/components/dictation/mic-button";
+import { MicrophoneSetup } from "@/components/interviews/microphone-setup";
 import { transcribeRecording } from "@/lib/dictation";
 import {
   getMicrophoneSnapshot,
@@ -34,6 +35,18 @@ class FakeMediaRecorder {
     this.ondataavailable?.({ data: new Blob(["audio"]) });
     this.onstop?.();
   }
+}
+
+class FakeAudioContext {
+  state: AudioContextState = "running";
+  resume = vi.fn(async () => undefined);
+  close = vi.fn(async () => undefined);
+  createMediaStreamSource = vi.fn(() => ({ connect: vi.fn() }));
+  createAnalyser = vi.fn(() => ({
+    fftSize: 1024,
+    smoothingTimeConstant: 0,
+    getFloatTimeDomainData: vi.fn(),
+  }));
 }
 
 function stream(): MediaStream {
@@ -69,6 +82,7 @@ beforeEach(() => {
   resetMicrophones();
   vi.mocked(transcribeRecording).mockResolvedValue("a spoken question");
   vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
+  vi.stubGlobal("AudioContext", FakeAudioContext);
 });
 
 afterEach(() => {
@@ -118,6 +132,48 @@ describe("the microphone list", () => {
 });
 
 describe("choosing a microphone", () => {
+  it("separates microphone access from the optional input test", async () => {
+    stubDevices([BUILT_IN]);
+    const user = userEvent.setup();
+
+    render(<MicrophoneSetup />);
+
+    await user.click(screen.getByRole("button", { name: "Enable microphone" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Microphone enabled" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Test input (optional)" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/testing the input is optional/i)).toBeVisible();
+  });
+
+  it("tests the selected input before an interview starts", async () => {
+    const getUserMedia = stubDevices([BUILT_IN, HEADSET]);
+    const onAccessChange = vi.fn();
+    const user = userEvent.setup();
+
+    render(<MicrophoneSetup onAccessChange={onAccessChange} />);
+    await user.click(await screen.findByRole("combobox", { name: "Input device" }));
+    await user.click(await screen.findByRole("option", { name: "USB Headset" }));
+    await user.click(screen.getByRole("button", { name: "Enable microphone" }));
+
+    await waitFor(() =>
+      expect(getUserMedia).toHaveBeenCalledWith({
+        audio: {
+          deviceId: { exact: "headset" },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      }),
+    );
+    expect(onAccessChange).toHaveBeenLastCalledWith(true);
+    await user.click(screen.getByRole("button", { name: "Test input (optional)" }));
+    expect(screen.getByRole("button", { name: "Stop test" })).toBeVisible();
+  });
+
   it("stays hidden while there is nothing to choose between", async () => {
     stubDevices([BUILT_IN]);
 
