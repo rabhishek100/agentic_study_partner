@@ -16,7 +16,10 @@ export type InterviewVoiceStatus =
 
 const SILENCE_MS = 1_200;
 const MINIMUM_SPEECH_MS = 280;
-const MAXIMUM_SPEECH_MS = 180_000;
+// Continuous listening is split into bounded segments. Ambient noise can keep
+// an RMS gate open indefinitely; a short hard boundary guarantees that words
+// reach transcription and the UI cannot remain in "capturing" for minutes.
+export const MAXIMUM_SPEECH_MS = 30_000;
 const CALIBRATION_MS = 450;
 const MINIMUM_RMS_THRESHOLD = 0.0045;
 const MAXIMUM_RMS_THRESHOLD = 0.025;
@@ -123,6 +126,7 @@ export function useInterviewVoice({
   const finishRecording = useCallback(() => {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
+    setStatus("processing");
     recorder.stop();
   }, []);
 
@@ -217,7 +221,12 @@ export function useInterviewVoice({
 
     if (modeRef.current === "automatic") {
       if (!recorder) {
-        if (now < calibrationUntilRef.current) {
+        if (pendingTranscriptionsRef.current > 0) {
+          // Keep one ordered transcription in flight. Without this guard,
+          // background noise can create a queue of clips whose stale status
+          // looks permanently stuck and whose text arrives much later.
+          loudFramesRef.current = 0;
+        } else if (now < calibrationUntilRef.current) {
           // Learn this device's room tone before deciding what speech looks
           // like. This replaces the old one-size threshold that ignored quiet
           // laptop and headset microphones entirely.
@@ -308,6 +317,7 @@ export function useInterviewVoice({
     dismissError: () => setError(""),
     start,
     stop: release,
+    finishSegment: finishRecording,
     beginPush,
     endPush,
   };

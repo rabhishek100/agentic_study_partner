@@ -27,6 +27,7 @@ export interface InterviewActivityInput {
   speechLoading: boolean;
   speechSpeaking: boolean;
   voiceStatus: InterviewVoiceStatus;
+  dictationTarget: "answer" | "clarification";
   listeningPaused: boolean;
   hasCurrentQuestion: boolean;
 }
@@ -39,6 +40,7 @@ export function describeInterviewActivity({
   speechLoading,
   speechSpeaking,
   voiceStatus,
+  dictationTarget,
   listeningPaused,
   hasCurrentQuestion,
 }: InterviewActivityInput): InterviewActivity {
@@ -152,22 +154,40 @@ export function describeInterviewActivity({
   if (voiceStatus === "processing") {
     return {
       tone: "working",
-      title: "Transcribing your latest speech",
-      detail: "Whisper is converting the completed audio segment and will append it to your draft.",
+      title:
+        dictationTarget === "clarification"
+          ? "Transcribing your clarifying question"
+          : "Transcribing your latest answer segment",
+      detail:
+        dictationTarget === "clarification"
+          ? "Whisper will place these words only in the clarification box."
+          : "Whisper will append these words only to your answer draft.",
     };
   }
   if (voiceStatus === "recording") {
     return {
       tone: "live",
-      title: "Capturing your answer",
-      detail: "Keep speaking naturally. A pause ends only this segment and never submits the answer.",
+      title:
+        dictationTarget === "clarification"
+          ? "Capturing your clarifying question"
+          : "Capturing part of your answer",
+      detail:
+        dictationTarget === "clarification"
+          ? "Speech is going to the clarification box, not your answer."
+          : "A pause or Transcribe now ends this segment; nothing is submitted automatically.",
     };
   }
   if (voiceStatus === "listening") {
     return {
       tone: "ready",
-      title: "Listening for your answer",
-      detail: "Speech is detected automatically; you still choose when to send the complete draft.",
+      title:
+        dictationTarget === "clarification"
+          ? "Listening for a clarifying question"
+          : "Listening for your answer",
+      detail:
+        dictationTarget === "clarification"
+          ? "New speech will appear in the clarification box only."
+          : "Speech is detected automatically; you still choose when to send the complete draft.",
     };
   }
   if (interviewStatus === "paused") {

@@ -12,6 +12,7 @@ const base: InterviewActivityInput = {
   speechLoading: false,
   speechSpeaking: false,
   voiceStatus: "idle",
+  dictationTarget: "answer",
   listeningPaused: false,
   hasCurrentQuestion: true,
 };
@@ -34,10 +35,21 @@ describe("interview processing status", () => {
   it("distinguishes transcription from microphone capture", () => {
     expect(
       describeInterviewActivity({ ...base, voiceStatus: "processing" }).title,
-    ).toBe("Transcribing your latest speech");
+    ).toBe("Transcribing your latest answer segment");
     expect(
       describeInterviewActivity({ ...base, voiceStatus: "recording" }).title,
-    ).toBe("Capturing your answer");
+    ).toBe("Capturing part of your answer");
+  });
+
+  it("makes the clarification dictation target explicit", () => {
+    const activity = describeInterviewActivity({
+      ...base,
+      voiceStatus: "recording",
+      dictationTarget: "clarification",
+    });
+
+    expect(activity.title).toBe("Capturing your clarifying question");
+    expect(activity.detail).toContain("clarification box");
   });
 
   it("makes submission recovery explicit", () => {

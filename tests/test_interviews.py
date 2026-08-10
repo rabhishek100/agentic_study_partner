@@ -631,6 +631,23 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(repaired.work_sample, "none")
         self.assertIsNone(repaired.work_sample_prompt)
 
+    def test_online_evaluation_signal_does_not_request_architecture(self) -> None:
+        evaluation_signal = question().model_copy(
+            update={
+                "text": (
+                    "How would you design an online evaluation signal to detect "
+                    "whether the blurring system protects users after deployment?"
+                ),
+                "work_sample": "architecture_diagram",
+                "work_sample_prompt": "Draw the online evaluation architecture.",
+            }
+        )
+
+        repaired = repair_nonvisual_work_sample(evaluation_signal)
+
+        self.assertEqual(repaired.work_sample, "none")
+        self.assertIsNone(repaired.work_sample_prompt)
+
     def test_business_objective_does_not_infer_an_equation_from_topic_evidence(self) -> None:
         objective_topic = topic(
             evidence=(
@@ -766,8 +783,7 @@ class GroundingTests(unittest.TestCase):
             question().model_copy(
                 update={
                     "text": (
-                        "State the throughput assumptions, then design the services "
-                        "and data flow."
+                        "Sketch the services and data flow for this system."
                     )
                 }
             ),

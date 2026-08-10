@@ -45,7 +45,7 @@ SECOND_OBJECTIVE = re.compile(
 )
 
 ARCHITECTURE_REQUEST = re.compile(
-    r"\b(?:draw|sketch|diagram|design|map|lay out)\b.{0,100}"
+    r"\b(?:draw|sketch|diagram|map|lay out|visualize)\b.{0,100}"
     r"\b(?:architect(?:ure|ural)|system|component|service|data[ -]?flow|pipeline|"
     r"layer|storage|database|cache|queue|api)\b",
     re.IGNORECASE,
@@ -242,16 +242,19 @@ def repair_legacy_recall_fallback(question: InterviewQuestion) -> InterviewQuest
 
 
 def repair_nonvisual_work_sample(question: InterviewQuestion) -> InterviewQuestion:
-    """Remove legacy screen tasks that merely ask the candidate to write text."""
+    """Remove legacy screen tasks without an explicit visual artifact request."""
 
-    if question.work_sample != "assumptions":
+    if question.work_sample == "none":
+        return question
+    supported = _matching_work_samples(question)
+    if question.work_sample != "assumptions" and question.work_sample in supported:
         return question
     return question.model_copy(
         update={
             "work_sample": "none",
             "work_sample_prompt": None,
             "interviewer_note": (
-                "Converted a text-only assumptions exercise to a verbal answer."
+                "Converted an irrelevant text-only screen exercise to a verbal answer."
             ),
         }
     )

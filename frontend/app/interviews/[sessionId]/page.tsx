@@ -80,6 +80,7 @@ import { cn } from "@/lib/utils";
 const INR_PER_USD_ESTIMATE = Number(process.env.NEXT_PUBLIC_USD_INR_RATE ?? "90");
 const SYSTEM_DEFAULT_MICROPHONE = "__system_default__";
 const ANSWER_SUBMISSION_TIMEOUT_MS = 50_000;
+const TRANSCRIPTION_TIMEOUT_MS = 30_000;
 const SUBMISSION_RECONCILIATION_DELAYS_MS = [0, 2_000, 4_000, 6_000] as const;
 
 function wait(milliseconds: number): Promise<void> {
@@ -271,6 +272,9 @@ export default function InterviewWorkspace() {
   const [clarificationOpen, setClarificationOpen] = useState(false);
   const [clarificationQuestion, setClarificationQuestion] = useState("");
   const [clarificationError, setClarificationError] = useState("");
+  const [dictationTarget, setDictationTargetState] = useState<
+    "answer" | "clarification"
+  >("answer");
   const loadedAtRef = useRef(Date.now());
   const lastSpokenRef = useRef<number | null>(null);
   const draftEpochRef = useRef(0);
@@ -285,6 +289,14 @@ export default function InterviewWorkspace() {
   const busy = operation !== "idle";
   const submissionLocked = ["submitting_answer", "checking_submission"].includes(operation);
   const screenBusy = operation === "screen_checkpoint";
+
+  const setDictationTarget = useCallback(
+    (target: "answer" | "clarification") => {
+      dictationTargetRef.current = target;
+      setDictationTargetState(target);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (current && current.question.work_sample === "none" && screen.sharing) {
@@ -415,7 +427,21 @@ export default function InterviewWorkspace() {
 
   const handleRecording = useCallback(async (recording: Blob) => {
     const draftEpoch = draftEpochRef.current;
-    const transcript = await transcribeInterviewRecording(recording, sessionId);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(
+      () => controller.abort(new DOMException("Transcription timed out", "AbortError")),
+      TRANSCRIPTION_TIMEOUT_MS,
+    );
+    let transcript = "";
+    try {
+      transcript = await transcribeInterviewRecording(
+        recording,
+        sessionId,
+        controller.signal,
+      );
+    } finally {
+      window.clearTimeout(timeout);
+    }
     // Silence and low-information noise are expected while listening remains
     // automatic. The API returns an empty transcript for those segments.
     if (!transcript.trim() || draftEpoch !== draftEpochRef.current) return;
@@ -450,7 +476,7 @@ export default function InterviewWorkspace() {
       setInterview(updated);
       setClarificationQuestion("");
       setClarificationOpen(false);
-      dictationTargetRef.current = "answer";
+      setDictationTarget("answer");
       endOperation("asking_clarification");
       const updatedTurn = updated.turns.find(
         (turn) => turn.turn_index === current.turn_index,
@@ -482,6 +508,7 @@ export default function InterviewWorkspace() {
     sessionId,
     speech.speakClarification,
     speech.stop,
+    setDictationTarget,
     voice.stop,
   ]);
 
@@ -511,8 +538,8 @@ export default function InterviewWorkspace() {
     setClarificationOpen(false);
     setClarificationQuestion("");
     setClarificationError("");
-    dictationTargetRef.current = "answer";
-  }, [current?.turn_index]);
+    setDictationTarget("answer");
+  }, [current?.turn_index, setDictationTarget]);
 
   useEffect(() => {
     const shouldListen =
@@ -559,10 +586,11 @@ export default function InterviewWorkspace() {
       speechLoading: speech.loading,
       speechSpeaking: speech.speaking,
       voiceStatus: voice.status,
+      dictationTarget,
       listeningPaused,
       hasCurrentQuestion: current !== null,
     }),
-    [current, interview?.status, listeningPaused, operation, speech.loading, speech.speaking, transitionTurnIndex, voice.status],
+    [current, dictationTarget, interview?.status, listeningPaused, operation, speech.loading, speech.speaking, transitionTurnIndex, voice.status],
   );
   useEffect(() => setActivityStartedAt(Date.now()), [activity.title]);
   const operationElapsed = activity.tone !== "working"
@@ -717,7 +745,7 @@ export default function InterviewWorkspace() {
                             onClick={() => {
                               voice.stop();
                               speech.stop();
-                              dictationTargetRef.current = "clarification";
+                              setDictationTarget("clarification");
                               setListeningPaused(false);
                               setClarificationOpen(true);
                               setClarificationError("");
@@ -746,6 +774,25 @@ export default function InterviewWorkspace() {
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
                             Speak or type here. This is sent separately and will not be added to your answer.
                           </p>
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-background/70 px-3 py-2" role="status" aria-live="polite">
+                            <span className="text-xs font-medium text-primary">
+                              Voice target: clarifying question
+                            </span>
+                            {voice.status === "recording" ? (
+                              <Button type="button" size="sm" variant="outline" onClick={voice.finishSegment}>
+                                <Square aria-hidden />
+                                Transcribe now
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {voice.status === "processing"
+                                  ? "Transcribing into this box…"
+                                  : voice.status === "listening"
+                                    ? "Listening for this clarification…"
+                                    : "Microphone is paused"}
+                              </span>
+                            )}
+                          </div>
                           <Textarea
                             id="candidate-clarification"
                             value={clarificationQuestion}
@@ -769,7 +816,7 @@ export default function InterviewWorkspace() {
                                 setClarificationOpen(false);
                                 setClarificationQuestion("");
                                 setClarificationError("");
-                                dictationTargetRef.current = "answer";
+                                setDictationTarget("answer");
                                 setListeningPaused(false);
                               }}
                             >
@@ -861,15 +908,27 @@ export default function InterviewWorkspace() {
                               : speech.speaking
                                 ? "Interviewer speaking — listening starts automatically next"
                               : voice.status === "recording"
-                              ? "Capturing this part of your answer…"
+                              ? dictationTarget === "clarification"
+                                ? "Capturing your clarifying question…"
+                                : "Capturing this part of your answer…"
                               : voice.status === "processing"
-                                ? "Whisper is transcribing this segment into your draft…"
+                                ? dictationTarget === "clarification"
+                                  ? "Whisper is transcribing into the clarification box…"
+                                  : "Whisper is transcribing this segment into your answer…"
                                 : voice.status === "listening"
                                   ? voice.mode === "automatic"
-                                    ? "Listening continuously — pauses only update the draft"
+                                    ? dictationTarget === "clarification"
+                                      ? "Listening — speech goes only to the clarification box"
+                                      : "Listening continuously — speech goes only to your answer"
                                     : "Hold the mic button to speak"
                                   : "Type your answer or start listening"}
                           </span>
+                          {voice.status === "recording" && dictationTarget === "answer" ? (
+                            <Button type="button" size="sm" variant="outline" onClick={voice.finishSegment}>
+                              <Square aria-hidden />
+                              Transcribe now
+                            </Button>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Select
@@ -912,6 +971,14 @@ export default function InterviewWorkspace() {
                         className="min-h-32 resize-y text-base leading-6"
                         disabled={submissionLocked}
                       />
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs leading-5">
+                        <span className="font-medium text-primary">
+                          Voice target: {dictationTarget === "clarification" ? "clarifying question" : "answer draft"}
+                        </span>
+                        {dictationTarget === "clarification" ? (
+                          <span className="text-muted-foreground">Your answer draft is not being changed.</span>
+                        ) : null}
+                      </div>
                       <p className="mt-2 text-xs leading-5 text-muted-foreground">
                         Thinking pauses are safe. Send is always available and submits exactly the text currently visible; unfinished speech is left out.
                       </p>
