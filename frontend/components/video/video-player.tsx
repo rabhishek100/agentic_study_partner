@@ -1,6 +1,12 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 
 import type { VideoPlayback } from "@/lib/video-types";
 
@@ -19,6 +25,13 @@ export const CITATION_LEAD_MS = 3_000;
 interface VideoPlayerProps {
   playback: VideoPlayback;
   title: string;
+  /** Refresh the signed source after a genuine playback failure. */
+  onPlaybackError?: () => void | Promise<void>;
+}
+
+/** A rotating auth token is not a different piece of media. */
+export function mediaIdentity(url: string | null): string | null {
+  return url?.split(/[?#]/, 1)[0] ?? null;
 }
 
 /**
@@ -31,9 +44,29 @@ interface VideoPlayerProps {
  * picture fills the screen instead of a letterboxed box inside a black page.
  */
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ playback, title }, ref) {
+  function VideoPlayer({ playback, title, onPlaybackError }, ref) {
     const frameRef = useRef<HTMLIFrameElement>(null);
     const elementRef = useRef<HTMLVideoElement>(null);
+    const [mediaSource, setMediaSource] = useState(playback.media_url);
+    const refreshAfterErrorRef = useRef(false);
+
+    useEffect(() => {
+      const changedMedia =
+        playback.media_url !== null &&
+        mediaIdentity(playback.media_url) !== mediaIdentity(mediaSource);
+      const refreshedFailedUrl =
+        refreshAfterErrorRef.current &&
+        playback.media_url !== null &&
+        playback.media_url !== mediaSource;
+      if (
+        changedMedia ||
+        refreshedFailedUrl ||
+        (!mediaSource && playback.media_url)
+      ) {
+        refreshAfterErrorRef.current = false;
+        setMediaSource(playback.media_url);
+      }
+    }, [playback.media_url, mediaSource]);
 
     useImperativeHandle(ref, () => ({
       seekTo(milliseconds: number) {
@@ -78,14 +111,25 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       );
     }
 
-    if (playback.media_url) {
+    if (mediaSource) {
       return (
         <video
           ref={elementRef}
           className="aspect-video w-full rounded-lg border border-border bg-black"
-          src={playback.media_url}
+          src={mediaSource}
           controls
           preload="metadata"
+          onError={() => {
+            // Polling can return a newly signed URL every expiry bucket. Keep
+            // the current URL (and currentTime) while it works; accept a fresh
+            // token only after the element itself reports a failure.
+            refreshAfterErrorRef.current = true;
+            if (playback.media_url && playback.media_url !== mediaSource) {
+              refreshAfterErrorRef.current = false;
+              setMediaSource(playback.media_url);
+            }
+            void onPlaybackError?.();
+          }}
         >
           <track kind="captions" />
         </video>

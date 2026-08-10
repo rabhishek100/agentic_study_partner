@@ -513,6 +513,7 @@ export default function VideoWorkspace() {
                   ref={playerRef}
                   playback={video.playback}
                   title={video.title}
+                  onPlaybackError={loadVideo}
                 />
               </div>
               {/* A lecture that answers but missed a quality gate still owes

@@ -1,7 +1,7 @@
 "use client";
 
 import { FileText, Film, ImageIcon, Quote } from "lucide-react";
-import { useMemo } from "react";
+import { createContext, useContext, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -241,6 +241,92 @@ function InlineFrame({
   );
 }
 
+interface VideoAnswerRenderState {
+  videoId: string;
+  byRank: Map<number, VideoEvidenceRef>;
+  citationByMarker: Map<string, VideoCitationRef>;
+  onSeek(milliseconds: number): void;
+  onOpenDocument(target: VideoDocumentTarget): void;
+}
+
+const VideoAnswerRenderContext = createContext<VideoAnswerRenderState | null>(
+  null,
+);
+
+function useVideoAnswerRenderState(): VideoAnswerRenderState {
+  const value = useContext(VideoAnswerRenderContext);
+  if (!value) throw new Error("Video answer rendered outside its context");
+  return value;
+}
+
+function VideoMarkdownCitation({ marker }: { marker: string }) {
+  const { byRank, citationByMarker, onSeek, onOpenDocument } =
+    useVideoAnswerRenderState();
+  const citation = citationByMarker.get(marker);
+  if (!citation) return <span>{marker}</span>;
+  const item = byRank.get(citation.evidence_rank);
+  const Icon = MODALITY_ICON[citation.modality];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "mx-0.5 h-6 gap-1 rounded-full border border-border bg-muted/60 px-2",
+            "align-baseline text-xs font-normal",
+          )}
+          onClick={() =>
+            citation.modality === "resource_page" && citation.resource_id
+              ? onOpenDocument({
+                  resourceId: citation.resource_id,
+                  page: citation.page_number ?? 1,
+                  excerpt: item?.excerpt,
+                })
+              : onSeek(citation.start_ms ?? 0)
+          }
+        >
+          <Icon aria-hidden className="size-3" />
+          {citationLabel(citation, item)}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-sm">
+        <span className="line-clamp-4 text-xs">
+          {item?.excerpt ?? "Cited evidence"}
+        </span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function VideoMarkdownFrame({
+  frame,
+  at,
+  caption,
+}: {
+  frame: string | number;
+  at: string | number;
+  caption: string;
+}) {
+  const { videoId, onSeek } = useVideoAnswerRenderState();
+  return (
+    <InlineFrame
+      videoId={videoId}
+      frameId={Number(frame)}
+      startMs={Number(at)}
+      caption={caption}
+      onSeek={onSeek}
+    />
+  );
+}
+
+/** Stable types stop React from remounting every cited frame on scroll/drag. */
+const VIDEO_ANSWER_MARKDOWN_COMPONENTS = {
+  "citation-ref": VideoMarkdownCitation,
+  "frame-figure": VideoMarkdownFrame,
+} as never;
+
 /**
  * Render the answer as markdown, with its markers turned into controls.
  *
@@ -282,98 +368,40 @@ export function VideoAnswer({
   }, [citations, evidence]);
 
   const rendered = useMemo(() => normalizeMath(answer), [answer]);
-
-  const renderCitation = (marker: string) => {
-    const citation = citationByMarker.get(marker);
-    if (!citation) return <span>{marker}</span>;
-    const item = byRank.get(citation.evidence_rank);
-    const Icon = MODALITY_ICON[citation.modality];
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "mx-0.5 h-6 gap-1 rounded-full border border-border bg-muted/60 px-2",
-              "align-baseline text-xs font-normal",
-            )}
-            onClick={() =>
-              citation.modality === "resource_page" && citation.resource_id
-                ? onOpenDocument({
-                    resourceId: citation.resource_id,
-                    page: citation.page_number ?? 1,
-                    // The passage the viewer highlights comes from the
-                    // evidence, not the citation: the marker names a page,
-                    // and the page is not the claim.
-                    excerpt: item?.excerpt,
-                  })
-                : onSeek(citation.start_ms ?? 0)
-            }
-          >
-            <Icon aria-hidden className="size-3" />
-            {citationLabel(citation, item)}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent className="max-w-sm">
-          <span className="line-clamp-4 text-xs">
-            {item?.excerpt ?? "Cited evidence"}
-          </span>
-        </TooltipContent>
-      </Tooltip>
-    );
-  };
+  const renderState = useMemo<VideoAnswerRenderState>(
+    () => ({ videoId, byRank, citationByMarker, onSeek, onOpenDocument }),
+    [videoId, byRank, citationByMarker, onSeek, onOpenDocument],
+  );
 
   return (
-    <div
-      // Marks the prose as a passage a reader may highlight and anchor a side
-      // chat to. Without it the selection popover refuses every lecture
-      // selection, because reference cards and controls are not passages.
-      data-answer=""
-      className={cn(
-        "text-sm leading-relaxed",
-        "[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5",
-        "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5",
-        "[&_strong]:font-semibold [&_h1]:text-base [&_h2]:text-base",
-        "[&_h3]:text-sm [&_h1]:font-medium [&_h2]:font-medium",
-        "[&_h3]:font-medium [&_code]:rounded [&_code]:bg-muted [&_code]:px-1",
-        "[&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3",
-      )}
-    >
-      <ReactMarkdown
-        remarkPlugins={[remarkMath]}
-        rehypePlugins={[
-          rehypeKatex,
-          citationPlugin(),
-          inlineFramePlugin(framesByMarker),
-        ]}
-        components={
-          {
-            "citation-ref": ({ marker }: { marker: string }) =>
-              renderCitation(marker),
-            "frame-figure": ({
-              frame,
-              at,
-              caption,
-            }: {
-              frame: string | number;
-              at: string | number;
-              caption: string;
-            }) => (
-              <InlineFrame
-                videoId={videoId}
-                frameId={Number(frame)}
-                startMs={Number(at)}
-                caption={caption}
-                onSeek={onSeek}
-              />
-            ),
-          } as never
-        }
+    <VideoAnswerRenderContext.Provider value={renderState}>
+      <div
+        // Marks the prose as a passage a reader may highlight and anchor a side
+        // chat to. Without it the selection popover refuses every lecture
+        // selection, because reference cards and controls are not passages.
+        data-answer=""
+        className={cn(
+          "text-sm leading-relaxed",
+          "[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5",
+          "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5",
+          "[&_strong]:font-semibold [&_h1]:text-base [&_h2]:text-base",
+          "[&_h3]:text-sm [&_h1]:font-medium [&_h2]:font-medium",
+          "[&_h3]:font-medium [&_code]:rounded [&_code]:bg-muted [&_code]:px-1",
+          "[&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted [&_pre]:p-3",
+        )}
       >
-        {rendered}
-      </ReactMarkdown>
-    </div>
+        <ReactMarkdown
+          remarkPlugins={[remarkMath]}
+          rehypePlugins={[
+            rehypeKatex,
+            citationPlugin(),
+            inlineFramePlugin(framesByMarker),
+          ]}
+          components={VIDEO_ANSWER_MARKDOWN_COMPONENTS}
+        >
+          {rendered}
+        </ReactMarkdown>
+      </div>
+    </VideoAnswerRenderContext.Provider>
   );
 }

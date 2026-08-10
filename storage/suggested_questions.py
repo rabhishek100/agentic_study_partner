@@ -9,6 +9,13 @@ from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
 
+SUGGESTED_QUESTIONS_CACHE_VERSION = "concise-v2"
+
+
+def versioned_suggested_questions_key(scope_key: str) -> str:
+    """Isolate cached questions when the generation contract changes."""
+    return f"{scope_key}:{SUGGESTED_QUESTIONS_CACHE_VERSION}"
+
 
 def ensure_suggested_questions_table(connection: Connection) -> None:
     """Ensure the suggested_questions_cache table exists."""

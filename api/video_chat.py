@@ -30,6 +30,7 @@ from storage.database import connection as database_connection
 from storage.suggested_questions import (
     get_cached_suggested_questions,
     save_cached_suggested_questions,
+    versioned_suggested_questions_key,
 )
 from study.question_generator import generate_video_questions
 from study.contracts import (
@@ -288,13 +289,17 @@ async def video_suggested_questions(
     """Get dynamic suggested questions for a video lecture."""
     scope_type = "video"
     scope_key = f"video:{video_id}"
+    cache_key = versioned_suggested_questions_key(scope_key)
 
     def load() -> SuggestedQuestionsResponse:
         with database_connection() as connection:
             _require_video(connection, video_id, owner_id)
             if not refresh:
                 cached = get_cached_suggested_questions(
-                    connection, owner_id=owner_id, scope_type=scope_type, scope_key=scope_key
+                    connection,
+                    owner_id=owner_id,
+                    scope_type=scope_type,
+                    scope_key=cache_key,
                 )
                 if cached and len(cached) == 5:
                     return SuggestedQuestionsResponse(
@@ -310,7 +315,7 @@ async def video_suggested_questions(
                 connection,
                 owner_id=owner_id,
                 scope_type=scope_type,
-                scope_key=scope_key,
+                scope_key=cache_key,
                 questions=questions,
             )
             return SuggestedQuestionsResponse(

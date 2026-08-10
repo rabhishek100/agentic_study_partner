@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 from typing import Any
 from uuid import UUID
 
@@ -13,6 +14,108 @@ from storage.database import parse_owner_id
 logger = logging.getLogger(__name__)
 
 DEFAULT_GENERATION_MODEL = "anthropic/claude-3.5-sonnet"
+MAX_QUESTION_WORDS = 12
+MAX_QUESTION_CHARACTERS = 90
+
+_NUMBERING = re.compile(
+    r"^\s*(?:[-*•]\s*|(?:q(?:uestion)?\s*)?\d+[.):]\s*)",
+    re.I,
+)
+_WORDS = re.compile(r"[\w]+(?:[-'][\w]+)*")
+_SIMPLE_OPENERS = (
+    "what ",
+    "why ",
+    "how ",
+    "when ",
+    "where ",
+    "which ",
+    "can ",
+    "does ",
+    "do ",
+    "is ",
+    "are ",
+)
+_GENERIC_STARTERS = [
+    "What is the main idea?",
+    "Why does this topic matter?",
+    "How could I use this in practice?",
+    "What is a common mistake here?",
+    "Which idea should I review next?",
+]
+
+
+def _topic_label(value: str, *, maximum_words: int = 5) -> str:
+    """Turn a chapter heading into a short phrase that reads inside a question."""
+    label = " ".join(str(value).split()).strip(" -–—:.;")
+    if ":" in label:
+        label = label.split(":", 1)[1].strip()
+    label = re.sub(
+        r"^(?:chapter|section|part|lecture)\s+[\w.-]+\s*[-–—:]?\s*",
+        "",
+        label,
+        flags=re.I,
+    )
+    words = label.split()
+    return " ".join(words[:maximum_words]).strip(" -–—:.;") or "this topic"
+
+
+def normalize_suggested_question(value: object) -> str | None:
+    """Return one safe, concise starter question or reject the candidate.
+
+    The model is deliberately not trusted to follow the presentation contract.
+    Rejecting a compound prompt is safer than truncating it: a clipped question
+    can change meaning, while a deterministic fallback stays useful.
+    """
+    if not isinstance(value, (str, int, float)):
+        return None
+    question = _NUMBERING.sub("", " ".join(str(value).split())).strip(' "\'')
+    question = question.rstrip(".!?") + "?"
+    lowered = question.casefold()
+    words = _WORDS.findall(question)
+
+    if not question or len(question) > MAX_QUESTION_CHARACTERS:
+        return None
+    if not 3 <= len(words) <= MAX_QUESTION_WORDS:
+        return None
+    if not lowered.startswith(_SIMPLE_OPENERS):
+        return None
+    if any(mark in question[:-1] for mark in ("?", "!", ".")):
+        return None
+    if ";" in question or ":" in question or question.count(",") > 1:
+        return None
+    if len(re.findall(r"\b(?:and|or)\b", lowered)) > 1:
+        return None
+    if any(
+        phrase in lowered
+        for phrase in (
+            "how would you design",
+            "suppose you",
+            "end-to-end",
+            "generate questions",
+            "generate interview",
+            "list all",
+        )
+    ):
+        return None
+    return question
+
+
+def select_concise_questions(
+    generated: list[object] | None,
+    fallbacks: list[str],
+) -> list[str]:
+    """Keep valid model suggestions and deterministically fill the five slots."""
+    selected: list[str] = []
+    seen: set[str] = set()
+    for candidate in [*(generated or []), *fallbacks, *_GENERIC_STARTERS]:
+        question = normalize_suggested_question(candidate)
+        if not question or question.casefold() in seen:
+            continue
+        seen.add(question.casefold())
+        selected.append(question)
+        if len(selected) == 5:
+            return selected
+    return selected
 
 
 def _deterministic_book_questions(
@@ -20,50 +123,31 @@ def _deterministic_book_questions(
 ) -> list[str]:
     """Generate clean fallback starter questions when LLM generation is unavailable."""
     if not books_data:
-        return [
-            "What topics are covered in the library?",
-            "Summarize the main concepts in these books.",
-            "What are the core technical trade-offs discussed?",
-            "Explain the primary architecture patterns.",
-            "Generate interview questions based on the available material.",
-        ]
+        return list(_GENERIC_STARTERS)
 
     if len(books_data) == 1:
         book = books_data[0]
-        title = book["title"]
         chapters = book.get("chapters", [])
-        questions = []
-        if chapters:
-            c1 = chapters[0]
-            questions.append(f"What sections are present in {c1}?")
-            questions.append(f"Summarize {c1} of {title}.")
-            if len(chapters) > 1:
-                questions.append(f"What are the key takeaways from {chapters[1]}?")
-            if len(chapters) > 2:
-                questions.append(f"How does {chapters[2]} relate to {c1}?")
-        
-        while len(questions) < 5:
-            fallbacks = [
-                f"What are the primary concepts introduced in {title}?",
-                f"Summarize the main architecture discussed in {title}.",
-                f"What key system design trade-offs does {title} highlight?",
-                f"What causes training-serving skew or architectural drift according to {title}?",
-                f"Generate 3 technical interview questions based on {title}.",
-            ]
-            for f in fallbacks:
-                if f not in questions and len(questions) < 5:
-                    questions.append(f)
-        return questions[:5]
+        topic = _topic_label(chapters[0]) if chapters else "the main idea"
+        second = _topic_label(chapters[1]) if len(chapters) > 1 else "this topic"
+        return select_concise_questions(
+            [],
+            [
+                f"What is {topic} about?",
+                f"Why does {topic} matter?",
+                f"What should I know about {second}?",
+                "What is the book's most useful idea?",
+                "Where could I apply these ideas?",
+            ],
+        )
 
     # Multiple books scope
-    titles = [b["title"] for b in books_data[:3]]
-    joined_titles = ", ".join(titles)
     return [
-        f"What overarching themes unite {joined_titles}?",
-        "Compare the core architectural approaches between these selected books.",
-        "What are the most critical technical trade-offs covered across these sources?",
-        "Summarize the key concepts across all selected books.",
-        "Generate cross-book technical interview questions based on this library scope.",
+        "What idea appears across these books?",
+        "Where do these books disagree?",
+        "Which concept is most useful in practice?",
+        "How do the main ideas connect?",
+        "What should I learn first?",
     ]
 
 
@@ -72,25 +156,18 @@ def _deterministic_video_questions(
     chapters: list[str],
 ) -> list[str]:
     """Generate clean fallback starter questions for a video lecture."""
-    questions = [
-        f"Summarize the lecture '{video_title}'.",
-        f"List the core topics and sections covered in '{video_title}'.",
-    ]
-    if chapters:
-        mid_chapter = chapters[len(chapters) // 2]
-        questions.append(f"Explain {mid_chapter}.")
-        if len(chapters) > 1 and chapters[0] != mid_chapter:
-            questions.append(f"What key concepts are introduced in {chapters[0]}?")
-
-    fallbacks = [
-        "What was drawn or written on the board during this lecture?",
-        f"What are the main takeaways from '{video_title}'?",
-        "Generate 3 review questions to test my understanding of this lecture.",
-    ]
-    for f in fallbacks:
-        if f not in questions and len(questions) < 5:
-            questions.append(f)
-    return questions[:5]
+    topic = _topic_label(chapters[len(chapters) // 2]) if chapters else "this topic"
+    title = _topic_label(video_title)
+    return select_concise_questions(
+        [],
+        [
+            "What is this lecture mainly about?",
+            f"Why does {topic} matter?",
+            "What was the most important diagram?",
+            "How could I use this in practice?",
+            f"What should I remember about {title}?",
+        ],
+    )
 
 
 def _call_llm_for_questions(system_prompt: str, user_prompt: str) -> list[str] | None:
@@ -102,13 +179,16 @@ def _call_llm_for_questions(system_prompt: str, user_prompt: str) -> list[str] |
     try:
         from langchain_openai import ChatOpenAI
 
-        model_name = os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL
+        model_name = (
+            os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL
+        )
         llm = ChatOpenAI(
             model=model_name,
             api_key=api_key,
             base_url="https://openrouter.ai/api/v1",
             max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "1")),
             timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "15")),
+            max_tokens=300,
         )
 
         messages = [
@@ -128,10 +208,13 @@ def _call_llm_for_questions(system_prompt: str, user_prompt: str) -> list[str] |
             content = "\n".join(lines).strip()
 
         data = json.loads(content)
-        if isinstance(data, list) and len(data) >= 3:
-            result = [str(q).strip() for q in data if isinstance(q, (str, int, float)) and str(q).strip()]
-            if len(result) >= 3:
-                return result[:5]
+        if isinstance(data, list):
+            return [
+                str(question).strip()
+                for question in data
+                if isinstance(question, (str, int, float))
+                and str(question).strip()
+            ][:5]
     except Exception as exc:
         logger.warning("LLM dynamic question generation failed: %s", exc)
     return None
@@ -196,25 +279,32 @@ def generate_book_questions(
 
     # 2. Try LLM generation
     system_prompt = (
-        "You are an AI study partner and technical interviewer. "
-        "Generate exactly 5 engaging, distinct, highly relevant study/interview questions based on the user's technical book scope. "
+        "You write clickable starter questions for a study app. "
+        "Generate exactly 5 simple, interesting questions grounded in the "
+        "supplied book and chapter titles. Each question must ask about one "
+        "idea, use plain language, contain one sentence, and use at most 12 words. "
+        "Use varied openings such as What, Why, How, When, or Which. "
+        "Do not create full interview exercises, multi-step design problems, "
+        "bundled checklists, or requests to generate more questions. Good "
+        "examples: 'What problem does caching solve?', 'Why does data drift "
+        "matter?', 'When should you use replication?'. "
         "Format your output strictly as a JSON array of strings, e.g.: "
         '["Question 1", "Question 2", "Question 3", "Question 4", "Question 5"]. '
         "Do NOT include any additional conversational text or markdown explanation."
     )
 
     scope_desc = "\n".join(
-        f"- Book: '{b['title']}' by {b['author']}. Chapters: {', '.join(b['chapters']) if b['chapters'] else 'N/A'}"
-        for b in books_data
+        f"- Book: '{book['title']}' by {book['author']}. Chapters: "
+        f"{', '.join(book['chapters']) if book['chapters'] else 'N/A'}"
+        for book in books_data
     )
-    user_prompt = f"Please generate 5 dynamic starter questions for the following study materials:\n{scope_desc}"
+    user_prompt = f"Write five concise starter questions for:\n{scope_desc}"
 
     llm_questions = _call_llm_for_questions(system_prompt, user_prompt)
-    if llm_questions and len(llm_questions) == 5:
-        return llm_questions
-
-    # 3. Deterministic fallback
-    return _deterministic_book_questions(books_data)
+    return select_concise_questions(
+        llm_questions,
+        _deterministic_book_questions(books_data),
+    )
 
 
 def generate_video_questions(
@@ -252,21 +342,28 @@ def generate_video_questions(
 
     # 2. Try LLM generation
     system_prompt = (
-        "You are an AI study partner specializing in technical lecture videos. "
-        "Generate exactly 5 engaging, distinct, highly relevant questions for a student watching this video. "
-        "Include a mix of high-level overview, specific chapter concepts, and board/visual inquiry questions. "
-        "Format your output strictly as a JSON array of 5 strings: [\"Q1\", \"Q2\", \"Q3\", \"Q4\", \"Q5\"]. "
+        "You write clickable starter questions for a technical lecture app. "
+        "Generate exactly 5 simple, interesting questions grounded in the "
+        "supplied title and chapters. Each question must ask about one idea, "
+        "use plain language, contain one sentence, and use at most 12 words. "
+        "Include an overview, a chapter idea, and one visual question. "
+        "Do not create full interview exercises, multi-step problems, bundled "
+        "checklists, or requests to generate more questions. Good examples: "
+        "'What is this lecture mainly about?', 'Why does attention matter?', "
+        "'What does the diagram explain?'. "
+        "Format your output strictly as a JSON array of 5 strings: "
+        '["Q1", "Q2", "Q3", "Q4", "Q5"]. '
         "Do NOT include any extra text."
     )
 
+    chapter_list = "\n".join(f"- {chapter}" for chapter in chapters)
     user_prompt = (
-        f"Video Title: '{video_title}'\n"
-        f"Chapters:\n" + "\n".join(f"- {c}" for c in chapters) if chapters else "No chapters listed."
+        f"Video title: '{video_title}'\n"
+        f"Chapters:\n{chapter_list if chapter_list else 'No chapters listed.'}"
     )
 
     llm_questions = _call_llm_for_questions(system_prompt, user_prompt)
-    if llm_questions and len(llm_questions) == 5:
-        return llm_questions
-
-    # 3. Fallback
-    return _deterministic_video_questions(video_title, chapters)
+    return select_concise_questions(
+        llm_questions,
+        _deterministic_video_questions(video_title, chapters),
+    )

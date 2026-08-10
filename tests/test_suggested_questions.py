@@ -12,12 +12,14 @@ from storage.database import connection as database_connection
 from storage.suggested_questions import (
     get_cached_suggested_questions,
     save_cached_suggested_questions,
+    versioned_suggested_questions_key,
 )
 from study.question_generator import (
+    MAX_QUESTION_WORDS,
     _deterministic_book_questions,
     _deterministic_video_questions,
-    generate_book_questions,
-    generate_video_questions,
+    normalize_suggested_question,
+    select_concise_questions,
 )
 from tests.postgres import PostgresOwnerMixin
 
@@ -100,16 +102,30 @@ class SuggestedQuestionsStoreTests(PostgresOwnerMixin, unittest.TestCase):
 
 
 class DeterministicQuestionGeneratorTests(unittest.TestCase):
+    def assert_concise(self, questions: list[str]) -> None:
+        self.assertEqual(len(questions), 5)
+        for question in questions:
+            self.assertEqual(normalize_suggested_question(question), question)
+            self.assertLessEqual(len(question.split()), MAX_QUESTION_WORDS)
+
     def test_deterministic_book_questions_returns_5(self) -> None:
         # Empty books
         q0 = _deterministic_book_questions([])
         self.assertEqual(len(q0), 5)
 
         # Single book with chapters
-        single = [{"title": "Designing Data-Intensive Applications", "chapters": ["Chapter 1: Reliable Systems", "Chapter 2: Data Models"]}]
+        single = [
+            {
+                "title": "Designing Data-Intensive Applications",
+                "chapters": [
+                    "Chapter 1: Reliable Systems",
+                    "Chapter 2: Data Models",
+                ],
+            }
+        ]
         q1 = _deterministic_book_questions(single)
-        self.assertEqual(len(q1), 5)
-        self.assertIn("What sections are present in Chapter 1: Reliable Systems?", q1)
+        self.assert_concise(q1)
+        self.assertIn("What is Reliable Systems about?", q1)
 
         # Multiple books
         multi = [
@@ -117,15 +133,54 @@ class DeterministicQuestionGeneratorTests(unittest.TestCase):
             {"title": "Book B", "chapters": []},
         ]
         q2 = _deterministic_book_questions(multi)
-        self.assertEqual(len(q2), 5)
-        self.assertTrue(any("Book A" in q for q in q2))
+        self.assert_concise(q2)
+        self.assertIn("What idea appears across these books?", q2)
 
     def test_deterministic_video_questions_returns_5(self) -> None:
         chapters = ["Introduction", "Self-Attention Mechanism", "Conclusion"]
         q = _deterministic_video_questions("Lecture 1: Transformers", chapters)
-        self.assertEqual(len(q), 5)
+        self.assert_concise(q)
         self.assertTrue(any("Transformers" in item for item in q))
         self.assertTrue(any("Self-Attention" in item for item in q))
+
+    def test_rejects_long_compound_interview_exercises(self) -> None:
+        generated = [
+            "How would you design an end-to-end RAG assistant that handles changing data, latency, and quality?",
+            "In a machine learning system, how would you define the objective, engineer features, choose metrics, and monitor drift?",
+            "Compare replication, partitioning, consensus, and transactions in a distributed service?",
+            "Why does caching matter?",
+        ]
+        selected = select_concise_questions(
+            generated,
+            _deterministic_book_questions([]),
+        )
+
+        self.assertEqual(len(selected), 5)
+        self.assertEqual(selected[0], "Why does caching matter?")
+        self.assertNotIn(generated[0], selected)
+        self.assertNotIn(generated[1], selected)
+        self.assertNotIn(generated[2], selected)
+        self.assert_concise(selected)
+
+    def test_normalizes_model_numbering_without_loosening_limits(self) -> None:
+        self.assertEqual(
+            normalize_suggested_question("Q1: What problem does caching solve?"),
+            "What problem does caching solve?",
+        )
+        self.assertIsNone(
+            normalize_suggested_question(
+                "How would you design an end-to-end system for this problem?"
+            )
+        )
+        self.assertIsNone(
+            normalize_suggested_question("What is caching? Why does it matter?")
+        )
+
+    def test_cache_version_replaces_existing_oversized_suggestions(self) -> None:
+        self.assertEqual(
+            versioned_suggested_questions_key("book:7"),
+            "book:7:concise-v2",
+        )
 
 
 class SuggestedQuestionsApiTests(unittest.IsolatedAsyncioTestCase):
@@ -155,6 +210,9 @@ class SuggestedQuestionsApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(data["questions"]), 5)
         self.assertEqual(data["scope_type"], "library")
         self.assertTrue(data["scope_key"].startswith("books:1,2:"))
+        self.assertTrue(
+            mock_cache.call_args.kwargs["scope_key"].endswith(":concise-v2")
+        )
 
     @patch("api.video_chat.database_connection")
     @patch("api.video_chat._require_video")
@@ -173,6 +231,10 @@ class SuggestedQuestionsApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(data["questions"]), 5)
         self.assertEqual(data["scope_type"], "video")
         self.assertEqual(data["scope_key"], f"video:{TEST_VIDEO_ID}")
+        self.assertEqual(
+            mock_cache.call_args.kwargs["scope_key"],
+            f"video:{TEST_VIDEO_ID}:concise-v2",
+        )
 
 
 if __name__ == "__main__":

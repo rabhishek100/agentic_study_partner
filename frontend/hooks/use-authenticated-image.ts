@@ -38,6 +38,13 @@ export function useAuthenticatedImage(source: string): State {
         const blob = await response.blob();
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
+        // Do not remove the skeleton until the browser has decoded the image.
+        // Swapping it for an undecoded blob produced a blank frame that was
+        // especially visible while scrolling or moving a floating window.
+        const decoded = new Image();
+        decoded.src = objectUrl;
+        await decoded.decode?.().catch(() => undefined);
+        if (cancelled) return;
         setState({ status: "ready", url: objectUrl });
       } catch {
         if (!cancelled) setState({ status: "failed", url: null });

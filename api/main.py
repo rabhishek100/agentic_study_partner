@@ -62,6 +62,7 @@ from storage.preferences import load_prompt_profile, save_prompt_profile
 from storage.suggested_questions import (
     get_cached_suggested_questions,
     save_cached_suggested_questions,
+    versioned_suggested_questions_key,
 )
 from study.question_generator import generate_book_questions
 from study.analyze import ConversationDecisionError
@@ -536,12 +537,16 @@ async def book_suggested_questions(
     else:
         scope_type = "library"
         scope_key = f"books:all:{today_str}"
+    cache_key = versioned_suggested_questions_key(scope_key)
 
     def load() -> SuggestedQuestionsResponse:
         with database_connection() as connection:
             if not refresh:
                 cached = get_cached_suggested_questions(
-                    connection, owner_id=owner_id, scope_type=scope_type, scope_key=scope_key
+                    connection,
+                    owner_id=owner_id,
+                    scope_type=scope_type,
+                    scope_key=cache_key,
                 )
                 if cached and len(cached) == 5:
                     return SuggestedQuestionsResponse(
@@ -557,7 +562,7 @@ async def book_suggested_questions(
                 connection,
                 owner_id=owner_id,
                 scope_type=scope_type,
-                scope_key=scope_key,
+                scope_key=cache_key,
                 questions=questions,
             )
             return SuggestedQuestionsResponse(
