@@ -15,6 +15,7 @@ from .contracts import (
     InterviewQuestion,
     InterviewSession,
     InterviewTurn,
+    PythonCodingAnswer,
     SessionReport,
     TargetLevel,
 )
@@ -25,8 +26,10 @@ from .planning import (
     InterviewSourceError,
     initial_checkpoint,
     load_source,
+    next_coding_topic,
     next_topic,
     preflight,
+    topic_supports_coding,
     topic_by_key,
 )
 from .prompts import build_candidate_clarification_messages, prompt_version
@@ -44,6 +47,7 @@ class CreateInterview:
     target_level: TargetLevel = "mid"
     feedback_mode: str = "realistic"
     format_choice: FormatChoice = "auto"
+    coding_exercise_requested: bool = False
 
 
 def inspect_source(
@@ -86,6 +90,28 @@ def create_interview(
         target_level=request.target_level,
         format_choice=request.format_choice,
     )
+    if request.coding_exercise_requested and preview.coding_topic_count == 0:
+        raise InterviewSourceError(
+            "this source has no substantive topic that can ground a Python exercise"
+        )
+    checkpoint = initial_checkpoint(
+        source.inventory,
+        maximum_duration_minutes=request.maximum_duration_minutes,
+        target_level=request.target_level,
+    )
+    if request.coding_exercise_requested:
+        coding_topic = next_coding_topic(source.inventory, checkpoint)
+        if coding_topic is None:
+            # The duration plan may have omitted the eligible source node. A requested
+            # exercise is one deliberate extra area, so make that node part of coverage.
+            coding_topic = next(
+                topic
+                for topic in source.inventory.required_topics
+                if topic_supports_coding(topic)
+            )
+        next(
+            item for item in checkpoint.topics if item.key == coding_topic.key
+        ).required = True
     return store.create_session(
         connection,
         owner_id=owner_id,
@@ -101,14 +127,11 @@ def create_interview(
         format_source=preview.format_source,
         feedback_mode=request.feedback_mode,
         target_level=request.target_level,
+        coding_exercise_requested=request.coding_exercise_requested,
         maximum_duration_minutes=request.maximum_duration_minutes,
         estimated_min_minutes=preview.estimated_min_minutes,
         estimated_max_minutes=preview.estimated_max_minutes,
-        checkpoint=initial_checkpoint(
-            source.inventory,
-            maximum_duration_minutes=request.maximum_duration_minutes,
-            target_level=request.target_level,
-        ),
+        checkpoint=checkpoint,
         generation_model=model_name(),
         prompt_version=prompt_version(),
     )
@@ -137,6 +160,9 @@ def _generate_question(
     model: Any | None = None,
 ) -> tuple[InterviewQuestion, float]:
     planned_count = len(session.checkpoint.required_topics)
+    require_coding = session.coding_exercise_requested and not any(
+        turn.question.coding_exercise is not None for turn in session.turns
+    )
     return generate_question(
         inventory=inventory,
         topic=topic,
@@ -149,6 +175,7 @@ def _generate_question(
             "reasoning question supported by this topic, not a narrow detail. "
             f"This topic is one of {planned_count} planned chapter areas."
         ),
+        require_coding_exercise=require_coding,
         model=model,
     )
 
@@ -173,7 +200,12 @@ def start_interview(
     if pending is not None:
         return store.start_or_resume(connection, session_id, owner_id=owner_id)
     inventory = load_session_inventory(connection, session, owner_id)
-    topic = next_topic(inventory, session.checkpoint)
+    topic = (
+        next_coding_topic(inventory, session.checkpoint)
+        if session.coding_exercise_requested
+        and not any(turn.question.coding_exercise is not None for turn in session.turns)
+        else None
+    ) or next_topic(inventory, session.checkpoint)
     if topic is None:
         session.checkpoint.closing_reason = "All planned chapter areas were covered."
         return store.complete_session(
@@ -207,6 +239,7 @@ def answer_interview(
     *,
     owner_id: str | UUID,
     answer_text: str,
+    coding_answer: PythonCodingAnswer | None = None,
     transcript_corrected: bool = False,
     evaluation_model: Any | None = None,
     question_model: Any | None = None,
@@ -219,6 +252,11 @@ def answer_interview(
     )
     if current is None:
         raise store.InterviewStateError("the interview has no unanswered question")
+    expects_code = current.question.coding_exercise is not None
+    if expects_code and coding_answer is None:
+        raise ValueError("this coding question requires a submitted Python artifact")
+    if not expects_code and coding_answer is not None:
+        raise ValueError("this question does not accept a coding artifact")
     inventory = load_session_inventory(connection, session, owner_id)
 
     output = answer_graph.invoke(
@@ -227,6 +265,7 @@ def answer_interview(
             "inventory": inventory,
             "current_turn": current,
             "answer_text": answer_text.strip(),
+            "coding_answer": coding_answer,
         },
         config={
             "run_name": "interview_answer_turn",
@@ -248,6 +287,7 @@ def answer_interview(
     settled_preview = current.model_copy(
         update={
             "answer_text": answer_text.strip(),
+            "coding_answer": coding_answer,
             "transcript_corrected": transcript_corrected,
             "evaluation": evaluation,
             "citations": citations,
@@ -265,6 +305,7 @@ def answer_interview(
             owner_id=owner_id,
             turn_index=current.turn_index,
             answer_text=answer_text,
+            coding_answer=coding_answer,
             transcript_corrected=transcript_corrected,
             evaluation=evaluation,
             citations=citations,
@@ -295,6 +336,47 @@ def answer_interview(
                 checkpoint=output["checkpoint"],
                 metrics=metrics,
             )
+    return store.load_session(connection, session_id, owner_id=owner_id)
+
+
+def reveal_coding_hint(
+    connection: Connection,
+    session_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+) -> InterviewSession:
+    """Reveal one pre-generated hint in guided mode and charge independence."""
+
+    session = store.load_session(connection, session_id, owner_id=owner_id)
+    if session.status != "active":
+        raise store.InterviewStateError("the interview must be active to use a hint")
+    if session.feedback_mode != "guided":
+        raise store.InterviewStateError(
+            "coding hints are available only in guided interview mode"
+        )
+    current = next(
+        (turn for turn in reversed(session.turns) if turn.answer_text is None), None
+    )
+    if current is None or current.question.coding_exercise is None:
+        raise store.InterviewStateError("the active question is not a coding exercise")
+    available = len(current.question.coding_exercise.hints)
+    if current.hints_used >= available:
+        raise store.InterviewStateError("all coding hints for this question are visible")
+
+    checkpoint = session.checkpoint.model_copy(deep=True)
+    topic_state = next(
+        item for item in checkpoint.topics if item.key == current.question.topic_key
+    )
+    next_count = current.hints_used + 1
+    topic_state.hints_used = min(2, topic_state.hints_used + 1)
+    store.use_coding_hint(
+        connection,
+        session_id,
+        owner_id=owner_id,
+        turn_index=current.turn_index,
+        hints_used=next_count,
+        checkpoint=checkpoint,
+    )
     return store.load_session(connection, session_id, owner_id=owner_id)
 
 

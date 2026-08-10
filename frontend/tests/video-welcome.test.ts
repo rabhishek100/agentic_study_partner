@@ -28,13 +28,13 @@ describe("videoStarters", () => {
       ),
     );
 
-    expect(starters).toContain("Explain Tokenization");
-    expect(starters).not.toContain("Explain Stanford ENGINEERING");
+    expect(starters).toContain("Why does Tokenization matter?");
+    expect(starters).not.toContain("Why does Stanford ENGINEERING matter?");
   });
 
   it("offers the whole-lecture requests first", () => {
     const starters = videoStarters(chapters("Tokenization", "Attention"));
-    expect(starters[0]).toBe("Summarize this lecture");
+    expect(starters[0]).toBe("What is this lecture mainly about?");
     expect(starters).toHaveLength(5);
   });
 
@@ -42,5 +42,25 @@ describe("videoStarters", () => {
     const starters = videoStarters([]);
     expect(starters).toHaveLength(5);
     expect(starters.every((starter) => starter.length > 0)).toBe(true);
+    expect(
+      starters.every(
+        (starter) => starter.endsWith("?") && starter.split(/\s+/).length <= 12,
+      ),
+    ).toBe(true);
+  });
+
+  it("shortens long chapter names before using them", () => {
+    const starters = videoStarters(
+      chapters(
+        "A Very Long Introduction",
+        "Chapter 9: Distributed Training Across Unreliable Heterogeneous Clusters",
+      ),
+    );
+    expect(starters).toContain(
+      "Why does Distributed Training Across Unreliable Heterogeneous matter?",
+    );
+    expect(starters.every((starter) => starter.split(/\s+/).length <= 12)).toBe(
+      true,
+    );
   });
 });

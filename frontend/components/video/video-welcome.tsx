@@ -10,16 +10,24 @@ import type { SuggestedQuestionsResponse } from "@/lib/types";
 import type { VideoChapter } from "@/lib/video-types";
 
 const GENERIC_STARTERS = [
-  "Summarize this lecture",
-  "List the topics covered in this lecture",
-  "What was drawn or written on the board?",
-  "What are the key takeaways from this lecture?",
-  "Generate 3 practice questions for this video.",
+  "What is this lecture mainly about?",
+  "Which topics should I focus on?",
+  "What was the most important diagram?",
+  "How could I use this in practice?",
+  "What should I review next?",
 ];
+
+function starterTopic(title: string): string {
+  const afterPrefix = title.includes(":") ? title.split(":", 2)[1] : title;
+  const words = (afterPrefix ?? title).trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, 5).join(" ") || "this topic";
+}
 
 export function videoStarters(chapters: VideoChapter[]): string[] {
   const middle = chapters[Math.floor(chapters.length / 2)];
-  const fromChapters = middle ? [`Explain ${middle.title}`] : [];
+  const fromChapters = middle
+    ? [`Why does ${starterTopic(middle.title)} matter?`]
+    : [];
   const starters = [
     ...GENERIC_STARTERS.slice(0, 2),
     ...fromChapters,

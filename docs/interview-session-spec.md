@@ -116,9 +116,9 @@ speaks the question automatically at no provider cost.
 
 Screen sharing is checkpoint-based and driven by the interview question. For a
 grounded primary question where visible work gives useful interview signal,
-the planner requests one of four work samples: an architecture/data-flow
-diagram, an equation derivation, code or pseudocode, or written assumptions,
-constraints, and estimates. The task is shown prominently and included in
+the planner requests an architecture/data-flow diagram or equation derivation.
+Coding exercises use the embedded workspace described below; assumptions,
+constraints, and estimates remain verbal. The task is shown prominently and included in
 automatic narration. The work-sample instruction is only a response format for
 the question's single objective; it cannot add complexity, edge cases, testing,
 trade-offs, or a second design task. Follow-ups stay verbal, and screen tasks
@@ -135,6 +135,26 @@ Raw microphone audio and screen images are never persisted. Session state,
 transcripts, source citations, structured screen observations, scores, and
 costs are persisted after every settled turn so an interrupted interview can
 resume.
+
+Python coding questions use an embedded CodeMirror workspace instead of screen
+sharing. The question generator returns a validated, fully editable scaffold
+with `TODO` markers, read-only visible assertions, and up to two progressive
+hints. Code runs only in a resettable Pyodide web worker with a bounded deadline;
+the API never executes candidate code. Candidates may add scratch assertions
+and explicitly submit one structured artifact containing their source, scratch
+tests, browser-reported execution result, and spoken or typed explanation.
+Browser results are supporting evidence rather than a trusted grading oracle.
+
+Candidates may request one coding exercise during setup. The source preflight
+counts topics with enough executable signals to ground a small Python task. If
+the option is enabled, the opening question is generated from the first eligible
+topic and must include a validated scaffold, visible tests, and progressive
+hints. A provider or validation failure leaves the session ready to retry; it
+must never silently replace the requested exercise with a verbal fallback.
+Realistic mode offers clarification but no code hints. Guided mode reveals one
+text hint at a time without modifying the editor and records each hint against
+the independence score. Active coding drafts are restored per session and turn
+in local browser storage and removed after the server confirms submission.
 
 ## Evaluation and report
 

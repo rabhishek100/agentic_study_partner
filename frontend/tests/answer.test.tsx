@@ -2,9 +2,16 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/hooks/use-authenticated-image", () => ({
+  useAuthenticatedImage: (url: string) => ({
+    status: "ready",
+    url: `blob:${url}`,
+  }),
+}));
+
 import { Answer } from "@/components/conversation/answer";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { CitationRef, EvidenceRef } from "@/lib/types";
+import type { CitationRef, EvidenceRef, FigureRef } from "@/lib/types";
 
 function evidence(overrides: Partial<EvidenceRef> = {}): EvidenceRef {
   return {
@@ -164,5 +171,45 @@ describe("Answer", () => {
     await user.keyboard("{Enter}");
 
     expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an inline figure mounted through an unrelated rerender", () => {
+    const refs = [evidence()];
+    const figures: FigureRef[] = [
+      {
+        book_id: 7,
+        node_id: 10,
+        block_id: 99,
+        page: 4,
+        mime_type: "image/png",
+        path: "Chapter 1 :: Core idea",
+        caption: "Training-serving skew diagram",
+        evidence_rank: 1,
+      },
+    ];
+    const view = render(
+      <TooltipProvider>
+        <Answer
+          text="The paths diverge here [S1]."
+          evidence={refs}
+          citations={[]}
+          figures={figures}
+        />
+      </TooltipProvider>,
+    );
+    const original = screen.getByAltText("Training-serving skew diagram");
+
+    view.rerender(
+      <TooltipProvider>
+        <Answer
+          text="The paths diverge here [S1]."
+          evidence={refs}
+          citations={[]}
+          figures={figures}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByAltText("Training-serving skew diagram")).toBe(original);
   });
 });

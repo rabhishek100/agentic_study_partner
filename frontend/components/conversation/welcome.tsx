@@ -10,11 +10,11 @@ import { apiFetch } from "@/lib/api";
 import type { SuggestedQuestionsResponse } from "@/lib/types";
 
 const FALLBACK_STARTERS = [
-  "What sections are present in Chapter 1?",
-  "Summarize Chapter 1",
-  "What causes training-serving skew?",
-  "What are the main architecture trade-offs discussed?",
-  "Generate interview questions for these materials.",
+  "What is the main idea?",
+  "Why does this topic matter?",
+  "How could I use this in practice?",
+  "What is a common mistake here?",
+  "Which idea should I review next?",
 ];
 
 export function Welcome({

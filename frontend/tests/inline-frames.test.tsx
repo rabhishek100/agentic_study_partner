@@ -146,6 +146,36 @@ describe("frames shown beside the claim that cites them", () => {
       screen.getByAltText(/scaled dot-product attention diagram/),
     ).toBeInTheDocument();
   });
+
+  it("keeps a cited frame mounted through an unrelated rerender", () => {
+    const refs = [frame(1, 41, 125_000)];
+    const citations = [cite("[S1]", 1, 41, 125_000)];
+    const first = renderAnswer(
+      "The diagram appears here. [S1]",
+      refs,
+      citations,
+    );
+    const original = screen.getByAltText(
+      /scaled dot-product attention diagram/,
+    );
+
+    first.rerender(
+      <TooltipProvider>
+        <VideoAnswer
+          videoId="video-1"
+          answer="The diagram appears here. [S1]"
+          evidence={refs}
+          citations={citations}
+          onSeek={first.onSeek}
+          onOpenDocument={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByAltText(/scaled dot-product attention diagram/),
+    ).toBe(original);
+  });
 });
 
 describe("citedFrameIds", () => {

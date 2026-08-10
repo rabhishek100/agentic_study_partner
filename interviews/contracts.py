@@ -29,6 +29,7 @@ AnswerClassification = Literal[
     "incorrect",
     "insufficient",
 ]
+PythonRunStatus = Literal["passed", "failed", "error", "timed_out", "not_run"]
 
 DURATION_OPTIONS = (15, 30, 45, 60, 90, 120)
 SCORE_WEIGHTS = {
@@ -97,6 +98,43 @@ class InterviewClarificationDraft(ContractModel):
     interviewer_response: str = Field(min_length=1, max_length=2_000)
 
 
+class PythonCodingExercise(ContractModel):
+    """Candidate-visible Python scaffold plus private progressive hints."""
+
+    language: Literal["python"] = "python"
+    starter_code: str = Field(min_length=1, max_length=20_000)
+    visible_tests: str = Field(min_length=1, max_length=12_000)
+    hints: list[str] = Field(default_factory=list, max_length=2)
+
+    @model_validator(mode="after")
+    def scaffold_is_fill_in_work(self) -> "PythonCodingExercise":
+        if "TODO" not in self.starter_code:
+            raise ValueError("starter code must contain at least one TODO marker")
+        if "assert" not in self.visible_tests:
+            raise ValueError("visible tests must contain at least one assertion")
+        if any(not hint.strip() for hint in self.hints):
+            raise ValueError("coding hints cannot be blank")
+        return self
+
+
+class PythonExecutionResult(ContractModel):
+    status: PythonRunStatus = "not_run"
+    stdout: str = Field(default="", max_length=12_000)
+    error: str = Field(default="", max_length=12_000)
+    duration_ms: int = Field(default=0, ge=0, le=30_000)
+    official_tests_passed: bool | None = None
+    scratch_tests_passed: bool | None = None
+
+
+class PythonCodingAnswer(ContractModel):
+    """Persisted code artifact submitted alongside the spoken/text answer."""
+
+    language: Literal["python"] = "python"
+    code: str = Field(min_length=1, max_length=30_000)
+    scratch_tests: str = Field(default="", max_length=12_000)
+    execution: PythonExecutionResult = Field(default_factory=PythonExecutionResult)
+
+
 class InterviewQuestion(ContractModel):
     topic_key: str = Field(min_length=1)
     topic_label: str = Field(min_length=1)
@@ -109,6 +147,7 @@ class InterviewQuestion(ContractModel):
     interviewer_note: str = Field(default="", max_length=500)
     work_sample: WorkSampleKind = "none"
     work_sample_prompt: str | None = Field(default=None, max_length=1_000)
+    coding_exercise: PythonCodingExercise | None = None
     clarifications: list[InterviewClarification] = Field(
         default_factory=list,
         max_length=4,
@@ -121,6 +160,8 @@ class InterviewQuestion(ContractModel):
             raise ValueError("a verbal question cannot include a work-sample prompt")
         if self.work_sample != "none" and not prompt:
             raise ValueError("a work-sample question requires an instruction")
+        if self.coding_exercise is not None and self.work_sample != "code":
+            raise ValueError("a coding exercise requires the code work-sample kind")
         return self
 
 
@@ -205,6 +246,7 @@ class InterviewTurn(ContractModel):
     turn_index: int = Field(ge=0)
     question: InterviewQuestion
     answer_text: str | None = None
+    coding_answer: PythonCodingAnswer | None = None
     transcript_corrected: bool = False
     evaluation: AnswerEvaluation | None = None
     # Candidate-facing, speakable transition derived from the persisted
@@ -215,6 +257,7 @@ class InterviewTurn(ContractModel):
     web_sources: list[WebSource] = Field(default_factory=list)
     screen_observation: ScreenObservation | None = None
     hints_used: int = Field(default=0, ge=0, le=2)
+    available_coding_hints: int = Field(default=0, ge=0, le=2)
     cost_usd: float = Field(default=0, ge=0)
     created_at: datetime | None = None
     answered_at: datetime | None = None
@@ -244,6 +287,7 @@ class InterviewSession(ContractModel):
     format_source: Literal["detected", "override"]
     feedback_mode: InterviewMode
     target_level: TargetLevel
+    coding_exercise_requested: bool = False
     maximum_duration_minutes: int
     estimated_min_minutes: int
     estimated_max_minutes: int
@@ -269,6 +313,7 @@ class InterviewPreflight(ContractModel):
     format_source: Literal["detected", "override"]
     topic_count: int = Field(ge=1)
     required_topic_count: int = Field(ge=1)
+    coding_topic_count: int = Field(default=0, ge=0)
     estimated_min_minutes: int = Field(gt=0)
     estimated_max_minutes: int = Field(gt=0, le=120)
     warnings: list[str] = Field(default_factory=list)

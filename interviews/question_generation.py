@@ -38,7 +38,14 @@ MAX_EXPECTED_POINTS = 3
 
 SECOND_OBJECTIVE = re.compile(
     r"(?:[,;]\s*|\b(?:and|then)\s+)"
-    r"(?:what|how|why|which|describe|explain|discuss|identify|compare|"
+    r"(?:(?:also|briefly)\s+)?"
+    r"(?:what|how|which|describe|explain|discuss|identify|compare|"
+    r"derive|design|implement|estimate|evaluate|justify|show|write|handle|"
+    r"address|state|list|analyze|assess|test|validate|calculate|outline)\b",
+    re.IGNORECASE,
+)
+OBJECTIVE_CUE = re.compile(
+    r"\b(?:what|how|why|which|describe|explain|discuss|identify|compare|"
     r"derive|design|implement|estimate|evaluate|justify|show|write|handle|"
     r"address|state|list|analyze|assess|test|validate|calculate|outline)\b",
     re.IGNORECASE,
@@ -64,6 +71,15 @@ CODE_REQUEST = re.compile(
     r"\b(?:pseudocode|code)\b",
     re.IGNORECASE,
 )
+CODE_OBSERVABLE_BEHAVIOR = re.compile(
+    r"\b(?:return|output|produce|compute|calculate|convert|modify|update|mutate|"
+    r"raise|print|yield|find|determine|sort|filter|count)\w*\b",
+    re.IGNORECASE,
+)
+CODE_META_TASK = re.compile(
+    r"\b(?:explain|justify|rationale|prose|comment|comments|describe why)\b",
+    re.IGNORECASE,
+)
 VAGUE_MATH_REQUEST = re.compile(
     r"\b(?:the|an?|one|this|single|key|single key)\s+"
     r"(?:key\s+)?(?:equation|formula)\b",
@@ -86,12 +102,53 @@ DEFAULT_WORK_SAMPLE_PROMPTS: dict[WorkSampleKind, str] = {
         "Use the shared screen to show each step of the requested derivation."
     ),
     "code": (
-        "Use the shared screen to write the requested code or pseudocode."
+        "Complete the Python scaffold in the coding workspace."
     ),
     # Retained only so old persisted questions remain parseable. New
     # assumption and requirements questions are deliberately verbal.
     "assumptions": "",
 }
+
+GENERIC_TOPIC_LABELS = frozenset(
+    {
+        "background",
+        "conclusion",
+        "introduction",
+        "motivation",
+        "overview",
+        "problem statement",
+        "summary",
+    }
+)
+
+EVIDENCE_SEGMENT = re.compile(
+    r"(?P<marker>\[(?:N\d+:P\d+|S\d+)\])\s*"
+    r"(?P<text>.*?)"
+    r"(?=(?:\n\s*)?\[(?:N\d+:P\d+|S\d+)\]|\Z)",
+    re.DOTALL,
+)
+
+
+def _fallback_topic_label(label: str) -> str:
+    """Choose a meaningful candidate label from a hierarchical source path."""
+
+    parts = [
+        candidate_topic_label(part)
+        for part in label.split(" :: ")
+        if part.strip()
+    ]
+    if not parts:
+        return "this technical topic"
+    if parts[-1].casefold() not in GENERIC_TOPIC_LABELS:
+        return parts[-1]
+    return next(
+        (
+            part
+            for part in reversed(parts[:-1])
+            if part.casefold() not in GENERIC_TOPIC_LABELS
+        ),
+        parts[-1],
+    )
 
 
 def _fallback_evidence(topic: Topic) -> tuple[str, str]:
@@ -99,22 +156,57 @@ def _fallback_evidence(topic: Topic) -> tuple[str, str]:
 
     if not topic.allowed_markers:
         raise InterviewModelError("the active topic has no citable evidence")
-    marker = min(
-        topic.allowed_markers,
-        key=lambda value: (
-            topic.evidence_text.find(value)
-            if value in topic.evidence_text
-            else len(topic.evidence_text)
-        ),
-    )
-    after_marker = topic.evidence_text.split(marker, 1)[-1]
-    next_marker = re.search(r"\[(?:N\d+:P\d+|S\d+)\]", after_marker)
-    excerpt = after_marker[: next_marker.start() if next_marker else None]
-    words = " ".join(excerpt.split()).split()
-    excerpt = " ".join(words[:80]).strip(" -:;,.")
-    if not excerpt:
+    segments: list[tuple[str, str]] = []
+    for match in EVIDENCE_SEGMENT.finditer(topic.evidence_text):
+        marker = match.group("marker")
+        excerpt = " ".join(match.group("text").split()).strip(" -:;,.")
+        if marker in topic.allowed_markers and excerpt:
+            segments.append((marker, excerpt))
+    if not segments:
         raise InterviewModelError("the active topic has no readable evidence")
-    return marker, excerpt
+
+    path_labels = {
+        candidate_topic_label(part).casefold()
+        for part in topic.label.split(" :: ")
+        if part.strip()
+    }
+    substantive = [
+        (index, item)
+        for index, item in enumerate(segments)
+        if len(item[1]) >= 40
+        and candidate_topic_label(item[1]).casefold() not in path_labels
+    ]
+    if not substantive:
+        marker, excerpt = segments[0]
+        return marker, " ".join(excerpt.split()[:80]).strip(" -:;,.")
+
+    label_tokens = {
+        value
+        for value in re.findall(r"[a-z0-9]+", _fallback_topic_label(topic.label).lower())
+        if len(value) >= 4
+    }
+    anchor_index, (marker, excerpt) = next(
+        (
+            candidate
+            for candidate in substantive
+            if label_tokens
+            & set(re.findall(r"[a-z0-9]+", candidate[1][1].lower()))
+        ),
+        substantive[0],
+    )
+    # Consecutive blocks on the same cited page often split one explanation
+    # around a displayed equation. Join them into a useful private answer while
+    # staying inside the marker that will be cited.
+    answer_parts = [excerpt]
+    for next_marker, next_excerpt in segments[anchor_index + 1 :]:
+        if next_marker != marker:
+            break
+        if candidate_topic_label(next_excerpt).casefold() in path_labels:
+            continue
+        answer_parts.append(next_excerpt)
+        if len(" ".join(answer_parts).split()) >= 80:
+            break
+    return marker, " ".join(" ".join(answer_parts).split()[:80]).strip(" -:;,.")
 
 
 def _practical_fallback_scope(
@@ -131,7 +223,7 @@ def _practical_fallback_scope(
     first_clause = re.split(
         r"[.!?,;:]|\b(?:and\s+then|and\s+what|and\s+how|and\s+why|"
         r"and\s+which)\b",
-        candidate_topic_label(label),
+        _fallback_topic_label(label),
         maxsplit=1,
         flags=re.IGNORECASE,
     )[0]
@@ -246,7 +338,7 @@ def repair_numbered_fallback(question: InterviewQuestion) -> InterviewQuestion:
 
     if "fallback" not in question.interviewer_note.casefold():
         return question
-    label = candidate_topic_label(question.topic_label)
+    label = _fallback_topic_label(question.topic_label)
     if label == question.topic_label.split(" :: ")[-1].strip():
         return question
     replacement, expected_points = _practical_fallback_scope(
@@ -275,6 +367,7 @@ def repair_nonvisual_work_sample(question: InterviewQuestion) -> InterviewQuesti
         update={
             "work_sample": "none",
             "work_sample_prompt": None,
+            "coding_exercise": None,
             "interviewer_note": (
                 "Converted an irrelevant text-only screen exercise to a verbal answer."
             ),
@@ -297,7 +390,7 @@ def grounded_fallback_question(
     """
 
     marker, excerpt = _fallback_evidence(topic)
-    label = (topic.label.split(" :: ")[-1].strip() or "this topic")
+    label = _fallback_topic_label(topic.label)
     text, expected_points = _practical_fallback_scope(label, kind=kind)
     question = InterviewQuestion(
         topic_key=topic.key,
@@ -347,16 +440,39 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"\b[\w'-]+\b", text))
 
 
+def _asks_multiple_objectives(text: str) -> bool:
+    """Distinguish a scenario preamble from a genuinely appended request."""
+
+    return any(
+        OBJECTIVE_CUE.search(text[: match.start()])
+        for match in SECOND_OBJECTIVE.finditer(text)
+    )
+
+
 def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
     """Keep one candidate turn to one atomic interview objective."""
 
     text = " ".join(question.text.split())
     prompt = " ".join((question.work_sample_prompt or "").split())
-    if _word_count(text) > MAX_QUESTION_WORDS:
+    maximum_words = 45 if question.coding_exercise is not None else MAX_QUESTION_WORDS
+    if _word_count(text) > maximum_words:
         raise InterviewValidationError("the generated question is too broad for one turn")
-    if text.count("?") > 1 or len(re.findall(r"[.!?](?:\s|$)", text)) > 1:
+    if question.coding_exercise is not None:
+        if CODE_META_TASK.search(text):
+            raise InterviewValidationError(
+                "a coding question must not add a prose explanation or comment task"
+            )
+        if not CODE_OBSERVABLE_BEHAVIOR.search(text):
+            raise InterviewValidationError(
+                "a coding question must state its observable functional behavior"
+            )
+    terminal_count = len(re.findall(r"[.!?](?:\s|$)", text))
+    has_code_example = question.coding_exercise is not None and bool(
+        re.search(r"(?:^|\.\s+)(?:Example|For example):?\s", text, re.IGNORECASE)
+    )
+    if text.count("?") > 1 or terminal_count > (2 if has_code_example else 1):
         raise InterviewValidationError("the generated question contains multiple prompts")
-    if SECOND_OBJECTIVE.search(text):
+    if _asks_multiple_objectives(text):
         raise InterviewValidationError("the generated question asks for multiple objectives")
     if GENERIC_RECALL_QUESTION.search(text):
         raise InterviewValidationError(
@@ -392,6 +508,17 @@ def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
             raise InterviewValidationError(
                 "the work-sample instruction does not match the interview question"
             )
+    if question.work_sample == "code" and question.coding_exercise is None:
+        raise InterviewValidationError(
+            "a new coding question must include an executable Python scaffold"
+        )
+    if (
+        question.coding_exercise is not None
+        and not question.coding_exercise.hints
+    ):
+        raise InterviewValidationError(
+            "a new coding question must include at least one progressive hint"
+        )
     if _word_count(text) + _word_count(prompt) > MAX_SPOKEN_TURN_WORDS:
         raise InterviewValidationError("the complete spoken turn asks too much at once")
     return question
@@ -445,12 +572,20 @@ def apply_work_sample_policy(
     # second artifact is both repetitive and expensive.
     if question.kind != "primary":
         return question.model_copy(
-            update={"work_sample": "none", "work_sample_prompt": None}
+            update={
+                "work_sample": "none",
+                "work_sample_prompt": None,
+                "coding_exercise": None,
+            }
         )
     # Never request screen work on consecutive questions.
     if recent_questions and recent_questions[-1].work_sample != "none":
         return question.model_copy(
-            update={"work_sample": "none", "work_sample_prompt": None}
+            update={
+                "work_sample": "none",
+                "work_sample_prompt": None,
+                "coding_exercise": None,
+            }
         )
 
     # Topic evidence can suggest future questions, but it must never silently
@@ -471,7 +606,11 @@ def apply_work_sample_policy(
     )
     if work_sample == "none":
         return question.model_copy(
-            update={"work_sample": "none", "work_sample_prompt": None}
+            update={
+                "work_sample": "none",
+                "work_sample_prompt": None,
+                "coding_exercise": None,
+            }
         )
     authored_prompt = (
         (question.work_sample_prompt or "").strip()
@@ -495,6 +634,7 @@ def generate_question(
     prior_question: InterviewQuestion | None = None,
     candidate_answer: str | None = None,
     purpose: str | None = None,
+    require_coding_exercise: bool = False,
     model: Any | None = None,
 ) -> tuple[InterviewQuestion, float]:
     """Generate with grounding and non-repetition validation, retrying once."""
@@ -513,7 +653,17 @@ def generate_question(
             if attempt
             else None
         )
-        adaptive_purpose = " ".join(value for value in [purpose, repair] if value)
+        required_format = (
+            "This turn must be a source-grounded Python coding exercise. The audible "
+            "question must explicitly ask the candidate to implement, write, or debug "
+            "code, and the response must include work_sample `code` plus a complete "
+            "coding_exercise scaffold. Do not substitute a verbal question."
+            if require_coding_exercise
+            else None
+        )
+        adaptive_purpose = " ".join(
+            value for value in [purpose, required_format, repair] if value
+        )
         try:
             question, cost = invoke_structured(
                 client,
@@ -556,15 +706,28 @@ def generate_question(
                 interview_format=interview_format,
                 recent_questions=recent_questions,
             )
-            return validate_question_focus(focused), total_cost
+            focused = validate_question_focus(focused)
+            if require_coding_exercise and (
+                focused.work_sample != "code" or focused.coding_exercise is None
+            ):
+                raise InterviewValidationError(
+                    "the requested coding exercise was replaced by a verbal question"
+                )
+            return focused, total_cost
         except InterviewValidationError as error:
             last_error = error
+    reason = str(last_error or "question validation failed")
+    if require_coding_exercise:
+        raise InterviewModelError(
+            f"could not generate the requested coding exercise: {reason}"
+        ) from last_error
     logger.warning(
-        "Using grounded fallback after question generation failed validation",
+        "Using grounded fallback after question generation failed validation: %s",
+        reason,
         extra={
             "topic_key": topic.key,
             "question_kind": kind,
-            "reason": str(last_error or "question validation failed"),
+            "reason": reason,
         },
     )
     return (

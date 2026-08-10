@@ -63,4 +63,18 @@ describe("SplitPane", () => {
     expect(document.body.style.cursor).toBe("");
     expect(document.body.style.userSelect).toBe("");
   });
+
+  it("keeps the workspace mounted when a document opens and closes", () => {
+    const workspace = <div data-testid="workspace">Conversation</div>;
+    const { rerender } = render(
+      <SplitPane aside={null}>{workspace}</SplitPane>,
+    );
+    const original = screen.getByTestId("workspace");
+
+    rerender(<SplitPane aside={<div>Document</div>}>{workspace}</SplitPane>);
+    expect(screen.getByTestId("workspace")).toBe(original);
+
+    rerender(<SplitPane aside={null}>{workspace}</SplitPane>);
+    expect(screen.getByTestId("workspace")).toBe(original);
+  });
 });

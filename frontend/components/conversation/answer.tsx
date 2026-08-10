@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { createContext, useContext, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -183,6 +183,85 @@ export interface AnswerProps {
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
 }
 
+interface AnswerRenderState {
+  evidence: EvidenceRef[];
+  citations: CitationRef[];
+  figures: FigureRef[];
+  onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  renderedFigures: Set<number>;
+}
+
+const AnswerRenderContext = createContext<AnswerRenderState | null>(null);
+
+function useAnswerRenderState(): AnswerRenderState {
+  const value = useContext(AnswerRenderContext);
+  if (!value) throw new Error("Markdown answer rendered outside its context");
+  return value;
+}
+
+/**
+ * Static markdown component identities matter here. These renderers used to be
+ * anonymous functions created inside `Answer` on every render. Scrolling,
+ * dragging a side chat, or toggling the jump button then looked to React like
+ * entirely new paragraph components, so inline figures unmounted, revoked
+ * their blob URLs, and fetched again.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function MarkdownCitation({ node }: any) {
+  const { evidence, citations, onOpenReference } = useAnswerRenderState();
+  const index = Number(node?.properties?.dataIndex ?? 0);
+  const marker = String(node?.properties?.dataMarker ?? "");
+  const resolved = resolveMarker(marker, evidence, citations);
+  return (
+    <CitationChip
+      index={index}
+      reference={evidence[index - 1]}
+      page={markerPage(resolved)}
+      onOpen={onOpenReference}
+    />
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function MarkdownParagraph({ children, node }: any) {
+  const { evidence, citations, figures, renderedFigures } =
+    useAnswerRenderState();
+  const markers: string[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const walk = (element: any) => {
+    if (!element) return;
+    if (element.tagName === "citation-ref") {
+      markers.push(String(element.properties?.dataMarker ?? ""));
+    }
+    (element.children ?? []).forEach(walk);
+  };
+  (node?.children ?? []).forEach(walk);
+
+  const attached: FigureRef[] = [];
+  for (const marker of markers) {
+    const resolved = resolveMarker(marker, evidence, citations);
+    for (const figure of figuresForMarker(figures, resolved)) {
+      if (renderedFigures.has(figure.block_id)) continue;
+      renderedFigures.add(figure.block_id);
+      attached.push(figure);
+    }
+  }
+
+  return (
+    <>
+      <p>{children}</p>
+      {attached.map((figure) => (
+        <InlineFigure key={figure.block_id} figure={figure} />
+      ))}
+    </>
+  );
+}
+
+const ANSWER_MARKDOWN_COMPONENTS = {
+  "citation-ref": MarkdownCitation,
+  p: MarkdownParagraph,
+} as never;
+
 export function Answer({
   text,
   evidence,
@@ -195,78 +274,33 @@ export function Answer({
     [evidence, citations],
   );
   const source = useMemo(() => normalizeMath(text), [text]);
-
-  // A figure is placed after the paragraph that cites it, the way a textbook
-  // sets one beside the passage discussing it — rather than collected into a
-  // gallery at the end, where the reader has to work out which sentence each
-  // one belongs to. Attachment goes through the marker, because the two answer
-  // routes carry different evidence: a retrieval answer has ranks, a summary
-  // has nodes and pages.
-  const rendered = new Set<number>();
+  // Each markdown pass needs a fresh set so the first mention wins again. The
+  // renderer *types* above stay static, which is what preserves their DOM and
+  // hook state while this context value updates.
+  const renderState: AnswerRenderState = {
+    evidence,
+    citations,
+    figures,
+    onOpenReference,
+    renderedFigures: new Set<number>(),
+  };
 
   return (
     // Marks the answer body as the region a side chat can be anchored to. The
     // reference cards and controls around it are interface, not passages: a
     // quote of "8 Advanced Practice" anchors nothing worth asking about.
-    <div className="answer-prose" data-answer="">
-      <ReactMarkdown
-        remarkPlugins={[remarkMath]}
-        // KaTeX runs before the citation pass so that markers are never
-        // rewritten inside a rendered formula.
-        rehypePlugins={[[rehypeKatex, { throwOnError: false }], plugin]}
-        components={{
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          "citation-ref": ({ node }: any) => {
-            const index = Number(node?.properties?.dataIndex ?? 0);
-            const marker = String(node?.properties?.dataMarker ?? "");
-            const resolved = resolveMarker(marker, evidence, citations);
-            return (
-              <CitationChip
-                index={index}
-                reference={evidence[index - 1]}
-                page={markerPage(resolved)}
-                onOpen={onOpenReference}
-              />
-            );
-          },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          p: ({ children, node }: any) => {
-            // Which markers does this paragraph carry? Their figures follow it.
-            const markers: string[] = [];
-            const walk = (element: any) => {
-              if (!element) return;
-              if (element.tagName === "citation-ref") {
-                markers.push(String(element.properties?.dataMarker ?? ""));
-              }
-              (element.children ?? []).forEach(walk);
-            };
-            (node?.children ?? []).forEach(walk);
-
-            const attached: FigureRef[] = [];
-            for (const marker of markers) {
-              const resolved = resolveMarker(marker, evidence, citations);
-              for (const figure of figuresForMarker(figures, resolved)) {
-                // A figure cited twice belongs beside its first mention.
-                if (rendered.has(figure.block_id)) continue;
-                rendered.add(figure.block_id);
-                attached.push(figure);
-              }
-            }
-
-            return (
-              <>
-                <p>{children}</p>
-                {attached.map((figure) => (
-                  <InlineFigure key={figure.block_id} figure={figure} />
-                ))}
-              </>
-            );
-          },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any}
-      >
-        {source}
-      </ReactMarkdown>
-    </div>
+    <AnswerRenderContext.Provider value={renderState}>
+      <div className="answer-prose" data-answer="">
+        <ReactMarkdown
+          remarkPlugins={[remarkMath]}
+          // KaTeX runs before the citation pass so that markers are never
+          // rewritten inside a rendered formula.
+          rehypePlugins={[[rehypeKatex, { throwOnError: false }], plugin]}
+          components={ANSWER_MARKDOWN_COMPONENTS}
+        >
+          {source}
+        </ReactMarkdown>
+      </div>
+    </AnswerRenderContext.Provider>
   );
 }

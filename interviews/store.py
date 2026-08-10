@@ -20,6 +20,7 @@ from .contracts import (
     InterviewQuestion,
     InterviewSession,
     InterviewTurn,
+    PythonCodingAnswer,
     ScreenObservation,
     WebSource,
 )
@@ -36,6 +37,7 @@ class InterviewStateError(RuntimeError):
 SESSION_COLUMNS = """
     id, source_kind, book_id, node_id, video_id, scope_key, title,
     source_title, interview_format, format_source, feedback_mode, target_level,
+    coding_exercise_requested,
     maximum_duration_minutes, estimated_min_minutes, estimated_max_minutes,
     status, elapsed_seconds, active_since, started_at, completed_at, state_json,
     metrics_json, total_cost_usd, created_at, updated_at
@@ -75,6 +77,11 @@ def _turn(row: dict[str, Any]) -> InterviewTurn:
         turn_index=row["turn_index"],
         question=question,
         answer_text=row["answer_text"],
+        coding_answer=(
+            PythonCodingAnswer.model_validate(row["coding_answer_json"])
+            if row["coding_answer_json"]
+            else None
+        ),
         transcript_corrected=bool(row["transcript_corrected"]),
         evaluation=evaluation,
         citations=[
@@ -88,6 +95,9 @@ def _turn(row: dict[str, Any]) -> InterviewTurn:
             else None
         ),
         hints_used=row["hints_used"],
+        available_coding_hints=(
+            len(question.coding_exercise.hints) if question.coding_exercise else 0
+        ),
         cost_usd=float(row["cost_usd"] or 0),
         created_at=row["created_at"],
         answered_at=row["answered_at"],
@@ -99,7 +109,8 @@ def load_turns(
 ) -> list[InterviewTurn]:
     rows = connection.execute(
         """
-        select turn_index, question_json, answer_text, transcript_corrected,
+        select turn_index, question_json, answer_text, coding_answer_json,
+               transcript_corrected,
                evaluation_json, citations_json, web_sources_json,
                screen_observation_json, hints_used, cost_usd, created_at,
                answered_at
@@ -133,6 +144,7 @@ def _session(
         format_source=row["format_source"],
         feedback_mode=row["feedback_mode"],
         target_level=row["target_level"],
+        coding_exercise_requested=bool(row["coding_exercise_requested"]),
         maximum_duration_minutes=row["maximum_duration_minutes"],
         estimated_min_minutes=row["estimated_min_minutes"],
         estimated_max_minutes=row["estimated_max_minutes"],
@@ -165,6 +177,7 @@ def create_session(
     format_source: str,
     feedback_mode: str,
     target_level: str,
+    coding_exercise_requested: bool,
     maximum_duration_minutes: int,
     estimated_min_minutes: int,
     estimated_max_minutes: int,
@@ -179,11 +192,12 @@ def create_session(
             owner_id, source_kind, book_id, node_id, video_id,
             ingestion_version_id, scope_key, title, source_title,
             interview_format, format_source, feedback_mode, target_level,
+            coding_exercise_requested,
             maximum_duration_minutes, estimated_min_minutes,
             estimated_max_minutes, state_json, generation_model, prompt_version
         )
         values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s)
+                %s, %s, %s, %s, %s, %s, %s)
         returning {SESSION_COLUMNS}
         """,
         (
@@ -200,6 +214,7 @@ def create_session(
             format_source,
             feedback_mode,
             target_level,
+            coding_exercise_requested,
             maximum_duration_minutes,
             estimated_min_minutes,
             estimated_max_minutes,
@@ -320,7 +335,8 @@ def insert_question(
                %s, %s, %s, %s
         from public.interview_turns
         where session_id = %s and owner_id = %s
-        returning turn_index, question_json, answer_text, transcript_corrected,
+        returning turn_index, question_json, answer_text, coding_answer_json,
+                  transcript_corrected,
                   evaluation_json, citations_json, web_sources_json,
                   screen_observation_json, hints_used, cost_usd, created_at,
                   answered_at
@@ -357,6 +373,7 @@ def settle_turn(
     owner_id: str | UUID,
     turn_index: int,
     answer_text: str,
+    coding_answer: PythonCodingAnswer | None,
     transcript_corrected: bool,
     evaluation: AnswerEvaluation,
     citations: list[InterviewCitation],
@@ -370,19 +387,21 @@ def settle_turn(
         row = connection.execute(
             """
             update public.interview_turns
-            set answer_text = %s, transcript_corrected = %s,
+            set answer_text = %s, coding_answer_json = %s, transcript_corrected = %s,
                 classification = %s, scores_json = %s, evaluation_json = %s,
                 citations_json = %s, web_sources_json = %s,
                 cost_usd = cost_usd + %s, answered_at = now()
             where session_id = %s and owner_id = %s and turn_index = %s
               and answer_text is null
-            returning turn_index, question_json, answer_text, transcript_corrected,
+            returning turn_index, question_json, answer_text, coding_answer_json,
+                      transcript_corrected,
                       evaluation_json, citations_json, web_sources_json,
                       screen_observation_json, hints_used, cost_usd, created_at,
                       answered_at
             """,
             (
                 answer_text.strip(),
+                Jsonb(coding_answer.model_dump(mode="json")) if coding_answer else None,
                 transcript_corrected,
                 evaluation.classification,
                 Jsonb(evaluation.scores.model_dump(mode="json")),
@@ -413,6 +432,48 @@ def settle_turn(
             ),
         )
     return _turn(row)
+
+
+def use_coding_hint(
+    connection: Connection,
+    session_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    turn_index: int,
+    hints_used: int,
+    checkpoint: InterviewCheckpoint,
+) -> None:
+    owner = parse_owner_id(owner_id)
+    with connection.transaction():
+        result = connection.execute(
+            """
+            update public.interview_turns
+            set hints_used = %s
+            where session_id = %s and owner_id = %s and turn_index = %s
+              and answer_text is null and hints_used < %s
+            """,
+            (
+                hints_used,
+                UUID(str(session_id)),
+                owner,
+                turn_index,
+                hints_used,
+            ),
+        )
+        if result.rowcount != 1:
+            raise InterviewStateError("that coding hint is already visible or unavailable")
+        connection.execute(
+            """
+            update public.interview_sessions
+            set state_json = %s, updated_at = now()
+            where id = %s and owner_id = %s
+            """,
+            (
+                Jsonb(checkpoint.model_dump(mode="json")),
+                UUID(str(session_id)),
+                owner,
+            ),
+        )
 
 
 def save_checkpoint(

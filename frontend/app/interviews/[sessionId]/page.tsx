@@ -23,6 +23,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import {
+  emptyPythonExecution,
+  PythonCodingWorkspace,
+} from "@/components/interviews/python-coding-workspace";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -73,6 +77,7 @@ import {
   type InterviewReport,
   type InterviewSession,
   type InterviewTurn,
+  type PythonExecutionResult,
 } from "@/lib/interview-types";
 import { accessToken } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -82,6 +87,17 @@ const SYSTEM_DEFAULT_MICROPHONE = "__system_default__";
 const ANSWER_SUBMISSION_TIMEOUT_MS = 50_000;
 const TRANSCRIPTION_TIMEOUT_MS = 30_000;
 const SUBMISSION_RECONCILIATION_DELAYS_MS = [0, 2_000, 4_000, 6_000] as const;
+
+interface CodingDraft {
+  key: string;
+  code: string;
+  scratchTests: string;
+  execution: PythonExecutionResult;
+}
+
+function codingDraftKey(sessionId: string, turnIndex: number): string {
+  return `interview-coding-draft:${sessionId}:${turnIndex}`;
+}
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -206,6 +222,16 @@ function InterviewExchange({
         <p className="text-xs font-medium opacity-70">You</p>
         <p className="mt-1.5 text-sm leading-6">{turn.answer_text}</p>
       </div>
+      {turn.coding_answer ? (
+        <details className="ml-auto max-w-[94%] rounded-xl border bg-card p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Submitted Python code · {turn.coding_answer.execution.status.replace("_", " ")}
+          </summary>
+          <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 font-mono text-xs leading-5">
+            {turn.coding_answer.code}
+          </pre>
+        </details>
+      ) : null}
       {turn.interviewer_reaction ? (
         <div className="max-w-[88%] rounded-2xl rounded-tl-sm border border-primary/20 bg-primary/[0.035] p-4">
           <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
@@ -251,6 +277,39 @@ function SessionReportView({ report }: { report: InterviewReport }) {
       </div>
 
       <div className="space-y-4"><h2 className="font-heading text-xl font-semibold">Question review</h2>{session.turns.filter((turn) => turn.answer_text).map((turn) => <Card key={turn.turn_index}><CardContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{turn.turn_index + 1}</span><div className="min-w-0 flex-1"><p className="font-medium leading-6">{turn.question.text}</p><p className="mt-3 rounded-lg bg-muted/70 p-3 text-sm leading-6">{turn.answer_text}</p>{turn.evaluation ? <><Feedback evaluation={turn.evaluation} /><div className="mt-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recommended answer</p><p className="mt-2 text-sm leading-6">{turn.evaluation.recommended_answer}</p></div></> : null}<div className="mt-4 flex flex-wrap gap-2">{turn.citations.map((citation) => citation.page && session.book_id ? <Link key={citation.marker} href={`/?book=${session.book_id}&page=${citation.page}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · p. {citation.page}<ExternalLink aria-hidden className="size-3" /></Link> : citation.start_ms !== null && session.video_id ? <Link key={citation.marker} href={`/videos/${session.video_id}?t=${Math.floor(citation.start_ms / 1000)}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · {clock(citation.start_ms / 1000)}<ExternalLink aria-hidden className="size-3" /></Link> : null)}{turn.web_sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">Web {source.rank}<ExternalLink aria-hidden className="size-3" /></a>)}</div></div></div></CardContent></Card>)}</div>
+      {session.turns.some((turn) => turn.coding_answer) ? (
+        <div className="space-y-4">
+          <h2 className="font-heading text-xl font-semibold">Submitted code</h2>
+          {session.turns.filter((turn) => turn.coding_answer).map((turn) => (
+            <Card key={`code-${turn.turn_index}`}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Question {turn.turn_index + 1} · Python</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <Badge variant={turn.coding_answer?.execution.status === "passed" ? "default" : "secondary"}>
+                    {turn.coding_answer?.execution.status.replace("_", " ")}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {turn.hints_used} {turn.hints_used === 1 ? "hint" : "hints"} used
+                  </span>
+                </div>
+                <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/70 p-4 font-mono text-xs leading-5">
+                  {turn.coding_answer?.code}
+                </pre>
+                {turn.coding_answer?.scratch_tests ? (
+                  <details className="mt-3 rounded-lg border p-3">
+                    <summary className="cursor-pointer text-sm font-medium">Candidate scratch tests</summary>
+                    <pre className="mt-3 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/70 p-3 font-mono text-xs leading-5">
+                      {turn.coding_answer.scratch_tests}
+                    </pre>
+                  </details>
+                ) : null}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -261,6 +320,7 @@ export default function InterviewWorkspace() {
   const [interview, setInterview] = useState<InterviewSession | null>(null);
   const [report, setReport] = useState<InterviewReport | null>(null);
   const [answer, setAnswer] = useState("");
+  const [codingDraft, setCodingDraft] = useState<CodingDraft | null>(null);
   const [transcriptCorrected, setTranscriptCorrected] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [operation, setOperation] = useState<InterviewOperation>("idle");
@@ -286,6 +346,13 @@ export default function InterviewWorkspace() {
 
   const pending = interview ? pendingTurn(interview) : null;
   const current = transitionTurnIndex === null ? pending : null;
+  const codingExercise = current?.question.coding_exercise ?? null;
+  const activeCodingKey = current && codingExercise
+    ? codingDraftKey(sessionId, current.turn_index)
+    : null;
+  const activeCodingDraft = activeCodingKey && codingDraft?.key === activeCodingKey
+    ? codingDraft
+    : null;
   const busy = operation !== "idle";
   const submissionLocked = ["submitting_answer", "checking_submission"].includes(operation);
   const screenBusy = operation === "screen_checkpoint";
@@ -299,7 +366,11 @@ export default function InterviewWorkspace() {
   );
 
   useEffect(() => {
-    if (current && current.question.work_sample === "none" && screen.sharing) {
+    if (
+      current &&
+      (current.question.work_sample === "none" || current.question.coding_exercise) &&
+      screen.sharing
+    ) {
       screen.stop();
     }
   }, [current, screen.sharing, screen.stop]);
@@ -322,6 +393,8 @@ export default function InterviewWorkspace() {
     loadedAtRef.current = Date.now();
     if (reaction) setTransitionTurnIndex(answeredTurnIndex);
     setInterview(updated);
+    window.localStorage.removeItem(codingDraftKey(sessionId, answeredTurnIndex));
+    setCodingDraft(null);
     setAnswer("");
     setTranscriptCorrected(false);
     setSubmitError("");
@@ -353,6 +426,7 @@ export default function InterviewWorkspace() {
       !interview ||
       interview.status !== "active" ||
       submissionLocked ||
+      (codingExercise && (!activeCodingDraft || !activeCodingDraft.code.trim())) ||
       submissionInFlightRef.current
     ) return;
     // React state does not disable the button until the next render. This ref
@@ -374,9 +448,21 @@ export default function InterviewWorkspace() {
       ANSWER_SUBMISSION_TIMEOUT_MS,
     );
     try {
+      const codingAnswer = codingExercise && activeCodingDraft
+        ? {
+            language: "python" as const,
+            code: activeCodingDraft.code,
+            scratch_tests: activeCodingDraft.scratchTests,
+            execution: activeCodingDraft.execution,
+          }
+        : null;
       const updated = await apiFetch<InterviewSession>(`/interviews/${sessionId}/answers`, {
         method: "POST",
-        body: JSON.stringify({ answer_text: value, transcript_corrected: corrected }),
+        body: JSON.stringify({
+          answer_text: value,
+          transcript_corrected: corrected,
+          coding_answer: codingAnswer,
+        }),
         signal: controller.signal,
       });
       await acceptSubmittedAnswer(updated, answeredTurnIndex);
@@ -423,7 +509,23 @@ export default function InterviewWorkspace() {
       submissionInFlightRef.current = false;
       endOperation();
     }
-  }, [acceptSubmittedAnswer, beginOperation, current, endOperation, interview, sessionId, submissionLocked]);
+  }, [acceptSubmittedAnswer, activeCodingDraft, beginOperation, codingExercise, current, endOperation, interview, sessionId, submissionLocked]);
+
+  const revealCodingHint = useCallback(async () => {
+    if (!current || !codingExercise || interview?.feedback_mode !== "guided") return;
+    beginOperation("revealing_coding_hint");
+    setError("");
+    try {
+      setInterview(await apiFetch<InterviewSession>(
+        `/interviews/${sessionId}/coding-hints`,
+        { method: "POST" },
+      ));
+    } catch (failure) {
+      setError((failure as Error).message || "The next coding hint could not be revealed.");
+    } finally {
+      endOperation("revealing_coding_hint");
+    }
+  }, [beginOperation, codingExercise, current, endOperation, interview?.feedback_mode, sessionId]);
 
   const handleRecording = useCallback(async (recording: Blob) => {
     const draftEpoch = draftEpochRef.current;
@@ -540,6 +642,38 @@ export default function InterviewWorkspace() {
     setClarificationError("");
     setDictationTarget("answer");
   }, [current?.turn_index, setDictationTarget]);
+
+  useEffect(() => {
+    if (!activeCodingKey || !codingExercise) {
+      setCodingDraft(null);
+      return;
+    }
+    let restored: (Partial<CodingDraft> & { explanation?: string }) = {};
+    try {
+      restored = JSON.parse(
+        window.localStorage.getItem(activeCodingKey) ?? "{}",
+      ) as Partial<CodingDraft> & { explanation?: string };
+    } catch {
+      window.localStorage.removeItem(activeCodingKey);
+    }
+    setCodingDraft({
+      key: activeCodingKey,
+      code: restored.code || codingExercise.starter_code,
+      scratchTests: restored.scratchTests || "",
+      execution: restored.execution || emptyPythonExecution(),
+    });
+    if (typeof restored.explanation === "string") {
+      setAnswer(restored.explanation);
+    }
+  }, [activeCodingKey, codingExercise?.starter_code]);
+
+  useEffect(() => {
+    if (!activeCodingKey || !activeCodingDraft) return;
+    window.localStorage.setItem(
+      activeCodingKey,
+      JSON.stringify({ ...activeCodingDraft, explanation: answer }),
+    );
+  }, [activeCodingDraft, activeCodingKey, answer]);
 
   useEffect(() => {
     const shouldListen =
@@ -834,7 +968,9 @@ export default function InterviewWorkspace() {
                           </div>
                         </div>
                       ) : null}
-                      {current.question.work_sample !== "none" && current.question.work_sample_prompt ? (
+                      {current.question.work_sample !== "none" &&
+                      !current.question.coding_exercise &&
+                      current.question.work_sample_prompt ? (
                         <div className="mt-4 rounded-xl border border-primary/25 bg-primary/[0.045] p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
@@ -879,6 +1015,29 @@ export default function InterviewWorkspace() {
                       {current.screen_observation ? <Alert className="mt-4"><MonitorUp aria-hidden /><AlertDescription>Screen checkpoint received: {current.screen_observation.summary}</AlertDescription></Alert> : null}
                     </CardContent>
                   </Card>
+                ) : null}
+
+                {current && codingExercise && activeCodingDraft && interview.status === "active" ? (
+                  <PythonCodingWorkspace
+                    exercise={codingExercise}
+                    code={activeCodingDraft.code}
+                    scratchTests={activeCodingDraft.scratchTests}
+                    execution={activeCodingDraft.execution}
+                    disabled={submissionLocked}
+                    hintsUsed={current.hints_used}
+                    availableHints={current.available_coding_hints ?? 0}
+                    hintLoading={operation === "revealing_coding_hint"}
+                    onCodeChange={(code) => setCodingDraft((draft) =>
+                      draft?.key === activeCodingKey ? { ...draft, code } : draft
+                    )}
+                    onScratchTestsChange={(scratchTests) => setCodingDraft((draft) =>
+                      draft?.key === activeCodingKey ? { ...draft, scratchTests } : draft
+                    )}
+                    onExecution={(execution) => setCodingDraft((draft) =>
+                      draft?.key === activeCodingKey ? { ...draft, execution } : draft
+                    )}
+                    onRevealHint={interview.feedback_mode === "guided" ? () => void revealCodingHint() : undefined}
+                  />
                 ) : null}
 
                 {current && interview.status === "active" ? (
@@ -967,7 +1126,9 @@ export default function InterviewWorkspace() {
                           setAnswer(event.target.value);
                           setTranscriptCorrected(true);
                         }}
-                        placeholder="Speak or type your answer. Nothing is sent until you choose Send answer."
+                        placeholder={codingExercise
+                          ? "Explain your approach, complexity, and any trade-offs. Code and explanation are submitted together."
+                          : "Speak or type your answer. Nothing is sent until you choose Send answer."}
                         className="min-h-32 resize-y text-base leading-6"
                         disabled={submissionLocked}
                       />
@@ -1026,6 +1187,7 @@ export default function InterviewWorkspace() {
                         <Button
                           disabled={
                             !answer.trim() ||
+                            Boolean(codingExercise && !activeCodingDraft?.code.trim()) ||
                             submissionLocked
                           }
                           onClick={() => {
@@ -1064,7 +1226,40 @@ export default function InterviewWorkspace() {
               </div>
 
               <aside className="space-y-4">
-                <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><MonitorUp aria-hidden className="size-4" />Screen workspace</CardTitle></CardHeader><CardContent><p className="text-xs leading-5 text-muted-foreground">{current && current.question.work_sample !== "none" && current.question.work_sample_prompt ? `${workSampleLabel(current.question.work_sample)} requested. Share the requested diagram, derivation, or code when it is ready.` : "No screen task for this question. Answer verbally or in the text box."} Nothing is continuously uploaded.</p><video ref={screen.videoRef} muted playsInline className={cn("mt-3 aspect-video w-full rounded-lg border bg-black object-contain", !screen.sharing && "hidden")} /> {current && current.question.work_sample !== "none" ? <div className="mt-3 flex gap-2">{!screen.sharing ? <Button variant="outline" size="sm" className="w-full" disabled={!screen.supported || interview.status !== "active" || busy} onClick={() => void screen.start()}><MonitorUp aria-hidden />Share screen</Button> : <><Button size="sm" className="flex-1" disabled={busy} onClick={() => void submitScreen()}>{screenBusy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}{screenBusy ? "Analyzing checkpoint…" : "Submit screen"}</Button><Button variant="outline" size="icon-sm" aria-label="Stop sharing" onClick={screen.stop}><Square aria-hidden /></Button></>}</div> : null}</CardContent></Card>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <MonitorUp aria-hidden className="size-4" />
+                      {codingExercise ? "Coding workspace" : "Screen workspace"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      {codingExercise
+                        ? "Python runs locally in a resettable browser worker. Your source is uploaded only with the answer you explicitly submit."
+                        : current && current.question.work_sample !== "none" && current.question.work_sample_prompt
+                          ? `${workSampleLabel(current.question.work_sample)} requested. Share the requested diagram or derivation when it is ready. Nothing is continuously uploaded.`
+                          : "No screen task for this question. Answer verbally or in the text box. Nothing is continuously uploaded."}
+                    </p>
+                    {!codingExercise ? (
+                      <>
+                        <video ref={screen.videoRef} muted playsInline className={cn("mt-3 aspect-video w-full rounded-lg border bg-black object-contain", !screen.sharing && "hidden")} />
+                        {current && current.question.work_sample !== "none" ? (
+                          <div className="mt-3 flex gap-2">
+                            {!screen.sharing ? (
+                              <Button variant="outline" size="sm" className="w-full" disabled={!screen.supported || interview.status !== "active" || busy} onClick={() => void screen.start()}><MonitorUp aria-hidden />Share screen</Button>
+                            ) : (
+                              <>
+                                <Button size="sm" className="flex-1" disabled={busy} onClick={() => void submitScreen()}>{screenBusy ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : null}{screenBusy ? "Analyzing checkpoint…" : "Submit screen"}</Button>
+                                <Button variant="outline" size="icon-sm" aria-label="Stop sharing" onClick={screen.stop}><Square aria-hidden /></Button>
+                              </>
+                            )}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </CardContent>
+                </Card>
                 <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Clock3 aria-hidden className="size-4" />Session budget</CardTitle></CardHeader><CardContent><div className="flex items-end justify-between"><div><p className="font-heading text-2xl font-semibold">${interview.total_cost_usd.toFixed(4)}</p><p className="text-xs text-muted-foreground">≈₹{(interview.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)} provider cost</p></div><span className="text-xs text-muted-foreground">Target ₹5–10</span></div><Progress className="mt-3" value={Math.min(100, (interview.total_cost_usd * INR_PER_USD_ESTIMATE / 10) * 100)} /><p className="mt-3 text-xs leading-5 text-muted-foreground">Raw audio and screen images are discarded after processing.</p></CardContent></Card>
               </aside>
             </div>
