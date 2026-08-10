@@ -23,7 +23,7 @@ from .models import (
     invoke_structured,
     structured_model,
 )
-from .prompts import build_question_messages
+from .prompts import build_question_messages, candidate_topic_label
 
 
 logger = logging.getLogger("study_partner.interviews.questions")
@@ -131,7 +131,7 @@ def _practical_fallback_scope(
     first_clause = re.split(
         r"[.!?,;:]|\b(?:and\s+then|and\s+what|and\s+how|and\s+why|"
         r"and\s+which)\b",
-        label,
+        candidate_topic_label(label),
         maxsplit=1,
         flags=re.IGNORECASE,
     )[0]
@@ -237,6 +237,28 @@ def repair_legacy_recall_fallback(question: InterviewQuestion) -> InterviewQuest
             "interviewer_note": (
                 "Repaired a legacy recall-oriented continuity fallback."
             ),
+        }
+    )
+
+
+def repair_numbered_fallback(question: InterviewQuestion) -> InterviewQuestion:
+    """Remove a printed section ordinal leaked by an older fallback question."""
+
+    if "fallback" not in question.interviewer_note.casefold():
+        return question
+    label = candidate_topic_label(question.topic_label)
+    if label == question.topic_label.split(" :: ")[-1].strip():
+        return question
+    replacement, expected_points = _practical_fallback_scope(
+        label,
+        kind=question.kind,
+        alternate=question.text.casefold().startswith("what other"),
+    )
+    return question.model_copy(
+        update={
+            "text": replacement,
+            "expected_points": expected_points,
+            "interviewer_note": "Repaired a fallback that leaked a section ordinal.",
         }
     )
 

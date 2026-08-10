@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from hashlib import sha256
+import re
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -20,7 +21,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v6"
+PROMPT_VERSION = "adaptive-interview-v7"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -66,6 +67,19 @@ def _format_name(value: InterviewFormat) -> str:
     return value.replace("_", " ")
 
 
+HEADING_ORDINAL = re.compile(
+    r"^(?:(?:chapter|section)\s+)?\d+(?:\.\d+)*(?:[.)])?\s+(?=[A-Za-z])",
+    re.IGNORECASE,
+)
+
+
+def candidate_topic_label(label: str) -> str:
+    """Return a source heading without hierarchy or printed section numbering."""
+
+    leaf = label.split(" :: ")[-1].strip()
+    return HEADING_ORDINAL.sub("", leaf).strip() or "this technical topic"
+
+
 def build_question_messages(
     *,
     inventory: ScopeInventory,
@@ -84,7 +98,7 @@ def build_question_messages(
         f"Interview format: {_format_name(interview_format)}",
         f"Target level: {target_level}",
         f"Question kind: {kind}",
-        f"Active topic: {topic.label}",
+        f"Active topic: {candidate_topic_label(topic.label)}",
     ]
     if prior_question is not None:
         context.append(f"Previous question: {prior_question.text}")

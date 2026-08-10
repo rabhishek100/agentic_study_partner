@@ -45,6 +45,7 @@ from interviews.question_generation import (
     grounded_fallback_question,
     repair_legacy_recall_fallback,
     repair_nonvisual_work_sample,
+    repair_numbered_fallback,
     validate_question_focus,
     validate_question_progression,
 )
@@ -497,6 +498,39 @@ class GroundingTests(unittest.TestCase):
         self.assertEqual(model.calls, 1)
         self.assertEqual(generated.citation_markers, ["[N7:P42]"])
         self.assertEqual(cost, 0.0)
+
+    def test_fallback_strips_a_printed_section_number(self) -> None:
+        numbered = replace(topic(), label="3 Linear Regression")
+
+        generated = grounded_fallback_question(
+            topic=numbered,
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+        )
+
+        self.assertEqual(
+            generated.text,
+            "How would you use Linear Regression in a practical system?",
+        )
+
+    def test_saved_numbered_fallback_is_repaired_on_load(self) -> None:
+        legacy = question().model_copy(
+            update={
+                "topic_label": "3 Linear Regression",
+                "text": "How would you use 3 Linear Regression in a practical system?",
+                "interviewer_note": (
+                    "Deterministic continuity fallback after question validation."
+                ),
+            }
+        )
+
+        repaired = repair_numbered_fallback(legacy)
+
+        self.assertEqual(
+            repaired.text,
+            "How would you use Linear Regression in a practical system?",
+        )
 
     def test_fallback_changes_shape_after_a_repeated_question(self) -> None:
         previous = question().model_copy(

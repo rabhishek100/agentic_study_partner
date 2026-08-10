@@ -60,10 +60,11 @@ def _turn(row: dict[str, Any]) -> InterviewTurn:
     from .question_generation import (
         repair_legacy_recall_fallback,
         repair_nonvisual_work_sample,
+        repair_numbered_fallback,
     )
 
     question = repair_nonvisual_work_sample(
-        repair_legacy_recall_fallback(question)
+        repair_numbered_fallback(repair_legacy_recall_fallback(question))
     )
     evaluation = (
         AnswerEvaluation.model_validate(row["evaluation_json"])
