@@ -987,6 +987,10 @@ def parse_book(
     """
 
     book_cache = Path(book_cache)
+    if elements_cache == ELEMENTS_CACHE:
+        elements_cache = book_cache.parent / f"elements_{pdf_path.stem}.json"
+    else:
+        elements_cache = Path(elements_cache)
     if toc_override is None:
         selected_toc, page_count = extract_toc(pdf_path)
     else:

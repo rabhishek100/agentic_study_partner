@@ -79,6 +79,7 @@ export interface LibraryRailProps {
   hasConversation: boolean;
   onBooksChanged: () => void;
   history: ConversationHistoryProps;
+  documentType?: "book" | "paper";
 }
 
 export function LibraryRail({
@@ -93,6 +94,7 @@ export function LibraryRail({
   hasConversation,
   onBooksChanged,
   history,
+  documentType = "book",
 }: LibraryRailProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasBooks = books.length > 0;
@@ -100,7 +102,9 @@ export function LibraryRail({
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto overscroll-contain p-4 [scrollbar-gutter:stable]">
       <section aria-labelledby="library-heading" className="space-y-2">
-        <SectionHeading id="library-heading">Your library</SectionHeading>
+        <SectionHeading id="library-heading">
+          {documentType === "paper" ? "Your paper library" : "Your library"}
+        </SectionHeading>
 
         {!booksLoaded ? (
           <div className="space-y-2" aria-hidden>
@@ -138,7 +142,9 @@ export function LibraryRail({
               aria-hidden
             />
             <p className="text-xs text-muted-foreground">
-              No books yet. Upload a PDF to get started.
+              {documentType === "paper"
+                ? "No papers yet. Upload a PDF paper to get started."
+                : "No books yet. Upload a PDF to get started."}
             </p>
           </div>
         )}
@@ -150,7 +156,7 @@ export function LibraryRail({
 
       <Separator />
 
-      <UploadPanel onBookReady={onBooksChanged} />
+      <UploadPanel onBookReady={onBooksChanged} documentType={documentType} />
 
       <Separator />
 

@@ -1297,6 +1297,7 @@ def _persist_canonical(
             source_storage_bucket=job.storage_bucket,
             source_storage_path=job.storage_path,
             ingestion_job_id=job.id,
+            document_type=getattr(job, "document_type", "book") or "book",
             ready=False,
         )
     except BookAlreadyExistsError as error:

@@ -281,6 +281,7 @@ class BookSummary(ContractModel):
     chunk_count: int
     embedding_count: int
     retrieval_complete: bool
+    document_type: str = "book"
 
 
 class BookListResponse(ContractModel):
@@ -451,12 +452,19 @@ async def queue_health() -> QueueHealthResponse:
 
 
 @app.get("/api/books", response_model=BookListResponse)
-async def books(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
-    """List the caller's ready books. Processing books are not selectable."""
+async def books(
+    owner_id: UUID = Depends(current_owner),
+    document_type: str | None = Query("book"),
+) -> BookListResponse:
+    """List the caller's ready books/papers. Processing items are not selectable."""
+
+    target_doc_type = None if document_type == "all" else document_type
 
     def load() -> list[BookSummary]:
         with database_connection(readonly=True) as connection:
-            rows = list_books(connection, owner_id=owner_id)
+            rows = list_books(
+                connection, owner_id=owner_id, document_type=target_doc_type
+            )
             summaries = []
             for row in rows:
                 chunks, embeddings = book_retrieval_completeness(
@@ -472,6 +480,37 @@ async def books(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
                         chunk_count=chunks,
                         embedding_count=embeddings,
                         retrieval_complete=chunks > 0 and chunks == embeddings,
+                        document_type=row.get("document_type", "book") or "book",
+                    )
+                )
+            return summaries
+
+    return BookListResponse(books=await run_in_threadpool(load))
+
+
+@app.get("/api/papers", response_model=BookListResponse)
+async def papers(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
+    """List the caller's ready scientific papers."""
+
+    def load() -> list[BookSummary]:
+        with database_connection(readonly=True) as connection:
+            rows = list_books(connection, owner_id=owner_id, document_type="paper")
+            summaries = []
+            for row in rows:
+                chunks, embeddings = book_retrieval_completeness(
+                    connection, owner_id=owner_id, book_id=row["id"]
+                )
+                summaries.append(
+                    BookSummary(
+                        book_id=row["id"],
+                        title=row["title"],
+                        author=row["author"],
+                        page_count=row["page_count"],
+                        ready_at=row["ready_at"],
+                        chunk_count=chunks,
+                        embedding_count=embeddings,
+                        retrieval_complete=chunks > 0 and chunks == embeddings,
+                        document_type="paper",
                     )
                 )
             return summaries
