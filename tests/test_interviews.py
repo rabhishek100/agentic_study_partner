@@ -1018,6 +1018,37 @@ class GroundingTests(unittest.TestCase):
 
         self.assertEqual(model.calls, 2)
 
+    def test_coding_question_rejects_the_ambiguous_production_wording(self) -> None:
+        ambiguous = coding_question().model_copy(
+            update={
+                "text": (
+                    "Implement `append_item(item, items=None)` so omitted `items` "
+                    "never shares state across calls; briefly explain the design "
+                    "choice in your code comments."
+                )
+            }
+        )
+
+        with self.assertRaisesRegex(
+            InterviewValidationError,
+            "prose explanation or comment task",
+        ):
+            validate_question_focus(ambiguous)
+
+    def test_coding_question_accepts_an_explicit_functional_contract(self) -> None:
+        explicit = coding_question().model_copy(
+            update={
+                "text": (
+                    "Implement the Python function `append_item(item, items=None)`: "
+                    "return a new one-item list when `items` is omitted; otherwise "
+                    "modify and return the supplied list. Example: `append_item(2)` "
+                    "returns `[2]`."
+                )
+            }
+        )
+
+        self.assertIs(validate_question_focus(explicit), explicit)
+
     def test_vague_equation_request_is_rejected(self) -> None:
         vague = question().model_copy(
             update={"text": "Can you derive the key equation?"}

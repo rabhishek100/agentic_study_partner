@@ -38,6 +38,7 @@ MAX_EXPECTED_POINTS = 3
 
 SECOND_OBJECTIVE = re.compile(
     r"(?:[,;]\s*|\b(?:and|then)\s+)"
+    r"(?:(?:also|briefly)\s+)?"
     r"(?:what|how|which|describe|explain|discuss|identify|compare|"
     r"derive|design|implement|estimate|evaluate|justify|show|write|handle|"
     r"address|state|list|analyze|assess|test|validate|calculate|outline)\b",
@@ -68,6 +69,15 @@ CODE_REQUEST = re.compile(
     r"\b(?:code|implement|write|debug)\b.{0,100}"
     r"\b(?:code|implementation|pseudocode|algorithm|function|class|test)\b|"
     r"\b(?:pseudocode|code)\b",
+    re.IGNORECASE,
+)
+CODE_OBSERVABLE_BEHAVIOR = re.compile(
+    r"\b(?:return|output|produce|compute|calculate|convert|modify|update|mutate|"
+    r"raise|print|yield|find|determine|sort|filter|count)\w*\b",
+    re.IGNORECASE,
+)
+CODE_META_TASK = re.compile(
+    r"\b(?:explain|justify|rationale|prose|comment|comments|describe why)\b",
     re.IGNORECASE,
 )
 VAGUE_MATH_REQUEST = re.compile(
@@ -444,9 +454,23 @@ def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
 
     text = " ".join(question.text.split())
     prompt = " ".join((question.work_sample_prompt or "").split())
-    if _word_count(text) > MAX_QUESTION_WORDS:
+    maximum_words = 45 if question.coding_exercise is not None else MAX_QUESTION_WORDS
+    if _word_count(text) > maximum_words:
         raise InterviewValidationError("the generated question is too broad for one turn")
-    if text.count("?") > 1 or len(re.findall(r"[.!?](?:\s|$)", text)) > 1:
+    if question.coding_exercise is not None:
+        if CODE_META_TASK.search(text):
+            raise InterviewValidationError(
+                "a coding question must not add a prose explanation or comment task"
+            )
+        if not CODE_OBSERVABLE_BEHAVIOR.search(text):
+            raise InterviewValidationError(
+                "a coding question must state its observable functional behavior"
+            )
+    terminal_count = len(re.findall(r"[.!?](?:\s|$)", text))
+    has_code_example = question.coding_exercise is not None and bool(
+        re.search(r"(?:^|\.\s+)(?:Example|For example):?\s", text, re.IGNORECASE)
+    )
+    if text.count("?") > 1 or terminal_count > (2 if has_code_example else 1):
         raise InterviewValidationError("the generated question contains multiple prompts")
     if _asks_multiple_objectives(text):
         raise InterviewValidationError("the generated question asks for multiple objectives")
