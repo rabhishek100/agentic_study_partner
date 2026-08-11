@@ -26,9 +26,24 @@ import {
  * canonical outline before any model call, so it can say how many topics were
  * reached and name the ones that were not.
  */
-export function CoverageBadge({ metrics }: { metrics: DeckMetrics }) {
+export function CoverageBadge({
+  metrics,
+  generationMode,
+}: {
+  metrics: DeckMetrics;
+  generationMode?: DeckSummary["generation_mode"];
+}) {
+  const legacyQuestionDeck =
+    generationMode === "book_extracted" &&
+    metrics.source_questions_total === 0 &&
+    !metrics.notice;
   const percent = coveragePercent(metrics);
-  const complete = metrics.topics_covered >= metrics.topics_required;
+  const questionCoverage = metrics.source_questions_total > 0;
+  const complete =
+    !legacyQuestionDeck &&
+    (questionCoverage
+      ? metrics.source_questions_covered >= metrics.source_questions_total
+      : metrics.topics_covered >= metrics.topics_required);
 
   return (
     <Tooltip>
@@ -38,18 +53,35 @@ export function CoverageBadge({ metrics }: { metrics: DeckMetrics }) {
           className="gap-1 font-normal tabular-nums"
         >
           {!complete ? <AlertTriangle aria-hidden className="size-3" /> : null}
-          {percent}% covered
+          {legacyQuestionDeck ? "Needs regeneration" : `${percent}% covered`}
         </Badge>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p>
-          {metrics.topics_covered} of {metrics.topics_required} required topics
-          have at least one card.
+          {legacyQuestionDeck
+            ? "This deck predates source-question coverage checks. Regenerate it to audit every exercise."
+            : questionCoverage
+            ? `${metrics.source_questions_covered} of ${metrics.source_questions_total} source questions have complete cards.`
+            : `${metrics.topics_covered} of ${metrics.topics_required} required topics have at least one card.`}
         </p>
-        {metrics.uncovered_topic_labels.length > 0 ? (
+        {(questionCoverage
+          ? metrics.uncovered_question_labels
+          : metrics.uncovered_topic_labels
+        ).length > 0 ? (
           <p className="mt-1 text-xs opacity-80">
-            Missing: {metrics.uncovered_topic_labels.slice(0, 3).join("; ")}
-            {metrics.uncovered_topic_labels.length > 3 ? "…" : ""}
+            Missing:{" "}
+            {(questionCoverage
+              ? metrics.uncovered_question_labels
+              : metrics.uncovered_topic_labels
+            )
+              .slice(0, 3)
+              .join("; ")}
+            {(questionCoverage
+              ? metrics.uncovered_question_labels
+              : metrics.uncovered_topic_labels
+            ).length > 3
+              ? "…"
+              : ""}
           </p>
         ) : null}
       </TooltipContent>
@@ -88,9 +120,10 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
               <Badge variant="outline" className="font-normal tabular-nums">
                 {deck.card_count} cards
               </Badge>
-              {deck.generation_mode !== "book_extracted" ? (
-                <CoverageBadge metrics={deck.metrics} />
-              ) : null}
+              <CoverageBadge
+                metrics={deck.metrics}
+                generationMode={deck.generation_mode}
+              />
               {deck.due_count > 0 ? (
                 <Badge className="font-normal tabular-nums">
                   {deck.due_count} due
@@ -147,7 +180,7 @@ export function DeckJobRow({
             {failed
               ? job.error_detail || job.error_code || "Try generating it again."
               : job.stage === "generation" && job.topics_total > 0
-                ? `${job.topics_done} of ${job.topics_total} ${extracting ? "evidence batches" : "topics"}`
+                ? `${job.topics_done} of ${job.topics_total} ${extracting ? "questions" : "topics"}`
                 : job.stage.replace(/_/g, " ")}
           </p>
           {!failed ? (

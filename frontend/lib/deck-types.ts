@@ -76,6 +76,9 @@ export interface DeckMetrics {
   topics_required: number;
   topics_covered: number;
   uncovered_topic_labels: string[];
+  source_questions_total: number;
+  source_questions_covered: number;
+  uncovered_question_labels: string[];
   cards_generated: number;
   cards_kept: number;
   cards_dropped_uncited: number;
@@ -233,6 +236,11 @@ export function describeInterval(days: number): string {
 }
 
 export function coveragePercent(metrics: DeckMetrics): number {
+  if (metrics.source_questions_total) {
+    return Math.round(
+      (metrics.source_questions_covered / metrics.source_questions_total) * 100,
+    );
+  }
   if (!metrics.topics_required) return 100;
   return Math.round((metrics.topics_covered / metrics.topics_required) * 100);
 }

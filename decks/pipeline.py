@@ -185,6 +185,7 @@ def run_deck_job(
                 inventory,
                 connection=connection,
                 owner_id=str(job.owner_id),
+                book_id=job.book_id,
                 progress=progress,
             )
         else:

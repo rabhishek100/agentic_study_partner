@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { DeckJobRow, DeckRow } from "@/components/decks/deck-row";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { DeckJob, DeckMetrics, DeckSummary } from "@/lib/deck-types";
 
 const metrics: DeckMetrics = {
@@ -9,6 +10,9 @@ const metrics: DeckMetrics = {
   topics_required: 4,
   topics_covered: 3,
   uncovered_topic_labels: ["One topic"],
+  source_questions_total: 10,
+  source_questions_covered: 10,
+  uncovered_question_labels: [],
   cards_generated: 8,
   cards_kept: 7,
   cards_dropped_uncited: 0,
@@ -61,10 +65,32 @@ const failedJob: DeckJob = {
 };
 
 describe("book-extracted deck presentation", () => {
-  it("labels source questions without claiming AI topic coverage", () => {
-    render(<DeckRow deck={extractedDeck} />);
+  it("labels source questions and reports source-question coverage", () => {
+    render(
+      <TooltipProvider>
+        <DeckRow deck={extractedDeck} />
+      </TooltipProvider>,
+    );
     expect(screen.getByText("From book")).toBeTruthy();
-    expect(screen.queryByText(/covered/)).toBeNull();
+    expect(screen.getByText("100% covered")).toBeTruthy();
+  });
+
+  it("does not call a legacy extracted deck fully covered", () => {
+    render(
+      <TooltipProvider>
+        <DeckRow
+          deck={{
+            ...extractedDeck,
+            metrics: {
+              ...metrics,
+              source_questions_total: 0,
+              source_questions_covered: 0,
+            },
+          }}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Needs regeneration")).toBeTruthy();
   });
 
   it("names extraction failures and lets the reader retry", () => {

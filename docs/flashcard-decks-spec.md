@@ -39,12 +39,15 @@ and appear in separate library sections. A source-authored question must never
 be presented as an AI-authored question just because a model was used to parse
 the PDF.
 
-Extraction scans marker-preserving evidence batches capped at 6,000 tokens.
-It never sends a complete long chapter in one request. Oversized canonical
-blocks are split with a small overlap, extracted fronts are deduplicated, and
-every returned marker is checked against the exact batch the model saw. A
-provider or schema failure fails the job visibly and is retryable; it is not
-reported as “no questions found.”
+Extraction first selects explicit exercise, problem, review-question, or study
+question nodes from the canonical hierarchy. Within those nodes, top-level
+numbered boundaries are parsed deterministically before any answer model call.
+This keeps a multi-page exercise, its setup, tables, code, and labelled
+subparts in one lossless source unit and prevents narrative or lab questions
+from leaking into the deck. Books without a recognizable question section use
+the marker-preserving 6,000-token model fallback. A provider, schema, or
+completeness failure fails the job visibly and is retryable; it is never
+reported as “no questions found” or silently published as complete.
 
 A numbered exercise is one card by default. Lettered or numbered subparts stay
 with their parent when they share setup or must be solved together; a subpart
@@ -67,8 +70,10 @@ chapter,” because that is not a useful revision card.
 
 Topic coverage does not apply to this mode: a book may put all its exercises
 in one section while testing ideas from the whole chapter. Extracted decks
-therefore report card/drop/provenance metrics but do not claim that each topic
-has a card. A successful scan with no explicit questions produces an empty
+instead report source questions found and completely answered. The deck is
+ready only when every inventoried source question has one validated card; the
+interface names any missing exercise rather than displaying a vacuous 0-of-0
+100% score. A successful scan with no explicit questions produces an empty
 ready deck with the notice “No questions printed in this chapter.”
 
 ## Card types

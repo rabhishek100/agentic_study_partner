@@ -189,17 +189,37 @@ export default function DeckDetailPage() {
                 <h2 className="font-heading text-sm font-medium">
                   How this deck was made
                 </h2>
+                {deck.generation_mode === "book_extracted" &&
+                deck.metrics.source_questions_total === 0 &&
+                !deck.metrics.notice ? (
+                  <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
+                    This deck predates source-question coverage checks.
+                    Regenerate it before studying.
+                  </p>
+                ) : null}
                 <dl className="mt-2 space-y-1.5 text-xs text-muted-foreground">
                   <div className="flex justify-between gap-2">
-                    <dt>Topics required</dt>
+                    <dt>
+                      {deck.generation_mode === "book_extracted"
+                        ? "Questions found"
+                        : "Topics required"}
+                    </dt>
                     <dd className="tabular-nums">
-                      {deck.metrics.topics_required}
+                      {deck.generation_mode === "book_extracted"
+                        ? deck.metrics.source_questions_total
+                        : deck.metrics.topics_required}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt>Topics covered</dt>
+                    <dt>
+                      {deck.generation_mode === "book_extracted"
+                        ? "Questions answered"
+                        : "Topics covered"}
+                    </dt>
                     <dd className="tabular-nums">
-                      {deck.metrics.topics_covered}
+                      {deck.generation_mode === "book_extracted"
+                        ? deck.metrics.source_questions_covered
+                        : deck.metrics.topics_covered}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-2">
@@ -233,11 +253,17 @@ export default function DeckDetailPage() {
                 </dl>
               </div>
 
-              {deck.metrics.uncovered_topic_labels.length > 0 ? (
+              {(deck.generation_mode === "book_extracted"
+                ? deck.metrics.uncovered_question_labels
+                : deck.metrics.uncovered_topic_labels
+              ).length > 0 ? (
                 <div className="rounded-md border border-border p-2.5">
                   <p className="text-xs font-medium">Not covered</p>
                   <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                    {deck.metrics.uncovered_topic_labels.map((label) => (
+                    {(deck.generation_mode === "book_extracted"
+                      ? deck.metrics.uncovered_question_labels
+                      : deck.metrics.uncovered_topic_labels
+                    ).map((label) => (
                       <li key={label} className="truncate" title={label}>
                         {label}
                       </li>

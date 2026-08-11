@@ -28,6 +28,11 @@ export function plain(text: string): string {
   return text.replace(MARKER, "").replace(/\s{2,}/g, " ").trim();
 }
 
+/** Preserve source-authored line breaks and tables on long exercise fronts. */
+export function sourceQuestion(text: string): string {
+  return text.replace(MARKER, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function timestamp(ms: number | null): string {
   if (ms === null) return "";
   const total = Math.floor(ms / 1000);
@@ -122,8 +127,8 @@ export function CardFront({
 }) {
   return (
     <div className="space-y-4">
-      <p className="text-balance font-heading text-xl leading-snug sm:text-2xl">
-        {plain(card.front)}
+      <p className="whitespace-pre-wrap font-heading text-xl leading-snug sm:text-2xl">
+        {sourceQuestion(card.front)}
       </p>
       {card.card_type === "mcq" ? (
         <ul className="space-y-2">
