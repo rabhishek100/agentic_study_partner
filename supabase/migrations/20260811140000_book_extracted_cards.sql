@@ -1,15 +1,15 @@
 -- Book-extracted cards and generation_mode support.
 
 alter table public.decks
-    add column generation_mode text not null default 'topic_generated'
+    add column if not exists generation_mode text not null default 'topic_generated'
         check (generation_mode in ('topic_generated', 'book_extracted'));
 
 alter table public.deck_jobs
-    add column generation_mode text not null default 'topic_generated'
+    add column if not exists generation_mode text not null default 'topic_generated'
         check (generation_mode in ('topic_generated', 'book_extracted'));
 
 alter table public.deck_cards
-    add column answer_source text
+    add column if not exists answer_source text
         check (answer_source is null or answer_source in ('printed_in_book', 'rag_generated'));
 
 comment on column public.decks.generation_mode is
