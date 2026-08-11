@@ -443,9 +443,9 @@ class DeckExtractionStoreTests(PostgresOwnerMixin, unittest.TestCase):
         )
         self.scope = resolve_chapter(
             self.connection,
-            self.book_id,
-            chapter_title="Chapter 1",
+            "Chapter 1",
             owner_id=self.owner_id,
+            book_id=self.book_id,
         )
 
     def tearDown(self) -> None:
