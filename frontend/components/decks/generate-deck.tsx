@@ -41,6 +41,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
   const [bookId, setBookId] = useState<string>("");
   const [nodeId, setNodeId] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
+  const [generationMode, setGenerationMode] = useState<"topic_generated" | "book_extracted">("topic_generated");
   const [loadingChapters, setLoadingChapters] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -94,7 +95,12 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
         method: "POST",
         body: JSON.stringify(
           mode === "book"
-            ? { source_kind: "book", book_id: Number(bookId), node_id: Number(nodeId) }
+            ? {
+                source_kind: "book",
+                generation_mode: generationMode,
+                book_id: Number(bookId),
+                node_id: Number(nodeId),
+              }
             : { source_kind: "video", video_id: videoId },
         ),
       });
@@ -105,7 +111,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
     } finally {
       setSubmitting(false);
     }
-  }, [bookId, mode, nodeId, onQueued, videoId]);
+  }, [bookId, generationMode, mode, nodeId, onQueued, videoId]);
 
   const ready = mode === "book" ? Boolean(bookId && nodeId) : Boolean(videoId);
 
@@ -195,6 +201,36 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                     </SelectContent>
                   </Select>
                 )}
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <Label>Deck Creation Mode</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode("topic_generated")}
+                    className={
+                      generationMode === "topic_generated"
+                        ? "rounded-md border border-primary bg-primary/10 p-2.5 text-left text-xs font-medium"
+                        : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
+                    }
+                  >
+                    <div className="font-semibold text-foreground">AI Topic-Based</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">Generate cards from key chapter topics</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGenerationMode("book_extracted")}
+                    className={
+                      generationMode === "book_extracted"
+                        ? "rounded-md border border-primary bg-primary/10 p-2.5 text-left text-xs font-medium"
+                        : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
+                    }
+                  >
+                    <div className="font-semibold text-foreground">Book-Extracted Questions</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">Extract exercises & questions directly from book</div>
+                  </button>
+                </div>
               </div>
             </>
           ) : (

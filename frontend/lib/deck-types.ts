@@ -8,6 +8,8 @@ export type Difficulty = "foundational" | "intermediate" | "advanced";
 export type SourceKind = "book" | "video";
 export type DeckStatus = "generating" | "ready" | "partial" | "failed";
 export type ReviewStateName = "new" | "learning" | "review" | "relearning";
+export type GenerationMode = "topic_generated" | "book_extracted";
+export type AnswerSource = "printed_in_book" | "rag_generated";
 
 /** Anki's four. 1 is a failure; 4 means it was instant. */
 export type Rating = 1 | 2 | 3 | 4;
@@ -66,6 +68,7 @@ export interface DeckCard {
   difficulty: Difficulty;
   /** Model knowledge, labelled as such. Never counted as grounded. */
   interview_angle: string | null;
+  answer_source?: AnswerSource | null;
 }
 
 export interface DeckMetrics {
@@ -83,11 +86,13 @@ export interface DeckMetrics {
   card_type_counts: Record<string, number>;
   priority_counts: Record<string, number>;
   repair_attempted: boolean;
+  notice?: string | null;
 }
 
 export interface DeckSummary {
   deck_id: string;
   source_kind: SourceKind;
+  generation_mode?: GenerationMode;
   scope_key: string;
   version: number;
   title: string;
@@ -145,6 +150,7 @@ export interface DeckJob {
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
   stage: string;
   scope_key: string;
+  generation_mode?: GenerationMode;
   deck_id: string | null;
   topics_total: number;
   topics_done: number;

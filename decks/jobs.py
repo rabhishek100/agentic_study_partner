@@ -48,6 +48,7 @@ class DeckJob:
     topics_done: int
     attempt_count: int
     max_attempts: int
+    generation_mode: str = "topic_generated"
     error_code: str | None = None
     error_detail: str | None = None
     cancellation_requested: bool = False
@@ -69,6 +70,7 @@ def _job(row: Any) -> DeckJob:
         node_id=row["node_id"],
         video_id=row["video_id"],
         scope_key=row["scope_key"],
+        generation_mode=row.get("generation_mode", "topic_generated"),
         status=row["status"],
         stage=row["stage"],
         topics_total=row["topics_total"],
@@ -83,7 +85,7 @@ def _job(row: Any) -> DeckJob:
 
 _SELECT = """
     select id, owner_id, deck_id, source_kind, book_id, node_id, video_id,
-           scope_key, status, stage, topics_total, topics_done,
+           scope_key, generation_mode, status, stage, topics_total, topics_done,
            attempt_count, max_attempts, error_code, error_detail,
            cancellation_requested
     from public.deck_jobs
@@ -96,17 +98,12 @@ def enqueue(
     owner_id: str | UUID,
     source_kind: str,
     scope_key: str,
+    generation_mode: str = "topic_generated",
     book_id: int | None = None,
     node_id: int | None = None,
     video_id: str | UUID | None = None,
 ) -> DeckJob:
-    """Queue a generation, or return the run already in flight for this scope.
-
-    Pressing Generate twice is the normal way a reader checks whether anything
-    is happening. The second press must attach to the first run, not start a
-    duplicate one — the partial unique index would reject it anyway, and an
-    error there would be a lie about what the system is doing.
-    """
+    """Queue a generation, or return the run already in flight for this scope."""
 
     owner = parse_owner_id(owner_id)
     existing = connection.execute(
@@ -124,9 +121,9 @@ def enqueue(
         """
         insert into public.deck_jobs (
             owner_id, source_kind, book_id, node_id, video_id, scope_key,
-            max_attempts
+            generation_mode, max_attempts
         )
-        values (%s, %s, %s, %s, %s, %s, %s)
+        values (%s, %s, %s, %s, %s, %s, %s, %s)
         returning id
         """,
         (
@@ -136,6 +133,7 @@ def enqueue(
             node_id,
             UUID(str(video_id)) if video_id else None,
             scope_key,
+            generation_mode,
             DEFAULT_MAX_ATTEMPTS,
         ),
     ).fetchone()

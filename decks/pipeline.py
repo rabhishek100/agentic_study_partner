@@ -135,9 +135,10 @@ def run_deck_job(
         connection,
         owner_id=job.owner_id,
         source_kind=job.source_kind,
-        scope_key=inventory.scope_key,
+        scope_key=job.scope_key,
         title=inventory.title,
         source_title=inventory.source_title,
+        generation_mode=job.generation_mode,
         book_id=job.book_id,
         node_id=job.node_id,
         video_id=job.video_id,
@@ -155,7 +156,8 @@ def run_deck_job(
         extra={
             "job_id": str(job.id),
             "owner_id": str(job.owner_id),
-            "scope_key": inventory.scope_key,
+            "scope_key": job.scope_key,
+            "generation_mode": job.generation_mode,
             "topics": len(inventory.topics),
             "version": version,
         },
@@ -171,14 +173,21 @@ def run_deck_job(
         )
 
     try:
-        generated = generate_deck(
-            inventory, model=model, config=config, progress=progress
-        )
+        if job.generation_mode == "book_extracted":
+            from .extraction import extract_and_generate_deck
+
+            generated = extract_and_generate_deck(
+                inventory, connection=connection, owner_id=str(job.owner_id)
+            )
+        else:
+            generated = generate_deck(
+                inventory, model=model, config=config, progress=progress
+            )
     except DeckGenerationError:
         store.fail_deck(connection, owner_id=job.owner_id, deck_id=deck_id)
         raise
 
-    if not generated.cards:
+    if not generated.cards and job.generation_mode != "book_extracted":
         store.fail_deck(connection, owner_id=job.owner_id, deck_id=deck_id)
         raise DeckGenerationError(
             "no card survived validation for this scope; nothing was stored"

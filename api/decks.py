@@ -44,9 +44,10 @@ router = APIRouter(prefix="/api/decks", tags=["decks"])
 
 class GenerateDeckRequest(ContractModel):
     source_kind: str = Field(pattern="^(book|video)$")
+    generation_mode: str = Field(
+        default="topic_generated", pattern="^(topic_generated|book_extracted)$"
+    )
     book_id: int | None = None
-    # The chapter or section node a book deck covers. Chosen from a list the
-    # interface already holds, so there is nothing here to disambiguate.
     node_id: int | None = None
     video_id: str | None = None
 
@@ -56,6 +57,7 @@ class DeckJobResponse(ContractModel):
     status: str
     stage: str
     scope_key: str
+    generation_mode: str = "topic_generated"
     deck_id: str | None = None
     topics_total: int = 0
     topics_done: int = 0
@@ -95,6 +97,7 @@ def _job_response(job: deck_jobs.DeckJob) -> DeckJobResponse:
         status=job.status,
         stage=job.stage,
         scope_key=job.scope_key,
+        generation_mode=job.generation_mode,
         deck_id=str(job.deck_id) if job.deck_id else None,
         topics_total=job.topics_total,
         topics_done=job.topics_done,
@@ -133,7 +136,11 @@ async def generate_deck(
                     raise HTTPException(
                         status.HTTP_404_NOT_FOUND, detail=str(error)
                     ) from error
-                scope_key = book_scope_key(scope.book_id, request.node_id)
+                scope_key = book_scope_key(
+                    scope.book_id,
+                    request.node_id,
+                    generation_mode=request.generation_mode,
+                )
                 book_id: int | None = scope.book_id
                 video_id = None
             else:
@@ -165,6 +172,7 @@ async def generate_deck(
                 owner_id=owner_id,
                 source_kind=request.source_kind,
                 scope_key=scope_key,
+                generation_mode=request.generation_mode,
                 book_id=book_id,
                 node_id=request.node_id,
                 video_id=video_id,

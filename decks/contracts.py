@@ -19,6 +19,8 @@ Difficulty = Literal["foundational", "intermediate", "advanced"]
 SourceKind = Literal["book", "video"]
 DeckStatus = Literal["generating", "ready", "partial", "failed"]
 ReviewStateName = Literal["new", "learning", "review", "relearning"]
+GenerationMode = Literal["topic_generated", "book_extracted"]
+AnswerSource = Literal["printed_in_book", "rag_generated"]
 
 # Anki's four, and for the same reason: three buttons cannot separate "I had to
 # think" from "that was instant", and that difference is most of the signal a
@@ -158,6 +160,7 @@ class GeneratedCard(ContractModel):
     # The labelled model-knowledge layer. Optional by construction: most cards
     # do not need one, and an angle invented for every card is noise.
     interview_angle: str | None = Field(default=None, max_length=600)
+    answer_source: AnswerSource | None = None
 
 
 class TopicCards(ContractModel):
@@ -181,6 +184,7 @@ class DeckCard(ContractModel):
     priority_reason: str = ""
     difficulty: Difficulty = "intermediate"
     interview_angle: str | None = None
+    answer_source: AnswerSource | None = None
 
 
 class DeckMetrics(ContractModel):
@@ -205,6 +209,7 @@ class DeckMetrics(ContractModel):
     card_type_counts: dict[str, int] = Field(default_factory=dict)
     priority_counts: dict[str, int] = Field(default_factory=dict)
     repair_attempted: bool = False
+    notice: str | None = None
 
     @property
     def coverage_ratio(self) -> float:
@@ -222,6 +227,7 @@ class DeckSummary(ContractModel):
 
     deck_id: str
     source_kind: SourceKind
+    generation_mode: GenerationMode = "topic_generated"
     scope_key: str
     version: int
     title: str

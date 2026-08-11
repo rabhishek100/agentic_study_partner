@@ -76,6 +76,11 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
             </p>
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {deck.generation_mode === "book_extracted" ? (
+                <Badge variant="default" className="bg-amber-600/90 text-white font-normal hover:bg-amber-600">
+                  Book Original
+                </Badge>
+              ) : null}
               <Badge variant="outline" className="font-normal tabular-nums">
                 {deck.card_count} cards
               </Badge>
@@ -91,6 +96,11 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
                 </Badge>
               ) : null}
             </div>
+            {deck.metrics?.notice ? (
+              <p className="mt-1.5 text-xs text-amber-600 font-medium dark:text-amber-400">
+                {deck.metrics.notice}
+              </p>
+            ) : null}
           </div>
         </div>
       </Link>

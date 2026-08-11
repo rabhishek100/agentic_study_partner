@@ -134,7 +134,11 @@ def cardable(title: str, path_text: str = "") -> str | bool:
     return not any(OPTIONAL_INTERVIEW_SECTION.match(part) for part in parts)
 
 
-def book_scope_key(book_id: int, node_id: int) -> str:
+def book_scope_key(
+    book_id: int, node_id: int, generation_mode: str = "topic_generated"
+) -> str:
+    if generation_mode == "book_extracted":
+        return f"book:{book_id}:node:{node_id}:mode:book_extracted"
     return f"book:{book_id}:node:{node_id}"
 
 

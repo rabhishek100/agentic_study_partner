@@ -62,6 +62,7 @@ def create_deck(
     scope_key: str,
     title: str,
     source_title: str,
+    generation_mode: str = "topic_generated",
     book_id: int | None = None,
     node_id: int | None = None,
     video_id: str | UUID | None = None,
@@ -77,10 +78,10 @@ def create_deck(
         """
         insert into public.decks (
             owner_id, source_kind, book_id, node_id, video_id,
-            scope_key, version, title, source_title, status
+            scope_key, generation_mode, version, title, source_title, status
         )
         values (
-            %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s,
             (
                 select coalesce(max(version), 0) + 1
                 from public.decks
@@ -97,6 +98,7 @@ def create_deck(
             node_id,
             UUID(str(video_id)) if video_id else None,
             scope_key,
+            generation_mode,
             owner,
             scope_key,
             title,
@@ -164,9 +166,10 @@ def store_deck(
                 insert into public.deck_cards (
                     owner_id, deck_id, topic_key, card_index, card_type,
                     front, back_json, interview_priority, priority_reason,
-                    difficulty, citations_json, figures_json, interview_angle
+                    difficulty, citations_json, figures_json, interview_angle,
+                    answer_source
                 )
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 returning id
                 """,
                 (
@@ -183,6 +186,7 @@ def store_deck(
                     _json([item.model_dump(mode="json") for item in card.citations]),
                     _json([item.model_dump(mode="json") for item in card.figures]),
                     card.interview_angle,
+                    card.answer_source,
                 ),
             ).fetchone()
             connection.execute(
@@ -253,6 +257,7 @@ def _summary(row: Any) -> DeckSummary:
     return DeckSummary(
         deck_id=str(row["id"]),
         source_kind=row["source_kind"],
+        generation_mode=row.get("generation_mode", "topic_generated"),
         scope_key=row["scope_key"],
         version=row["version"],
         title=row["title"],
@@ -335,6 +340,7 @@ def _card(row: Any) -> DeckCard:
         priority_reason=row["priority_reason"] or "",
         difficulty=row["difficulty"],
         interview_angle=row["interview_angle"],
+        answer_source=row.get("answer_source"),
     )
 
 

@@ -292,6 +292,15 @@ export function CardSources({
 export function CardMeta({ card }: { card: DeckCard }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {card.answer_source === "printed_in_book" ? (
+        <Badge variant="default" className="bg-emerald-600/90 text-white font-normal hover:bg-emerald-600">
+          Original Book Answer
+        </Badge>
+      ) : card.answer_source === "rag_generated" ? (
+        <Badge variant="secondary" className="font-normal border border-primary/20">
+          Grounded RAG Answer
+        </Badge>
+      ) : null}
       <Badge variant="secondary" className="font-normal">
         {CARD_TYPE_LABELS[card.card_type]}
       </Badge>
