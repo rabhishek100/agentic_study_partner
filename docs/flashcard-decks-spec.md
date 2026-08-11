@@ -24,6 +24,60 @@ version it came from. Regenerating produces a *new version* rather than
 mutating the cards you have been reviewing, so review history survives a
 regeneration.
 
+## Questions already printed in a book
+
+A book chapter has two explicitly separate creation modes:
+
+- **Generate from topics** writes new revision cards against the deterministic
+  topic inventory described below.
+- **Use questions from book** extracts exercises, review questions, study
+  questions, and numbered problem directives that are present in the canonical
+  PDF text. It does not turn ordinary explanatory prose into questions.
+
+The two modes use different scope keys, produce independently versioned decks,
+and appear in separate library sections. A source-authored question must never
+be presented as an AI-authored question just because a model was used to parse
+the PDF.
+
+Extraction first selects explicit exercise, problem, review-question, or study
+question nodes from the canonical hierarchy. Within those nodes, top-level
+numbered boundaries are parsed deterministically before any answer model call.
+This keeps a multi-page exercise, its setup, tables, code, and labelled
+subparts in one lossless source unit and prevents narrative or lab questions
+from leaking into the deck. Books without a recognizable question section use
+the marker-preserving 6,000-token model fallback. A provider, schema, or
+completeness failure fails the job visibly and is retryable; it is never
+reported as “no questions found” or silently published as complete.
+
+A numbered exercise is one card by default. Lettered or numbered subparts stay
+with their parent when they share setup or must be solved together; a subpart
+becomes its own card only when it is independently answerable and explicitly
+labeled in the book. This preserves the author's problem structure without
+creating oversized review cards.
+
+Answers have two visible provenance states:
+
+- `printed_in_book` means an answer or solution was explicitly present in the
+  chapter evidence. The answer can be adjacent to the question or found later
+  through bounded lexical evidence selection.
+- `rag_generated` means the book printed the question but not a direct answer.
+  The answer is synthesized strictly from selected chapter evidence.
+
+Both states cite the question location and every page used for the answer.
+An answer whose markers do not resolve inside the supplied evidence fails
+validation. Short internal evidence aliases used during generation are
+resolved back to canonical book markers before answer text is stored or shown.
+The system never stores a placeholder such as “refer to the chapter,” because
+that is not a useful revision card.
+
+Topic coverage does not apply to this mode: a book may put all its exercises
+in one section while testing ideas from the whole chapter. Extracted decks
+instead report source questions found and completely answered. The deck is
+ready only when every inventoried source question has one validated card; the
+interface names any missing exercise rather than displaying a vacuous 0-of-0
+100% score. A successful scan with no explicit questions produces an empty
+ready deck with the notice “No questions printed in this chapter.”
+
 ## Card types
 
 The generator chooses a type per topic, from what the material supports.
@@ -153,7 +207,9 @@ queues.
 Progress is reported per topic, so a long chapter shows movement rather than a
 spinner. A failed job is retryable and leaves no half-written deck: cards are
 inserted in one transaction at the end, and the deck is only marked `ready`
-there.
+there. A ready source-question deck also exposes **Regenerate from book** on
+its detail page so a corrected parser or answer prompt can create a new version
+without waiting for a failed job.
 
 ## Evaluation
 
@@ -174,6 +230,7 @@ decks/contracts.py    Card, Deck, Topic, metrics — typed boundaries
 decks/topics.py       Deterministic topic inventory for book and lecture scopes
 decks/prompts.py      Locked grounding + per-card-type instructions
 decks/generate.py     Per-topic generation, coverage check, one repair pass
+decks/extraction.py   Batched source-question extraction + grounded answers
 decks/validate.py     Citation and structural validation, deck metrics
 decks/scheduler.py    SM-2 scheduling and the daily queue
 decks/store.py        Postgres persistence for decks, cards, review state

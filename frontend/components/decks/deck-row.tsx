@@ -1,9 +1,20 @@
 "use client";
 
-import { AlertTriangle, BookOpen, Loader2, Video } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  BookOpen,
+  Check,
+  Circle,
+  LoaderCircle,
+  Sparkles,
+  Video,
+} from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
@@ -15,19 +26,30 @@ import {
   type DeckMetrics,
   type DeckSummary,
   coveragePercent,
+  deckJobError,
+  formatDeckDuration,
+  jobIsLive,
 } from "@/lib/deck-types";
+import { cn } from "@/lib/utils";
 
-/**
- * Coverage, stated as a number.
- *
- * Every other study app asks you to trust that a generated deck covered the
- * chapter. This one compared the cards against a topic list built from the
- * canonical outline before any model call, so it can say how many topics were
- * reached and name the ones that were not.
- */
-export function CoverageBadge({ metrics }: { metrics: DeckMetrics }) {
+export function CoverageBadge({
+  metrics,
+  generationMode,
+}: {
+  metrics: DeckMetrics;
+  generationMode?: DeckSummary["generation_mode"];
+}) {
+  const legacyQuestionDeck =
+    generationMode === "book_extracted" &&
+    metrics.source_questions_total === 0 &&
+    !metrics.notice;
   const percent = coveragePercent(metrics);
-  const complete = metrics.topics_covered >= metrics.topics_required;
+  const questionCoverage = metrics.source_questions_total > 0;
+  const complete =
+    !legacyQuestionDeck &&
+    (questionCoverage
+      ? metrics.source_questions_covered >= metrics.source_questions_total
+      : metrics.topics_covered >= metrics.topics_required);
 
   return (
     <Tooltip>
@@ -37,18 +59,35 @@ export function CoverageBadge({ metrics }: { metrics: DeckMetrics }) {
           className="gap-1 font-normal tabular-nums"
         >
           {!complete ? <AlertTriangle aria-hidden className="size-3" /> : null}
-          {percent}% covered
+          {legacyQuestionDeck ? "Needs regeneration" : `${percent}% covered`}
         </Badge>
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p>
-          {metrics.topics_covered} of {metrics.topics_required} required topics
-          have at least one card.
+          {legacyQuestionDeck
+            ? "This deck predates source-question coverage checks. Regenerate it to audit every exercise."
+            : questionCoverage
+              ? `${metrics.source_questions_covered} of ${metrics.source_questions_total} source questions have complete cards.`
+              : `${metrics.topics_covered} of ${metrics.topics_required} required topics have at least one card.`}
         </p>
-        {metrics.uncovered_topic_labels.length > 0 ? (
+        {(questionCoverage
+          ? metrics.uncovered_question_labels
+          : metrics.uncovered_topic_labels
+        ).length > 0 ? (
           <p className="mt-1 text-xs opacity-80">
-            Missing: {metrics.uncovered_topic_labels.slice(0, 3).join("; ")}
-            {metrics.uncovered_topic_labels.length > 3 ? "…" : ""}
+            Missing:{" "}
+            {(questionCoverage
+              ? metrics.uncovered_question_labels
+              : metrics.uncovered_topic_labels
+            )
+              .slice(0, 3)
+              .join("; ")}
+            {(questionCoverage
+              ? metrics.uncovered_question_labels
+              : metrics.uncovered_topic_labels
+            ).length > 3
+              ? "…"
+              : ""}
           </p>
         ) : null}
       </TooltipContent>
@@ -56,84 +95,272 @@ export function CoverageBadge({ metrics }: { metrics: DeckMetrics }) {
   );
 }
 
+function updatedLabel(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
 export function DeckRow({ deck }: { deck: DeckSummary }) {
   const Icon = deck.source_kind === "book" ? BookOpen : Video;
+  const percent = coveragePercent(deck.metrics);
+  const extracted = deck.generation_mode === "book_extracted";
 
   return (
-    <li>
-      <Link
-        href={`/decks/${deck.deck_id}`}
-        className="block rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <div className="flex items-start gap-3">
-          <Icon aria-hidden className="mt-0.5 size-4 shrink-0 opacity-70" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-heading text-sm font-medium">
+    <li className="group border-b border-border px-3 py-3 last:border-b-0 hover:bg-accent/25 focus-within:bg-accent/25 sm:grid sm:grid-cols-[minmax(0,2.15fr)_minmax(7rem,1.15fr)_4.5rem_7rem_8rem_7rem_4.5rem] sm:items-center sm:gap-4 sm:px-4">
+      <div className="min-w-0">
+        <Link
+          href={`/decks/${deck.deck_id}`}
+          className="flex min-w-0 items-start gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+          <span className="min-w-0">
+            <span className="block truncate font-heading text-sm font-medium">
               {deck.title}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground sm:hidden">
               {deck.source_title}
-            </p>
+            </span>
+          </span>
+        </Link>
+      </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {deck.generation_mode === "book_extracted" ? (
-                <Badge variant="default" className="bg-amber-600/90 text-white font-normal hover:bg-amber-600">
-                  Book Original
-                </Badge>
-              ) : null}
-              <Badge variant="outline" className="font-normal tabular-nums">
-                {deck.card_count} cards
-              </Badge>
-              <CoverageBadge metrics={deck.metrics} />
-              {deck.due_count > 0 ? (
-                <Badge className="font-normal tabular-nums">
-                  {deck.due_count} due
-                </Badge>
-              ) : null}
-              {deck.new_count > 0 ? (
-                <Badge variant="secondary" className="font-normal tabular-nums">
-                  {deck.new_count} new
-                </Badge>
-              ) : null}
-            </div>
-            {deck.metrics?.notice ? (
-              <p className="mt-1.5 text-xs text-amber-600 font-medium dark:text-amber-400">
-                {deck.metrics.notice}
-              </p>
-            ) : null}
-          </div>
+      <p className="hidden truncate text-xs text-muted-foreground sm:block">
+        {deck.source_title}
+      </p>
+      <p className="hidden text-sm tabular-nums sm:block">{deck.card_count}</p>
+      <div className="hidden sm:block">
+        <div className="flex items-center justify-between text-xs tabular-nums">
+          <span>{percent}%</span>
         </div>
-      </Link>
+        <Progress className="mt-1.5 h-0.5" value={percent} />
+      </div>
+      <div className="hidden items-center gap-1 text-xs tabular-nums sm:flex">
+        {deck.due_count > 0 ? (
+          <Badge className="font-normal">{deck.due_count} due</Badge>
+        ) : null}
+        <span className="text-muted-foreground">
+          {deck.due_count > 0 && deck.new_count > 0 ? "/ " : ""}
+          {deck.new_count > 0 ? `${deck.new_count} new` : "Caught up"}
+        </span>
+      </div>
+      <p className="hidden text-xs text-muted-foreground sm:block">
+        {updatedLabel(deck.updated_at)}
+      </p>
+      <Button asChild variant="outline" size="sm" className="hidden sm:flex">
+        <Link href={`/decks/${deck.deck_id}`}>Open</Link>
+      </Button>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6 sm:hidden">
+        <Badge variant={extracted ? "secondary" : "outline"} className="gap-1 font-normal">
+          {extracted ? <BookOpen aria-hidden className="size-3" /> : <Sparkles aria-hidden className="size-3" />}
+          {extracted ? "From book" : "AI-generated"}
+        </Badge>
+        <Badge variant="outline" className="font-normal tabular-nums">
+          {deck.card_count} cards
+        </Badge>
+        <CoverageBadge metrics={deck.metrics} generationMode={deck.generation_mode} />
+        {deck.due_count > 0 ? <Badge>{deck.due_count} due</Badge> : null}
+        {deck.new_count > 0 ? <Badge variant="secondary">{deck.new_count} new</Badge> : null}
+      </div>
+      {deck.metrics.notice ? (
+        <p className="col-span-full mt-2 pl-6 text-xs font-medium text-amber-600 dark:text-amber-400">
+          {deck.metrics.notice}
+        </p>
+      ) : null}
     </li>
   );
 }
 
-/** A generation still in flight, shown where its deck will appear. */
-export function DeckJobRow({ job }: { job: DeckJob }) {
+function StageIcon({ state }: { state: "done" | "active" | "pending" }) {
+  if (state === "done") {
+    return (
+      <span className="grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
+        <Check aria-hidden className="size-3" />
+      </span>
+    );
+  }
+  if (state === "active") {
+    return <LoaderCircle aria-hidden className="size-5 animate-spin text-primary" />;
+  }
+  return <Circle aria-hidden className="size-5 text-muted-foreground/70" />;
+}
+
+/** One live or failed generation, with the same observable detail as ingestion. */
+export function DeckJobRow({
+  job,
+  onRetry,
+  onCancel,
+}: {
+  job: DeckJob;
+  onRetry?: (job: DeckJob) => void;
+  onCancel?: (job: DeckJob) => void;
+}) {
+  const live = jobIsLive(job);
   const failed = job.status === "failed";
+  const extracted = job.generation_mode === "book_extracted";
+  const failure = deckJobError(job);
+  const [receivedAt, setReceivedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const snapshot = Date.now();
+    setReceivedAt(snapshot);
+    setNow(snapshot);
+  }, [job.timing.elapsed_seconds, job.updated_at]);
+
+  useEffect(() => {
+    if (!live) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [live]);
+
+  const sincePoll = live ? Math.max(0, (now - receivedAt) / 1_000) : 0;
+  const elapsed = job.timing.elapsed_seconds + sincePoll;
+  const remaining =
+    job.timing.estimated_remaining_seconds == null
+      ? null
+      : Math.max(0, job.timing.estimated_remaining_seconds - sincePoll);
+  const itemLabel = extracted ? "questions answered" : "topics completed";
 
   return (
-    <li className="rounded-lg border border-dashed border-border p-4">
+    <li
+      className={cn(
+        "rounded-lg border bg-card/35 p-4",
+        failed && "border-destructive/45 bg-destructive/5",
+      )}
+      aria-live={live ? "polite" : undefined}
+    >
       <div className="flex items-start gap-3">
         {failed ? (
-          <AlertTriangle aria-hidden className="mt-0.5 size-4 text-destructive" />
+          <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
         ) : (
-          <Loader2 aria-hidden className="mt-0.5 size-4 animate-spin opacity-70" />
+          <BookOpen aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
-            {failed ? "Generation failed" : "Making cards…"}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {failed
-              ? job.error_detail || job.error_code || "Try generating it again."
-              : job.stage === "generation" && job.topics_total > 0
-                ? `${job.topics_done} of ${job.topics_total} topics`
-                : job.stage.replace(/_/g, " ")}
-          </p>
-          {!failed ? (
-            <Progress className="mt-2" value={job.progress * 100} />
-          ) : null}
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                <Badge
+                  variant={extracted ? "secondary" : "outline"}
+                  className="font-normal"
+                >
+                  {extracted ? "From book" : "AI-generated"}
+                </Badge>
+                <Badge
+                  variant={failed ? "destructive" : "outline"}
+                  className="font-normal"
+                >
+                  {failed ? "Failed" : job.status === "queued" ? "Queued" : "In progress"}
+                </Badge>
+              </div>
+              <p className="truncate font-heading text-sm font-medium">{job.title}</p>
+              <p className="truncate text-xs text-muted-foreground">{job.source_title}</p>
+            </div>
+            {!failed ? (
+              <span className="text-xl font-medium tabular-nums">
+                {Math.round(job.timing.percent)}%
+              </span>
+            ) : null}
+          </div>
+
+          {failed ? (
+            <div className="mt-3">
+              <p className="text-sm font-medium">{failure.title}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {failure.message}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {onRetry ? (
+                  <Button type="button" size="sm" onClick={() => onRetry(job)}>
+                    Try again
+                  </Button>
+                ) : null}
+                <details className="group/details">
+                  <summary className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    Technical details
+                  </summary>
+                  <div className="mt-2 rounded-md bg-muted/70 p-3 text-xs leading-5 text-muted-foreground">
+                    <p>Reference: {failure.reference}</p>
+                    <p>Code: {job.error_code || "generation_stopped"}</p>
+                    {job.error_detail ? (
+                      <p className="mt-1 break-words font-mono text-[0.7rem]">
+                        {job.error_detail}
+                      </p>
+                    ) : null}
+                  </div>
+                </details>
+              </div>
+            </div>
+          ) : (
+            <>
+              <Progress
+                className="mt-3 h-1.5"
+                value={job.timing.percent}
+                aria-label={`${Math.round(job.timing.percent)} percent complete`}
+              />
+              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-b border-border pb-3 text-xs sm:grid-cols-4">
+                <div>
+                  <p className="font-medium tabular-nums">
+                    {job.topics_total > 0
+                      ? `${job.topics_done} of ${job.topics_total}`
+                      : "Preparing"}
+                  </p>
+                  <p className="text-muted-foreground">{itemLabel}</p>
+                </div>
+                <div>
+                  <p className="font-medium tabular-nums">{formatDeckDuration(elapsed)}</p>
+                  <p className="text-muted-foreground">elapsed</p>
+                </div>
+                <div>
+                  <p className="font-medium tabular-nums">
+                    {remaining == null
+                      ? "Re-estimating"
+                      : remaining < 10
+                        ? "Finishing up"
+                        : `About ${formatDeckDuration(remaining)}`}
+                  </p>
+                  <p className="text-muted-foreground">estimated time left</p>
+                </div>
+                <p className="self-end text-muted-foreground">
+                  You can close this page safely.
+                </p>
+              </div>
+              <ol className="mt-3 space-y-2.5">
+                {job.timing.stages.map((stage) => (
+                  <li key={stage.stage} className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
+                    <StageIcon state={stage.state} />
+                    <span className={cn(stage.state === "pending" && "text-muted-foreground")}>
+                      {stage.label}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums">
+                      {stage.state === "done"
+                        ? "Completed"
+                        : stage.state === "active"
+                          ? "In progress"
+                          : `~${formatDeckDuration(stage.expected_seconds)}`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              {onCancel ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-3 text-muted-foreground"
+                  onClick={() => onCancel(job)}
+                >
+                  Cancel generation
+                </Button>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </li>

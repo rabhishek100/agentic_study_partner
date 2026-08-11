@@ -118,7 +118,10 @@ class CardBack(ContractModel):
     """
 
     # qa, concept, system_design
-    answer: str = Field(default="", max_length=4_000)
+    # A source-authored exercise can contain many dependent subparts.  Its
+    # worked answer must not be forced through the much smaller limit used by
+    # ordinary interview cards (ISLP chapter 2 exercise 10 has nine parts).
+    answer: str = Field(default="", max_length=12_000)
     key_points: list[str] = Field(default_factory=list, max_length=8)
     # The compressed version you could say out loud in an interview. This is
     # the line the review interface shows largest.
@@ -199,6 +202,13 @@ class DeckMetrics(ContractModel):
     topics_required: int = Field(default=0, ge=0)
     topics_covered: int = Field(default=0, ge=0)
     uncovered_topic_labels: list[str] = Field(default_factory=list)
+    # Book-extracted decks have a different deterministic coverage unit: the
+    # source questions found before answer generation.  Keeping it explicit
+    # avoids the misleading 0-of-0 topics / 100% display that previously hid
+    # truncated and duplicated exercises.
+    source_questions_total: int = Field(default=0, ge=0)
+    source_questions_covered: int = Field(default=0, ge=0)
+    uncovered_question_labels: list[str] = Field(default_factory=list)
     cards_generated: int = Field(default=0, ge=0)
     cards_kept: int = Field(default=0, ge=0)
     cards_dropped_uncited: int = Field(default=0, ge=0)
@@ -213,12 +223,16 @@ class DeckMetrics(ContractModel):
 
     @property
     def coverage_ratio(self) -> float:
+        if self.source_questions_total:
+            return self.source_questions_covered / self.source_questions_total
         if not self.topics_required:
             return 1.0
         return self.topics_covered / self.topics_required
 
     @property
     def complete(self) -> bool:
+        if self.source_questions_total:
+            return self.source_questions_covered >= self.source_questions_total
         return self.topics_covered >= self.topics_required
 
 

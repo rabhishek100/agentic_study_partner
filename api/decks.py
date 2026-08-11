@@ -9,10 +9,12 @@ read or a small write, so it answers directly.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import Field
+from pydantic import Field, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
@@ -29,6 +31,7 @@ from decks.contracts import (
 )
 from decks.conversation import card_turn_result, seeded_state
 from decks.pipeline import DeckSourceError, load_inventory
+from decks.progress import estimate
 from decks.scheduler import build_queue
 from decks.store import DeckNotFoundError
 from decks.topics import book_scope_key, video_scope_key
@@ -51,13 +54,23 @@ class GenerateDeckRequest(ContractModel):
     node_id: int | None = None
     video_id: str | None = None
 
+    @model_validator(mode="after")
+    def extracted_questions_are_book_only(self) -> GenerateDeckRequest:
+        if self.source_kind != "book" and self.generation_mode == "book_extracted":
+            raise ValueError("book-extracted questions require a book chapter")
+        return self
+
 
 class DeckJobResponse(ContractModel):
     job_id: str
+    source_kind: str
     status: str
     stage: str
     scope_key: str
     generation_mode: str = "topic_generated"
+    book_id: int | None = None
+    node_id: int | None = None
+    video_id: str | None = None
     deck_id: str | None = None
     topics_total: int = 0
     topics_done: int = 0
@@ -65,6 +78,28 @@ class DeckJobResponse(ContractModel):
     attempt_count: int = 0
     error_code: str | None = None
     error_detail: str | None = None
+    title: str = "Deck generation"
+    source_title: str = "Source"
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    timing: "DeckJobTiming"
+
+
+class DeckJobStage(ContractModel):
+    stage: str
+    label: str
+    state: Literal["done", "active", "pending"]
+    expected_seconds: float
+    elapsed_seconds: float | None = None
+
+
+class DeckJobTiming(ContractModel):
+    percent: float
+    elapsed_seconds: float
+    estimated_total_seconds: float
+    estimated_remaining_seconds: float | None
+    overrunning: bool
+    stages: list[DeckJobStage]
 
 
 class DeckListResponse(ContractModel):
@@ -92,19 +127,52 @@ class GradeResponse(ContractModel):
 
 
 def _job_response(job: deck_jobs.DeckJob) -> DeckJobResponse:
+    timing = estimate(
+        status=job.status,
+        stage=job.stage,
+        generation_mode=job.generation_mode,
+        topics_completed=job.topics_done,
+        topics_total=job.topics_total,
+        created_at=job.created_at,
+    )
     return DeckJobResponse(
         job_id=str(job.id),
+        source_kind=job.source_kind,
         status=job.status,
         stage=job.stage,
         scope_key=job.scope_key,
         generation_mode=job.generation_mode,
+        book_id=job.book_id,
+        node_id=job.node_id,
+        video_id=str(job.video_id) if job.video_id else None,
         deck_id=str(job.deck_id) if job.deck_id else None,
         topics_total=job.topics_total,
         topics_done=job.topics_done,
-        progress=round(job.progress_ratio, 3),
+        progress=round(timing.percent / 100, 3),
         attempt_count=job.attempt_count,
         error_code=job.error_code,
         error_detail=job.error_detail,
+        title=job.title,
+        source_title=job.source_title,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+        timing=DeckJobTiming(
+            percent=timing.percent,
+            elapsed_seconds=timing.elapsed_seconds,
+            estimated_total_seconds=timing.estimated_total_seconds,
+            estimated_remaining_seconds=timing.estimated_remaining_seconds,
+            overrunning=timing.overrunning,
+            stages=[
+                DeckJobStage(
+                    stage=view.stage,
+                    label=view.label,
+                    state=view.state,
+                    expected_seconds=view.expected_seconds,
+                    elapsed_seconds=view.elapsed_seconds,
+                )
+                for view in timing.stages
+            ],
+        ),
     )
 
 

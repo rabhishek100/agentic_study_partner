@@ -18,14 +18,19 @@ from storage.database import parse_owner_id
 from study.content import load_scope_content
 from study.scope import ScopeNotFoundError, resolve_node
 from video.errors import VideoIngestionError
-from video.lecture import NoTranscriptError, coverage_units, load_chapters, load_lecture_scope
+from video.lecture import (
+    NoTranscriptError,
+    coverage_units,
+    load_chapters,
+    load_lecture_scope,
+)
 
 from . import jobs, store
 from .generate import (
     CardModel,
     DeckGenerationError,
-    GenerationConfig,
     GeneratedDeck,
+    GenerationConfig,
     generate_deck,
 )
 from .topics import ScopeInventory, book_inventory, lecture_inventory
@@ -177,13 +182,20 @@ def run_deck_job(
             from .extraction import extract_and_generate_deck
 
             generated = extract_and_generate_deck(
-                inventory, connection=connection, owner_id=str(job.owner_id)
+                inventory,
+                connection=connection,
+                owner_id=str(job.owner_id),
+                book_id=job.book_id,
+                progress=progress,
             )
         else:
             generated = generate_deck(
                 inventory, model=model, config=config, progress=progress
             )
-    except DeckGenerationError:
+    except Exception:
+        # Every attempt creates a version before making a provider call.  Do
+        # not leave that version stuck in `generating` when an unexpected
+        # schema, provider, or persistence error escapes the generation path.
         store.fail_deck(connection, owner_id=job.owner_id, deck_id=deck_id)
         raise
 

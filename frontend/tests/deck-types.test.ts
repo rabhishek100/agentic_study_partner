@@ -13,6 +13,9 @@ const metrics = (overrides: Partial<DeckMetrics> = {}): DeckMetrics => ({
   topics_required: 0,
   topics_covered: 0,
   uncovered_topic_labels: [],
+  source_questions_total: 0,
+  source_questions_covered: 0,
+  uncovered_question_labels: [],
   cards_generated: 0,
   cards_kept: 0,
   cards_dropped_uncited: 0,
@@ -71,9 +74,13 @@ describe("coveragePercent", () => {
 describe("jobIsLive", () => {
   const job = (status: DeckJob["status"]): DeckJob => ({
     job_id: "j",
+    source_kind: "book",
     status,
     stage: "generation",
     scope_key: "book:1:node:2",
+    book_id: 1,
+    node_id: 2,
+    video_id: null,
     deck_id: null,
     topics_total: 4,
     topics_done: 1,
@@ -81,6 +88,18 @@ describe("jobIsLive", () => {
     attempt_count: 1,
     error_code: null,
     error_detail: null,
+    title: "Chapter 2",
+    source_title: "ISLP",
+    created_at: null,
+    updated_at: null,
+    timing: {
+      percent: 0,
+      elapsed_seconds: 0,
+      estimated_total_seconds: 120,
+      estimated_remaining_seconds: 120,
+      overrunning: false,
+      stages: [],
+    },
   });
 
   it("counts queued and running as work in flight", () => {

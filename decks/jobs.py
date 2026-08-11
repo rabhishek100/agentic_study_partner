@@ -12,7 +12,7 @@ lose the run on a dropped socket.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -52,6 +52,10 @@ class DeckJob:
     error_code: str | None = None
     error_detail: str | None = None
     cancellation_requested: bool = False
+    title: str = "Deck generation"
+    source_title: str = "Source"
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @property
     def progress_ratio(self) -> float:
@@ -80,15 +84,31 @@ def _job(row: Any) -> DeckJob:
         error_code=row["error_code"],
         error_detail=row["error_detail"],
         cancellation_requested=row["cancellation_requested"],
+        title=row.get("title") or "Deck generation",
+        source_title=row.get("source_title") or "Source",
+        created_at=row.get("created_at"),
+        updated_at=row.get("updated_at"),
     )
 
 
 _SELECT = """
-    select id, owner_id, deck_id, source_kind, book_id, node_id, video_id,
-           scope_key, generation_mode, status, stage, topics_total, topics_done,
-           attempt_count, max_attempts, error_code, error_detail,
-           cancellation_requested
-    from public.deck_jobs
+    select job.id, job.owner_id, job.deck_id, job.source_kind, job.book_id,
+           job.node_id, job.video_id, job.scope_key, job.generation_mode,
+           job.status, job.stage, job.topics_total, job.topics_done,
+           job.attempt_count, job.max_attempts, job.error_code,
+           job.error_detail, job.cancellation_requested, job.created_at,
+           job.updated_at,
+           coalesce(deck.title, node.title, video.title, 'Deck generation') as title,
+           coalesce(deck.source_title, book.title, video.title, 'Source') as source_title
+    from public.deck_jobs as job
+    left join public.decks as deck
+      on deck.id = job.deck_id and deck.owner_id = job.owner_id
+    left join public.nodes as node
+      on node.id = job.node_id and node.owner_id = job.owner_id
+    left join public.books as book
+      on book.id = job.book_id and book.owner_id = job.owner_id
+    left join video.videos as video
+      on video.id = job.video_id and video.owner_id = job.owner_id
 """
 
 
@@ -109,7 +129,8 @@ def enqueue(
     existing = connection.execute(
         _SELECT
         + """
-        where owner_id = %s and scope_key = %s and status in ('queued', 'running')
+        where job.owner_id = %s and job.scope_key = %s
+          and job.status in ('queued', 'running')
         limit 1
         """,
         (owner, scope_key),
@@ -144,7 +165,7 @@ def get_job(
     connection: Connection, *, owner_id: str | UUID, job_id: str | UUID
 ) -> DeckJob:
     row = connection.execute(
-        _SELECT + " where id = %s and owner_id = %s",
+        _SELECT + " where job.id = %s and job.owner_id = %s",
         (UUID(str(job_id)), parse_owner_id(owner_id)),
     ).fetchone()
     if row is None:
@@ -156,7 +177,8 @@ def list_jobs(
     connection: Connection, *, owner_id: str | UUID, limit: int = 20
 ) -> list[DeckJob]:
     rows = connection.execute(
-        _SELECT + " where owner_id = %s order by created_at desc limit %s",
+        _SELECT
+        + " where job.owner_id = %s order by job.created_at desc limit %s",
         (parse_owner_id(owner_id), limit),
     ).fetchall()
     return [_job(row) for row in rows]
@@ -167,7 +189,8 @@ def live_job_for_scope(
 ) -> DeckJob | None:
     row = connection.execute(
         _SELECT
-        + " where owner_id = %s and scope_key = %s and status in ('queued', 'running')",
+        + " where job.owner_id = %s and job.scope_key = %s"
+        " and job.status in ('queued', 'running')",
         (parse_owner_id(owner_id), scope_key),
     ).fetchone()
     return _job(row) if row else None
