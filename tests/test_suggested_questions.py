@@ -1,10 +1,11 @@
 """Tests for dynamic suggested questions storage, question generator, and API endpoints."""
 
 import unittest
-from unittest.mock import MagicMock, patch
-from uuid import UUID, uuid4
+from unittest.mock import patch
+from uuid import UUID
 
 from httpx import ASGITransport, AsyncClient
+from psycopg import errors as postgres_errors
 
 from api.auth import current_owner
 from api.main import app
@@ -40,6 +41,49 @@ class SuggestedQuestionsStoreTests(PostgresOwnerMixin, unittest.TestCase):
                 connection, owner_id=self.owner_id, scope_type="book", scope_key="book:999"
             )
         self.assertIsNone(cached)
+
+    def test_cache_table_is_private_to_server_side_database_connections(self) -> None:
+        with database_connection(self.database_url, readonly=True) as connection:
+            security = connection.execute(
+                """
+                select c.relrowsecurity,
+                       has_table_privilege(
+                           'anon', c.oid, 'select, insert, update, delete'
+                       ) as anon_access,
+                       has_table_privilege(
+                           'authenticated', c.oid,
+                           'select, insert, update, delete'
+                       ) as authenticated_access
+                from pg_class as c
+                join pg_namespace as n on n.oid = c.relnamespace
+                where n.nspname = 'public'
+                  and c.relname = 'suggested_questions_cache'
+                """
+            ).fetchone()
+
+        self.assertIsNotNone(security)
+        self.assertTrue(security["relrowsecurity"])
+        self.assertFalse(security["anon_access"])
+        self.assertFalse(security["authenticated_access"])
+
+    def test_authenticated_client_cannot_query_server_side_cache(self) -> None:
+        with (
+            database_connection(self.database_url) as connection,
+            self.assertRaises(postgres_errors.InsufficientPrivilege),
+            connection.transaction(),
+        ):
+            connection.execute("set local role authenticated")
+            connection.execute(
+                "select set_config('request.jwt.claims', %s, true)",
+                (
+                    '{"sub": "'
+                    + self.owner_id
+                    + '", "role": "authenticated"}',
+                ),
+            )
+            connection.execute(
+                "select questions_json from public.suggested_questions_cache"
+            ).fetchall()
 
     def test_save_and_retrieve_cache(self) -> None:
         questions = [

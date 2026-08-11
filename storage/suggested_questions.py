@@ -1,7 +1,5 @@
 """Persisted cache for dynamic suggested questions / starter prompts."""
 
-from datetime import datetime, timezone
-from typing import Any
 from uuid import UUID
 
 from psycopg import Connection
@@ -15,24 +13,6 @@ SUGGESTED_QUESTIONS_CACHE_VERSION = "concise-v2"
 def versioned_suggested_questions_key(scope_key: str) -> str:
     """Isolate cached questions when the generation contract changes."""
     return f"{scope_key}:{SUGGESTED_QUESTIONS_CACHE_VERSION}"
-
-
-def ensure_suggested_questions_table(connection: Connection) -> None:
-    """Ensure the suggested_questions_cache table exists."""
-    connection.execute(
-        """
-        create table if not exists public.suggested_questions_cache (
-            owner_id uuid not null,
-            scope_type text not null check (scope_type in ('book', 'library', 'video')),
-            scope_key text not null,
-            questions_json jsonb not null default '[]'::jsonb,
-            created_at timestamptz not null default now(),
-            updated_at timestamptz not null default now(),
-            primary key (owner_id, scope_type, scope_key),
-            constraint suggested_questions_are_array check (jsonb_typeof(questions_json) = 'array')
-        );
-        """
-    )
 
 
 def get_cached_suggested_questions(
@@ -74,7 +54,6 @@ def save_cached_suggested_questions(
     questions: list[str],
 ) -> list[str]:
     """Store or update cached suggested questions for a given owner and scope."""
-    ensure_suggested_questions_table(connection)
     row = connection.execute(
         """
         insert into public.suggested_questions_cache
