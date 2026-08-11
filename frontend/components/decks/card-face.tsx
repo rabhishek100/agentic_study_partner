@@ -1,6 +1,6 @@
 "use client";
 
-import { Lightbulb, Sparkles } from "lucide-react";
+import { ChevronDown, Lightbulb, Sparkles, Timer } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -105,9 +105,31 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-/** The one line you would actually say out loud. Shown largest, on purpose. */
-function SayItAloud({ text }: { text: string }) {
+/** The one line you would actually say out loud. Shown first, on purpose. */
+function SayItAloud({
+  text,
+  studyMode = false,
+}: {
+  text: string;
+  studyMode?: boolean;
+}) {
   if (!text.trim()) return null;
+  if (studyMode) {
+    return (
+      <section aria-labelledby="short-answer-heading">
+        <h3
+          id="short-answer-heading"
+          className="mb-2 flex items-center gap-2 font-heading text-base font-medium text-primary"
+        >
+          <Timer aria-hidden className="size-4" />
+          30-second answer
+        </h3>
+        <p className="border-l-2 border-primary py-0.5 pl-4 font-heading text-base leading-relaxed sm:text-[1.05rem]">
+          {plain(text)}
+        </p>
+      </section>
+    );
+  }
   return (
     <p className="rounded-lg border-l-2 border-primary bg-accent/40 px-3 py-2 font-heading text-base leading-snug">
       {plain(text)}
@@ -119,15 +141,24 @@ export function CardFront({
   card,
   selected,
   onSelect,
+  studyMode = false,
 }: {
   card: DeckCard;
   /** MCQ only: which option the reader picked before revealing. */
   selected?: McqOption["label"] | null;
   onSelect?: (label: McqOption["label"]) => void;
+  studyMode?: boolean;
 }) {
   return (
     <div className="space-y-4">
-      <p className="whitespace-pre-wrap font-heading text-xl leading-snug sm:text-2xl">
+      <p
+        className={cn(
+          "whitespace-pre-wrap font-heading",
+          studyMode
+            ? "text-lg leading-[1.55] sm:text-xl"
+            : "text-xl leading-snug sm:text-2xl",
+        )}
+      >
         {sourceQuestion(card.front)}
       </p>
       {card.card_type === "mcq" ? (
@@ -159,15 +190,52 @@ export function CardFront({
   );
 }
 
+interface AnswerSection {
+  label: string;
+  title: string;
+  body: string;
+}
+
+/**
+ * Source-question answers repeat their printed labels. Presenting those
+ * existing boundaries as disclosure rows makes a long worked solution
+ * scannable without inventing, rewriting, or dropping any answer content.
+ */
+export function structuredAnswer(
+  answer: string,
+  keyPoints: string[] = [],
+): AnswerSection[] {
+  const text = plain(answer);
+  const matches = Array.from(text.matchAll(/(?:^|\s)(\([a-z]\))\s+/gi));
+  if (matches.length < 2) return [];
+
+  return matches.map((match, index) => {
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? text.length;
+    const body = text.slice(start, end).trim();
+    const firstSentence = body.split(/(?<=[.!?])\s+/)[0] ?? body;
+    return {
+      label: (match[1] ?? "").toLowerCase(),
+      title: plain(keyPoints[index] ?? firstSentence),
+      body,
+    };
+  });
+}
+
 export function CardBackFace({
   item,
   selected,
+  studyMode = false,
 }: {
   item: QueueCard;
   selected?: McqOption["label"] | null;
+  studyMode?: boolean;
 }) {
   const { card } = item;
   const back = card.back;
+  const answerSections = studyMode
+    ? structuredAnswer(back.answer, back.key_points)
+    : [];
 
   return (
     <div className="space-y-4">
@@ -202,13 +270,46 @@ export function CardBackFace({
           ))}
         </ul>
       ) : (
-        <SayItAloud text={back.say_it_aloud} />
+        <SayItAloud text={back.say_it_aloud} studyMode={studyMode} />
       )}
 
       {back.answer.trim() ? (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">
-          {plain(back.answer)}
-        </p>
+        answerSections.length > 1 ? (
+          <section aria-label="Detailed answer">
+            <div className="divide-y divide-border border-y border-border">
+              {answerSections.map((section) => (
+                <details key={section.label} className="group">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                      {section.label.slice(1, -1)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-heading font-medium">
+                      {section.title}
+                    </span>
+                    <ChevronDown
+                      aria-hidden
+                      className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+                    />
+                  </summary>
+                  <p className="whitespace-pre-wrap pb-4 pl-9 text-sm leading-7">
+                    {section.body}
+                  </p>
+                </details>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <div>
+            {studyMode ? (
+              <h3 className="mb-2 font-heading text-sm font-medium text-muted-foreground">
+                Detailed answer
+              </h3>
+            ) : null}
+            <p className="whitespace-pre-wrap text-sm leading-7">
+              {plain(back.answer)}
+            </p>
+          </div>
+        )
       ) : null}
 
       {back.why_it_matters.trim() ? (
@@ -228,7 +329,7 @@ export function CardBackFace({
           <Bullets title="Trade-offs" items={back.trade_offs} />
           <Bullets title="Failure modes" items={back.failure_modes} />
         </div>
-      ) : (
+      ) : studyMode && answerSections.length > 1 ? null : (
         <Bullets title="Key points" items={back.key_points} />
       )}
 

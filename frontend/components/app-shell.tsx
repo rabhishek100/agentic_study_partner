@@ -62,25 +62,27 @@ export function AppShell({
       </a>
 
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4">
-        <Sheet open={railOpen} onOpenChange={setRailOpen}>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className={cn(!aside && "lg:hidden")}
-              aria-label="Open the library panel"
-            >
-              <PanelLeft aria-hidden />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-80 bg-sidebar p-0">
-            <SheetTitle className="sr-only">Library and settings</SheetTitle>
-            <SheetDescription className="sr-only">
-              Choose a book, change the search method, and upload new books.
-            </SheetDescription>
-            {rail}
-          </SheetContent>
-        </Sheet>
+        {rail ? (
+          <Sheet open={railOpen} onOpenChange={setRailOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className={cn(!aside && "lg:hidden")}
+                aria-label="Open the library panel"
+              >
+                <PanelLeft aria-hidden />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-80 bg-sidebar p-0">
+              <SheetTitle className="sr-only">Library and settings</SheetTitle>
+              <SheetDescription className="sr-only">
+                Choose a book, change the search method, and upload new books.
+              </SheetDescription>
+              {rail}
+            </SheetContent>
+          </Sheet>
+        ) : null}
 
         <div className="flex min-w-0 items-center gap-2.5">
           <BrandMark size="sm" />
@@ -104,11 +106,11 @@ export function AppShell({
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!aside && (
+        {!aside && rail ? (
           <aside className="hidden w-72 shrink-0 border-r border-border bg-sidebar lg:block xl:w-80">
             {rail}
           </aside>
-        )}
+        ) : null}
         <SplitPane aside={aside ?? null}>
           <main className="flex min-w-0 flex-1 flex-col">{children}</main>
         </SplitPane>

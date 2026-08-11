@@ -203,7 +203,7 @@ export default function DeckDetailPage() {
           </DropdownMenuContent>
         </DropdownMenu>
       }
-      rail={
+      rail={reviewing ? null : (
         <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
           <Button variant="ghost" size="sm" className="justify-start" asChild>
             <Link href="/decks">
@@ -329,9 +329,15 @@ export default function DeckDetailPage() {
             </div>
           ) : null}
         </div>
-      }
+      )}
     >
-      <div className="mx-auto w-full max-w-3xl space-y-5 overflow-y-auto p-4 sm:p-6">
+      <div
+        className={
+          reviewing
+            ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
+            : "mx-auto w-full max-w-3xl space-y-5 overflow-y-auto p-4 sm:p-6"
+        }
+      >
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -341,6 +347,7 @@ export default function DeckDetailPage() {
         {reviewing && queue ? (
           <ReviewSession
             cards={queue.cards}
+            sourceQuestions={deck?.generation_mode === "book_extracted"}
             onFinished={() => void load()}
             onExit={() => setReviewing(false)}
             onAskSelection={(card, quotedText) => {

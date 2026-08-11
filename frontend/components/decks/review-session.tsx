@@ -3,11 +3,11 @@
 import {
   BookOpen,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
   MessageSquare,
-  RotateCcw,
   Video,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -16,7 +16,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CardBackFace,
   CardFront,
-  CardMeta,
   CardSources,
 } from "@/components/decks/card-face";
 import { AskSelection } from "@/components/side-chat/ask-selection";
@@ -47,6 +46,7 @@ interface GradeResponse {
 /** What the session remembers about one card while you move around it. */
 interface CardState {
   revealed: boolean;
+  questionCollapsed: boolean;
   selected: McqOption["label"] | null;
   /** Set once graded in this session; a revisit shows it and can change it. */
   rating: Rating | null;
@@ -56,8 +56,16 @@ interface CardState {
 
 const RATINGS: Rating[] = [1, 2, 3, 4];
 
+function timestampLabel(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 const EMPTY_STATE: CardState = {
   revealed: false,
+  questionCollapsed: false,
   selected: null,
   rating: null,
   review: null,
@@ -90,10 +98,13 @@ export function ReviewSession({
   onFinished,
   onExit,
   onAskSelection,
+  sourceQuestions = false,
 }: {
   cards: QueueCard[];
   onFinished?: () => void;
   onExit?: () => void;
+  /** The deck contains exercises transcribed from the source book. */
+  sourceQuestions?: boolean;
   /**
    * Highlighted text on the back of a card, handed up to be asked about.
    *
@@ -415,84 +426,158 @@ export function ReviewSession({
   // the render rather than guarding a state the component can reach.
   if (!item) return null;
 
+  const firstCitation = item.card.citations[0];
+  const sourceLocation = firstCitation?.page
+    ? `p. ${firstCitation.page}`
+    : firstCitation?.start_ms !== null && firstCitation?.start_ms !== undefined
+      ? timestampLabel(firstCitation.start_ms)
+      : null;
+
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            {item.source_kind === "book" ? (
-              <BookOpen aria-hidden className="size-3.5" />
-            ) : (
-              <Video aria-hidden className="size-3.5" />
-            )}
-            <span className="truncate">{item.deck_title}</span>
-          </span>
-          <span className="flex items-center gap-1">
+    <div className="flex min-h-0 flex-1 flex-col bg-background">
+      <header className="shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={finish}>
+            <ChevronLeft aria-hidden />
+            <span className="hidden sm:inline">Back to deck</span>
+          </Button>
+
+          <div className="mx-auto w-full max-w-3xl space-y-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <span className="truncate font-heading font-medium">
+                {item.deck_title}
+              </span>
+              <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+                {index + 1} / {cards.length}
+              </span>
+            </div>
+            <Progress value={((index + 1) / cards.length) * 100} />
+          </div>
+
+          <div className="flex items-center gap-1.5">
             <Button
-              variant="ghost"
-              size="icon-sm"
+              variant="outline"
+              size="sm"
               onClick={() => goTo(index - 1)}
               disabled={index === 0}
               aria-label="Previous card"
             >
               <ChevronLeft aria-hidden />
+              <span className="hidden md:inline">Previous</span>
             </Button>
-            <span className="tabular-nums">
-              {index + 1} / {cards.length}
-            </span>
             <Button
-              variant="ghost"
-              size="icon-sm"
+              variant="outline"
+              size="sm"
               onClick={() => goTo(index + 1)}
               aria-label="Next card"
             >
+              <span className="hidden md:inline">Next</span>
               <ChevronRight aria-hidden />
             </Button>
-          </span>
-        </div>
-        <Progress value={(gradedCount / cards.length) * 100} />
-      </div>
-
-      <div className="rounded-xl border border-border bg-card p-5 sm:p-7">
-        <div className="mb-4 flex flex-wrap items-center gap-1.5">
-          <CardMeta card={item.card} />
-          {state.rating ? (
-            <span className="text-xs text-muted-foreground">
-              graded {RATING_LABELS[state.rating]}
-              {state.review
-                ? ` · back in ${describeInterval(state.review.interval_days)}`
-                : ""}
-            </span>
-          ) : null}
-        </div>
-
-        <CardFront
-          card={item.card}
-          selected={state.selected}
-          onSelect={
-            state.revealed
-              ? undefined
-              : (label) => patch(cardId, { selected: label })
-          }
-        />
-
-        {state.revealed ? (
-          /*
-            `data-turn-index` and `data-answer` are what the selection reader
-            looks for. A card is one answer, so the index is a constant here —
-            which turn it really becomes is the server's decision, taken when
-            the card is first asked about.
-          */
-          <div
-            ref={backRef}
-            data-turn-index="0"
-            data-answer
-            className="mt-6 space-y-4 border-t border-border pt-5"
-          >
-            <CardBackFace item={item} selected={state.selected} />
-            <CardSources item={item} onOpenSource={openSource} />
           </div>
-        ) : null}
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <article className="mx-auto w-full max-w-4xl px-5 py-6 sm:px-8 sm:py-8">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span className="font-medium text-primary">
+              {sourceQuestions ? "Exercise" : "Card"} {index + 1}
+            </span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+              <span className="flex items-center gap-1">
+                {item.source_kind === "book" ? (
+                  <BookOpen aria-hidden className="size-3.5" />
+                ) : (
+                  <Video aria-hidden className="size-3.5" />
+                )}
+                {item.source_title}
+                {sourceLocation ? ` · ${sourceLocation}` : ""}
+              </span>
+              <span aria-hidden>•</span>
+              <span>Grounded in source</span>
+              <span aria-hidden>•</span>
+              <span>{item.card.difficulty}</span>
+              {state.rating ? (
+                <>
+                  <span aria-hidden>•</span>
+                  <span>
+                    Graded {RATING_LABELS[state.rating]}
+                    {state.review
+                      ? ` · back in ${describeInterval(state.review.interval_days)}`
+                      : ""}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
+
+          {!state.questionCollapsed ? (
+            <CardFront
+              card={item.card}
+              selected={state.selected}
+              studyMode
+              onSelect={
+                state.revealed
+                  ? undefined
+                  : (label) => patch(cardId, { selected: label })
+              }
+            />
+          ) : null}
+
+          {state.revealed ? (
+            <>
+              <div className="my-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <button
+                  type="button"
+                  aria-expanded={!state.questionCollapsed}
+                  onClick={() =>
+                    patch(cardId, {
+                      questionCollapsed: !state.questionCollapsed,
+                    })
+                  }
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 font-heading text-sm text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <ChevronDown
+                    aria-hidden
+                    className={cn(
+                      "size-4 transition-transform",
+                      !state.questionCollapsed && "rotate-180",
+                    )}
+                  />
+                  Question ({state.questionCollapsed ? "expand" : "collapse"})
+                </button>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
+              {/*
+                `data-turn-index` and `data-answer` are what the selection
+                reader looks for. A card is one answer, so the index remains
+                constant while the server owns the eventual conversation turn.
+              */}
+              <div
+                ref={backRef}
+                data-turn-index="0"
+                data-answer
+                className="space-y-5"
+              >
+                <CardBackFace
+                  item={item}
+                  selected={state.selected}
+                  studyMode
+                />
+                <CardSources item={item} onOpenSource={openSource} />
+              </div>
+            </>
+          ) : null}
+
+          {error ? (
+            <p role="alert" className="mt-5 text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </article>
       </div>
 
       {state.revealed && onAskSelection && item.source_kind === "book" ? (
@@ -502,84 +587,79 @@ export function ReviewSession({
         />
       ) : null}
 
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
-
-      {!state.revealed ? (
-        <Button size="lg" onClick={() => patch(cardId, { revealed: true })}>
-          <Eye aria-hidden />
-          Show answer
-          <kbd className="ml-2 rounded border border-current/30 px-1.5 text-xs opacity-70">
-            space
-          </kbd>
-        </Button>
-      ) : (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {RATINGS.map((rating) => (
-              <Button
-                key={rating}
-                // Filled means "this is what you pressed", falling back to
-                // Good as the suggested answer on a card not yet graded.
-                variant={(state.rating ?? 3) === rating ? "default" : "outline"}
-                disabled={pending}
-                onClick={() => void grade(rating)}
-                className={cn(
-                  "h-auto flex-col gap-0.5 py-2.5",
-                  rating === 1 &&
-                    state.rating !== 1 &&
-                    "border-destructive/50 text-destructive",
-                )}
-              >
-                <span className="text-sm font-medium">
-                  {RATING_LABELS[rating]}
-                </span>
-                <span className="text-xs font-normal opacity-70 tabular-nums">
-                  {nextIntervalHint(state.review ?? item.review, rating)}
-                </span>
-              </Button>
-            ))}
-          </div>
-
-          {/*
-            The two things worth doing with a card you just failed. Both reuse
-            what already exists: the document viewer, and grounded chat.
-          */}
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button variant="ghost" size="sm" onClick={askAboutCard}>
-              <MessageSquare aria-hidden />
-              Ask about this
-            </Button>
-            {item.card.citations.length > 0 ? (
-              <Button variant="ghost" size="sm" onClick={openSource}>
-                {item.source_kind === "book" ? (
-                  <BookOpen aria-hidden />
-                ) : (
-                  <Video aria-hidden />
-                )}
-                Open the source
-              </Button>
-            ) : null}
+      <footer className="shrink-0 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+        {!state.revealed ? (
+          <div className="mx-auto flex w-full max-w-3xl justify-center">
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => patch(cardId, { revealed: false })}
+              size="lg"
+              className="min-w-56"
+              onClick={() => patch(cardId, { revealed: true })}
             >
-              <RotateCcw aria-hidden />
-              Hide
+              <Eye aria-hidden />
+              Show answer
+              <kbd className="ml-2 rounded border border-current/30 px-1.5 text-xs opacity-70">
+                space
+              </kbd>
             </Button>
           </div>
+        ) : (
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="flex shrink-0 flex-wrap items-center gap-1 lg:min-w-[22rem]">
+              <Button variant="outline" size="sm" onClick={askAboutCard}>
+                <MessageSquare aria-hidden />
+                Ask about this
+              </Button>
+              {item.card.citations.length > 0 ? (
+                <Button variant="outline" size="sm" onClick={openSource}>
+                  {item.source_kind === "book" ? (
+                    <BookOpen aria-hidden />
+                  ) : (
+                    <Video aria-hidden />
+                  )}
+                  Open source
+                </Button>
+              ) : null}
+            </div>
 
-          <p className="text-center text-xs text-muted-foreground">
-            1–4 to grade, space for Good, ← → to move between cards.
-          </p>
-        </div>
-      )}
-
-      {overview}
+            <div className="hidden h-10 w-px bg-border lg:block" />
+            <div className="min-w-32 shrink-0">
+              <p className="text-xs font-medium">How well did you recall this?</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Choose one rating
+              </p>
+            </div>
+            <div className="grid min-w-0 flex-1 grid-cols-4 gap-2">
+              {RATINGS.map((rating) => (
+                <Button
+                  key={rating}
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => void grade(rating)}
+                  className={cn(
+                    "h-auto min-w-0 flex-col gap-0.5 py-2",
+                    rating === 1 && "border-destructive/50 text-destructive",
+                    rating === 2 && "border-citation/50 text-citation",
+                    rating === 3 && "border-primary/60 text-primary",
+                    rating === 4 && "border-positive/60 text-positive",
+                    state.rating === rating && "bg-accent ring-1 ring-current/30",
+                  )}
+                >
+                  <span className="text-sm font-medium">
+                    {RATING_LABELS[rating]}
+                  </span>
+                  <span className="text-xs font-normal opacity-70 tabular-nums">
+                    {nextIntervalHint(state.review ?? item.review, rating)}
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+        <p className="sr-only">
+          1–4 to grade, space for Good, left and right arrows to move between
+          cards.
+        </p>
+      </footer>
     </div>
   );
 }
