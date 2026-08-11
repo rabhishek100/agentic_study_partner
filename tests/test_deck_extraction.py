@@ -456,7 +456,7 @@ class DeckExtractionStoreTests(PostgresOwnerMixin, unittest.TestCase):
     def test_enqueue_and_store_book_extracted_deck(self) -> None:
         scope_key = book_scope_key(
             self.book_id,
-            self.scope.root.id,
+            self.scope.root_node_id,
             generation_mode="book_extracted",
         )
         job = jobs.enqueue(
@@ -466,7 +466,7 @@ class DeckExtractionStoreTests(PostgresOwnerMixin, unittest.TestCase):
             scope_key=scope_key,
             generation_mode="book_extracted",
             book_id=self.book_id,
-            node_id=self.scope.root.id,
+            node_id=self.scope.root_node_id,
         )
         self.assertEqual(job.generation_mode, "book_extracted")
 
@@ -479,9 +479,9 @@ class DeckExtractionStoreTests(PostgresOwnerMixin, unittest.TestCase):
             source_title="Sample Book",
             generation_mode="book_extracted",
             book_id=self.book_id,
-            node_id=self.scope.root.id,
+            node_id=self.scope.root_node_id,
         )
-        topic = sample_topic(node_id=self.scope.root.id)
+        topic = sample_topic(node_id=self.scope.root_node_id)
         card = DeckCard(
             topic_key=topic.key,
             card_index=0,
@@ -493,8 +493,8 @@ class DeckExtractionStoreTests(PostgresOwnerMixin, unittest.TestCase):
             ),
             citations=[
                 DeckCitation(
-                    marker=f"[N{self.scope.root.id}:P1]",
-                    node_id=self.scope.root.id,
+                    marker=f"[N{self.scope.root_node_id}:P1]",
+                    node_id=self.scope.root_node_id,
                     page=1,
                 )
             ],
