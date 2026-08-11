@@ -295,8 +295,22 @@ def _visual_page_text(page: fitz.Page) -> str:
     us restore rows deterministically without asking a model to guess them.
     """
 
+    raw_words = page.get_text("words")
+    source_lines: dict[tuple[int, int], list[tuple]] = {}
+    for word in raw_words:
+        source_lines.setdefault((word[5], word[6]), []).append(word)
+    margin_source_lines = {
+        line_id
+        for line_id, line_words in source_lines.items()
+        if line_words
+        and min(item[0] for item in line_words) >= page.rect.width * 0.83
+    }
     words = sorted(
-        page.get_text("words"),
+        (
+            word
+            for word in raw_words
+            if (word[5], word[6]) not in margin_source_lines
+        ),
         key=lambda word: ((word[1] + word[3]) / 2, word[0]),
     )
     if not words:

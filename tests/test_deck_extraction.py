@@ -72,7 +72,9 @@ class DeckExtractionUnitTests(unittest.TestCase):
         page = document.new_page(width=500, height=700)
         page.insert_text((100, 100), "What is the range using min() and max()?")
         page.insert_text((420, 120), ".min()")
-        page.insert_text((420, 135), ".max()")
+        # This callout shares a baseline with body text. Coordinate-only line
+        # grouping must not splice it into the exercise sentence.
+        page.insert_text((420, 100), ".max()")
 
         text = _visual_page_text(page)
 
