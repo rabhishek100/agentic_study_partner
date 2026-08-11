@@ -4,6 +4,7 @@ import { AlertTriangle, BookOpen, Loader2, Video } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Tooltip,
@@ -77,14 +78,19 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {deck.generation_mode === "book_extracted" ? (
-                <Badge variant="default" className="bg-amber-600/90 text-white font-normal hover:bg-amber-600">
-                  Book Original
+                <Badge
+                  variant="default"
+                  className="bg-amber-700 font-normal text-white hover:bg-amber-700 dark:bg-amber-600"
+                >
+                  From book
                 </Badge>
               ) : null}
               <Badge variant="outline" className="font-normal tabular-nums">
                 {deck.card_count} cards
               </Badge>
-              <CoverageBadge metrics={deck.metrics} />
+              {deck.generation_mode !== "book_extracted" ? (
+                <CoverageBadge metrics={deck.metrics} />
+              ) : null}
               {deck.due_count > 0 ? (
                 <Badge className="font-normal tabular-nums">
                   {deck.due_count} due
@@ -109,8 +115,15 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
 }
 
 /** A generation still in flight, shown where its deck will appear. */
-export function DeckJobRow({ job }: { job: DeckJob }) {
+export function DeckJobRow({
+  job,
+  onRetry,
+}: {
+  job: DeckJob;
+  onRetry?: (job: DeckJob) => void;
+}) {
   const failed = job.status === "failed";
+  const extracting = job.generation_mode === "book_extracted";
 
   return (
     <li className="rounded-lg border border-dashed border-border p-4">
@@ -122,17 +135,34 @@ export function DeckJobRow({ job }: { job: DeckJob }) {
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
-            {failed ? "Generation failed" : "Making cards…"}
+            {failed
+              ? extracting
+                ? "Question extraction failed"
+                : "Generation failed"
+              : extracting
+                ? "Extracting book questions…"
+                : "Making cards…"}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {failed
               ? job.error_detail || job.error_code || "Try generating it again."
               : job.stage === "generation" && job.topics_total > 0
-                ? `${job.topics_done} of ${job.topics_total} topics`
+                ? `${job.topics_done} of ${job.topics_total} ${extracting ? "evidence batches" : "topics"}`
                 : job.stage.replace(/_/g, " ")}
           </p>
           {!failed ? (
             <Progress className="mt-2" value={job.progress * 100} />
+          ) : null}
+          {failed && onRetry ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => onRetry(job)}
+            >
+              Try again
+            </Button>
           ) : null}
         </div>
       </div>

@@ -81,6 +81,14 @@ export default function DecksPage() {
     () => jobs.filter((job) => job.status === "failed").slice(0, 2),
     [jobs],
   );
+  const generatedDecks = useMemo(
+    () => decks.filter((deck) => deck.generation_mode !== "book_extracted"),
+    [decks],
+  );
+  const bookQuestionDecks = useMemo(
+    () => decks.filter((deck) => deck.generation_mode === "book_extracted"),
+    [decks],
+  );
 
   useEffect(() => {
     if (!session || working.length === 0 || reviewing) return;
@@ -102,6 +110,28 @@ export default function DecksPage() {
     },
     [load],
   );
+
+  const retryJob = useCallback(async (failed: DeckJob) => {
+    try {
+      const job = await apiFetch<DeckJob>("/decks", {
+        method: "POST",
+        body: JSON.stringify({
+          source_kind: failed.source_kind,
+          generation_mode: failed.generation_mode ?? "topic_generated",
+          book_id: failed.book_id,
+          node_id: failed.node_id,
+          video_id: failed.video_id,
+        }),
+      });
+      setJobs((current) => [
+        job,
+        ...current.filter((item) => item.job_id !== job.job_id),
+      ]);
+      setError("");
+    } catch (caught) {
+      setError((caught as Error).message || "Could not retry that deck.");
+    }
+  }, []);
 
   if (sessionLoading) {
     return (
@@ -313,15 +343,25 @@ export default function DecksPage() {
                   <DeckJobRow key={job.job_id} job={job} />
                 ))}
                 {recentlyFailed.map((job) => (
-                  <DeckJobRow key={job.job_id} job={job} />
+                  <DeckJobRow
+                    key={job.job_id}
+                    job={job}
+                    onRetry={(failed) => void retryJob(failed)}
+                  />
                 ))}
               </ul>
             ) : null}
 
-            <section aria-labelledby="decks">
-              <h2 id="decks" className="mb-2 font-heading text-sm font-medium">
-                Your decks
+            <section aria-labelledby="generated-decks">
+              <h2
+                id="generated-decks"
+                className="mb-1 font-heading text-sm font-medium"
+              >
+                Generated revision cards
               </h2>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Questions written from chapter topics or lecture evidence.
+              </p>
               {!loaded ? (
                 <div className="space-y-2" aria-hidden>
                   <Skeleton className="h-24 w-full" />
@@ -335,12 +375,43 @@ export default function DecksPage() {
                     Generate one from a chapter or a lecture in the panel.
                   </p>
                 </div>
-              ) : (
+              ) : generatedDecks.length > 0 ? (
                 <ul className="space-y-2">
-                  {decks.map((deck) => (
+                  {generatedDecks.map((deck) => (
                     <DeckRow key={deck.deck_id} deck={deck} />
                   ))}
                 </ul>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  No AI-generated revision decks yet.
+                </p>
+              )}
+            </section>
+
+            <section aria-labelledby="book-question-decks">
+              <h2
+                id="book-question-decks"
+                className="mb-1 font-heading text-sm font-medium"
+              >
+                Questions from books
+              </h2>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Exercises and review questions printed in the source PDF, kept
+                separate from AI-generated questions.
+              </p>
+              {!loaded ? (
+                <Skeleton className="h-24 w-full" aria-hidden />
+              ) : bookQuestionDecks.length > 0 ? (
+                <ul className="space-y-2">
+                  {bookQuestionDecks.map((deck) => (
+                    <DeckRow key={deck.deck_id} deck={deck} />
+                  ))}
+                </ul>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  No book-question decks yet. Choose “Use questions from book”
+                  when making a chapter deck.
+                </p>
               )}
             </section>
           </>

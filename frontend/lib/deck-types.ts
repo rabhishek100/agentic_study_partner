@@ -147,10 +147,14 @@ export interface DeckPreferences {
 
 export interface DeckJob {
   job_id: string;
+  source_kind: SourceKind;
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
   stage: string;
   scope_key: string;
   generation_mode?: GenerationMode;
+  book_id: number | null;
+  node_id: number | null;
+  video_id: string | null;
   deck_id: string | null;
   topics_total: number;
   topics_done: number;

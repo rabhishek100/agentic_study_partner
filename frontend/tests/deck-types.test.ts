@@ -71,9 +71,13 @@ describe("coveragePercent", () => {
 describe("jobIsLive", () => {
   const job = (status: DeckJob["status"]): DeckJob => ({
     job_id: "j",
+    source_kind: "book",
     status,
     stage: "generation",
     scope_key: "book:1:node:2",
+    book_id: 1,
+    node_id: 2,
+    video_id: null,
     deck_id: null,
     topics_total: 4,
     topics_done: 1,

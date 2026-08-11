@@ -24,6 +24,53 @@ version it came from. Regenerating produces a *new version* rather than
 mutating the cards you have been reviewing, so review history survives a
 regeneration.
 
+## Questions already printed in a book
+
+A book chapter has two explicitly separate creation modes:
+
+- **Generate from topics** writes new revision cards against the deterministic
+  topic inventory described below.
+- **Use questions from book** extracts exercises, review questions, study
+  questions, and numbered problem directives that are present in the canonical
+  PDF text. It does not turn ordinary explanatory prose into questions.
+
+The two modes use different scope keys, produce independently versioned decks,
+and appear in separate library sections. A source-authored question must never
+be presented as an AI-authored question just because a model was used to parse
+the PDF.
+
+Extraction scans marker-preserving evidence batches capped at 6,000 tokens.
+It never sends a complete long chapter in one request. Oversized canonical
+blocks are split with a small overlap, extracted fronts are deduplicated, and
+every returned marker is checked against the exact batch the model saw. A
+provider or schema failure fails the job visibly and is retryable; it is not
+reported as “no questions found.”
+
+A numbered exercise is one card by default. Lettered or numbered subparts stay
+with their parent when they share setup or must be solved together; a subpart
+becomes its own card only when it is independently answerable and explicitly
+labeled in the book. This preserves the author's problem structure without
+creating oversized review cards.
+
+Answers have two visible provenance states:
+
+- `printed_in_book` means an answer or solution was explicitly present in the
+  chapter evidence. The answer can be adjacent to the question or found later
+  through bounded lexical evidence selection.
+- `rag_generated` means the book printed the question but not a direct answer.
+  The answer is synthesized strictly from selected chapter evidence.
+
+Both states cite the question location and every page used for the answer.
+An answer whose markers do not resolve inside the supplied evidence fails
+validation. The system never stores a placeholder such as “refer to the
+chapter,” because that is not a useful revision card.
+
+Topic coverage does not apply to this mode: a book may put all its exercises
+in one section while testing ideas from the whole chapter. Extracted decks
+therefore report card/drop/provenance metrics but do not claim that each topic
+has a card. A successful scan with no explicit questions produces an empty
+ready deck with the notice “No questions printed in this chapter.”
+
 ## Card types
 
 The generator chooses a type per topic, from what the material supports.
@@ -174,6 +221,7 @@ decks/contracts.py    Card, Deck, Topic, metrics — typed boundaries
 decks/topics.py       Deterministic topic inventory for book and lecture scopes
 decks/prompts.py      Locked grounding + per-card-type instructions
 decks/generate.py     Per-topic generation, coverage check, one repair pass
+decks/extraction.py   Batched source-question extraction + grounded answers
 decks/validate.py     Citation and structural validation, deck metrics
 decks/scheduler.py    SM-2 scheduling and the daily queue
 decks/store.py        Postgres persistence for decks, cards, review state

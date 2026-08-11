@@ -12,7 +12,7 @@ import logging
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import Field
+from pydantic import Field, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
@@ -51,13 +51,23 @@ class GenerateDeckRequest(ContractModel):
     node_id: int | None = None
     video_id: str | None = None
 
+    @model_validator(mode="after")
+    def extracted_questions_are_book_only(self) -> GenerateDeckRequest:
+        if self.source_kind != "book" and self.generation_mode == "book_extracted":
+            raise ValueError("book-extracted questions require a book chapter")
+        return self
+
 
 class DeckJobResponse(ContractModel):
     job_id: str
+    source_kind: str
     status: str
     stage: str
     scope_key: str
     generation_mode: str = "topic_generated"
+    book_id: int | None = None
+    node_id: int | None = None
+    video_id: str | None = None
     deck_id: str | None = None
     topics_total: int = 0
     topics_done: int = 0
@@ -94,10 +104,14 @@ class GradeResponse(ContractModel):
 def _job_response(job: deck_jobs.DeckJob) -> DeckJobResponse:
     return DeckJobResponse(
         job_id=str(job.id),
+        source_kind=job.source_kind,
         status=job.status,
         stage=job.stage,
         scope_key=job.scope_key,
         generation_mode=job.generation_mode,
+        book_id=job.book_id,
+        node_id=job.node_id,
+        video_id=str(job.video_id) if job.video_id else None,
         deck_id=str(job.deck_id) if job.deck_id else None,
         topics_total=job.topics_total,
         topics_done=job.topics_done,

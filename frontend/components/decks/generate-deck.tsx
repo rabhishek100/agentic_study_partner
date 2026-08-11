@@ -126,9 +126,9 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
       <DialogContent className="sm:max-w-lg">
         <DialogTitle>Make a deck</DialogTitle>
         <DialogDescription>
-          One deck covers one chapter, or one lecture. Every topic in it gets at
-          least one card, and each card cites the page or the moment it came
-          from.
+          {mode === "book" && generationMode === "book_extracted"
+            ? "Use questions already printed in a chapter. Printed solutions are preserved; missing answers are grounded in the chapter."
+            : "One deck covers one chapter or lecture. Each generated card cites the page or moment it came from."}
         </DialogDescription>
 
         <div className="space-y-4 pt-2">
@@ -204,7 +204,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
               </div>
 
               <div className="space-y-1.5 pt-1">
-                <Label>Deck Creation Mode</Label>
+                <Label>Question source</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -215,8 +215,8 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                         : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >
-                    <div className="font-semibold text-foreground">AI Topic-Based</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">Generate cards from key chapter topics</div>
+                    <div className="font-semibold text-foreground">Generate from topics</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">AI writes new revision cards</div>
                   </button>
                   <button
                     type="button"
@@ -227,8 +227,8 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                         : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >
-                    <div className="font-semibold text-foreground">Book-Extracted Questions</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">Extract exercises & questions directly from book</div>
+                    <div className="font-semibold text-foreground">Use questions from book</div>
+                    <div className="mt-0.5 text-[11px] text-muted-foreground">Preserve printed exercises and answers</div>
                   </button>
                 </div>
               </div>
