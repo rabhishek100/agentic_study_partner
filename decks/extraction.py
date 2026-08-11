@@ -230,7 +230,13 @@ def extract_and_generate_deck(
         cards.append(card)
         tally.keep(card)
 
-    metrics = build_metrics(inventory, tally, kept_cards=cards)
+    covered_keys = {card.topic_key for card in cards}
+    metrics = build_metrics(
+        tally,
+        topics=inventory.topics,
+        covered_keys=covered_keys,
+        repair_attempted=False,
+    )
     return GeneratedDeck(
         inventory=inventory,
         cards=tuple(cards),
