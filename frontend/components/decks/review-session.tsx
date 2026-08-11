@@ -99,12 +99,15 @@ export function ReviewSession({
   onExit,
   onAskSelection,
   sourceQuestions = false,
+  initialCardId = null,
 }: {
   cards: QueueCard[];
   onFinished?: () => void;
   onExit?: () => void;
   /** The deck contains exercises transcribed from the source book. */
   sourceQuestions?: boolean;
+  /** Opens a selected browse card directly; defaults to the first due card. */
+  initialCardId?: string | null;
   /**
    * Highlighted text on the back of a card, handed up to be asked about.
    *
@@ -120,7 +123,13 @@ export function ReviewSession({
   // Ranges over the cards plus one past the end, which is the summary slate.
   // Making the summary a position rather than a separate mode is what lets
   // Previous walk back into the deck after the last card is graded.
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => {
+    if (!initialCardId) return 0;
+    const selected = cards.findIndex(
+      (item) => item.card.card_id === initialCardId,
+    );
+    return selected >= 0 ? selected : 0;
+  });
   const [states, setStates] = useState<Record<string, CardState>>({});
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);

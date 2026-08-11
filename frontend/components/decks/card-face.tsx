@@ -226,10 +226,13 @@ export function CardBackFace({
   item,
   selected,
   studyMode = false,
+  hideSummary = false,
 }: {
   item: QueueCard;
   selected?: McqOption["label"] | null;
   studyMode?: boolean;
+  /** The caller already rendered the short answer above this detail view. */
+  hideSummary?: boolean;
 }) {
   const { card } = item;
   const back = card.back;
@@ -269,7 +272,7 @@ export function CardBackFace({
             </li>
           ))}
         </ul>
-      ) : (
+      ) : hideSummary ? null : (
         <SayItAloud text={back.say_it_aloud} studyMode={studyMode} />
       )}
 

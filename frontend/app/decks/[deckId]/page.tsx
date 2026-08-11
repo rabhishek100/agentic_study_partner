@@ -1,32 +1,22 @@
 "use client";
 
-import { ArrowLeft, Loader2, LogOut, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
-import { CoverageBadge } from "@/components/decks/deck-row";
 import {
-  CardBackFace,
-  CardMeta,
-  CardSources,
-  plain,
-} from "@/components/decks/card-face";
+  DeckOverview,
+  type DeckFilter,
+} from "@/components/decks/deck-overview";
 import { ReviewSession } from "@/components/decks/review-session";
 import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,13 +35,7 @@ import {
   type DeckDetailResponse,
   type QueueCard,
   type ReviewQueue,
-  describeInterval,
 } from "@/lib/deck-types";
-
-type Filter = "all" | "top";
-
-/** Priority 4 and 5: what an interviewer is most likely to actually probe. */
-const TOP_PRIORITY = 4;
 
 export default function DeckDetailPage() {
   const { deckId } = useParams<{ deckId: string }>();
@@ -60,8 +44,9 @@ export default function DeckDetailPage() {
   const [detail, setDetail] = useState<DeckDetailResponse | null>(null);
   const [queue, setQueue] = useState<ReviewQueue | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [reviewStartCardId, setReviewStartCardId] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<DeckFilter>("all");
   const [error, setError] = useState("");
   // One deck, so the parent conversation is unambiguous and stable for the
   // whole session — the case the shared side-chat hook is shaped for.
@@ -84,18 +69,6 @@ export default function DeckDetailPage() {
   useEffect(() => {
     if (session) void load();
   }, [session, load]);
-
-  const cards = useMemo(() => {
-    const all = detail?.cards ?? [];
-    return filter === "top"
-      ? all
-          .filter((item) => item.card.interview_priority >= TOP_PRIORITY)
-          .sort(
-            (left, right) =>
-              right.card.interview_priority - left.card.interview_priority,
-          )
-      : all;
-  }, [detail, filter]);
 
   const reset = useCallback(async () => {
     try {
@@ -133,6 +106,24 @@ export default function DeckDetailPage() {
       setRegenerating(false);
     }
   }, [detail, router]);
+
+  const openSource = useCallback(
+    (
+      item: QueueCard,
+      citation: QueueCard["card"]["citations"][number],
+    ) => {
+      if (item.video_id && citation.start_ms !== null) {
+        router.push(
+          `/videos/${item.video_id}?t=${Math.floor(citation.start_ms / 1000)}`,
+        );
+        return;
+      }
+      if (item.book_id && citation.page !== null) {
+        router.push(`/?book=${item.book_id}&page=${citation.page}`);
+      }
+    },
+    [router],
+  );
 
   if (sessionLoading) {
     return (
@@ -203,143 +194,17 @@ export default function DeckDetailPage() {
           </DropdownMenuContent>
         </DropdownMenu>
       }
-      rail={reviewing ? null : (
-        <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
-          <Button variant="ghost" size="sm" className="justify-start" asChild>
-            <Link href="/decks">
-              <ArrowLeft aria-hidden />
-              All decks
-            </Link>
-          </Button>
-
-          {deck ? (
-            <div className="space-y-3 border-t border-border pt-4">
-              <div>
-                <h2 className="font-heading text-sm font-medium">
-                  How this deck was made
-                </h2>
-                {deck.generation_mode === "book_extracted" &&
-                deck.metrics.source_questions_total === 0 &&
-                !deck.metrics.notice ? (
-                  <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300">
-                    This deck predates source-question coverage checks.
-                    Regenerate it before studying.
-                  </p>
-                ) : null}
-                <dl className="mt-2 space-y-1.5 text-xs text-muted-foreground">
-                  <div className="flex justify-between gap-2">
-                    <dt>
-                      {deck.generation_mode === "book_extracted"
-                        ? "Questions found"
-                        : "Topics required"}
-                    </dt>
-                    <dd className="tabular-nums">
-                      {deck.generation_mode === "book_extracted"
-                        ? deck.metrics.source_questions_total
-                        : deck.metrics.topics_required}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>
-                      {deck.generation_mode === "book_extracted"
-                        ? "Questions answered"
-                        : "Topics covered"}
-                    </dt>
-                    <dd className="tabular-nums">
-                      {deck.generation_mode === "book_extracted"
-                        ? deck.metrics.source_questions_covered
-                        : deck.metrics.topics_covered}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>Cards written</dt>
-                    <dd className="tabular-nums">
-                      {deck.metrics.cards_generated}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    {/*
-                      Dropped cards are shown rather than hidden. A deck that
-                      quietly discarded a third of what it wrote is telling you
-                      something about the chapter, or about the prompt.
-                    */}
-                    <dt>Dropped as ungrounded</dt>
-                    <dd className="tabular-nums">
-                      {deck.metrics.cards_dropped_uncited +
-                        deck.metrics.cards_dropped_out_of_scope}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>Dropped as duplicate</dt>
-                    <dd className="tabular-nums">
-                      {deck.metrics.cards_dropped_duplicate}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt>Repair pass</dt>
-                    <dd>{deck.metrics.repair_attempted ? "yes" : "no"}</dd>
-                  </div>
-                </dl>
-              </div>
-
-              {(deck.generation_mode === "book_extracted"
-                ? deck.metrics.uncovered_question_labels
-                : deck.metrics.uncovered_topic_labels
-              ).length > 0 ? (
-                <div className="rounded-md border border-border p-2.5">
-                  <p className="text-xs font-medium">Not covered</p>
-                  <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-                    {(deck.generation_mode === "book_extracted"
-                      ? deck.metrics.uncovered_question_labels
-                      : deck.metrics.uncovered_topic_labels
-                    ).map((label) => (
-                      <li key={label} className="truncate" title={label}>
-                        {label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {deck.generation_mode === "book_extracted" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  disabled={regenerating}
-                  onClick={() => void regenerate()}
-                >
-                  {regenerating ? (
-                    <Loader2 aria-hidden className="animate-spin" />
-                  ) : (
-                    <RefreshCw aria-hidden />
-                  )}
-                  {regenerating ? "Starting…" : "Regenerate from book"}
-                </Button>
-              ) : null}
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => void reset()}
-              >
-                Reset progress
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      )}
+      rail={null}
     >
       <div
         className={
           reviewing
             ? "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
-            : "mx-auto w-full max-w-3xl space-y-5 overflow-y-auto p-4 sm:p-6"
+            : "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
         }
       >
         {error ? (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="m-4 shrink-0">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
@@ -347,9 +212,13 @@ export default function DeckDetailPage() {
         {reviewing && queue ? (
           <ReviewSession
             cards={queue.cards}
+            initialCardId={reviewStartCardId}
             sourceQuestions={deck?.generation_mode === "book_extracted"}
             onFinished={() => void load()}
-            onExit={() => setReviewing(false)}
+            onExit={() => {
+              setReviewing(false);
+              setReviewStartCardId(null);
+            }}
             onAskSelection={(card, quotedText) => {
               void sideChats.askAboutSelection(card, quotedText);
             }}
@@ -359,91 +228,32 @@ export default function DeckDetailPage() {
             <Skeleton className="h-8 w-64" />
             <Skeleton className="h-24 w-full" />
           </div>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <h1 className="font-heading text-lg font-medium">{deck.title}</h1>
-              <p className="text-sm text-muted-foreground">
-                {deck.source_title}
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" className="font-normal tabular-nums">
-                  {deck.card_count} cards
-                </Badge>
-                <CoverageBadge metrics={deck.metrics} />
-                {deck.status === "partial" ? (
-                  <Badge variant="outline" className="font-normal">
-                    partial
-                  </Badge>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                disabled={dueNow === 0}
-                onClick={() => setReviewing(true)}
-              >
-                {dueNow > 0
-                  ? `Review ${dueNow} card${dueNow === 1 ? "" : "s"}`
-                  : "Nothing due"}
-              </Button>
-              <div className="flex gap-1 rounded-lg bg-muted p-1">
-                {(["all", "top"] as Filter[]).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setFilter(value)}
-                    aria-pressed={filter === value}
-                    className={
-                      filter === value
-                        ? "rounded-md bg-background px-3 py-1 text-sm font-medium shadow-sm"
-                        : "rounded-md px-3 py-1 text-sm text-muted-foreground"
-                    }
-                  >
-                    {value === "all" ? "All cards" : "Top questions"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <ul className="space-y-2">
-              {cards.map((item) => (
-                <BrowsableCard key={item.card.card_id} item={item} />
-              ))}
-            </ul>
-          </>
-        )}
+        ) : detail ? (
+          <DeckOverview
+            detail={detail}
+            dueNow={dueNow}
+            reviewableCardIds={
+              queue?.cards.flatMap((item) =>
+                item.card.card_id ? [item.card.card_id] : [],
+              ) ?? []
+            }
+            filter={filter}
+            regenerating={regenerating}
+            onFilterChange={setFilter}
+            onStartReview={() => {
+              setReviewStartCardId(null);
+              setReviewing(true);
+            }}
+            onStudyCard={(item) => {
+              setReviewStartCardId(item.card.card_id);
+              setReviewing(true);
+            }}
+            onRegenerate={() => void regenerate()}
+            onReset={() => void reset()}
+            onOpenSource={openSource}
+          />
+        ) : null}
       </div>
     </AppShell>
-  );
-}
-
-/** One card in the browse list: front visible, back on demand. */
-function BrowsableCard({ item }: { item: QueueCard }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <li className="rounded-lg border border-border bg-card">
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger className="w-full px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <p className="font-heading text-sm leading-snug">
-            {plain(item.card.front)}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <CardMeta card={item.card} />
-            <span className="text-xs text-muted-foreground">
-              {item.review.state === "new"
-                ? "new"
-                : `next in ${describeInterval(item.review.interval_days)}`}
-            </span>
-          </div>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 border-t border-border px-4 py-4">
-          <CardBackFace item={item} />
-          <CardSources item={item} />
-        </CollapsibleContent>
-      </Collapsible>
-    </li>
   );
 }
