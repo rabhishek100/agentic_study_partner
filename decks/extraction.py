@@ -43,7 +43,7 @@ from .validate import (
 
 logger = logging.getLogger("study_partner.decks.extraction")
 
-EXTRACTION_PROMPT_VERSION = "v3_faithful_book_questions"
+EXTRACTION_PROMPT_VERSION = "v4_canonical_answer_citations"
 ANSWER_EVIDENCE_TOKENS = GENERATION_BATCH_TOKENS
 SEGMENT_OVERLAP_TOKENS = 160
 MARKER_LINE = re.compile(r"(?m)(?=^\[N\d+:P\d+\]\s*$)")
@@ -326,6 +326,14 @@ def _visual_page_text(page: fitz.Page) -> str:
     rendered: list[str] = []
     for _, line_words in lines:
         assert isinstance(line_words, list)
+        # ISLP and similar textbooks put short glossary/API callouts in the
+        # outside margin.  They are visually separate from the exercise but
+        # coordinate extraction otherwise splices them into its sentences
+        # (for example ``dictionary`` and ``.min()`` on ISLP page 66).
+        # Only discard a line wholly beyond the main text column; full-width
+        # question lines that merely end near the margin remain untouched.
+        if line_words and min(item[0] for item in line_words) >= page.rect.width * 0.83:
+            continue
         rendered.append(
             " ".join(item[4] for item in sorted(line_words, key=lambda item: item[0]))
         )
@@ -631,6 +639,15 @@ def _alias_answer_evidence(text: str) -> tuple[str, dict[str, str]]:
     return aliased, aliases
 
 
+def _resolve_answer_aliases(text: str, aliases: dict[str, str]) -> str:
+    """Replace internal evidence ids before any answer text reaches storage."""
+
+    resolved = text
+    for alias, marker in aliases.items():
+        resolved = resolved.replace(alias, marker)
+    return resolved
+
+
 def _valid_citations(markers: Iterable[str], marker_to_topic: dict[str, Topic]) -> list:
     citations = []
     for marker in dict.fromkeys(item.strip() for item in markers if item.strip()):
@@ -851,6 +868,16 @@ def extract_and_generate_deck(
                         "the answer uses citation markers that were not supplied: "
                         f"{', '.join(invalid_markers)}"
                     )
+                unresolved_inline = [
+                    marker
+                    for marker in re.findall(r"\[E\d+\]", rag_output.answer)
+                    if marker not in citation_aliases
+                ]
+                if unresolved_inline:
+                    answer_issue = (
+                        "the answer uses citation markers that were not supplied: "
+                        f"{', '.join(dict.fromkeys(unresolved_inline))}"
+                    )
                 if answer_issue is None:
                     break
                 if attempt == 0:
@@ -883,11 +910,17 @@ def extract_and_generate_deck(
                     "answer generation returned no valid in-scope citation"
                 )
             back = CardBack(
-                answer=rag_output.answer.strip(),
+                answer=_resolve_answer_aliases(
+                    rag_output.answer.strip(), citation_aliases
+                ),
                 key_points=[
-                    point.strip() for point in rag_output.key_points if point.strip()
+                    _resolve_answer_aliases(point.strip(), citation_aliases)
+                    for point in rag_output.key_points
+                    if point.strip()
                 ],
-                say_it_aloud=rag_output.say_it_aloud.strip(),
+                say_it_aloud=_resolve_answer_aliases(
+                    rag_output.say_it_aloud.strip(), citation_aliases
+                ),
             )
             answer_source = (
                 "printed_in_book"

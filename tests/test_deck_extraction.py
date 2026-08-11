@@ -4,6 +4,7 @@ import re
 import unittest
 from unittest.mock import MagicMock, patch
 
+import fitz
 from pydantic import ValidationError
 
 from api.decks import GenerateDeckRequest
@@ -13,6 +14,7 @@ from decks.extraction import (
     ExtractedQuestion,
     ExtractedQuestionList,
     RAGAnswerOutput,
+    _visual_page_text,
     answer_evidence,
     evidence_batches,
     extract_and_generate_deck,
@@ -65,6 +67,19 @@ def sample_inventory(topic: Topic | None = None) -> ScopeInventory:
 
 
 class DeckExtractionUnitTests(unittest.TestCase):
+    def test_visual_page_text_excludes_outside_margin_callouts(self) -> None:
+        document = fitz.open()
+        page = document.new_page(width=500, height=700)
+        page.insert_text((100, 100), "What is the range using min() and max()?")
+        page.insert_text((420, 120), ".min()")
+        page.insert_text((420, 135), ".max()")
+
+        text = _visual_page_text(page)
+
+        self.assertIn("range using min() and max()?", text)
+        self.assertNotIn("\n.min()", text)
+        self.assertNotIn("\n.max()", text)
+
     def test_book_extraction_mode_rejects_video_sources(self) -> None:
         with self.assertRaisesRegex(ValidationError, "require a book chapter"):
             GenerateDeckRequest(
@@ -203,10 +218,11 @@ class DeckExtractionUnitTests(unittest.TestCase):
         def complete_answer(messages):
             question = messages[1]["content"].split("\n\nChapter evidence:", 1)[0]
             labels = list(dict.fromkeys(re.findall(r"\([a-z]\)", question)))
+            marker = re.search(r"\[E\d+\]", messages[1]["content"]).group(0)
             answer = "\n".join(f"{label} Complete worked answer." for label in labels)
             if not answer:
                 answer = "Complete worked answer."
-            marker = re.search(r"\[E\d+\]", messages[1]["content"]).group(0)
+            answer = f"{answer} {marker}"
             return RAGAnswerOutput(
                 answer=answer,
                 say_it_aloud="Complete worked answer.",
@@ -240,6 +256,8 @@ class DeckExtractionUnitTests(unittest.TestCase):
             "Which media", "\n".join(card.front for card in generated.cards)
         )
         self.assertIn("per dwelling.", generated.cards[-1].front)
+        self.assertNotIn("[E", generated.cards[0].back.answer)
+        self.assertIn("[N42:P", generated.cards[0].back.answer)
 
     @patch("decks.extraction._rag_answer_model")
     @patch("decks.extraction._question_extraction_model")

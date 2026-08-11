@@ -65,8 +65,10 @@ Answers have two visible provenance states:
 
 Both states cite the question location and every page used for the answer.
 An answer whose markers do not resolve inside the supplied evidence fails
-validation. The system never stores a placeholder such as “refer to the
-chapter,” because that is not a useful revision card.
+validation. Short internal evidence aliases used during generation are
+resolved back to canonical book markers before answer text is stored or shown.
+The system never stores a placeholder such as “refer to the chapter,” because
+that is not a useful revision card.
 
 Topic coverage does not apply to this mode: a book may put all its exercises
 in one section while testing ideas from the whole chapter. Extracted decks
@@ -205,7 +207,9 @@ queues.
 Progress is reported per topic, so a long chapter shows movement rather than a
 spinner. A failed job is retryable and leaves no half-written deck: cards are
 inserted in one transaction at the end, and the deck is only marked `ready`
-there.
+there. A ready source-question deck also exposes **Regenerate from book** on
+its detail page so a corrected parser or answer prompt can create a new version
+without waiting for a failed job.
 
 ## Evaluation
 

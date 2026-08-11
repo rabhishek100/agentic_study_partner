@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, LogOut } from "lucide-react";
+import { ArrowLeft, Loader2, LogOut, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -60,6 +60,7 @@ export default function DeckDetailPage() {
   const [detail, setDetail] = useState<DeckDetailResponse | null>(null);
   const [queue, setQueue] = useState<ReviewQueue | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [error, setError] = useState("");
   // One deck, so the parent conversation is unambiguous and stable for the
@@ -104,6 +105,34 @@ export default function DeckDetailPage() {
       setError((caught as Error).message || "Could not reset that deck.");
     }
   }, [deckId, load]);
+
+  const regenerate = useCallback(async () => {
+    const current = detail?.deck;
+    if (
+      !current ||
+      current.generation_mode !== "book_extracted" ||
+      current.book_id === null ||
+      current.node_id === null
+    ) {
+      return;
+    }
+    setRegenerating(true);
+    try {
+      await apiFetch("/decks", {
+        method: "POST",
+        body: JSON.stringify({
+          source_kind: "book",
+          generation_mode: "book_extracted",
+          book_id: current.book_id,
+          node_id: current.node_id,
+        }),
+      });
+      router.push("/decks");
+    } catch (caught) {
+      setError((caught as Error).message || "Could not regenerate that deck.");
+      setRegenerating(false);
+    }
+  }, [detail, router]);
 
   if (sessionLoading) {
     return (
@@ -270,6 +299,23 @@ export default function DeckDetailPage() {
                     ))}
                   </ul>
                 </div>
+              ) : null}
+
+              {deck.generation_mode === "book_extracted" ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  disabled={regenerating}
+                  onClick={() => void regenerate()}
+                >
+                  {regenerating ? (
+                    <Loader2 aria-hidden className="animate-spin" />
+                  ) : (
+                    <RefreshCw aria-hidden />
+                  )}
+                  {regenerating ? "Starting…" : "Regenerate from book"}
+                </Button>
               ) : null}
 
               <Button
