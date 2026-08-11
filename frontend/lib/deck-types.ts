@@ -165,6 +165,28 @@ export interface DeckJob {
   attempt_count: number;
   error_code: string | null;
   error_detail: string | null;
+  title: string;
+  source_title: string;
+  created_at: string | null;
+  updated_at: string | null;
+  timing: DeckJobTiming;
+}
+
+export interface DeckJobStage {
+  stage: string;
+  label: string;
+  state: "done" | "active" | "pending";
+  expected_seconds: number;
+  elapsed_seconds: number | null;
+}
+
+export interface DeckJobTiming {
+  percent: number;
+  elapsed_seconds: number;
+  estimated_total_seconds: number;
+  estimated_remaining_seconds: number | null;
+  overrunning: boolean;
+  stages: DeckJobStage[];
 }
 
 export interface DeckListResponse {
@@ -212,6 +234,58 @@ export const RATING_LABELS: Record<Rating, string> = {
 /** A deck is live work when its job has not settled. */
 export function jobIsLive(job: DeckJob): boolean {
   return job.status === "queued" || job.status === "running";
+}
+
+export function formatDeckDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  const whole = Math.max(0, Math.round(seconds));
+  if (whole < 60) return `${whole}s`;
+  const minutes = Math.floor(whole / 60);
+  const remainder = whole % 60;
+  if (minutes < 60) return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const minuteRemainder = minutes % 60;
+  return minuteRemainder ? `${hours}h ${minuteRemainder}m` : `${hours}h`;
+}
+
+export function deckJobError(job: DeckJob): {
+  title: string;
+  message: string;
+  reference: string;
+} {
+  const extracted = job.generation_mode === "book_extracted";
+  const fallbackTitle = extracted
+    ? "We couldn’t extract these questions"
+    : "We couldn’t finish this deck";
+  const copy: Record<string, { title: string; message: string }> = {
+    source_unavailable: {
+      title: "The source is not ready",
+      message: extracted
+        ? "We couldn’t find enough readable chapter content to extract its questions. Check the source and try again."
+        : "We couldn’t find enough readable source material for this deck. Check the source and try again.",
+    },
+    generation_failed: {
+      title: fallbackTitle,
+      message:
+        "The AI service couldn’t complete the run. Your existing cards were not changed.",
+    },
+    invalid_scope: {
+      title: "The selected source is no longer available",
+      message:
+        "Choose the chapter or lecture again, then start a new generation.",
+    },
+    unexpected_error: {
+      title: fallbackTitle,
+      message:
+        "Something interrupted generation. Your existing cards were not changed.",
+    },
+  };
+  const safe = copy[job.error_code ?? ""] ?? {
+    title: fallbackTitle,
+    message: "Generation stopped before the new deck was saved. Please try again.",
+  };
+  const compactId = job.job_id.replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase();
+  return { ...safe, reference: `DECK-${compactId || "UNKNOWN"}` };
 }
 
 /**

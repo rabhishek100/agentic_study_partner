@@ -1,73 +1,53 @@
-# Deck question-navigator design QA
+# Cards command-center design QA
 
-- Source visual truth: `/Users/abhishek/.codex/generated_images/019fee52-8fd9-73e0-a8cc-169fd60a1491/exec-1c53832a-dbfd-4cbe-9a53-43960919e855.png`
-- Implementation screenshot: `/var/tmp/asp-deck-overview-qa.IghmcI/implementation-desktop-final.png`
-- Same-input comparison: `/var/tmp/asp-deck-overview-qa.IghmcI/desktop-comparison.png`
-- Responsive evidence: `/var/tmp/asp-deck-overview-qa.IghmcI/implementation-tablet-final.png`, `/var/tmp/asp-deck-overview-qa.IghmcI/implementation-mobile-final.png`, and `/var/tmp/asp-deck-overview-qa.IghmcI/implementation-mobile-detail.png`
-- Matched viewport: 1672 × 941 CSS px, dark theme, first source exercise selected
+- Source visual truth: `/Users/abhishek/.codex/generated_images/019fee52-8fd9-73e0-a8cc-169fd60a1491/exec-009a2132-48ba-4171-a628-621be899704f.png`
+- Final implementation: `/Users/abhishek/Desktop/Projects/agentic_study_partner/artifacts/design-qa/cards-command-center/implementation-final.png`
+- Same-input comparison: `/Users/abhishek/Desktop/Projects/agentic_study_partner/artifacts/design-qa/cards-command-center/comparison-final.png`
+- Responsive evidence: `/Users/abhishek/Desktop/Projects/agentic_study_partner/artifacts/design-qa/cards-command-center/mobile.png`
+- Matched desktop viewport: 1672 × 941 CSS px, dark theme, three ready decks, one active book-extraction job, and one failed AI-generation job
 - Pixel dimensions: source 1672 × 941; implementation 1672 × 941
 
 ## Result
 
-No actionable P0, P1, or P2 findings remain.
-
-The selected option's hierarchy is present and functional: compact deck masthead, source/coverage disclosure, chapter-exercise navigator, one selected reading pane, short grounded answer preview, source link, and a clear study action. The desktop divider lands within six pixels of the reference and the content starts at the same optical left edge.
-
-## Intentional differences
-
-- [P3] The established product shell is 56 px tall instead of the roomier generated header.
-  - Evidence: the same-input comparison shows a denser global navigation band in the implementation.
-  - Impact: minor fidelity difference only; changing the shared shell would affect Books, Papers, Videos, and Interview.
-  - Resolution: retain the existing shell token for cross-product consistency.
-- [P3] Navigator rows show the real source question verbatim instead of generated short labels such as `Flexible vs. inflexible methods`.
-  - Evidence: the implementation uses the source-authored exercise text with a two-line clamp and full text in the accessible name/title.
-  - Impact: rows are denser, but the UI does not invent or rewrite the book's questions.
-  - Resolution: intentional grounding requirement; no fix.
-- [P3] The implementation omits the generated mock's fake regeneration date and section label.
-  - Evidence: the API does not currently provide a regeneration timestamp or canonical section display label.
-  - Impact: provenance is shorter but truthful.
-  - Resolution: render only available source and coverage data.
-- [P3] A secondary `Detailed answer` control appears beside `Study this card`.
-  - Evidence: the mock only previews the short answer; the production feature must also expose every full grounded answer.
-  - Impact: one additional action, with preserved hierarchy because it is outlined and secondary.
-  - Resolution: intentional functional requirement.
+No actionable P0, P1, or P2 findings remain. The final screen follows the selected command-center direction: a compact daily summary, one searchable deck library with explicit AI/book grouping, and a persistent generation-activity panel that gives both generation modes the same operational visibility as ingestion.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: Source Serif 4 remains the reading face and Geist remains the control face. The question, exercise label, short answer, and metadata reproduce the selected hierarchy without cramped or clipped text.
-- Spacing and layout: the desktop navigator uses a responsive 34vw column, matching the reference divider at 1672 px. The detail article is left-aligned at the same optical margin instead of recentered in the remaining pane. Dividers replace the previous stack of oversized cards.
-- Colors and tokens: the implementation uses the existing near-black background, low-contrast borders, mint primary, muted metadata, and accessible focus rings. There are no new gradients, generic card shadows, or decorative surfaces.
-- Image quality and assets: the target contains no raster product assets. Existing brand and Lucide icons remain sharp and consistent; no CSS or hand-drawn substitutes were introduced.
-- Copy and content: static labels are concise and task-oriented. Dynamic question, answer, citation, source, coverage, and schedule data remain API-driven and grounded.
-- Icons: book, timer, chevrons, overflow menu, check, navigation, and source-link icons use the existing icon family and align to the surrounding text.
-- States and interactions: question selection, All/Top filtering, provenance disclosure, detailed-answer disclosure, source opening, Start review, direct selected-card study, regenerate, and reset confirmation are wired. Browser checks confirmed the Top filter returns two high-priority fixture questions.
-- Accessibility: semantic headings, nav/aside/main regions, `aria-current`, `aria-pressed`, labeled disclosures, keyboard-reachable controls, focus rings, and 44 px primary targets are present. Reset requires confirmation. Mobile selection uses a list → detail flow with an explicit `All exercises` return action.
-- Responsiveness: browser checks at 1672 × 941, 768 × 1024, and 390 × 844 found no horizontal or document overflow. Tablet/mobile use a focused list-first master-detail flow instead of stacking two cramped panes.
+- Typography and hierarchy: serif display headings identify content areas; the established sans-serif face handles controls, metrics, metadata, progress, and error copy. The active percentage and current stage are the strongest elements inside a generation job.
+- Layout and spacing: the desktop uses the reference's two-column split. Today and the deck library share the wider left column; generation activity starts at the same vertical position in the narrower right column. Flat table rows replace the previous stack of verbose cards.
+- Colors and tokens: near-black surfaces, subtle borders, muted metadata, mint success/progress, and restrained red failure treatment use existing product tokens. There are no decorative gradients or new shadow systems.
+- Assets and icons: the reference contains no raster content. Existing brand treatment and Lucide icons remain sharp and consistent.
+- Copy and content: AI-generated decks and questions extracted from books are visibly separate. User-facing errors explain the outcome and data-safety guarantee; raw exception text is hidden under `Technical details` with a reference identifier.
+- Progress states: both book extraction and AI generation receive stage-weighted percentages, completed/current/pending stage labels, processed-item counts, elapsed time, adaptive ETA, and safe-background-operation copy.
+- Interactions: search, deck filter, settings, review, new-deck creation, retry, cancellation, technical-error disclosure, and deck opening use real product controls rather than static mock elements.
+- Accessibility: landmark regions, labelled search/filter fields, native details disclosure, semantic progress bars, keyboard-operable controls, focus styles, and reduced-motion-compatible styling are retained.
+- Responsiveness: at 390 × 844 the interface has no horizontal overflow (`scrollWidth === innerWidth === 390`). Metrics stack, tables become readable compact rows, and activity follows the library without losing state or actions.
 
 ## Comparison and fix history
 
-1. Initial implementation — blocked by P2 desktop geometry and metadata noise.
-   - The navigator was only 352 px wide, the reading pane was recentered too far right, and four repeated badges competed with the question.
-   - Fix: changed the navigator to 34vw, left-aligned the 896 px reading article, and converted badges to one quiet metadata line.
-2. First responsive pass — blocked by P2 mobile task flow.
-   - The list and reading pane stacked into one long page, so tapping a question did not create a clear context change.
-   - Fix: mobile/tablet now show the exercise list first, then a focused detail view with `All exercises` navigation.
-3. Density pass — blocked by P2 action visibility.
-   - The question's line length and the first detailed-answer disclosure pushed `Study this card` below the matched desktop viewport.
-   - Fix: tuned the reading type size and moved `Detailed answer` beside the primary study action; both actions now appear above the fold.
-4. Final comparison — passed.
-   - Source and implementation were stacked in one 1672 px comparison input and inspected at original resolution.
-   - Browser console check: no warnings or errors.
-   - Responsive geometry: document `scrollWidth === clientWidth` and `scrollHeight === clientHeight` at all three checked viewports.
+1. Initial implementation — P2 desktop geometry.
+   - Today spanned the full page and pushed generation activity below it, unlike the source's simultaneous two-column scan.
+   - Fix: moved Today and Deck library into one left-column stack and aligned Generation activity at the top of the right column.
+2. Density pass — P2 Today hierarchy.
+   - The first metric cell was too narrow and the review action forced a taller card.
+   - Fix: increased the first-cell ratio, reduced card padding, and put the compact review action inline with the due/new summary.
+3. Error and activity pass — passed.
+   - The final implementation keeps the friendly failure summary visible, protects the existing deck, and requires deliberate disclosure before showing technical details.
+4. Final original-resolution comparison — passed.
+   - The 3344 × 941 side-by-side artifact was inspected at original resolution. Major regions, density, color, alignment, and progress hierarchy match the selected direction.
 
-## Primary interactions tested
+## Browser verification
 
-- Select a different source exercise and verify the full verbatim question and matching answer preview.
-- Filter between All and Top questions.
-- Expand provenance and coverage details.
-- Expand the complete grounded answer.
-- Open the deck overflow menu and verify regeneration/reset actions.
-- Enter and exit the focused mobile question view.
-- Confirm desktop, tablet, and mobile layouts have no horizontal overflow.
+- Search for `Statistical` hides the AI group and retains the matching book deck.
+- Cards settings opens and reports the current daily-new-card value of 10.
+- Technical details remains collapsed by default and reveals the raw error only after activation.
+- Desktop browser logs contain no warnings or errors.
+- Mobile geometry at 390 × 844 has no horizontal overflow and keeps Cards, New deck, Settings, Today, Deck library, search, and filters accessible.
+
+## Intentional P3 differences
+
+- The shared product header is slightly more compact than the generated reference so Books, Papers, Videos, Interview, and Cards stay consistent.
+- `New deck` and `Review` remain explicit actions because they are active product workflows rather than presentation-only mock content.
+- Fixture dates and elapsed times reflect the local verification state; production values are API-driven.
 
 final result: passed

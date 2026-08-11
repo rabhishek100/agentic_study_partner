@@ -9,6 +9,8 @@ read or a small write, so it answers directly.
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -29,6 +31,7 @@ from decks.contracts import (
 )
 from decks.conversation import card_turn_result, seeded_state
 from decks.pipeline import DeckSourceError, load_inventory
+from decks.progress import estimate
 from decks.scheduler import build_queue
 from decks.store import DeckNotFoundError
 from decks.topics import book_scope_key, video_scope_key
@@ -75,6 +78,28 @@ class DeckJobResponse(ContractModel):
     attempt_count: int = 0
     error_code: str | None = None
     error_detail: str | None = None
+    title: str = "Deck generation"
+    source_title: str = "Source"
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    timing: "DeckJobTiming"
+
+
+class DeckJobStage(ContractModel):
+    stage: str
+    label: str
+    state: Literal["done", "active", "pending"]
+    expected_seconds: float
+    elapsed_seconds: float | None = None
+
+
+class DeckJobTiming(ContractModel):
+    percent: float
+    elapsed_seconds: float
+    estimated_total_seconds: float
+    estimated_remaining_seconds: float | None
+    overrunning: bool
+    stages: list[DeckJobStage]
 
 
 class DeckListResponse(ContractModel):
@@ -102,6 +127,14 @@ class GradeResponse(ContractModel):
 
 
 def _job_response(job: deck_jobs.DeckJob) -> DeckJobResponse:
+    timing = estimate(
+        status=job.status,
+        stage=job.stage,
+        generation_mode=job.generation_mode,
+        topics_completed=job.topics_done,
+        topics_total=job.topics_total,
+        created_at=job.created_at,
+    )
     return DeckJobResponse(
         job_id=str(job.id),
         source_kind=job.source_kind,
@@ -115,10 +148,31 @@ def _job_response(job: deck_jobs.DeckJob) -> DeckJobResponse:
         deck_id=str(job.deck_id) if job.deck_id else None,
         topics_total=job.topics_total,
         topics_done=job.topics_done,
-        progress=round(job.progress_ratio, 3),
+        progress=round(timing.percent / 100, 3),
         attempt_count=job.attempt_count,
         error_code=job.error_code,
         error_detail=job.error_detail,
+        title=job.title,
+        source_title=job.source_title,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+        timing=DeckJobTiming(
+            percent=timing.percent,
+            elapsed_seconds=timing.elapsed_seconds,
+            estimated_total_seconds=timing.estimated_total_seconds,
+            estimated_remaining_seconds=timing.estimated_remaining_seconds,
+            overrunning=timing.overrunning,
+            stages=[
+                DeckJobStage(
+                    stage=view.stage,
+                    label=view.label,
+                    state=view.state,
+                    expected_seconds=view.expected_seconds,
+                    elapsed_seconds=view.elapsed_seconds,
+                )
+                for view in timing.stages
+            ],
+        ),
     )
 
 

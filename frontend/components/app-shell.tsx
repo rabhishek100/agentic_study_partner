@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 export interface AppShellProps {
   /** Library, upload, and settings. Shown as a rail, or a sheet on mobile. */
   rail: React.ReactNode;
+  /** Some workspaces need the mobile drawer without reserving a desktop rail. */
+  railMode?: "responsive" | "drawer-only";
   /** Switches between the library's sections; books and videos are peers. */
   nav?: React.ReactNode;
   /** Short status line for the current conversation. */
@@ -38,6 +40,7 @@ export interface AppShellProps {
 
 export function AppShell({
   rail,
+  railMode = "responsive",
   nav,
   status,
   account,
@@ -68,7 +71,10 @@ export function AppShell({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className={cn(!aside && "lg:hidden")}
+                className={cn(
+                  !aside && railMode === "responsive" && "lg:hidden",
+                  railMode === "drawer-only" && "sm:hidden",
+                )}
                 aria-label="Open the library panel"
               >
                 <PanelLeft aria-hidden />
@@ -106,7 +112,7 @@ export function AppShell({
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!aside && rail ? (
+        {!aside && rail && railMode === "responsive" ? (
           <aside className="hidden w-72 shrink-0 border-r border-border bg-sidebar lg:block xl:w-80">
             {rail}
           </aside>

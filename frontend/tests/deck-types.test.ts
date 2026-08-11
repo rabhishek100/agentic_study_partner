@@ -88,6 +88,18 @@ describe("jobIsLive", () => {
     attempt_count: 1,
     error_code: null,
     error_detail: null,
+    title: "Chapter 2",
+    source_title: "ISLP",
+    created_at: null,
+    updated_at: null,
+    timing: {
+      percent: 0,
+      elapsed_seconds: 0,
+      estimated_total_seconds: 120,
+      estimated_remaining_seconds: 120,
+      overrunning: false,
+      stages: [],
+    },
   });
 
   it("counts queued and running as work in flight", () => {

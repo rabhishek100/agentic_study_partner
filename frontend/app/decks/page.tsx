@@ -1,10 +1,11 @@
 "use client";
 
-import { Layers, LogOut } from "lucide-react";
+import { AlertCircle, BookOpen, LogOut, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import { CardsSettings } from "@/components/decks/cards-settings";
 import { DeckJobRow, DeckRow } from "@/components/decks/deck-row";
 import { GenerateDeck } from "@/components/decks/generate-deck";
 import { ReviewSession } from "@/components/decks/review-session";
@@ -12,7 +13,8 @@ import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,24 +25,79 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCardSideChats } from "@/hooks/use-card-side-chats";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
-import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
-import type { ChatTurn } from "@/lib/types";
 import {
   type DeckJob,
   type DeckListResponse,
   type DeckPreferences,
   type DeckSummary,
   type ReviewQueue,
+  coveragePercent,
   jobIsLive,
 } from "@/lib/deck-types";
+import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
+import type { ChatTurn } from "@/lib/types";
 
-/** How often a page with work in flight re-checks itself. */
 const POLL_INTERVAL_MS = 4_000;
+type DeckFilter = "all" | "topic_generated" | "book_extracted";
+
+function DeckGroup({
+  id,
+  title,
+  count,
+  mode,
+  decks,
+}: {
+  id: string;
+  title: string;
+  count: number;
+  mode: "topic_generated" | "book_extracted";
+  decks: DeckSummary[];
+}) {
+  const Icon = mode === "book_extracted" ? BookOpen : Sparkles;
+  return (
+    <section aria-labelledby={id}>
+      <div className="mb-2 flex items-center gap-2 px-1">
+        <Icon aria-hidden className="size-4 text-primary" />
+        <h3 id={id} className="font-heading text-base font-medium">
+          {title}
+        </h3>
+        <Badge variant="secondary" className="font-normal tabular-nums">
+          {count} deck{count === 1 ? "" : "s"}
+        </Badge>
+      </div>
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div
+          aria-hidden
+          className="hidden grid-cols-[minmax(0,2.15fr)_minmax(7rem,1.15fr)_4.5rem_7rem_8rem_7rem_4.5rem] gap-4 border-b border-border bg-muted/20 px-4 py-2 text-[0.7rem] font-medium text-muted-foreground sm:grid"
+        >
+          <span>Deck</span>
+          <span>Source</span>
+          <span>Cards</span>
+          <span>Coverage</span>
+          <span>Due / New</span>
+          <span>Updated</span>
+          <span>Action</span>
+        </div>
+        <ul>
+          {decks.map((deck) => (
+            <DeckRow key={deck.deck_id} deck={deck} />
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
 
 export default function DecksPage() {
   const { session, sessionLoading } = useSession();
@@ -50,8 +107,8 @@ export default function DecksPage() {
   const [reviewing, setReviewing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
-  // The deck of the card being asked about. Set on the first highlight so a
-  // reader who never uses side chats never pays for the conversation lookup.
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<DeckFilter>("all");
   const [askingDeckId, setAskingDeckId] = useState<string | null>(null);
   const sideChats = useCardSideChats(askingDeckId);
 
@@ -81,19 +138,11 @@ export default function DecksPage() {
     () => jobs.filter((job) => job.status === "failed").slice(0, 2),
     [jobs],
   );
-  const generatedDecks = useMemo(
-    () => decks.filter((deck) => deck.generation_mode !== "book_extracted"),
-    [decks],
-  );
-  const bookQuestionDecks = useMemo(
-    () => decks.filter((deck) => deck.generation_mode === "book_extracted"),
-    [decks],
-  );
 
   useEffect(() => {
     if (!session || working.length === 0 || reviewing) return;
-    const timer = setInterval(() => void load(), POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
+    const timer = window.setInterval(() => void load(), POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
   }, [session, working.length, reviewing, load]);
 
   const savePreferences = useCallback(
@@ -125,13 +174,48 @@ export default function DecksPage() {
       });
       setJobs((current) => [
         job,
-        ...current.filter((item) => item.job_id !== job.job_id),
+        ...current.filter((item) => item.job_id !== failed.job_id),
       ]);
       setError("");
     } catch (caught) {
       setError((caught as Error).message || "Could not retry that deck.");
     }
   }, []);
+
+  const cancelJob = useCallback(async (job: DeckJob) => {
+    try {
+      await apiFetch<void>(`/decks/jobs/${job.job_id}/cancel`, { method: "POST" });
+      setJobs((current) =>
+        current.map((item) =>
+          item.job_id === job.job_id
+            ? { ...item, status: "cancelled", stage: "pending" }
+            : item,
+        ),
+      );
+      setError("");
+    } catch (caught) {
+      setError((caught as Error).message || "Could not cancel generation.");
+    }
+  }, []);
+
+  const filteredDecks = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase();
+    return decks.filter((deck) => {
+      if (filter !== "all" && deck.generation_mode !== filter) return false;
+      if (!normalized) return true;
+      return `${deck.title} ${deck.source_title}`
+        .toLocaleLowerCase()
+        .includes(normalized);
+    });
+  }, [decks, filter, query]);
+  const generatedDecks = useMemo(
+    () => filteredDecks.filter((deck) => deck.generation_mode !== "book_extracted"),
+    [filteredDecks],
+  );
+  const bookQuestionDecks = useMemo(
+    () => filteredDecks.filter((deck) => deck.generation_mode === "book_extracted"),
+    [filteredDecks],
+  );
 
   if (sessionLoading) {
     return (
@@ -153,10 +237,36 @@ export default function DecksPage() {
   }
 
   const dueToday = queue?.cards.length ?? 0;
+  const scheduledNew = queue
+    ? Math.max(0, queue.cards.length - Math.min(queue.cards.length, queue.due_total))
+    : 0;
+  const coverage = decks.length
+    ? Math.round(
+        decks.reduce(
+          (sum, deck) => sum + coveragePercent(deck.metrics) * Math.max(1, deck.card_count),
+          0,
+        ) / decks.reduce((sum, deck) => sum + Math.max(1, deck.card_count), 0),
+      )
+    : 0;
+  const preferences = queue
+    ? {
+        new_cards_per_day: queue.new_cards_per_day,
+        max_reviews_per_day: queue.max_reviews_per_day,
+      }
+    : null;
 
   return (
     <AppShell
       nav={<SectionNav active="decks" />}
+      railMode="drawer-only"
+      rail={
+        <div className="space-y-5 p-4">
+          <SectionNav active="decks" />
+          <p className="border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+            Create decks and adjust your daily pace from the Cards workspace.
+          </p>
+        </div>
+      }
       overlay={
         <SideChatLayer
           windows={sideChats.windows}
@@ -176,8 +286,6 @@ export default function DecksPage() {
           onAnchorsChange={(sideChatId, anchors) => {
             void sideChats.setAnchors(sideChatId, anchors);
           }}
-          // Every anchor on a card points at the card's own turn, which the
-          // server assigned; there is no second turn here to disambiguate.
           resolveQuoteTurn={() => null}
           error={sideChats.error}
           onDismissError={sideChats.dismissError}
@@ -208,213 +316,227 @@ export default function DecksPage() {
           </DropdownMenuContent>
         </DropdownMenu>
       }
-      rail={
-        <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
-          <div className="sm:hidden">
-            <SectionNav active="decks" />
-          </div>
-          <div>
-            <h2 className="mb-1 font-heading text-sm font-medium">
-              Make a deck
-            </h2>
-            <p className="mb-3 text-xs text-muted-foreground">
-              Pick a chapter or a lecture. Every topic in it gets at least one
-              card, ranked by how likely an interviewer is to ask.
-            </p>
-            <GenerateDeck
-              onQueued={(job) => {
-                setJobs((current) => [job, ...current]);
+    >
+      <div className="h-full overflow-y-auto">
+        {reviewing && queue ? (
+          <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
+            <ReviewSession
+              cards={queue.cards}
+              onFinished={() => void load()}
+              onExit={() => setReviewing(false)}
+              onAskSelection={(card, quotedText) => {
+                setAskingDeckId(card.deck_id);
+                void sideChats.askAboutSelection(card, quotedText);
               }}
             />
           </div>
-
-          {queue ? (
-            <div className="space-y-3 border-t border-border pt-4">
-              <h2 className="font-heading text-sm font-medium">Daily pace</h2>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-per-day" className="text-xs">
-                  New cards per day
-                </Label>
-                <Input
-                  id="new-per-day"
-                  type="number"
-                  min={0}
-                  max={200}
-                  defaultValue={queue.new_cards_per_day}
-                  className="h-8"
-                  onBlur={(event) => {
-                    const value = Number(event.target.value);
-                    if (value === queue.new_cards_per_day) return;
-                    void savePreferences({
-                      new_cards_per_day: value,
-                      max_reviews_per_day: queue.max_reviews_per_day,
-                    });
-                  }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="max-per-day" className="text-xs">
-                  Review ceiling per day
-                </Label>
-                <Input
-                  id="max-per-day"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  defaultValue={queue.max_reviews_per_day}
-                  className="h-8"
-                  onBlur={(event) => {
-                    const value = Number(event.target.value);
-                    if (value === queue.max_reviews_per_day) return;
-                    void savePreferences({
-                      new_cards_per_day: queue.new_cards_per_day,
-                      max_reviews_per_day: value,
-                    });
-                  }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {queue.reviewed_today} reviewed today.
-              </p>
-            </div>
-          ) : null}
-        </div>
-      }
-    >
-      <div className="mx-auto w-full max-w-3xl space-y-6 overflow-y-auto p-4 sm:p-6">
-        {reviewing && queue ? (
-          <ReviewSession
-            cards={queue.cards}
-            onFinished={() => void load()}
-            onExit={() => setReviewing(false)}
-            onAskSelection={(card, quotedText) => {
-              setAskingDeckId(card.deck_id);
-              void sideChats.askAboutSelection(card, quotedText);
-            }}
-          />
         ) : (
-          <>
-            <div>
-              <h1 className="font-heading text-lg font-medium">Cards</h1>
-              <p className="text-sm text-muted-foreground">
-                A few minutes a day. Cards you struggle with come back sooner;
-                cards you know get out of the way.
-              </p>
-            </div>
+          <div className="mx-auto w-full max-w-[100rem] space-y-5 p-4 sm:p-6 lg:p-8">
+            <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <h1 className="font-heading text-3xl font-medium tracking-tight">Cards</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your review queue, decks, and generation activity at a glance.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <GenerateDeck
+                  onQueued={(job) => setJobs((current) => [job, ...current])}
+                />
+                <CardsSettings
+                  preferences={preferences}
+                  reviewedToday={queue?.reviewed_today ?? 0}
+                  onSave={savePreferences}
+                />
+              </div>
+            </header>
 
             {error ? (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertCircle aria-hidden />
+                <AlertTitle>Cards could not be updated</AlertTitle>
+                <AlertDescription>
+                  <p>Check your connection and try again. Your saved decks were not changed.</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => void load()}>
+                      Try again
+                    </Button>
+                    <details>
+                      <summary className="cursor-pointer text-xs text-muted-foreground">
+                        Technical details
+                      </summary>
+                      <p className="mt-1 break-words font-mono text-[0.7rem] text-muted-foreground">
+                        {error}
+                      </p>
+                    </details>
+                  </div>
+                </AlertDescription>
               </Alert>
             ) : null}
 
-            <section
-              aria-labelledby="today"
-              className="rounded-xl border border-border bg-card p-5"
-            >
-              <h2 id="today" className="font-heading text-sm font-medium">
-                Today
-              </h2>
-              {queue && dueToday > 0 ? (
-                <>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {queue.due_total} due
-                    {queue.cards.length - queue.due_total > 0
-                      ? ` · ${queue.cards.length - queue.due_total} new`
-                      : ""}
-                    , across every deck.
+            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(24rem,1fr)]">
+              <div className="min-w-0 space-y-5">
+                <section
+                  aria-labelledby="today-heading"
+                  className="grid gap-5 rounded-lg border border-border bg-card/30 p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
+                >
+              <div className="sm:border-r sm:border-border sm:pr-5">
+                <h2 id="today-heading" className="font-heading text-base font-medium">
+                  Today
+                </h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {queue
+                      ? `${queue.due_total} due · ${scheduledNew} new · across all decks`
+                      : "Loading your review queue…"}
                   </p>
-                  <Button className="mt-4" onClick={() => setReviewing(true)}>
-                    Review {dueToday} card{dueToday === 1 ? "" : "s"}
-                  </Button>
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {decks.length === 0
-                    ? "Make a deck to start."
-                    : "Nothing due right now. Come back tomorrow, or raise the daily new-card allowance."}
-                </p>
-              )}
-            </section>
-
-            {recentlyFailed.length > 0 || working.length > 0 ? (
-              <ul className="space-y-2">
-                {working.map((job) => (
-                  <DeckJobRow key={job.job_id} job={job} />
-                ))}
-                {recentlyFailed.map((job) => (
-                  <DeckJobRow
-                    key={job.job_id}
-                    job={job}
-                    onRetry={(failed) => void retryJob(failed)}
-                  />
-                ))}
-              </ul>
-            ) : null}
-
-            <section aria-labelledby="generated-decks">
-              <h2
-                id="generated-decks"
-                className="mb-1 font-heading text-sm font-medium"
-              >
-                Generated revision cards
-              </h2>
-              <p className="mb-2 text-xs text-muted-foreground">
-                Questions written from chapter topics or lecture evidence.
-              </p>
-              {!loaded ? (
-                <div className="space-y-2" aria-hidden>
-                  <Skeleton className="h-24 w-full" />
-                  <Skeleton className="h-24 w-full" />
+                  {dueToday > 0 ? (
+                    <Button size="xs" onClick={() => setReviewing(true)}>
+                      Review {dueToday}
+                    </Button>
+                  ) : null}
                 </div>
-              ) : decks.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border p-8 text-center">
-                  <Layers aria-hidden className="mx-auto mb-2 size-6 opacity-60" />
-                  <p className="text-sm font-medium">No decks yet</p>
-                  <p className="text-sm text-muted-foreground">
-                    Generate one from a chapter or a lecture in the panel.
+              </div>
+              <div>
+                <p className="font-heading text-xl font-medium tabular-nums">{dueToday}</p>
+                <p className="text-xs text-muted-foreground">In today’s review</p>
+              </div>
+              <div>
+                <p className="font-heading text-xl font-medium tabular-nums">{scheduledNew}</p>
+                <p className="text-xs text-muted-foreground">New cards today</p>
+              </div>
+              <div>
+                <p className="font-heading text-xl font-medium tabular-nums">
+                  {queue?.max_reviews_per_day ?? "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">Daily review ceiling</p>
+              </div>
+              <div>
+                <p className="font-heading text-xl font-medium tabular-nums">{coverage}%</p>
+                <p className="text-xs text-muted-foreground">Coverage across decks</p>
+              </div>
+                </section>
+
+                <section aria-labelledby="deck-library-heading" className="min-w-0">
+                <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                  <div>
+                    <h2 id="deck-library-heading" className="font-heading text-lg font-medium">
+                      Deck library
+                    </h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      AI-written revision cards and printed book questions stay clearly separated.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative">
+                      <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search decks"
+                        aria-label="Search decks"
+                        className="w-full pl-9 sm:w-56"
+                      />
+                    </div>
+                    <Select value={filter} onValueChange={(value) => setFilter(value as DeckFilter)}>
+                      <SelectTrigger className="w-full sm:w-40" aria-label="Filter decks">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All decks</SelectItem>
+                        <SelectItem value="topic_generated">AI-generated</SelectItem>
+                        <SelectItem value="book_extracted">From books</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {!loaded ? (
+                  <div className="space-y-4" aria-hidden>
+                    <Skeleton className="h-36 w-full" />
+                    <Skeleton className="h-28 w-full" />
+                  </div>
+                ) : filteredDecks.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-8 text-center">
+                    <BookOpen aria-hidden className="mx-auto mb-2 size-6 text-muted-foreground" />
+                    <p className="text-sm font-medium">
+                      {decks.length === 0 ? "No decks yet" : "No matching decks"}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {decks.length === 0
+                        ? "Create a deck from a chapter or lecture to get started."
+                        : "Try another search or filter."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-7">
+                    {generatedDecks.length > 0 ? (
+                      <DeckGroup
+                        id="ai-generated-decks"
+                        title="AI-generated"
+                        count={generatedDecks.length}
+                        mode="topic_generated"
+                        decks={generatedDecks}
+                      />
+                    ) : null}
+                    {bookQuestionDecks.length > 0 ? (
+                      <DeckGroup
+                        id="book-question-decks"
+                        title="From books"
+                        count={bookQuestionDecks.length}
+                        mode="book_extracted"
+                        decks={bookQuestionDecks}
+                      />
+                    ) : null}
+                    <p className="px-1 text-xs text-muted-foreground">
+                      Showing {filteredDecks.length} of {decks.length} deck{decks.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                )}
+                </section>
+              </div>
+
+              <aside
+                aria-labelledby="generation-activity-heading"
+                className="rounded-lg border border-border bg-card/20 p-4 xl:sticky xl:top-6"
+              >
+                <div className="mb-4">
+                  <h2 id="generation-activity-heading" className="font-heading text-lg font-medium">
+                    Generation activity
+                  </h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Track book extraction and AI generation without keeping this page open.
                   </p>
                 </div>
-              ) : generatedDecks.length > 0 ? (
-                <ul className="space-y-2">
-                  {generatedDecks.map((deck) => (
-                    <DeckRow key={deck.deck_id} deck={deck} />
-                  ))}
-                </ul>
-              ) : (
-                <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  No AI-generated revision decks yet.
-                </p>
-              )}
-            </section>
-
-            <section aria-labelledby="book-question-decks">
-              <h2
-                id="book-question-decks"
-                className="mb-1 font-heading text-sm font-medium"
-              >
-                Questions from books
-              </h2>
-              <p className="mb-2 text-xs text-muted-foreground">
-                Exercises and review questions printed in the source PDF, kept
-                separate from AI-generated questions.
-              </p>
-              {!loaded ? (
-                <Skeleton className="h-24 w-full" aria-hidden />
-              ) : bookQuestionDecks.length > 0 ? (
-                <ul className="space-y-2">
-                  {bookQuestionDecks.map((deck) => (
-                    <DeckRow key={deck.deck_id} deck={deck} />
-                  ))}
-                </ul>
-              ) : (
-                <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  No book-question decks yet. Choose “Use questions from book”
-                  when making a chapter deck.
-                </p>
-              )}
-            </section>
-          </>
+                {working.length > 0 || recentlyFailed.length > 0 ? (
+                  <ul className="space-y-3">
+                    {working.map((job) => (
+                      <DeckJobRow
+                        key={job.job_id}
+                        job={job}
+                        onCancel={(active) => void cancelJob(active)}
+                      />
+                    ))}
+                    {recentlyFailed.map((job) => (
+                      <DeckJobRow
+                        key={job.job_id}
+                        job={job}
+                        onRetry={(failed) => void retryJob(failed)}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border px-5 py-8 text-center">
+                    <Sparkles aria-hidden className="mx-auto mb-2 size-5 text-primary" />
+                    <p className="text-sm font-medium">No generation in progress</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      Start a deck and its percentage, current step, and time estimate will appear here.
+                    </p>
+                  </div>
+                )}
+              </aside>
+            </div>
+          </div>
         )}
       </div>
     </AppShell>

@@ -62,6 +62,33 @@ const failedJob: DeckJob = {
   attempt_count: 3,
   error_code: "generation_failed",
   error_detail: "Provider timed out",
+  title: "Chapter 2",
+  source_title: "ISLP",
+  created_at: "2026-08-11T10:00:00Z",
+  updated_at: "2026-08-11T10:02:00Z",
+  timing: {
+    percent: 65,
+    elapsed_seconds: 120,
+    estimated_total_seconds: 180,
+    estimated_remaining_seconds: 0,
+    overrunning: false,
+    stages: [
+      {
+        stage: "read_source",
+        label: "Read source",
+        state: "done",
+        expected_seconds: 8,
+        elapsed_seconds: null,
+      },
+      {
+        stage: "generation",
+        label: "Write grounded answers",
+        state: "pending",
+        expected_seconds: 120,
+        elapsed_seconds: null,
+      },
+    ],
+  },
 };
 
 describe("book-extracted deck presentation", () => {
@@ -96,7 +123,11 @@ describe("book-extracted deck presentation", () => {
   it("names extraction failures and lets the reader retry", () => {
     const retry = vi.fn();
     render(<DeckJobRow job={failedJob} onRetry={retry} />);
-    expect(screen.getByText("Question extraction failed")).toBeTruthy();
+    expect(screen.getByText("We couldn’t extract these questions")).toBeTruthy();
+    const details = screen.getByText("Technical details").closest("details");
+    expect(details?.open).toBe(false);
+    fireEvent.click(screen.getByText("Technical details"));
+    expect(details?.open).toBe(true);
     expect(screen.getByText("Provider timed out")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledWith(failedJob);
