@@ -9,6 +9,7 @@ from storage.postgres import (
     ingest_book,
     restore_book,
 )
+from study.scope import list_chapters
 from tests.fixtures import FILE_HASH, sample_book
 from tests.postgres import PostgresOwnerMixin
 
@@ -196,6 +197,42 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
             ).fetchone()["count"],
             1,
         )
+
+    def test_paper_outline_is_stored_as_sections_without_chapters(self) -> None:
+        paper_id = self.ingest(
+            document_type="paper",
+            title="Sample Paper",
+            file_hash="e" * 64,
+        )
+
+        rows = self.database.execute(
+            """
+            select title, node_type from nodes
+            where owner_id = %s and book_id = %s order by toc_index
+            """,
+            (self.owner_id, paper_id),
+        ).fetchall()
+
+        self.assertEqual(
+            [(row["title"], row["node_type"]) for row in rows],
+            [
+                ("Chapter 1", "section"),
+                ("Core idea", "subsection"),
+                ("Diagram", "nested_section"),
+            ],
+        )
+        self.assertEqual(
+            list_chapters(
+                self.database,
+                owner_id=self.owner_id,
+                book_id=paper_id,
+            ),
+            (),
+        )
+
+    def test_document_type_is_validated_before_storage(self) -> None:
+        with self.assertRaisesRegex(ValueError, "document_type"):
+            self.ingest(document_type="article")
 
     def test_duplicate_requires_explicit_replace(self) -> None:
         self.ingest()

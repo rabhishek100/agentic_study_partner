@@ -195,7 +195,7 @@ def build_summary_messages(
             "Complete evidence; do not guess or combine node IDs and pages.\n"
         )
     grounding = f"""
-This is a complete-scope interview review, not top-k retrieval. Cite every
+This is a complete-scope review, not top-k retrieval. Cite every
 substantive claim with [N<node>:P<page>] copied exactly from the supplied
 evidence markers; never combine a node ID with a page outside that node's
 allowed list.
@@ -214,8 +214,14 @@ every required node appears in at least one citation and every substantive
 paragraph or bullet carries a supporting citation.
 {correction}
 """.strip()
+    source_label = "Paper" if scope.document_type == "paper" else "Book"
+    task = (
+        f"Explain the complete paper {scope.book_title}."
+        if scope.document_type == "paper" and scope.kind == "book"
+        else f"Prepare {scope.display_path} for a technical interview."
+    )
     request_context = (
-        f"Book: {scope.book_title}\n"
+        f"{source_label}: {scope.book_title}\n"
         f"Scope: {scope.display_path}\n"
         f"PDF pages: {scope.start_page}–{scope.end_page}\n\n"
         f"Required coverage:\n{required_sections}\n\n"
@@ -226,7 +232,7 @@ paragraph or bullet carries a supporting citation.
     )
     return build_answer_messages(
         profile=profile or DEFAULT_PROMPT_PROFILE,
-        question=f"Prepare {scope.display_path} for a technical interview.",
+        question=task,
         evidence=context.text,
         archetype="chapter_review",
         depth=response_depth,

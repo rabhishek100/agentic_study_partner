@@ -1,4 +1,9 @@
-"""Lossless canonical ParsedBook persistence in Postgres."""
+"""Lossless canonical PDF persistence in Postgres.
+
+``ParsedBook`` remains the parser's historical name, but the canonical model
+also stores papers.  A paper uses the same lossless hierarchy and content
+blocks as a book while assigning paper-native structural roles to its outline.
+"""
 
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -13,6 +18,9 @@ from psycopg.types.json import Jsonb
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
 from parsing.outline_roles import (
     CHAPTER,
+    NESTED_SECTION,
+    SECTION,
+    SUBSECTION,
     chapter_level,
     chapter_number,
     outline_roles,
@@ -137,14 +145,41 @@ def _validate_chapters(sections: list[Section], node_types: list[str]) -> None:
         )
 
 
-def _node_types(sections: list[Section]) -> list[str]:
-    """Name every section's structural role, judging the outline as a whole.
+def _paper_node_types(sections: list[Section]) -> list[str]:
+    """Name paper headings without inventing chapters.
+
+    Scientific papers are normally organized as sections and subsections,
+    including when their top-level headings form a numbered 1..N run.  That
+    numbering is precisely the signal used to find chapters in books, so paper
+    roles must be selected from the declared document type rather than guessed
+    from the outline text.
+    """
+
+    return [
+        SECTION
+        if section.level == 1
+        else SUBSECTION
+        if section.level == 2
+        else NESTED_SECTION
+        for section in sections
+    ]
+
+
+def _node_types(
+    sections: list[Section],
+    *,
+    document_type: str = "book",
+) -> list[str]:
+    """Name every heading's structural role for its declared document type.
 
     Depth alone named the roles until a book with Parts arrived: its chapters
     sit at level 2, so a depth rule typed Part I as a chapter and Chapter 5 as
     a section, and nothing typed `section` can answer to a chapter number. See
     `parsing.outline_roles` for why neither depth nor title works alone.
     """
+
+    if document_type == "paper":
+        return _paper_node_types(sections)
 
     return outline_roles(
         [section.level for section in sections],
@@ -186,6 +221,8 @@ def ingest_book(
         raise ValueError("file_hash must be a hexadecimal SHA-256 digest")
     if not title.strip():
         raise ValueError("title cannot be empty")
+    if document_type not in {"book", "paper"}:
+        raise ValueError("document_type must be 'book' or 'paper'")
     if (source_storage_bucket is None) != (source_storage_path is None):
         raise ValueError("source storage bucket and path must be supplied together")
     _validate(book, page_count)
@@ -246,8 +283,9 @@ def ingest_book(
         # written in batches once the node ids are known.
         pending_blocks: list[tuple] = []
         pending_payloads: list[tuple | None] = []
-        node_types = _node_types(book.sections)
-        _validate_chapters(book.sections, node_types)
+        node_types = _node_types(book.sections, document_type=document_type)
+        if document_type == "book":
+            _validate_chapters(book.sections, node_types)
 
         for toc_index, section in enumerate(book.sections):
             parent_id = parent_by_level.get(section.level - 1)

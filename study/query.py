@@ -253,7 +253,7 @@ def _answer_hierarchy_request(
             )
         ]
         warnings.append(
-            "Some chapter material could not be incorporated without weakening "
+            "Some source material could not be incorporated without weakening "
             "citation guarantees: "
             + "; ".join(missing_paths)
             + ". The answer contains only verified material."
@@ -456,11 +456,15 @@ def _answer_retrieval_question(
                 response_depth=response_depth,
                 history_dependency="independent",
                 standalone_query=question,
-                routing_reason=routing_reason or "No matching evidence in indexed books; falling back to external QA.",
+                routing_reason=routing_reason
+                or (
+                    "No matching evidence in indexed sources; falling back to "
+                    "external QA."
+                ),
             )
         return TurnResult(
             question=question,
-            answer="I could not find relevant evidence in the indexed books.",
+            answer="I could not find relevant evidence in the indexed sources.",
             route="retrieval_qa",
             history_dependency="independent",
             standalone_query=question,
@@ -490,10 +494,11 @@ def _answer_retrieval_question(
         "major or meaningful X matters, or that false alerts cause unnecessary Y, "
         "supports answering no. "
         "Evidence beginning with 'Figure:' is a description of a diagram, chart, "
-        "or plot from the book rather than its prose. Treat it as evidence like "
+        "or plot from the selected source rather than its prose. Treat it as "
+        "evidence like "
         "any other, and cite it at the point where you discuss what it shows, so "
         "the figure can be placed beside that sentence. Describe it as a figure "
-        "rather than quoting the description as if it were the book's wording. "
+        "rather than quoting the description as if it were the source's wording. "
         "If the evidence cannot support the requested answer, begin the response "
         f"exactly with {INSUFFICIENT_EVIDENCE_MARKER} and briefly explain what "
         "evidence is missing. Do not answer from general knowledge."

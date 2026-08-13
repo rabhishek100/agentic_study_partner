@@ -237,6 +237,17 @@ def _explicit_hierarchy_decision(
         except ScopeResolutionError:
             continue
     if scope is None:
+        if (
+            request.intent == "summarize"
+            and request.scope_kind == "book"
+            and not request.scope_reference
+        ):
+            return TurnDecision(
+                route="clarify",
+                history_dependency="ambiguous",
+                clarification_question="Which selected document should I explain?",
+                reason="A whole-document request needs one selected source.",
+            )
         return None
     route = (
         "hierarchy_list"
@@ -298,12 +309,13 @@ def _payload(
 
 
 SYSTEM_PROMPT = """
-Choose the next action for a technical-book study chat. Do not answer.
+Choose the next action for a technical-book or scientific-paper study chat.
+Do not answer.
 
 Routes:
-- hierarchy_summary: summarize a complete chapter or section.
+- hierarchy_summary: summarize a complete paper, book, chapter, or section.
 - hierarchy_list: list chapters in a book or sections under a chapter.
-- retrieval_qa: retrieve book evidence for a question.
+- retrieval_qa: retrieve selected-source evidence for a question.
 - prior_answer_transform: reformat or shorten the prior answer without facts.
 - clarify: the referent or requested scope is genuinely ambiguous.
 

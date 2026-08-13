@@ -67,6 +67,11 @@ def _hierarchy_query(decision: TurnDecision) -> str:
         if scope.kind == "book":
             return "What chapters does this book have?"
         return f"What sections are present in {scope.display_path}?"
+    if scope.kind == "book":
+        # Book-level scopes are also how a complete paper is represented.
+        # Re-execution is narrowed to the resolved id, so this generic wording
+        # cannot drift to another selected document.
+        return "Summarize this document."
     if scope.kind == "chapter":
         return f"Summarize {scope.display_path}."
     parts = scope.display_path.split(" :: ")
