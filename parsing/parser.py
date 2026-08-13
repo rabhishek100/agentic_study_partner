@@ -11,6 +11,7 @@ from base64 import b64encode
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from contextlib import contextmanager
 from pathlib import Path
@@ -548,14 +549,53 @@ def extract_batched(
                     on_batch(completed_tasks, total_tasks)
         else:
             try:
-                with ProcessPoolExecutor(max_workers=min(workers, len(tasks))) as pool:
+                pool_width = min(workers, len(tasks))
+                # The child-local SIGALRM is useful when Unstructured returns
+                # to Python, but a native parser can hold the GIL and prevent
+                # its handler from running.  Enforce the same bound from the
+                # parent process as well.  Account for queued waves so every
+                # batch still receives its full allowance.
+                pool_timeout = _positive_env(
+                    "PARSER_BATCH_TIMEOUT_SECONDS",
+                    DEFAULT_BATCH_TIMEOUT_SECONDS,
+                )
+                pool_timeout *= math.ceil(len(tasks) / pool_width)
+                with ProcessPoolExecutor(max_workers=pool_width) as pool:
                     futures = [pool.submit(_parse_page_range, task) for task in tasks]
-                    for future in as_completed(futures):
-                        first, path = future.result()
-                        collected[first] = path
-                        completed_tasks += 1
-                        if on_batch is not None:
-                            on_batch(completed_tasks, total_tasks)
+                    try:
+                        for future in as_completed(futures, timeout=pool_timeout):
+                            first, path = future.result()
+                            collected[first] = path
+                            completed_tasks += 1
+                            if on_batch is not None:
+                                on_batch(completed_tasks, total_tasks)
+                    except FuturesTimeoutError:
+                        logger.warning(
+                            "parse pool exceeded %s seconds after %s of %s batches; "
+                            "terminating stuck parsers and preserving remaining pages",
+                            pool_timeout,
+                            len(collected),
+                            len(tasks),
+                        )
+                        for future in futures:
+                            future.cancel()
+                        # ProcessPoolExecutor has no public force-stop API.
+                        # Killing only the executor's own resolved child PIDs
+                        # is narrow and recoverable; the context manager then
+                        # reaps them before vector fallback starts.
+                        for process in list(getattr(pool, "_processes", {}).values()):
+                            if process.is_alive():
+                                process.kill()
+                        for _source, first, last, _workspace in tasks:
+                            if first in collected:
+                                continue
+                            for page in range(first, last + 1):
+                                fallback_elements.extend(
+                                    _extract_vector_fallback_page(pdf_path, page)
+                                )
+                            completed_tasks += 1
+                            if on_batch is not None:
+                                on_batch(completed_tasks, total_tasks)
             except BrokenProcessPool:
                 if not fallback_pages:
                     # A worker died for a reason this process cannot see: the
@@ -593,7 +633,8 @@ def extract_batched(
         elements = list(fallback_elements)
         # Reassemble in page order; batches finish out of order.
         for first, _ in ranges:
-            elements.extend(elements_from_json(filename=collected[first]))
+            if first in collected:
+                elements.extend(elements_from_json(filename=collected[first]))
     elements.sort(key=lambda element: (element.metadata.page_number, _element_top(element)))
     return elements
 

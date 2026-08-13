@@ -7,6 +7,7 @@ in page order, and progress reported as batches land.
 """
 
 import tempfile
+import time
 import unittest
 from concurrent.futures import Future
 from pathlib import Path
@@ -76,6 +77,12 @@ def fake_load(filename):
     import json
 
     return [_Element(entry["page"]) for entry in json.loads(Path(filename).read_text())]
+
+
+def stalled_parse_range(_task):
+    """Hold a real pool child long enough for the parent's deadline to fire."""
+
+    time.sleep(30)
 
 
 class BatchedExtractionTests(unittest.TestCase):
@@ -208,6 +215,30 @@ class BatchedExtractionTests(unittest.TestCase):
             [element.metadata.page_number for element in elements],
             [1, 2, 3, 4, 5, 6],
         )
+
+    def test_a_timed_out_parse_pool_preserves_every_unfinished_page(self):
+        seen = []
+        with (
+            patch.dict("os.environ", {"PARSER_BATCH_TIMEOUT_SECONDS": "1"}),
+            patch("parsing.parser._parse_page_range", new=stalled_parse_range),
+            patch(
+                "parsing.parser._extract_vector_fallback_page",
+                side_effect=lambda _source, page: [_Element(page + 1)],
+            ) as preserve,
+        ):
+            elements = extract_batched(
+                self.source,
+                batch_pages=2,
+                workers=3,
+                on_batch=lambda done, total: seen.append((done, total)),
+            )
+
+        self.assertEqual(
+            [element.metadata.page_number for element in elements],
+            [1, 2, 3, 4, 5, 6],
+        )
+        self.assertEqual(preserve.call_count, 6)
+        self.assertEqual(seen, [(1, 3), (2, 3), (3, 3)])
 
     def test_a_failing_batch_fails_the_parse(self):
         # A silently dropped batch would lose pages from the book.
