@@ -79,7 +79,8 @@ WHOLE_DOCUMENT_SUMMARY = re.compile(
     r"^(?:explain|summari[sz]e|review)\s+"
     r"(?:all\s+of\s+)?"
     r"(?:this|the(?:\s+(?:selected|current|whole))?|selected|current)\s+"
-    r"(?:pdf|paper|document|book)\s*[?.]?$",
+    r"(?:pdf|paper|document|book)"
+    r"(?:\s+(?P<book_reference>@\[[^\]]+\]))?\s*[?.]?$",
     re.IGNORECASE,
 )
 SUMMARIZE_SECTION = re.compile(
@@ -159,7 +160,7 @@ def parse_study_request(query: str) -> StudyRequest:
     """Parse the supported explicit query forms without a model call."""
 
     query = " ".join(query.split())
-    if WHOLE_DOCUMENT_SUMMARY.fullmatch(query):
+    if match := WHOLE_DOCUMENT_SUMMARY.fullmatch(query):
         return StudyRequest(
             intent="summarize",
             scope_kind="book",
@@ -167,6 +168,9 @@ def parse_study_request(query: str) -> StudyRequest:
             # avoids pretending that conversational words such as "this PDF"
             # are part of its stored title.
             scope_reference="",
+            book_reference=(
+                _clean_book_reference(match.group("book_reference")) or None
+            ),
         )
     for pattern in LIST_CHAPTERS:
         match = pattern.fullmatch(query)

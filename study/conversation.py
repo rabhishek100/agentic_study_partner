@@ -74,9 +74,10 @@ def _hierarchy_query(decision: TurnDecision) -> str:
         return "Summarize this document."
     if scope.kind == "chapter":
         return f"Summarize {scope.display_path}."
-    parts = scope.display_path.split(" :: ")
-    chapter = re.sub(r"^Chapter\s+", "", parts[0], flags=re.IGNORECASE)
-    return f"Summarize section {parts[-1]} in chapter {chapter}."
+    # The full canonical path disambiguates repeated section titles and works
+    # for both books and papers. Reconstructing every section as "in chapter"
+    # is invalid for papers, whose top-level nodes are sections by design.
+    return f"Summarize {scope.display_path}."
 
 
 def _transform(

@@ -7,8 +7,15 @@ from langchain_core.callbacks import BaseCallbackHandler
 from parsing.models import ParsedBook, Section, TextBlock
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
-from study.contracts import ConversationState, EvidenceRef, ScopeRef, TurnResult
+from study.contracts import (
+    ConversationState,
+    EvidenceRef,
+    ScopeRef,
+    TurnDecision,
+    TurnResult,
+)
 from study.conversation import (
+    _hierarchy_query,
     execute_conversation_turn,
     new_conversation_state,
     record_turn,
@@ -49,6 +56,30 @@ class TraceRecorder(BaseCallbackHandler):
                 "parent_run_id": parent_run_id,
                 "metadata": metadata or {},
             }
+        )
+
+
+class HierarchyQueryRenderingTests(unittest.TestCase):
+    def test_paper_section_is_not_reconstructed_as_a_chapter_request(self):
+        scope = ScopeRef(
+            kind="section",
+            book_id=1,
+            node_id=10,
+            display_path="1 Introduction :: 1.1 Contributions",
+            start_page=1,
+            end_page=2,
+        )
+        decision = TurnDecision(
+            route="hierarchy_summary",
+            history_dependency="independent",
+            standalone_query="Explain the contributions.",
+            resolved_scope=scope,
+            reason="The paper section was selected explicitly.",
+        )
+
+        self.assertEqual(
+            _hierarchy_query(decision),
+            "Summarize 1 Introduction :: 1.1 Contributions.",
         )
 
 
