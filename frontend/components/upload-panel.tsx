@@ -189,12 +189,22 @@ export function UploadPanel({
     let cancelled = false;
     (async () => {
       try {
-        const { jobs } = await apiFetch<IngestionJobList>("/ingestions?limit=5");
+        // Review gates must remain discoverable after a bulk upload. Fetching
+        // only five jobs let newer completed items push an older waiting
+        // review out of this panel, even though it was the one item that still
+        // required the reader. The API caps this owner-scoped list at 100.
+        const { jobs } = await apiFetch<IngestionJobList>(
+          "/ingestions?limit=100",
+        );
         // A job imported from an operator's filesystem is skipped on purpose.
         // Adopting one puts this panel into "processing" over work no browser
         // can advance and no shared worker will claim, which disables the
         // upload control for as long as that job sits in the queue.
-        const running = jobs.filter((entry) => ACTIVE_STATUSES.has(entry.status));
+        const running = jobs.filter(
+          (entry) =>
+            ACTIVE_STATUSES.has(entry.status) &&
+            (entry.document_type ?? "book") === documentType,
+        );
         const active = running.find((entry) => entry.driveable !== false);
         if (cancelled) return;
         if (active) {
@@ -214,7 +224,7 @@ export function UploadPanel({
     return () => {
       cancelled = true;
     };
-  }, [setJob]);
+  }, [documentType, setJob]);
 
   // Durable polling: the job lives in Postgres, so refreshing the page and
   // polling again shows the same truth the worker is writing.

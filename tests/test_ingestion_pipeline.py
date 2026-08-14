@@ -28,8 +28,9 @@ from ingestion.jobs import (
 )
 from ingestion.pipeline import (
     CancellationRequested,
-    _book_title,
     PipelineDependencies,
+    _book_title,
+    _paper_outline,
     evaluate_extraction,
     run_job,
 )
@@ -46,7 +47,6 @@ from tests.pdf_fixtures import (
     structured_pdf,
 )
 from tests.postgres import require_empty_ingestion_queue
-
 
 load_dotenv()
 
@@ -135,16 +135,26 @@ class DeterministicEmbedder:
         return self._vector(text)
 
 
-def stub_parsed_book(source: str = "original.pdf") -> ParsedBook:
+def stub_parsed_book(
+    source: str = "original.pdf",
+    *,
+    toc: list[tuple[int, str, int]] | None = None,
+    page_count: int = 6,
+) -> ParsedBook:
     """A ParsedBook consistent with the generated structured fixture."""
 
-    ranges = [(1, 1), (2, 3), (4, 4), (5, 6)]
-    paths = [
-        ["Chapter 1. Overview"],
-        ["Chapter 1. Overview", "Why monitoring matters"],
-        ["Chapter 2. Data Distribution Shifts"],
-        ["Chapter 2. Data Distribution Shifts", "Detecting skew"],
+    selected_toc = toc or FIXTURE_TOC
+    ranges = [
+        (entry[2], selected_toc[index + 1][2] - 1)
+        if index + 1 < len(selected_toc)
+        else (entry[2], page_count)
+        for index, entry in enumerate(selected_toc)
     ]
+    paths: list[list[str]] = []
+    current_path: list[str] = []
+    for level, title, _page in selected_toc:
+        current_path[level - 1 :] = [title]
+        paths.append(list(current_path))
     sections = [
         Section(
             path=path,
@@ -152,12 +162,38 @@ def stub_parsed_book(source: str = "original.pdf") -> ParsedBook:
             start_page=start,
             end_page=end,
             texts=[
-                TextBlock(text=f"{path[-1]}. {BODY}", category="NarrativeText", page=start)
+                TextBlock(
+                    text=f"{path[-1]}. {BODY} {BODY}",
+                    category="NarrativeText",
+                    page=start,
+                )
             ],
         )
         for path, (start, end) in zip(paths, ranges, strict=True)
     ]
-    return ParsedBook(source=source, toc=FIXTURE_TOC, sections=sections)
+    return ParsedBook(source=source, toc=selected_toc, sections=sections)
+
+
+class PaperOutlineTests(unittest.TestCase):
+    def test_a_paper_without_a_trustworthy_outline_uses_one_document_scope(self):
+        with tempfile.TemporaryDirectory(prefix="paper-outline-test-") as directory:
+            source = pdf_with_visual_headings(Path(directory) / "paper.pdf")
+            report = preflight(source, limits=LIMITS)
+
+        outline, strategy = _paper_outline(report)
+
+        self.assertEqual(outline, [(1, "Full paper", 1)])
+        self.assertEqual(strategy, "whole_document")
+
+    def test_a_paper_keeps_a_trustworthy_native_section_outline(self):
+        with tempfile.TemporaryDirectory(prefix="paper-outline-test-") as directory:
+            source = structured_pdf(Path(directory) / "paper.pdf")
+            report = preflight(source, limits=LIMITS)
+
+        outline, strategy = _paper_outline(report)
+
+        self.assertEqual(outline, report.normalized_toc)
+        self.assertEqual(strategy, "native_sections")
 
 
 @unittest.skipUnless(
@@ -206,7 +242,7 @@ class PipelineFixture(unittest.TestCase):
         self.assertIn(response.status_code, (200, 201), response.text)
         self.uploaded.append(("book-sources", storage_path))
 
-    def queued_job(self, source: Path):
+    def queued_job(self, source: Path, *, document_type: str = "book"):
         with connection(self.database_url) as database:
             job, _ = create_job(
                 database,
@@ -215,6 +251,7 @@ class PipelineFixture(unittest.TestCase):
                 original_filename=source.name,
                 content_type="application/pdf",
                 content_length=source.stat().st_size,
+                document_type=document_type,
                 limits=LIMITS,
             )
         self.upload(source, job.storage_path)
@@ -227,8 +264,8 @@ class PipelineFixture(unittest.TestCase):
                 limits=LIMITS,
             )
 
-    def claim(self, source: Path):
-        self.queued_job(source)
+    def claim(self, source: Path, *, document_type: str = "book"):
+        self.queued_job(source, document_type=document_type)
         with connection(self.database_url) as database:
             return claim_next_job(database, worker_id="test-worker", limits=LIMITS)
 
@@ -386,10 +423,53 @@ class StubbedParserTests(PipelineFixture):
         # there is deliberately no module-level name to replace.
         self.parser = patch(
             "parsing.parser.parse_book",
-            side_effect=lambda *a, **k: stub_parsed_book(),
+            side_effect=self._stub_parse,
         )
         self.parser.start()
         self.addCleanup(self.parser.stop)
+
+    @staticmethod
+    def _stub_parse(source, *args, **kwargs):
+        del args
+        import fitz
+
+        with fitz.open(source) as document:
+            page_count = document.page_count
+        return stub_parsed_book(
+            str(source),
+            toc=kwargs.get("toc_override"),
+            page_count=page_count,
+        )
+
+    def test_a_paper_without_an_outline_ingests_as_one_whole_paper(self):
+        source = pdf_with_visual_headings(self.directory / "paper.pdf")
+        job = self.claim(source, document_type="paper")
+
+        outcome = self.run_claimed(job)
+
+        self.assertEqual(outcome.job.status, Status.READY)
+        with connection(self.database_url) as database:
+            restored = restore_book(
+                database,
+                outcome.book_id,
+                owner_id=self.owner,
+            )
+            stored = database.execute(
+                "select document_type, metadata_json from books where id = %s",
+                (outcome.book_id,),
+            ).fetchone()
+            node_types = database.execute(
+                "select node_type from nodes where book_id = %s order by id",
+                (outcome.book_id,),
+            ).fetchall()
+
+        self.assertEqual(restored.toc, [(1, "Full paper", 1)])
+        self.assertEqual(stored["document_type"], "paper")
+        self.assertEqual(
+            stored["metadata_json"]["paper_outline"]["strategy"],
+            "whole_document",
+        )
+        self.assertEqual([row["node_type"] for row in node_types], ["section"])
 
     def test_an_encrypted_pdf_fails_without_a_retry(self):
         job = self.claim(encrypted_pdf(self.directory / "locked.pdf"))

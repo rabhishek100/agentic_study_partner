@@ -8,10 +8,11 @@ import re
 
 from .contracts import AnswerArchetype, PromptProfile, ResponseDepth, Route
 
-PROMPT_SCHEMA_VERSION = "interview-v2"
+PROMPT_SCHEMA_VERSION = "interview-v3"
 
 LOCKED_GROUNDING_PROMPT = """
-You answer from technical-book evidence supplied by the application.
+You answer from technical-book or scientific-paper evidence supplied by the
+application.
 
 Grounding requirements:
 - Use only the supplied evidence for substantive claims. Do not fill gaps from
@@ -96,8 +97,8 @@ coverage from supported design choices.
 """.strip()
 
 DEFAULT_CHAPTER_REVIEW_TEMPLATE = """
-Turn the complete chapter or section into an interview-preparation review
-rather than a section-by-section paraphrase:
+Turn the complete selected scope (paper, book, chapter, or section) into an
+interview-preparation review rather than a section-by-section paraphrase:
 1. Open with the central interview-ready mental model.
 2. Extract the highest-value concepts, definitions, comparisons, and
    trade-offs while covering every required source node.

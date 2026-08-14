@@ -67,6 +67,7 @@ class ResolvedScope:
     start_page: int
     end_page: int
     nodes: tuple[ScopeNode, ...]
+    document_type: Literal["book", "paper"] = "book"
     # Where measured, what each PDF page prints on it. A citation should name
     # the page a reader sees; for a scan those differ by however much front
     # matter was included and by whatever pages the scanner missed - up to
@@ -291,6 +292,7 @@ def _resolved_node(
         start_page=min(node.start_page for node in nodes),
         end_page=max(node.end_page for node in nodes),
         nodes=nodes,
+        document_type=row.get("document_type", "book") or "book",
         printed_anchors=_printed_anchors(connection, row["book_id"], owner_id),
     )
 
@@ -345,6 +347,7 @@ def resolve_book(
             default=1,
         ),
         nodes=nodes,
+        document_type=book.get("document_type", "book") or "book",
         printed_anchors=_printed_anchors(connection, book["id"], owner_id),
     )
 
@@ -444,7 +447,8 @@ def resolve_chapter(
     predicate = "" if scope is None else "AND nodes.book_id = any(%s)"
     rows = connection.execute(
         f"""
-        SELECT nodes.*, books.title AS book_title
+        SELECT nodes.*, books.title AS book_title,
+               books.document_type AS document_type
         FROM nodes
         JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
         WHERE nodes.owner_id = %s AND nodes.node_type = any(%s) {predicate}
@@ -501,7 +505,8 @@ def resolve_node(
     owner = parse_owner_id(owner_id)
     row = connection.execute(
         """
-        SELECT nodes.*, books.title AS book_title
+        SELECT nodes.*, books.title AS book_title,
+               books.document_type AS document_type
         FROM nodes
         JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
         WHERE nodes.id = %s AND nodes.owner_id = %s
@@ -547,7 +552,8 @@ def resolve_section(
 
     rows = connection.execute(
         """
-        SELECT nodes.*, books.title AS book_title
+        SELECT nodes.*, books.title AS book_title,
+               books.document_type AS document_type
         FROM nodes
         JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
         WHERE nodes.book_id = %s AND nodes.owner_id = %s
@@ -605,7 +611,8 @@ def resolve_named_scope(
         raise ScopeNotFoundError("scope", reference)
     rows = connection.execute(
         """
-        SELECT nodes.*, books.title AS book_title
+        SELECT nodes.*, books.title AS book_title,
+               books.document_type AS document_type
         FROM nodes
         JOIN books ON books.id = nodes.book_id AND books.owner_id = nodes.owner_id
         WHERE nodes.book_id = %s AND nodes.owner_id = %s

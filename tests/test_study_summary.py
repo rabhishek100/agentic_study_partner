@@ -112,6 +112,16 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             parse_study_request("Summarize Core idea"),
             StudyRequest("summarize", "named", "Core idea"),
         )
+        for question in (
+            "Explain this PDF",
+            "Summarize the whole paper.",
+            "Review the selected document",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    parse_study_request(question),
+                    StudyRequest("summarize", "book", ""),
+                )
         self.assertEqual(
             parse_study_request(
                 "Turn the model-deployment chapter into an interview review, "

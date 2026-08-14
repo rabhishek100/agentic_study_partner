@@ -14,6 +14,7 @@ class CitationSummaryModel:
     """Return a minimal summary citing every evidence-bearing node."""
 
     def invoke(self, messages):
+        self.messages = messages
         evidence = messages[-1][1].split("Book evidence:\n", 1)[1]
         markers = re.findall(r"\[N(\d+):P(\d+)]", evidence)
         citations = " ".join(
@@ -160,6 +161,41 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                 and reference.book_id == self.book_id
                 for reference in result.evidence
             )
+        )
+
+    def test_explain_pdf_loads_a_papers_complete_scope_without_retrieval(self):
+        with database_connection(self.database_url) as connection:
+            paper_id = ingest_book(
+                connection,
+                sample_book(),
+                owner_id=self.owner_id,
+                title="Sample Paper",
+                author="Test Author",
+                file_hash="f" * 64,
+                page_count=5,
+                parser_version="test-v1",
+                document_type="paper",
+            )
+
+        model = CitationSummaryModel()
+        with patch("study.query.BookRetriever") as retriever:
+            result = execute_query(
+                "Explain this PDF",
+                database_url=self.database_url,
+                book_id=paper_id,
+                owner_id=self.owner_id,
+                model=model,
+            )
+
+        retriever.assert_not_called()
+        self.assertEqual(result.route, "hierarchy_summary")
+        self.assertEqual(result.resolved_scope.kind, "book")
+        self.assertEqual(result.resolved_scope.display_path, "Sample Paper")
+        self.assertEqual(len(result.evidence), 3)
+        self.assertIn("Paper: Sample Paper", model.messages[-1][1])
+        self.assertIn(
+            "Question:\nExplain the complete paper Sample Paper.",
+            model.messages[-1][1],
         )
 
     def test_summary_answer_carries_no_rendered_scope_or_reference_block(self):

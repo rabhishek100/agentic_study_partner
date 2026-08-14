@@ -75,6 +75,14 @@ LIST_CHAPTERS = (
         re.IGNORECASE,
     ),
 )
+WHOLE_DOCUMENT_SUMMARY = re.compile(
+    r"^(?:explain|summari[sz]e|review)\s+"
+    r"(?:all\s+of\s+)?"
+    r"(?:this|the(?:\s+(?:selected|current|whole))?|selected|current)\s+"
+    r"(?:pdf|paper|document|book)"
+    r"(?:\s+(?P<book_reference>@\[[^\]]+\]))?\s*[?.]?$",
+    re.IGNORECASE,
+)
 SUMMARIZE_SECTION = re.compile(
     r"^summari[sz]e\s+(?:the\s+)?section\s+(.+?)"
     r"(?:\s+in\s+chapter\s+(.+?))?\s*[?.]?$",
@@ -152,6 +160,18 @@ def parse_study_request(query: str) -> StudyRequest:
     """Parse the supported explicit query forms without a model call."""
 
     query = " ".join(query.split())
+    if match := WHOLE_DOCUMENT_SUMMARY.fullmatch(query):
+        return StudyRequest(
+            intent="summarize",
+            scope_kind="book",
+            # The selected document id is the reference. Keeping this empty
+            # avoids pretending that conversational words such as "this PDF"
+            # are part of its stored title.
+            scope_reference="",
+            book_reference=(
+                _clean_book_reference(match.group("book_reference")) or None
+            ),
+        )
     for pattern in LIST_CHAPTERS:
         match = pattern.fullmatch(query)
         if match:
@@ -230,7 +250,8 @@ def parse_study_request(query: str) -> StudyRequest:
         "supported forms are: 'summarize chapter N', "
         "'summarize section TITLE in chapter N', "
         "'summarize TITLE', 'list chapters', and "
-        "'list sections in/under chapter N or TITLE'"
+        "'list sections in/under chapter N or TITLE', or "
+        "'explain this PDF'"
     )
 
 

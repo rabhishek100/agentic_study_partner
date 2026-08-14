@@ -13,6 +13,7 @@ import type { TurnResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const ROUTE_LABELS: Record<TurnResult["route"], string> = {
+  library_list: "Canonical library listing",
   hierarchy_summary: "Complete-scope summary",
   hierarchy_list: "Hierarchy listing",
   retrieval_qa: "Retrieval question answering",

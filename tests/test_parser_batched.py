@@ -7,6 +7,7 @@ in page order, and progress reported as batches land.
 """
 
 import tempfile
+import time
 import unittest
 from concurrent.futures import Future
 from pathlib import Path
@@ -14,7 +15,7 @@ from unittest.mock import patch
 
 import fitz
 
-from parsing.parser import _subset_range, extract_batched
+from parsing.parser import BatchParseTimeout, _subset_range, extract_batched
 from tests.pdf_fixtures import structured_pdf
 
 
@@ -76,6 +77,12 @@ def fake_load(filename):
     import json
 
     return [_Element(entry["page"]) for entry in json.loads(Path(filename).read_text())]
+
+
+def stalled_parse_range(_task):
+    """Hold a real pool child long enough for the parent's deadline to fire."""
+
+    time.sleep(30)
 
 
 class BatchedExtractionTests(unittest.TestCase):
@@ -170,6 +177,68 @@ class BatchedExtractionTests(unittest.TestCase):
             extract_batched(self.source, batch_pages=50, workers=4)
 
         partition.assert_called_once()
+
+    def test_an_empty_ocr_crop_falls_back_to_every_native_page(self):
+        fallback = [_Element(page) for page in range(1, 7)]
+        with (
+            patch(
+                "parsing.parser._partition",
+                side_effect=ValueError("cannot write empty image"),
+            ),
+            patch(
+                "parsing.parser._extract_vector_fallback_page",
+                side_effect=lambda _source, page: [fallback[page]],
+            ) as preserve,
+        ):
+            elements = extract_batched(self.source, batch_pages=50, workers=4)
+
+        self.assertEqual(
+            [element.metadata.page_number for element in elements],
+            [1, 2, 3, 4, 5, 6],
+        )
+        self.assertEqual(preserve.call_count, 6)
+
+    def test_a_timed_out_short_document_uses_the_same_lossless_fallback(self):
+        with (
+            patch(
+                "parsing.parser._partition",
+                side_effect=BatchParseTimeout("deadline"),
+            ),
+            patch(
+                "parsing.parser._extract_vector_fallback_page",
+                side_effect=lambda _source, page: [_Element(page + 1)],
+            ),
+        ):
+            elements = extract_batched(self.source, batch_pages=50, workers=4)
+
+        self.assertEqual(
+            [element.metadata.page_number for element in elements],
+            [1, 2, 3, 4, 5, 6],
+        )
+
+    def test_a_timed_out_parse_pool_preserves_every_unfinished_page(self):
+        seen = []
+        with (
+            patch.dict("os.environ", {"PARSER_BATCH_TIMEOUT_SECONDS": "1"}),
+            patch("parsing.parser._parse_page_range", new=stalled_parse_range),
+            patch(
+                "parsing.parser._extract_vector_fallback_page",
+                side_effect=lambda _source, page: [_Element(page + 1)],
+            ) as preserve,
+        ):
+            elements = extract_batched(
+                self.source,
+                batch_pages=2,
+                workers=3,
+                on_batch=lambda done, total: seen.append((done, total)),
+            )
+
+        self.assertEqual(
+            [element.metadata.page_number for element in elements],
+            [1, 2, 3, 4, 5, 6],
+        )
+        self.assertEqual(preserve.call_count, 6)
+        self.assertEqual(seen, [(1, 3), (2, 3), (3, 3)])
 
     def test_a_failing_batch_fails_the_parse(self):
         # A silently dropped batch would lose pages from the book.

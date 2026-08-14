@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Route = Literal[
+    "library_list",
     "hierarchy_summary",
     "hierarchy_list",
     "retrieval_qa",

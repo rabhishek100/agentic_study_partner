@@ -24,15 +24,15 @@ in `docs/ocr-ingestion.md` exists, and a guess that can halt a 400-page book
 over one noisy diagram page trades a small risk for a certain one.
 """
 
-from base64 import b64encode
-from dataclasses import dataclass
-from hashlib import sha256
 import logging
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+from base64 import b64encode
+from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Protocol
 
@@ -45,7 +45,6 @@ from parsing.markup import (
     PageMarkup,
     parse_page_markup,
 )
-
 
 # Re-exported so callers of the transcription stage have one import for the
 # whole contract: what a provider returns, and how to read it back.
@@ -92,6 +91,11 @@ DEFAULT_OCR_FALLBACK_MODEL = "google/gemini-3-flash-preview"
 # Sources in this corpus carry only 110-160 dpi of real detail, so rendering
 # beyond 300 buys pixels without information while multiplying image tokens.
 DEFAULT_RENDER_DPI = 300
+# Hosted vision endpoints account for base64 expansion and JSON overhead. A
+# four-megabyte source image stays comfortably below the smallest observed
+# request cap while retaining enough detail for technical-book OCR.
+DEFAULT_MAX_RENDER_BYTES = 4_000_000
+MINIMUM_RENDER_DPI = 120
 
 # A page of dense prose runs about 900 tokens of Markdown. The ceiling is
 # generous enough for a table-heavy page and low enough that a model looping on
@@ -167,18 +171,33 @@ class OcrProvider(Protocol):
     model_id: str
     prompt_hash: str
 
-    def transcribe(self, image: bytes, mime_type: str, page: int) -> PageTranscription:
-        ...
+    def transcribe(
+        self, image: bytes, mime_type: str, page: int
+    ) -> PageTranscription: ...
 
 
-def render_page(document: fitz.Document, index: int, dpi: int) -> bytes:
-    """Render a zero-based page to PNG bytes.
+def render_page(
+    document: fitz.Document,
+    index: int,
+    dpi: int,
+    *,
+    max_bytes: int = DEFAULT_MAX_RENDER_BYTES,
+) -> tuple[bytes, int]:
+    """Render a zero-based page to bounded PNG bytes and its actual DPI.
 
     Renders are derived and cheap to reproduce, so they are never persisted;
     only the thumbnails the review interface needs outlive the job.
     """
 
-    return document[index].get_pixmap(dpi=dpi).tobytes("png")
+    actual_dpi = dpi
+    while True:
+        image = document[index].get_pixmap(dpi=actual_dpi).tobytes("png")
+        if len(image) <= max_bytes or actual_dpi <= MINIMUM_RENDER_DPI:
+            return image, actual_dpi
+        # Pixel count, and therefore an uncompressed page's payload, scales
+        # quadratically with DPI. This step converges quickly without making
+        # a dense page illegible in one jump.
+        actual_dpi = max(MINIMUM_RENDER_DPI, int(actual_dpi * 0.8))
 
 
 class OpenRouterOcrProvider:

@@ -7,8 +7,15 @@ from langchain_core.callbacks import BaseCallbackHandler
 from parsing.models import ParsedBook, Section, TextBlock
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
-from study.contracts import ConversationState, EvidenceRef, ScopeRef, TurnResult
+from study.contracts import (
+    ConversationState,
+    EvidenceRef,
+    ScopeRef,
+    TurnDecision,
+    TurnResult,
+)
 from study.conversation import (
+    _hierarchy_query,
     execute_conversation_turn,
     new_conversation_state,
     record_turn,
@@ -24,6 +31,11 @@ class FakeModel:
 
     def invoke(self, messages, config=None):
         return self.result
+
+
+class FailIfCalled:
+    def invoke(self, messages, config=None):
+        raise AssertionError("a deterministic library listing called a model")
 
 
 class TraceRecorder(BaseCallbackHandler):
@@ -49,6 +61,30 @@ class TraceRecorder(BaseCallbackHandler):
                 "parent_run_id": parent_run_id,
                 "metadata": metadata or {},
             }
+        )
+
+
+class HierarchyQueryRenderingTests(unittest.TestCase):
+    def test_paper_section_is_not_reconstructed_as_a_chapter_request(self):
+        scope = ScopeRef(
+            kind="section",
+            book_id=1,
+            node_id=10,
+            display_path="1 Introduction :: 1.1 Contributions",
+            start_page=1,
+            end_page=2,
+        )
+        decision = TurnDecision(
+            route="hierarchy_summary",
+            history_dependency="independent",
+            standalone_query="Explain the contributions.",
+            resolved_scope=scope,
+            reason="The paper section was selected explicitly.",
+        )
+
+        self.assertEqual(
+            _hierarchy_query(decision),
+            "Summarize 1 Introduction :: 1.1 Contributions.",
         )
 
 
@@ -160,6 +196,49 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(state.active_scope.node_id, self.chapter["id"])
         self.assertEqual(len(state.messages), 2)
         self.assertEqual(state.previous_answer, result.answer)
+
+    def test_library_listing_uses_ready_selected_canonical_metadata(self):
+        with database_connection(self.database_url) as connection:
+            connection.execute(
+                "UPDATE books SET document_type = 'paper' WHERE id = %s",
+                (self.book_id,),
+            )
+            other_id = ingest_book(
+                connection,
+                conversation_book(),
+                owner_id=self.owner_id,
+                title="Other Paper",
+                author="Other Author",
+                file_hash="e" * 64,
+                page_count=2,
+                parser_version="test-v1",
+                document_type="paper",
+            )
+
+        with patch("study.conversation.execute_query") as execute:
+            result, state = execute_conversation_turn(
+                "list all the papers uploaded",
+                new_conversation_state(
+                    book_ids=[self.book_id], conversation_id="library-c1"
+                ),
+                database_url=self.database_url,
+                owner_id=self.owner_id,
+                analysis_model=FailIfCalled(),
+                generation_model=FailIfCalled(),
+            )
+
+        execute.assert_not_called()
+        self.assertEqual(result.route, "library_list")
+        self.assertEqual(result.outcome, "answer")
+        self.assertIn("1 ready paper is available", result.answer)
+        self.assertIn("Conversation Book", result.answer)
+        self.assertIn("Test Author", result.answer)
+        self.assertIn("2 pages", result.answer)
+        self.assertNotIn("Other Paper", result.answer)
+        self.assertEqual(result.evidence, [])
+        self.assertEqual(result.citations, [])
+        self.assertEqual(state.previous_route, "library_list")
+        self.assertNotEqual(other_id, self.book_id)
 
     def test_followup_uses_rewritten_query_and_retains_scope(self):
         scope = self.scope()
@@ -348,7 +427,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertEqual(
             execute.call_args.args[0],
-            "Summarize section Dataflow Modes in chapter 1. Foundations.",
+            "Summarize Chapter 1. Foundations :: Dataflow Modes.",
         )
 
     def test_changing_books_starts_a_new_conversation(self):

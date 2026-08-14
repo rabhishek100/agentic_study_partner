@@ -8,6 +8,7 @@
  */
 
 export type Route =
+  | "library_list"
   | "hierarchy_summary"
   | "hierarchy_list"
   | "retrieval_qa"

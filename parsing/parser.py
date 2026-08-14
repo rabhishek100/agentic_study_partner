@@ -1,16 +1,19 @@
 """Parse a PDF into the TOC-aligned models defined in ``models.py``."""
 
-from base64 import b64encode
-from bisect import bisect_left, bisect_right
-from collections import defaultdict
 import logging
 import math
 import os
 import re
+import signal
 import tempfile
 import unicodedata
+from base64 import b64encode
+from bisect import bisect_left, bisect_right
+from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
+from contextlib import contextmanager
 from pathlib import Path
 
 import fitz
@@ -39,7 +42,6 @@ from .models import (
 )
 from .threads import limit_inference_threads
 from .version import PARSER_VERSION
-
 
 __all__ = [
     "PARSER_VERSION",
@@ -72,6 +74,11 @@ _WORD = re.compile(r"[^\W_]+", re.UNICODE)
 # since each process holds its own copy of the layout model.
 DEFAULT_BATCH_PAGES = 25
 DEFAULT_PARSE_WORKERS = 4
+# A lease heartbeat proves the worker process is alive, not that a native PDF
+# parser is making progress.  Bound every Unstructured call so one malformed
+# page cannot hold the single production worker indefinitely.  The fallback
+# below retains native text and a rendered visual for every affected page.
+DEFAULT_BATCH_TIMEOUT_SECONDS = 600
 
 # Some digitally generated plots contain hundreds of thousands of vector
 # paths on one page. pdfminer and the hi-res layout path can spend tens of
@@ -95,6 +102,10 @@ FULL_PAGE_OCR = "entire_page"
 logger = logging.getLogger("study_partner.parsing")
 
 
+class BatchParseTimeout(TimeoutError):
+    """One bounded Unstructured call made no progress before its deadline."""
+
+
 def _positive_env(name: str, fallback: int) -> int:
     raw = os.getenv(name, "").strip()
     if not raw:
@@ -106,6 +117,28 @@ def _positive_env(name: str, fallback: int) -> int:
     if value < 1:
         raise ValueError(f"{name} must be at least 1")
     return value
+
+
+@contextmanager
+def _parse_deadline(seconds: int):
+    """Interrupt one parser call without relying on its subprocesses to exit."""
+
+    if not hasattr(signal, "SIGALRM"):
+        yield
+        return
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def expired(_signal_number, _frame) -> None:
+        raise BatchParseTimeout(f"PDF parser exceeded {seconds} seconds")
+
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 CACHE_DIR = Path("cache")
 ELEMENTS_CACHE = CACHE_DIR / "elements.json"
@@ -400,12 +433,57 @@ def _parse_page_range(task: tuple[str, int, int, str]) -> tuple[int, str]:
     source, first, last, workspace = task
     directory = Path(workspace)
     batch = _subset_range(source, first, last, directory / f"batch-{first:05d}.pdf")
-    elements = _partition(batch, "hi_res")
-    _restore_page_numbers(elements, list(range(first, last + 1)))
+    elements, used_fallback = _partition_or_page_fallback(
+        batch,
+        source=source,
+        first=first,
+        last=last,
+    )
+    if not used_fallback:
+        _restore_page_numbers(elements, list(range(first, last + 1)))
     destination = directory / f"batch-{first:05d}.json"
     elements_to_json(elements, filename=str(destination))
     batch.unlink(missing_ok=True)
     return first, str(destination)
+
+
+def _partition_or_page_fallback(
+    partition_source: str | Path,
+    *,
+    source: str | Path,
+    first: int,
+    last: int,
+) -> tuple[list, bool]:
+    """Parse a range, preserving it as native text plus visuals on a stall.
+
+    The exact empty-image error is an upstream OCR crop defect seen in a
+    normal arXiv PDF.  It is safe to recover in the same way as a timeout: the
+    PyMuPDF fallback reads the existing text layer and renders the full page,
+    so neither prose nor figures silently disappear.
+    """
+
+    timeout = _positive_env(
+        "PARSER_BATCH_TIMEOUT_SECONDS",
+        DEFAULT_BATCH_TIMEOUT_SECONDS,
+    )
+    try:
+        with _parse_deadline(timeout):
+            return list(_partition(Path(partition_source), "hi_res")), False
+    except (BatchParseTimeout, ValueError) as error:
+        if not isinstance(error, BatchParseTimeout) and "cannot write empty image" not in str(
+            error
+        ).casefold():
+            raise
+        logger.warning(
+            "layout parse failed for pages %s-%s; preserving native text and visuals",
+            first + 1,
+            last + 1,
+            exc_info=True,
+        )
+        elements = []
+        for page in range(first, last + 1):
+            elements.extend(_extract_vector_fallback_page(source, page))
+        return elements, True
 
 
 def extract_batched(
@@ -439,8 +517,15 @@ def extract_batched(
     excluded = set(fallback_pages)
     ranges = _page_ranges(page_count, batch_pages, excluded)
     if not fallback_pages and (workers < 2 or len(ranges) < 2):
-        # One batch, or parallelism disabled: no pool, no copies.
-        return _partition(Path(pdf_path), "hi_res")
+        # One batch, or parallelism disabled: no pool, no copies. It still
+        # needs the same deadline as a child batch; most papers take this path.
+        elements, _used_fallback = _partition_or_page_fallback(
+            pdf_path,
+            source=pdf_path,
+            first=0,
+            last=page_count - 1,
+        )
+        return elements
 
     source = str(pdf_path)
     collected: dict[int, str] = {}
@@ -464,26 +549,73 @@ def extract_batched(
                     on_batch(completed_tasks, total_tasks)
         else:
             try:
-                with ProcessPoolExecutor(max_workers=min(workers, len(tasks))) as pool:
+                pool_width = min(workers, len(tasks))
+                # The child-local SIGALRM is useful when Unstructured returns
+                # to Python, but a native parser can hold the GIL and prevent
+                # its handler from running.  Enforce the same bound from the
+                # parent process as well.  Account for queued waves so every
+                # batch still receives its full allowance.
+                pool_timeout = _positive_env(
+                    "PARSER_BATCH_TIMEOUT_SECONDS",
+                    DEFAULT_BATCH_TIMEOUT_SECONDS,
+                )
+                pool_timeout *= math.ceil(len(tasks) / pool_width)
+                with ProcessPoolExecutor(max_workers=pool_width) as pool:
                     futures = [pool.submit(_parse_page_range, task) for task in tasks]
-                    for future in as_completed(futures):
-                        first, path = future.result()
-                        collected[first] = path
-                        completed_tasks += 1
-                        if on_batch is not None:
-                            on_batch(completed_tasks, total_tasks)
+                    try:
+                        for future in as_completed(futures, timeout=pool_timeout):
+                            first, path = future.result()
+                            collected[first] = path
+                            completed_tasks += 1
+                            if on_batch is not None:
+                                on_batch(completed_tasks, total_tasks)
+                    except FuturesTimeoutError:
+                        logger.warning(
+                            "parse pool exceeded %s seconds after %s of %s batches; "
+                            "terminating stuck parsers and preserving remaining pages",
+                            pool_timeout,
+                            len(collected),
+                            len(tasks),
+                        )
+                        for future in futures:
+                            future.cancel()
+                        # ProcessPoolExecutor has no public force-stop API.
+                        # Killing only the executor's own resolved child PIDs
+                        # is narrow and recoverable; the context manager then
+                        # reaps them before vector fallback starts.
+                        for process in list(getattr(pool, "_processes", {}).values()):
+                            if process.is_alive():
+                                process.kill()
+                        for _source, first, last, _workspace in tasks:
+                            if first in collected:
+                                continue
+                            for page in range(first, last + 1):
+                                fallback_elements.extend(
+                                    _extract_vector_fallback_page(pdf_path, page)
+                                )
+                            completed_tasks += 1
+                            if on_batch is not None:
+                                on_batch(completed_tasks, total_tasks)
             except BrokenProcessPool:
                 if not fallback_pages:
                     # A worker died for a reason this process cannot see: the
                     # pool reports no cause. Parsing the whole document
-                    # in-process is slower but produces the same result.
+                    # in-process is slower but produces the same result. Keep
+                    # the deadline: a dead child must not turn into an
+                    # unbounded retry in its parent.
                     logger.warning(
                         "parse pool broke after %s of %s batches; "
                         "falling back to a single-process parse",
                         len(collected),
                         len(tasks),
                     )
-                    return _partition(Path(pdf_path), "hi_res")
+                    elements, _used_fallback = _partition_or_page_fallback(
+                        pdf_path,
+                        source=pdf_path,
+                        first=0,
+                        last=page_count - 1,
+                    )
+                    return elements
 
                 # The whole document includes pages deliberately kept away
                 # from pdfminer, so retry only the safe ranges in-process.
@@ -501,7 +633,8 @@ def extract_batched(
         elements = list(fallback_elements)
         # Reassemble in page order; batches finish out of order.
         for first, _ in ranges:
-            elements.extend(elements_from_json(filename=collected[first]))
+            if first in collected:
+                elements.extend(elements_from_json(filename=collected[first]))
     elements.sort(key=lambda element: (element.metadata.page_number, _element_top(element)))
     return elements
 

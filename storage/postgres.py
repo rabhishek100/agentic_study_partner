@@ -1,9 +1,14 @@
-"""Lossless canonical ParsedBook persistence in Postgres."""
+"""Lossless canonical PDF persistence in Postgres.
 
-from collections.abc import Mapping
-from datetime import datetime, timezone
+``ParsedBook`` remains the parser's historical name, but the canonical model
+also stores papers.  A paper uses the same lossless hierarchy and content
+blocks as a book while assigning paper-native structural roles to its outline.
+"""
+
 import json
 import re
+from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -13,15 +18,44 @@ from psycopg.types.json import Jsonb
 from parsing.models import ImageBlock, ParsedBook, Section, TableBlock, TextBlock
 from parsing.outline_roles import (
     CHAPTER,
+    NESTED_SECTION,
+    SECTION,
+    SUBSECTION,
     chapter_level,
     chapter_number,
     outline_roles,
 )
-from .database import parse_owner_id
 
+from .database import parse_owner_id
 
 TABLE_MARKER = re.compile(r"^\[TABLE (\d+)]$")
 IMAGE_MARKER = re.compile(r"^\[IMAGE (\d+)]$")
+
+
+def _postgres_text(value: str | None) -> str | None:
+    """Remove the one Unicode code point PostgreSQL text cannot represent.
+
+    PDF text layers occasionally contain an embedded NUL as a broken glyph.
+    It carries no readable content, and allowing it to abort an otherwise
+    lossless canonical import makes parser fallback unusable for that source.
+    """
+
+    return None if value is None else value.replace("\x00", "")
+
+
+def _postgres_json(value: Any) -> Any:
+    """Apply the same NUL rule recursively to JSON-bound provenance."""
+
+    if isinstance(value, str):
+        return _postgres_text(value)
+    if isinstance(value, Mapping):
+        return {
+            str(_postgres_text(str(key))): _postgres_json(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_postgres_json(item) for item in value]
+    return value
 
 
 class BookAlreadyExistsError(RuntimeError):
@@ -128,23 +162,48 @@ def _validate_chapters(sections: list[Section], node_types: list[str]) -> None:
         return
     duplicates = {n for n in numbered if numbered.count(n) > 1}
     if duplicates:
-        raise InvalidBookError(
-            f"chapter numbers are not unique: {sorted(duplicates)}"
-        )
+        raise InvalidBookError(f"chapter numbers are not unique: {sorted(duplicates)}")
     if sorted(numbered) != list(range(min(numbered), min(numbered) + len(numbered))):
         raise InvalidBookError(
             f"chapter numbers are not consecutive: {sorted(numbered)}"
         )
 
 
-def _node_types(sections: list[Section]) -> list[str]:
-    """Name every section's structural role, judging the outline as a whole.
+def _paper_node_types(sections: list[Section]) -> list[str]:
+    """Name paper headings without inventing chapters.
+
+    Scientific papers are normally organized as sections and subsections,
+    including when their top-level headings form a numbered 1..N run.  That
+    numbering is precisely the signal used to find chapters in books, so paper
+    roles must be selected from the declared document type rather than guessed
+    from the outline text.
+    """
+
+    return [
+        SECTION
+        if section.level == 1
+        else SUBSECTION
+        if section.level == 2
+        else NESTED_SECTION
+        for section in sections
+    ]
+
+
+def _node_types(
+    sections: list[Section],
+    *,
+    document_type: str = "book",
+) -> list[str]:
+    """Name every heading's structural role for its declared document type.
 
     Depth alone named the roles until a book with Parts arrived: its chapters
     sit at level 2, so a depth rule typed Part I as a chapter and Chapter 5 as
     a section, and nothing typed `section` can answer to a chapter number. See
     `parsing.outline_roles` for why neither depth nor title works alone.
     """
+
+    if document_type == "paper":
+        return _paper_node_types(sections)
 
     return outline_roles(
         [section.level for section in sections],
@@ -186,6 +245,8 @@ def ingest_book(
         raise ValueError("file_hash must be a hexadecimal SHA-256 digest")
     if not title.strip():
         raise ValueError("title cannot be empty")
+    if document_type not in {"book", "paper"}:
+        raise ValueError("document_type must be 'book' or 'paper'")
     if (source_storage_bucket is None) != (source_storage_path is None):
         raise ValueError("source storage bucket and path must be supplied together")
     _validate(book, page_count)
@@ -223,17 +284,19 @@ def ingest_book(
                 """,
                 (
                     owner,
-                    title.strip(),
-                    author.strip() if author and author.strip() else None,
-                    book.source,
-                    source_filename,
-                    source_storage_bucket,
-                    source_storage_path,
+                    _postgres_text(title.strip()),
+                    _postgres_text(author.strip())
+                    if author and author.strip()
+                    else None,
+                    _postgres_text(book.source),
+                    _postgres_text(source_filename),
+                    _postgres_text(source_storage_bucket),
+                    _postgres_text(source_storage_path),
                     file_hash,
                     page_count,
                     parser_version,
                     now,
-                    Jsonb(dict(metadata or {})),
+                    Jsonb(_postgres_json(dict(metadata or {}))),
                     job_id,
                     document_type,
                     "ready" if ready else "processing",
@@ -246,8 +309,9 @@ def ingest_book(
         # written in batches once the node ids are known.
         pending_blocks: list[tuple] = []
         pending_payloads: list[tuple | None] = []
-        node_types = _node_types(book.sections)
-        _validate_chapters(book.sections, node_types)
+        node_types = _node_types(book.sections, document_type=document_type)
+        if document_type == "book":
+            _validate_chapters(book.sections, node_types)
 
         for toc_index, section in enumerate(book.sections):
             parent_id = parent_by_level.get(section.level - 1)
@@ -268,12 +332,12 @@ def ingest_book(
                         toc_index,
                         section.level,
                         node_types[toc_index],
-                        section.title,
-                        section.label,
-                        Jsonb(section.path),
+                        _postgres_text(section.title),
+                        _postgres_text(section.label),
+                        Jsonb(_postgres_json(section.path)),
                         section.start_page,
                         section.end_page,
-                        section.full_text,
+                        _postgres_text(section.full_text),
                     ),
                 ).fetchone()["id"]
             )
@@ -293,9 +357,9 @@ def ingest_book(
                         node_id,
                         block_index,
                         marker[0] if marker else "text",
-                        block.category,
+                        _postgres_text(block.category),
                         block.page,
-                        block.text,
+                        _postgres_text(block.text),
                     )
                 )
                 pending_payloads.append(
@@ -366,13 +430,25 @@ def _insert_payloads(
         kind, section, index = payload
         if kind == "table":
             table = section.tables[index]
-            tables.append((block_id, owner, book_id, table.html, table.text))
+            tables.append(
+                (
+                    block_id,
+                    owner,
+                    book_id,
+                    _postgres_text(table.html),
+                    _postgres_text(table.text),
+                )
+            )
         else:
             image = section.images[index]
             images.append((block_id, owner, book_id, image.mime, image.base64))
 
     for rows_to_insert, table_name, columns in (
-        (tables, "table_blocks", "block_id, owner_id, book_id, html_content, flat_text"),
+        (
+            tables,
+            "table_blocks",
+            "block_id, owner_id, book_id, html_content, flat_text",
+        ),
         (
             images,
             "image_blocks",

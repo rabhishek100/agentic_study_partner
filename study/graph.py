@@ -79,6 +79,7 @@ def plan_turn(
 
 
 ExecutionNode = Literal[
+    "execute_library",
     "execute_hierarchy",
     "execute_retrieval",
     "transform_answer",
@@ -89,6 +90,8 @@ ExecutionNode = Literal[
 
 def route_turn(state: StudyGraphState) -> ExecutionNode:
     route = state["decision"].route
+    if route == "library_list":
+        return "execute_library"
     if route in {"hierarchy_summary", "hierarchy_list"}:
         return "execute_hierarchy"
     if route == "retrieval_qa":
@@ -141,6 +144,7 @@ def build_study_graph():
     )
     builder.add_node("plan_turn", plan_turn)
     for node in (
+        "execute_library",
         "execute_hierarchy",
         "execute_retrieval",
         "transform_answer",

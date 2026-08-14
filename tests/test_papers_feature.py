@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 
 from api.auth import current_owner
 from api.main import app
+from study.request import StudyRequest, parse_study_request
 
 OWNER_ID = UUID("11111111-1111-4111-8111-111111111111")
 
@@ -17,6 +18,19 @@ class ScientificPapersFeatureTests(unittest.IsolatedAsyncioTestCase):
 
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
+
+    def test_whole_paper_request_accepts_a_trailing_ui_mention(self) -> None:
+        self.assertEqual(
+            parse_study_request(
+                "explain this paper @[Attention is All you Need]"
+            ),
+            StudyRequest(
+                "summarize",
+                "book",
+                "",
+                book_reference="Attention is All you Need",
+            ),
+        )
 
     async def test_papers_endpoint_returns_scientific_papers(self) -> None:
         papers_mock = [

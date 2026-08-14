@@ -6,7 +6,7 @@ import os
 import re
 import time
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -19,7 +19,6 @@ from .contracts import (
     ContractModel,
     ConversationState,
     HistoryDependency,
-    Route,
     ScopeCandidate,
     ScopeRef,
     TurnDecision,
@@ -86,14 +85,34 @@ ORDINAL_CHAPTER_REQUEST = re.compile(
     r"(?:\s+(?:of|in|from)\s+(?P<book_reference>.+?))?\s*[?.]?$",
     re.IGNORECASE,
 )
+LIBRARY_LIST_REQUEST = re.compile(
+    r"^\s*(?:"
+    r"(?:list|show|display|name)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?"
+    r"(?:uploaded\s+)?(?:papers|books|documents)(?:\s+(?:uploaded|available|in\s+my\s+library))?"
+    r"|what\s+(?:papers|books|documents)\s+(?:do\s+i\s+have|have\s+i\s+uploaded|are\s+(?:uploaded|available|in\s+my\s+library))"
+    r")\s*[?.!]*\s*$",
+    re.IGNORECASE,
+)
 
 
 class ConversationDecisionError(RuntimeError):
     pass
 
 
+AnalysisRoute = Literal[
+    "hierarchy_summary",
+    "hierarchy_list",
+    "retrieval_qa",
+    "prior_answer_transform",
+    "clarify",
+    "external_qa",
+]
+
+
 class ModelDecision(ContractModel):
-    route: Route
+    # Keep the measured model-facing schema limited to model-selected routes.
+    # `library_list` is deliberately deterministic and never offered here.
+    route: AnalysisRoute
     history_dependency: HistoryDependency
     standalone_query: str | None = None
     scope_node_id: int | None = None
@@ -237,6 +256,17 @@ def _explicit_hierarchy_decision(
         except ScopeResolutionError:
             continue
     if scope is None:
+        if (
+            request.intent == "summarize"
+            and request.scope_kind == "book"
+            and not request.scope_reference
+        ):
+            return TurnDecision(
+                route="clarify",
+                history_dependency="ambiguous",
+                clarification_question="Which selected document should I explain?",
+                reason="A whole-document request needs one selected source.",
+            )
         return None
     route = (
         "hierarchy_list"
@@ -298,12 +328,13 @@ def _payload(
 
 
 SYSTEM_PROMPT = """
-Choose the next action for a technical-book study chat. Do not answer.
+Choose the next action for a technical-book or scientific-paper study chat.
+Do not answer.
 
 Routes:
-- hierarchy_summary: summarize a complete chapter or section.
+- hierarchy_summary: summarize a complete paper, book, chapter, or section.
 - hierarchy_list: list chapters in a book or sections under a chapter.
-- retrieval_qa: retrieve book evidence for a question.
+- retrieval_qa: retrieve selected-source evidence for a question.
 - prior_answer_transform: reformat or shorten the prior answer without facts.
 - clarify: the referent or requested scope is genuinely ambiguous.
 
@@ -715,6 +746,12 @@ def analyze_turn(
     load_dotenv()
     if not question.strip():
         raise ConversationDecisionError("question cannot be empty")
+    if LIBRARY_LIST_REQUEST.search(question):
+        return TurnDecision(
+            route="library_list",
+            history_dependency="independent",
+            reason="The request asks for canonical library metadata.",
+        )
     ordinal = _ordinal_chapter_decision(
         question,
         state,

@@ -8,10 +8,10 @@ Deliberately plain Python: this is deterministic orchestration, not an agent
 making decisions. LangGraph stays where inspectable choices actually happen.
 """
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
 import logging
 import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -34,6 +34,7 @@ from storage.postgres import (
     ready_book_by_hash,
     restore_book,
 )
+
 from .captions import caption_book_figures
 from .config import IngestionLimits
 from .errors import ErrorCode, IngestionError
@@ -50,8 +51,8 @@ from .jobs import (
     set_stage,
 )
 from .ocr_stage import propose_outline, require_proposable, transcribe_book
-from .outlines import SLIDE_PROPOSER_VERSION
 from .ocr_store import transcribed_text
+from .outlines import SLIDE_PROPOSER_VERSION
 from .preflight import (
     OCR,
     REVIEW,
@@ -60,15 +61,15 @@ from .preflight import (
     require_supported,
     validate_table_of_contents,
 )
-from .storage_objects import download_object, object_info
 from .states import Stage, Status
-
+from .storage_objects import download_object, object_info
 
 logger = logging.getLogger("study_partner.ingestion.pipeline")
 
 SOURCE_FILENAME = "original.pdf"
 ELEMENTS_CACHE = "elements.json"
 PARSED_BOOK_CACHE = "parsed_book.json"
+PAPER_WHOLE_DOCUMENT_TITLE = "Full paper"
 
 # An extraction this empty is not worth importing; something went wrong even
 # though the parser returned without raising.
@@ -145,6 +146,16 @@ class JobOutcome:
 
 def _database(database_url: str | None):
     return database_connection(database_url)
+
+
+def _paper_outline(
+    report: PreflightReport,
+) -> tuple[list[tuple[int, str, int]], str]:
+    """Return a paper's trustworthy sections or one whole-document scope."""
+
+    if report.supported and report.normalized_toc:
+        return report.normalized_toc, "native_sections"
+    return [(1, PAPER_WHOLE_DOCUMENT_TITLE, 1)], "whole_document"
 
 
 def _check_cancelled(
@@ -535,6 +546,36 @@ def _validate_stage(
             database_url=database_url,
             dependencies=dependencies,
         )
+    elif job.document_type == "paper":
+        # A paper is a useful retrieval scope even when its PDF has no embedded
+        # outline.  Requiring a reviewer to invent chapters for it both models
+        # the source incorrectly and blocks the most natural request: explain
+        # this whole paper.  Preserve a trustworthy native outline when one
+        # passed preflight; otherwise parse the complete PDF as one section.
+        approved_toc, strategy = _paper_outline(report)
+        paper_outline = {
+            "strategy": strategy,
+            "entry_count": len(approved_toc),
+        }
+        with _database(database_url) as connection:
+            job = set_stage(
+                connection,
+                owner_id=job.owner_id,
+                job_id=job.id,
+                current_status=Status.VALIDATING,
+                stage=Stage.PREFLIGHT,
+                provenance={"paper_outline": paper_outline},
+            )
+            if strategy == "whole_document":
+                append_event(
+                    connection,
+                    owner_id=job.owner_id,
+                    job_id=job.id,
+                    event_type="paper_outline_fallback",
+                    status=job.status,
+                    stage=Stage.PREFLIGHT,
+                    metadata=paper_outline,
+                )
     else:
         proposal = report.outline.proposal
         if (
@@ -1292,6 +1333,11 @@ def _persist_canonical(
                 "pdf": report.metadata,
                 "preflight": report.provenance(),
                 "outline_review": outline_review(job),
+                **(
+                    {"paper_outline": job.provenance["paper_outline"]}
+                    if "paper_outline" in job.provenance
+                    else {}
+                ),
                 **(extra_metadata or {}),
             },
             source_storage_bucket=job.storage_bucket,
