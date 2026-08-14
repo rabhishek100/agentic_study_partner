@@ -3,24 +3,27 @@
 import os
 import unittest
 
+import fitz
+
 from ingestion.ocr import (
     BBOX_GRID,
-    PAGE_INSTRUCTION,
-    collapse_degenerate_runs,
-    OpenRouterOcrProvider,
-    TesseractOcrProvider,
     DEFAULT_RUN_THRESHOLD,
     FLAGGED,
     MINIMUM_REFERENCE_TOKENS,
+    PAGE_INSTRUCTION,
     SUPPORTED,
     UNASSESSABLE,
     OcrBudget,
     OcrError,
+    OpenRouterOcrProvider,
     PageTranscription,
+    TesseractOcrProvider,
+    _strip_outer_fence,
     assess_fabrication,
+    collapse_degenerate_runs,
     parse_page_markup,
     prompt_hash,
-    _strip_outer_fence,
+    render_page,
 )
 
 
@@ -98,7 +101,7 @@ class AssessFabricationTests(unittest.TestCase):
             "<table><tr><td>Google PaLM</td><td>540B</td></tr></table>\n"
             "$$\\frac{\\partial L}{\\partial w} = \\sum_{i=1}^{n} x_i$$\n"
             f"{reference}\n"
-            "<figure data-bbox=\"0.1,0.2,0.9,0.6\">Figure 9.3</figure>"
+            '<figure data-bbox="0.1,0.2,0.9,0.6">Figure 9.3</figure>'
         )
 
         assessment = assess_fabrication(candidate, reference)
@@ -228,6 +231,20 @@ class ProviderContractTests(unittest.TestCase):
         self.assertEqual(provider.prompt_hash, "")
 
 
+class RenderPageTests(unittest.TestCase):
+    def test_an_oversized_page_is_reduced_until_it_fits(self) -> None:
+        document = fitz.open()
+        page = document.new_page(width=1200, height=1600)
+        page.insert_text((72, 72), "Readable technical text")
+        self.addCleanup(document.close)
+
+        image, dpi = render_page(document, 0, 300, max_bytes=100_000)
+
+        self.assertLessEqual(len(image), 100_000)
+        self.assertLess(dpi, 300)
+        self.assertGreaterEqual(dpi, 120)
+
+
 class DegenerateRunTests(unittest.TestCase):
     """A model that loops is inventing text of a different shape."""
 
@@ -331,7 +348,7 @@ class PageMarkupTests(unittest.TestCase):
         """A caption indexed twice would double-count in retrieval."""
 
         markup = parse_page_markup(
-            "Before.\n<figure data-bbox=\"1,2,3,4\">Figure 1.1</figure>\nAfter."
+            'Before.\n<figure data-bbox="1,2,3,4">Figure 1.1</figure>\nAfter.'
         )
         self.assertNotIn("Figure 1.1", markup.body)
         self.assertIn("Before.", markup.body)

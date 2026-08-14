@@ -6,12 +6,23 @@ from storage.database import connection as database_connection
 from storage.postgres import (
     BookAlreadyExistsError,
     InvalidBookError,
+    _postgres_json,
+    _postgres_text,
     ingest_book,
     restore_book,
 )
 from study.scope import list_chapters
 from tests.fixtures import FILE_HASH, sample_book
 from tests.postgres import PostgresOwnerMixin
+
+
+class PostgresTextTests(unittest.TestCase):
+    def test_nul_is_removed_from_text_and_nested_json(self) -> None:
+        self.assertEqual(_postgres_text("before\x00after"), "beforeafter")
+        self.assertEqual(
+            _postgres_json({"path": ["one\x00", {"title": "two\x00three"}]}),
+            {"path": ["one", {"title": "twothree"}]},
+        )
 
 
 class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
@@ -114,8 +125,7 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
             "Chapter 3. Three Again",
         ]
         sections = [
-            Section(path=[title], level=1, start_page=1, end_page=1)
-            for title in titles
+            Section(path=[title], level=1, start_page=1, end_page=1) for title in titles
         ]
         with self.assertRaises(InvalidBookError) as caught:
             _validate_chapters(sections, ["chapter"] * 4)
@@ -123,8 +133,12 @@ class PostgresStorageTests(PostgresOwnerMixin, unittest.TestCase):
 
         gapped = [
             Section(path=[title], level=1, start_page=1, end_page=1)
-            for title in ["Chapter 1. One", "Chapter 2. Two", "Chapter 3. Three",
-                          "Chapter 9. Nine"]
+            for title in [
+                "Chapter 1. One",
+                "Chapter 2. Two",
+                "Chapter 3. Three",
+                "Chapter 9. Nine",
+            ]
         ]
         with self.assertRaises(InvalidBookError) as caught:
             _validate_chapters(gapped, ["chapter"] * 4)

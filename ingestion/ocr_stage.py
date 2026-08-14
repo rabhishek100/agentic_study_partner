@@ -12,23 +12,23 @@ handing them to a human. The proposal is evidence; only confirmation makes it
 eligible for parsing.
 """
 
-from collections import Counter
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import re
 import threading
 import unicodedata
+from collections import Counter
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from uuid import UUID
 
 import fitz
 
-from .config import IngestionLimits
-from .errors import ErrorCode, IngestionError
 from parsing.markup import parse_page_markup
 
+from .config import IngestionLimits
+from .errors import ErrorCode, IngestionError
 from .ocr import (
     FabricationAssessment,
     OcrBudget,
@@ -39,7 +39,6 @@ from .ocr import (
     render_page,
 )
 from .ocr_store import OcrPageSummary, completed_pages, page_summary, record_page
-
 
 logger = logging.getLogger("study_partner.ingestion.ocr_stage")
 
@@ -76,7 +75,9 @@ _TITLE_WORD = re.compile(r"[^\W_]+", re.UNICODE)
 def _comparable_title(title: str) -> str:
     """Normalize a heading so the same section reads the same everywhere."""
 
-    return " ".join(_TITLE_WORD.findall(unicodedata.normalize("NFKD", title).casefold()))
+    return " ".join(
+        _TITLE_WORD.findall(unicodedata.normalize("NFKD", title).casefold())
+    )
 
 
 # A Markdown heading, which is how the transcription marks a visual heading.
@@ -150,9 +151,7 @@ def transcribe_book(
 
         if not pending:
             with open_connection() as connection:
-                summary = page_summary(
-                    connection, owner_id=owner_id, job_id=job_id
-                )
+                summary = page_summary(connection, owner_id=owner_id, job_id=job_id)
             return TranscriptionOutcome(
                 summary=summary, pages_transcribed=0, pages_reused=len(done)
             )
@@ -168,8 +167,11 @@ def transcribe_book(
 
         def read(page: int) -> tuple[PageTranscription, FabricationAssessment]:
             with render_lock:
-                image = render_page(document, page - 1, limits.ocr_render_dpi)
+                image, actual_dpi = render_page(
+                    document, page - 1, limits.ocr_render_dpi
+                )
             transcription = provider.transcribe(image, "image/png", page)
+            transcription = replace(transcription, render_dpi=actual_dpi)
             assessment = FabricationAssessment(verdict="unassessable")
             if reference is not None:
                 try:

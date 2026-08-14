@@ -5,10 +5,10 @@ also stores papers.  A paper uses the same lossless hierarchy and content
 blocks as a book while assigning paper-native structural roles to its outline.
 """
 
-from collections.abc import Mapping
-from datetime import datetime, timezone
 import json
 import re
+from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -25,11 +25,37 @@ from parsing.outline_roles import (
     chapter_number,
     outline_roles,
 )
-from .database import parse_owner_id
 
+from .database import parse_owner_id
 
 TABLE_MARKER = re.compile(r"^\[TABLE (\d+)]$")
 IMAGE_MARKER = re.compile(r"^\[IMAGE (\d+)]$")
+
+
+def _postgres_text(value: str | None) -> str | None:
+    """Remove the one Unicode code point PostgreSQL text cannot represent.
+
+    PDF text layers occasionally contain an embedded NUL as a broken glyph.
+    It carries no readable content, and allowing it to abort an otherwise
+    lossless canonical import makes parser fallback unusable for that source.
+    """
+
+    return None if value is None else value.replace("\x00", "")
+
+
+def _postgres_json(value: Any) -> Any:
+    """Apply the same NUL rule recursively to JSON-bound provenance."""
+
+    if isinstance(value, str):
+        return _postgres_text(value)
+    if isinstance(value, Mapping):
+        return {
+            str(_postgres_text(str(key))): _postgres_json(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_postgres_json(item) for item in value]
+    return value
 
 
 class BookAlreadyExistsError(RuntimeError):
@@ -136,9 +162,7 @@ def _validate_chapters(sections: list[Section], node_types: list[str]) -> None:
         return
     duplicates = {n for n in numbered if numbered.count(n) > 1}
     if duplicates:
-        raise InvalidBookError(
-            f"chapter numbers are not unique: {sorted(duplicates)}"
-        )
+        raise InvalidBookError(f"chapter numbers are not unique: {sorted(duplicates)}")
     if sorted(numbered) != list(range(min(numbered), min(numbered) + len(numbered))):
         raise InvalidBookError(
             f"chapter numbers are not consecutive: {sorted(numbered)}"
@@ -260,17 +284,19 @@ def ingest_book(
                 """,
                 (
                     owner,
-                    title.strip(),
-                    author.strip() if author and author.strip() else None,
-                    book.source,
-                    source_filename,
-                    source_storage_bucket,
-                    source_storage_path,
+                    _postgres_text(title.strip()),
+                    _postgres_text(author.strip())
+                    if author and author.strip()
+                    else None,
+                    _postgres_text(book.source),
+                    _postgres_text(source_filename),
+                    _postgres_text(source_storage_bucket),
+                    _postgres_text(source_storage_path),
                     file_hash,
                     page_count,
                     parser_version,
                     now,
-                    Jsonb(dict(metadata or {})),
+                    Jsonb(_postgres_json(dict(metadata or {}))),
                     job_id,
                     document_type,
                     "ready" if ready else "processing",
@@ -306,12 +332,12 @@ def ingest_book(
                         toc_index,
                         section.level,
                         node_types[toc_index],
-                        section.title,
-                        section.label,
-                        Jsonb(section.path),
+                        _postgres_text(section.title),
+                        _postgres_text(section.label),
+                        Jsonb(_postgres_json(section.path)),
                         section.start_page,
                         section.end_page,
-                        section.full_text,
+                        _postgres_text(section.full_text),
                     ),
                 ).fetchone()["id"]
             )
@@ -331,9 +357,9 @@ def ingest_book(
                         node_id,
                         block_index,
                         marker[0] if marker else "text",
-                        block.category,
+                        _postgres_text(block.category),
                         block.page,
-                        block.text,
+                        _postgres_text(block.text),
                     )
                 )
                 pending_payloads.append(
@@ -404,13 +430,25 @@ def _insert_payloads(
         kind, section, index = payload
         if kind == "table":
             table = section.tables[index]
-            tables.append((block_id, owner, book_id, table.html, table.text))
+            tables.append(
+                (
+                    block_id,
+                    owner,
+                    book_id,
+                    _postgres_text(table.html),
+                    _postgres_text(table.text),
+                )
+            )
         else:
             image = section.images[index]
             images.append((block_id, owner, book_id, image.mime, image.base64))
 
     for rows_to_insert, table_name, columns in (
-        (tables, "table_blocks", "block_id, owner_id, book_id, html_content, flat_text"),
+        (
+            tables,
+            "table_blocks",
+            "block_id, owner_id, book_id, html_content, flat_text",
+        ),
         (
             images,
             "image_blocks",
