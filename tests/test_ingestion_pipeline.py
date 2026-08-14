@@ -162,7 +162,11 @@ def stub_parsed_book(
             start_page=start,
             end_page=end,
             texts=[
-                TextBlock(text=f"{path[-1]}. {BODY}", category="NarrativeText", page=start)
+                TextBlock(
+                    text=f"{path[-1]}. {BODY} {BODY}",
+                    category="NarrativeText",
+                    page=start,
+                )
             ],
         )
         for path, (start, end) in zip(paths, ranges, strict=True)

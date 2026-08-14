@@ -427,7 +427,7 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertEqual(
             execute.call_args.args[0],
-            "Summarize section Dataflow Modes in chapter 1. Foundations.",
+            "Summarize Chapter 1. Foundations :: Dataflow Modes.",
         )
 
     def test_changing_books_starts_a_new_conversation(self):
