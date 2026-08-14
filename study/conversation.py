@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 from dotenv import load_dotenv
 
 from retrieval.search import RetrievalMode
+from storage.database import connection as database_connection
+from storage.postgres import list_books
 
 from .analyze import AnalysisModel
 from .contracts import (
@@ -80,6 +82,71 @@ def _hierarchy_query(decision: TurnDecision) -> str:
     return f"Summarize {scope.display_path}."
 
 
+def _library_listing(
+    question: str,
+    state: ConversationState,
+    *,
+    database_url: str | None,
+    owner_id: str | UUID,
+    prompt_profile: PromptProfile,
+    response_depth: ResponseDepth,
+    routing_reason: str,
+) -> TurnResult:
+    """Render canonical library metadata without retrieval or generation."""
+
+    normalized = question.casefold()
+    document_type = (
+        "paper"
+        if re.search(r"\bpaper(?:s)?\b", normalized)
+        else "book"
+        if re.search(r"\bbook(?:s)?\b", normalized)
+        else None
+    )
+    selected = set(state.book_ids)
+    with database_connection(database_url, readonly=True) as connection:
+        rows = list_books(
+            connection,
+            owner_id=owner_id,
+            document_type=document_type,
+        )
+    if selected:
+        rows = [row for row in rows if row["id"] in selected]
+
+    singular = document_type or "document"
+    plural = {"paper": "papers", "book": "books"}.get(singular, "documents")
+    if not rows:
+        answer = f"No ready {plural} are available in the selected library."
+    else:
+        lines = []
+        for index, row in enumerate(rows, start=1):
+            details = []
+            if row.get("author"):
+                details.append(str(row["author"]))
+            if row.get("page_count"):
+                pages = int(row["page_count"])
+                details.append(f"{pages} {'page' if pages == 1 else 'pages'}")
+            suffix = f" — {', '.join(details)}" if details else ""
+            lines.append(f"{index}. {row['title']}{suffix}")
+        noun = singular if len(rows) == 1 else plural
+        answer = (
+            f"{len(rows)} ready {noun} "
+            f"{'is' if len(rows) == 1 else 'are'} available:\n\n"
+            + "\n".join(lines)
+        )
+
+    return TurnResult(
+        question=question,
+        answer=answer,
+        route="library_list",
+        history_dependency="independent",
+        outcome="answer",
+        response_depth=response_depth,
+        routing_reason=routing_reason,
+        prompt_profile_version=profile_version(prompt_profile),
+        source_type="book_library",
+    )
+
+
 def _transform(
     question: str,
     state: ConversationState,
@@ -140,6 +207,17 @@ def execute_decision(
     profile = prompt_profile or DEFAULT_PROMPT_PROFILE
     resolved_depth = resolve_response_depth(question, response_depth)
     report = side_context.report if side_context else None
+    if decision.route == "library_list":
+        listed = _library_listing(
+            question,
+            state,
+            database_url=database_url,
+            owner_id=owner_id,
+            prompt_profile=profile,
+            response_depth=resolved_depth,
+            routing_reason=decision.reason,
+        )
+        return listed.model_copy(update={"side_context": report})
     if decision.route == "clarify":
         return TurnResult(
             question=question,

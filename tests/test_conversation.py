@@ -33,6 +33,11 @@ class FakeModel:
         return self.result
 
 
+class FailIfCalled:
+    def invoke(self, messages, config=None):
+        raise AssertionError("a deterministic library listing called a model")
+
+
 class TraceRecorder(BaseCallbackHandler):
     def __init__(self):
         self.starts = []
@@ -191,6 +196,49 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(state.active_scope.node_id, self.chapter["id"])
         self.assertEqual(len(state.messages), 2)
         self.assertEqual(state.previous_answer, result.answer)
+
+    def test_library_listing_uses_ready_selected_canonical_metadata(self):
+        with database_connection(self.database_url) as connection:
+            connection.execute(
+                "UPDATE books SET document_type = 'paper' WHERE id = %s",
+                (self.book_id,),
+            )
+            other_id = ingest_book(
+                connection,
+                conversation_book(),
+                owner_id=self.owner_id,
+                title="Other Paper",
+                author="Other Author",
+                file_hash="e" * 64,
+                page_count=2,
+                parser_version="test-v1",
+                document_type="paper",
+            )
+
+        with patch("study.conversation.execute_query") as execute:
+            result, state = execute_conversation_turn(
+                "list all the papers uploaded",
+                new_conversation_state(
+                    book_ids=[self.book_id], conversation_id="library-c1"
+                ),
+                database_url=self.database_url,
+                owner_id=self.owner_id,
+                analysis_model=FailIfCalled(),
+                generation_model=FailIfCalled(),
+            )
+
+        execute.assert_not_called()
+        self.assertEqual(result.route, "library_list")
+        self.assertEqual(result.outcome, "answer")
+        self.assertIn("1 ready paper is available", result.answer)
+        self.assertIn("Conversation Book", result.answer)
+        self.assertIn("Test Author", result.answer)
+        self.assertIn("2 pages", result.answer)
+        self.assertNotIn("Other Paper", result.answer)
+        self.assertEqual(result.evidence, [])
+        self.assertEqual(result.citations, [])
+        self.assertEqual(state.previous_route, "library_list")
+        self.assertNotEqual(other_id, self.book_id)
 
     def test_followup_uses_rewritten_query_and_retains_scope(self):
         scope = self.scope()

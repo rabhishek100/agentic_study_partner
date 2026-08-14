@@ -122,6 +122,18 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(mentioned_chapters.route, "hierarchy_list")
         self.assertEqual(mentioned_chapters.resolved_scope.book_id, self.book_id)
 
+    def test_library_listing_is_deterministic_and_needs_no_scope(self):
+        for question in (
+            "list all the papers uploaded",
+            "Show me all papers in my library.",
+            "What papers do I have?",
+        ):
+            decision = self.analyze(question, self.state(), FailIfCalled())
+
+            self.assertEqual(decision.route, "library_list")
+            self.assertEqual(decision.history_dependency, "independent")
+            self.assertIsNone(decision.resolved_scope)
+
     def test_explain_pdf_routes_to_the_complete_selected_document(self):
         decision = self.analyze(
             "Explain this PDF.",

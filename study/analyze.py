@@ -6,7 +6,7 @@ import os
 import re
 import time
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID
 
 from dotenv import load_dotenv
@@ -19,7 +19,6 @@ from .contracts import (
     ContractModel,
     ConversationState,
     HistoryDependency,
-    Route,
     ScopeCandidate,
     ScopeRef,
     TurnDecision,
@@ -86,14 +85,34 @@ ORDINAL_CHAPTER_REQUEST = re.compile(
     r"(?:\s+(?:of|in|from)\s+(?P<book_reference>.+?))?\s*[?.]?$",
     re.IGNORECASE,
 )
+LIBRARY_LIST_REQUEST = re.compile(
+    r"^\s*(?:"
+    r"(?:list|show|display|name)\s+(?:me\s+)?(?:all\s+)?(?:the\s+)?"
+    r"(?:uploaded\s+)?(?:papers|books|documents)(?:\s+(?:uploaded|available|in\s+my\s+library))?"
+    r"|what\s+(?:papers|books|documents)\s+(?:do\s+i\s+have|have\s+i\s+uploaded|are\s+(?:uploaded|available|in\s+my\s+library))"
+    r")\s*[?.!]*\s*$",
+    re.IGNORECASE,
+)
 
 
 class ConversationDecisionError(RuntimeError):
     pass
 
 
+AnalysisRoute = Literal[
+    "hierarchy_summary",
+    "hierarchy_list",
+    "retrieval_qa",
+    "prior_answer_transform",
+    "clarify",
+    "external_qa",
+]
+
+
 class ModelDecision(ContractModel):
-    route: Route
+    # Keep the measured model-facing schema limited to model-selected routes.
+    # `library_list` is deliberately deterministic and never offered here.
+    route: AnalysisRoute
     history_dependency: HistoryDependency
     standalone_query: str | None = None
     scope_node_id: int | None = None
@@ -727,6 +746,12 @@ def analyze_turn(
     load_dotenv()
     if not question.strip():
         raise ConversationDecisionError("question cannot be empty")
+    if LIBRARY_LIST_REQUEST.search(question):
+        return TurnDecision(
+            route="library_list",
+            history_dependency="independent",
+            reason="The request asks for canonical library metadata.",
+        )
     ordinal = _ordinal_chapter_decision(
         question,
         state,
