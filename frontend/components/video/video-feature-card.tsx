@@ -162,7 +162,19 @@ export function VideoFeatureCard({
   previewImage?: string;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const frame = timeline.find((entry) => entry.summary || entry.ocr_text) ?? timeline[0] ?? null;
+  const frame =
+    timeline.find((entry) => {
+      const description = `${entry.summary ?? ""} ${entry.ocr_text ?? ""}`;
+      return (
+        description.trim().length > 0 &&
+        !/\b(title card|opening card|branding|logo|intro(?:duction)?)\b/i.test(
+          description,
+        )
+      );
+    }) ??
+    timeline.find((entry) => entry.summary || entry.ocr_text) ??
+    timeline[0] ??
+    null;
   const slides = detail?.resources.find((resource) => resource.role === "slides");
   const screenReady = timeline.length > 0;
   const slidesReady = slides?.status === "ready";

@@ -126,6 +126,37 @@ describe("VideoFeatureCard", () => {
     expect(screen.getByText("12 pages")).toBeInTheDocument();
   });
 
+  it("skips opening title cards when a teaching frame is available", () => {
+    const frames: VideoTimelineEntry[] = [
+      {
+        ...timeline[0]!,
+        frame_id: 1,
+        summary: "A white title card displays Stanford Engineering branding.",
+      },
+      {
+        ...timeline[0]!,
+        frame_id: 2,
+        summary: "The lecturer explains policy gradients at the board.",
+      },
+    ];
+
+    render(
+      <VideoFeatureCard
+        video={video()}
+        detail={detail()}
+        timeline={frames}
+        evidenceLoading={false}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("img", {
+        name: "The lecturer explains policy gradients at the board.",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps removal behind an explicit confirmation", async () => {
     const onDelete = vi.fn();
     const user = userEvent.setup();
