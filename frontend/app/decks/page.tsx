@@ -261,8 +261,7 @@ export default function DecksPage() {
       railMode="drawer-only"
       rail={
         <div className="space-y-5 p-4">
-          <SectionNav active="decks" />
-          <p className="border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+          <p className="text-xs leading-5 text-muted-foreground">
             Create decks and adjust your daily pace from the Cards workspace.
           </p>
         </div>

@@ -14,7 +14,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
 
 export interface AppShellProps {
   /** Library, upload, and settings. Shown as a rail, or a sheet on mobile. */
@@ -40,8 +39,6 @@ export interface AppShellProps {
   contextBar?:
     | React.ReactNode
     | ((controls: { openRail: () => void }) => React.ReactNode);
-  /** Contextual workspaces can provide their own always-visible drawer button. */
-  showRailTrigger?: boolean;
 }
 
 export function AppShell({
@@ -56,7 +53,6 @@ export function AppShell({
   aside,
   overlay,
   contextBar,
-  showRailTrigger = true,
 }: AppShellProps) {
   const [railOpen, setRailOpen] = useState(false);
 
@@ -73,28 +69,31 @@ export function AppShell({
       </a>
 
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4">
-        {rail ? (
+        {rail || nav ? (
           <Sheet open={railOpen} onOpenChange={setRailOpen}>
             <SheetTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className={cn(
-                  !showRailTrigger && "hidden",
-                  !aside && railMode === "responsive" && "lg:hidden",
-                  railMode === "drawer-only" && "sm:hidden",
-                )}
-                aria-label="Open the library panel"
+                aria-label="Open menu"
               >
                 <Menu aria-hidden />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-80 bg-sidebar p-0">
-              <SheetTitle className="sr-only">Library and settings</SheetTitle>
+            <SheetContent
+              side="left"
+              className="flex w-80 flex-col bg-sidebar p-0"
+            >
+              <SheetTitle className="sr-only">Menu</SheetTitle>
               <SheetDescription className="sr-only">
-                Choose a book, change the search method, and upload new books.
+                Navigate between workspaces and access tools for this screen.
               </SheetDescription>
-              {rail}
+              {nav ? (
+                <div className="shrink-0 border-b border-border p-3 [&>nav]:grid [&>nav]:grid-cols-1 [&>nav>a]:justify-start">
+                  {nav}
+                </div>
+              ) : null}
+              {rail ? <div className="min-h-0 flex-1">{rail}</div> : null}
             </SheetContent>
           </Sheet>
         ) : null}

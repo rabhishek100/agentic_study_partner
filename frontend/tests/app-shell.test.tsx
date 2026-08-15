@@ -7,6 +7,7 @@ function shell(aside?: React.ReactNode, documentControl?: React.ReactNode) {
   return render(
     <AppShell
       rail={<div>Library rail</div>}
+      nav={<nav aria-label="Library sections"><a href="/">Books</a></nav>}
       status="Ready"
       account={<button type="button">Account</button>}
       documentControl={documentControl}
@@ -36,8 +37,8 @@ describe("AppShell", () => {
       screen.getByRole("complementary", { name: "Source document" }),
     ).toHaveTextContent("Document viewer");
     expect(
-      screen.getByRole("button", { name: "Open the library panel" }),
-    ).not.toHaveClass("lg:hidden");
+      screen.getByRole("button", { name: "Open menu" }),
+    ).toBeVisible();
   });
 
   it("shows the fixed library rail when no document is open", () => {
@@ -45,8 +46,29 @@ describe("AppShell", () => {
 
     expect(container.querySelector("aside")).toHaveTextContent("Library rail");
     expect(
-      screen.getByRole("button", { name: "Open the library panel" }),
-    ).toHaveClass("lg:hidden");
+      screen.getByRole("button", { name: "Open menu" }),
+    ).toBeVisible();
+  });
+
+  it("keeps the same menu available when a workspace has no contextual rail", () => {
+    render(
+      <AppShell
+        rail={null}
+        nav={
+          <nav aria-label="Library sections">
+            <a href="/videos">Videos</a>
+          </nav>
+        }
+        account={<button type="button">Account</button>}
+      >
+        <div>Videos workspace</div>
+      </AppShell>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    expect(screen.getByRole("dialog", { name: "Menu" })).toHaveTextContent(
+      "Videos",
+    );
   });
 
   it("keeps a minimized document restore control in the app header", () => {

@@ -82,4 +82,23 @@
 - **Residual P3:** The deterministic preview has no persisted local library, so its open drawer shows the expected failed fixture request while still validating sheet behavior. This is not a production UI state.
 - **Verification:** `npm run typecheck`, the focused 9-test AppShell/SplitPane suite, `npm run build`, and `git diff --check` all passed.
 
+## Follow-up — global hamburger consistency
+
+- Source visual truth: `artifacts/design-qa/mugensei-books-hamburger/implementation-focused.png`, using the approved Books header and hamburger placement.
+- Browser-rendered implementations: `artifacts/design-qa/mugensei-global-menu/books-menu-open.png`, `papers-menu-open.png`, `videos-menu-open.png`, `interviews-menu-open.png`, and `cards-menu-open.png`.
+- Full consistency comparison: `artifacts/design-qa/mugensei-global-menu/comparison-global-header-consistency.png` (1320 × 602 px), containing the approved source header and 1280 × 56 px focused crops from all five primary workspaces in one image.
+- Viewport and normalization: implementations rendered at 1280 × 720 CSS px with device pixel ratio 2; browser screenshots were returned at 1280 × 720 px. The approved 1440 px source was cropped to the same 1280 × 56 header region before comparison. No scaling was applied.
+- State: signed-in dark theme, primary authenticated route for Books, Papers, Videos, Interview, and Cards; each route's menu was captured open.
+- **[P2 · Navigation consistency, resolved]** The hamburger previously disappeared on desktop layouts with a fixed sidebar and on routes without contextual rail content. `AppShell` now renders the same hamburger beside the logo whenever global navigation or contextual rail content exists, independent of route, breakpoint, document state, or rail mode.
+- **[P2 · Menu information architecture, resolved]** The drawer previously exposed only route-specific rail content, leaving some screens without global navigation. Every drawer now begins with the same vertical Books, Papers, Videos, Interview, and Cards navigation, followed by optional screen-specific tools.
+- **[P2 · Duplicate navigation, resolved]** Interview and Cards rails had embedded compact navigation. Those duplicates were removed because `AppShell` now owns the global menu consistently.
+- **Fonts and typography:** All routes retain the approved Mugensei heading, Geist navigation typography, weights, line heights, and active-state hierarchy. Route-specific status copy remains intentionally contextual.
+- **Spacing and layout rhythm:** The hamburger, brand mark, title, navigation, theme, and account controls retain the same 56 px header geometry across all five workspaces. Drawer navigation uses one-column rows with consistent padding and alignment.
+- **Colors and visual tokens:** The shared Sumi background, green-gray divider, jade active state, and focus ring are unchanged across routes.
+- **Image and asset fidelity:** The approved Mugensei mark is reused without substitution; Menu and workspace icons remain from the shared Lucide family.
+- **Copy and content:** The generic accessible label is now “Open menu,” and the drawer description covers both global navigation and contextual tools rather than describing only the book library.
+- **Interactions and accessibility:** Browser checks opened the named menu on all five routes and confirmed that every dialog contains Books, Papers, Videos, Interview, and Cards. The close control remained keyboard-named, and a reload-time `pageerror` check reported no runtime errors.
+- **Responsive coverage:** The same trigger is no longer hidden by `lg:hidden` or drawer-only breakpoint rules. Component tests cover both contextual-rail and no-rail workspaces.
+- **Verification:** `npm run typecheck`, the focused 10-test AppShell/SplitPane suite, `npm run build`, and `git diff --check` passed. The build emitted a non-fatal local cache-compaction shutdown warning after completing successfully; the generated build cache was removed and regenerated because the workstation volume was full.
+
 final result: passed

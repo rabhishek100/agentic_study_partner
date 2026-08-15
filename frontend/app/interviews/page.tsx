@@ -283,7 +283,6 @@ export default function InterviewsPage() {
       }
       rail={
         <div className="flex h-full flex-col overflow-y-auto p-4">
-          <div className="mb-5 sm:hidden"><SectionNav active="interviews" /></div>
           <h2 className="font-heading text-sm font-medium">Recent interviews</h2>
           <p className="mt-1 text-xs text-muted-foreground">Resume a paused session or revisit a report.</p>
           <div className="mt-4 space-y-2">
