@@ -393,8 +393,9 @@ export default function PapersPage() {
         responseDepth={responseDepth}
         onResponseDepthChange={setResponseDepth}
         scopeSummary={
-          hasBooks ? describeSelection(books, selectedBookIds) : null
+          hasBooks ? describeSelection(books, selectedBookIds, "paper") : null
         }
+        documentType="paper"
       />
     </AppShell>
   );

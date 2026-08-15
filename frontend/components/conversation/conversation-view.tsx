@@ -45,6 +45,7 @@ export interface ConversationViewProps {
   responseDepth: ResponseDepth;
   onResponseDepthChange: (depth: ResponseDepth) => void;
   books: BookSummary[];
+  documentType?: "book" | "paper";
   /** What the next question will search, e.g. "All 3 books". */
   scopeSummary?: string | null;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
@@ -64,6 +65,7 @@ export function ConversationView({
   responseDepth,
   onResponseDepthChange,
   books,
+  documentType = "book",
   scopeSummary,
   onOpenReference,
   onAskOnTheSide,
@@ -101,6 +103,7 @@ export function ConversationView({
               hasBooks={hasBooks}
               selectedBookIds={selectedBookIds}
               canUseStarters={canSend}
+              documentType={documentType}
               onAsk={onSend}
             />
           ) : (
@@ -149,7 +152,9 @@ export function ConversationView({
             disabled={!hasBooks}
             isStreaming={isStreaming}
             placeholder={
-              hasBooks ? "Ask about the book…" : "Upload a book first…"
+              hasBooks
+                ? `Ask about the ${documentType}…`
+                : `Upload a ${documentType} first…`
             }
             onSubmit={onSend}
             onStop={onStop}
@@ -166,10 +171,10 @@ export function ConversationView({
           />
           <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
             {!canSend && hasBooks
-              ? "No default scope — type @ to tag a book for this question."
+              ? `No default scope — type @ to tag a ${documentType} for this question.`
               : scopeSummary
               ? `Answers are limited to evidence found in ${scopeSummary.toLowerCase()}.`
-              : "Answers are limited to the evidence found in your books."}
+              : `Answers are limited to the evidence found in your ${documentType === "paper" ? "papers" : "books"}.`}
           </p>
         </div>
       </div>

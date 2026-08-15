@@ -109,6 +109,8 @@ describe("UploadPanel reattachment", () => {
       />,
     );
 
+    expect(screen.getByRole("heading", { name: "Add a paper" })).toBeTruthy();
+
     expect(
       await screen.findByRole("button", { name: "Review 141 headings" }),
     ).toBeTruthy();

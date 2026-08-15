@@ -21,11 +21,13 @@ export function Welcome({
   hasBooks,
   selectedBookIds = [],
   canUseStarters = true,
+  documentType = "book",
   onAsk,
 }: {
   hasBooks: boolean;
   selectedBookIds?: number[];
   canUseStarters?: boolean;
+  documentType?: "book" | "paper";
   onAsk: (question: string) => void;
 }) {
   const [questions, setQuestions] = useState<string[]>([]);
@@ -67,19 +69,22 @@ export function Welcome({
   }, [fetchQuestions]);
 
   const activeQuestions = questions.length > 0 ? questions : FALLBACK_STARTERS;
+  const singular = documentType;
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center py-12 text-center">
       <BrandLockup className="-mb-2 w-64 max-w-full" />
       <h2 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
-        {hasBooks ? "What would you like to understand?" : "Upload a book to begin"}
+        {hasBooks
+          ? "What would you like to understand?"
+          : `Upload a ${singular} to begin`}
       </h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
         {hasBooks
           ? canUseStarters
             ? "Start with one of these dynamic prompts, or ask your own question."
-            : "Type @ in the question box to choose a book."
-          : "Add a PDF from the library panel. It becomes selectable once processing and verification finish."}
+            : `Type @ in the question box to choose a ${singular}.`
+          : `Add a PDF ${singular} from the library panel. It becomes selectable once processing and verification finish.`}
       </p>
 
       {hasBooks && (

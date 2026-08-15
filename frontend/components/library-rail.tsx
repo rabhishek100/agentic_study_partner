@@ -134,6 +134,7 @@ export function LibraryRail({
             selected={selectedBookIds}
             onChange={onSelectBooks}
             hasConversation={hasConversation}
+            documentType={documentType}
           />
         ) : (
           <div className="rounded-lg border border-dashed border-input px-3 py-6 text-center">

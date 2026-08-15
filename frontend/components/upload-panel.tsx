@@ -48,11 +48,11 @@ const STATUS_LABELS: Record<JobStatus, string> = {
   queued: "Waiting for the worker",
   validating: "Checking the file",
   parsing: "Reading pages",
-  persisting: "Saving the book",
+  persisting: "Saving the document",
   captioning: "Describing figures",
   chunking: "Building search data",
   embedding: "Building semantic search",
-  verifying: "Verifying the book",
+  verifying: "Verifying the document",
   classifying: "Classifying the PDF",
   ocr: "Reading scanned pages",
   needs_toc_review: "Contents need review",
@@ -160,6 +160,8 @@ export function UploadPanel({
   const jobStatus = job?.status ?? pending?.status;
   const isActive = jobStatus !== undefined && ACTIVE_STATUSES.has(jobStatus);
   const waitingForReview = jobStatus === "needs_toc_review";
+  const documentLabel = documentType === "paper" ? "paper" : "book";
+  const documentLabelPlural = documentType === "paper" ? "papers" : "books";
 
   // The upload ceiling is a deployment setting, not a constant, so it is read
   // from the API rather than compiled in. On failure the fallback still
@@ -412,7 +414,7 @@ export function UploadPanel({
         id="upload-heading"
         className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
-        Add a book
+        Add a {documentLabel}
       </h2>
 
       <label
@@ -434,7 +436,7 @@ export function UploadPanel({
         {waitingForReview
           ? "Finish the contents review"
           : busy
-            ? "Working on your book…"
+            ? `Working on your ${documentLabel}…`
             : "Choose a PDF"}
         <span className="text-xs font-normal text-muted-foreground">
           Up to {formatMegabytes(maximumBytes)} MB
@@ -454,7 +456,7 @@ export function UploadPanel({
       </label>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Digital PDFs and scanned books. A scan is transcribed page by page,
+        Digital PDFs and scanned {documentLabelPlural}. A scan is transcribed page by page,
         which takes a few minutes and needs its contents confirmed before it
         can be read.
       </p>

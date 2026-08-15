@@ -18,19 +18,22 @@ import { cn } from "@/lib/utils";
 export function describeSelection(
   books: BookSummary[],
   selected: number[],
+  documentType: "book" | "paper" = "book",
 ): string {
-  if (books.length === 0) return "No books";
-  if (selected.length === 0) return "No books selected";
+  const singular = documentType;
+  const plural = documentType === "paper" ? "papers" : "books";
+  if (books.length === 0) return `No ${plural}`;
+  if (selected.length === 0) return `No ${plural} selected`;
   if (selected.length === books.length) {
     return books.length === 1
-      ? (books[0]?.title ?? "1 book")
-      : `All ${books.length} books`;
+      ? (books[0]?.title ?? `1 ${singular}`)
+      : `All ${books.length} ${plural}`;
   }
   if (selected.length === 1) {
     const only = books.find((book) => book.book_id === selected[0]);
-    return only?.title ?? "1 book";
+    return only?.title ?? `1 ${singular}`;
   }
-  return `${selected.length} of ${books.length} books`;
+  return `${selected.length} of ${books.length} ${plural}`;
 }
 
 export interface BookSelectorProps {
@@ -39,6 +42,7 @@ export interface BookSelectorProps {
   onChange: (bookIds: number[]) => void;
   /** True once the conversation has turns that were answered under `selected`. */
   hasConversation: boolean;
+  documentType?: "book" | "paper";
 }
 
 export function BookSelector({
@@ -46,6 +50,7 @@ export function BookSelector({
   selected,
   onChange,
   hasConversation,
+  documentType = "book",
 }: BookSelectorProps) {
   const [open, setOpen] = useState(false);
   const selectedSet = new Set(selected);
@@ -66,12 +71,12 @@ export function BookSelector({
             variant="outline"
             size="lg"
             className="w-full justify-between font-normal"
-            aria-label="Choose which books to search"
+            aria-label={`Choose which ${documentType === "paper" ? "papers" : "books"} to search`}
           >
             <span className="flex min-w-0 items-center gap-2">
               <Library className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               <span className="truncate">
-                {describeSelection(books, selected)}
+                {describeSelection(books, selected, documentType)}
               </span>
             </span>
             <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" aria-hidden />
