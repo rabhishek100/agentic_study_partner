@@ -53,4 +53,13 @@
 
 - The live interface keeps compact Copy, Ask on the side, Regenerate, and answer-inspector controls that the static mock omits. They are existing functional utilities and do not alter the selected hierarchy.
 
+## Follow-up — contextual strip visibility
+
+- User-reported source: `artifacts/design-qa/mugensei-books-context-strip/source-redundant-strip.png` (3840 × 238 px).
+- Corrected implementation: `artifacts/design-qa/mugensei-books-context-strip/implementation-sidebar-state.jpg` (1440 × 900 CSS px at 1× density).
+- Focused before/after comparison: `artifacts/design-qa/mugensei-books-context-strip/comparison-context-strip-final.jpg`. The implementation's top 128 CSS px were normalized to the source width for this focused structural comparison.
+- **[P2 · Information architecture, resolved]** The context strip repeated book selection and conversations while the persistent library sidebar already exposed both. It now renders only in focused study mode, where the PDF/evidence workspace replaces the sidebar.
+- **Responsive behavior:** Outside focused study mode, the normal sidebar is visible at desktop widths and the standard drawer trigger remains available below the desktop breakpoint.
+- **Regression evidence:** Browser checks confirmed `standardHasContext: false`, `focusedHasContext: true`, and `focusedHasSidebar: false`. No local console warnings or errors were reported.
+
 final result: passed
