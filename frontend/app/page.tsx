@@ -458,16 +458,13 @@ export default function Page() {
   return (
     <AppShell
       nav={<SectionNav active="books" />}
-      showRailTrigger={!studyMode}
       contextBar={
         studyMode
-          ? ({ openRail }) => (
+          ? (
               <BookStudyContextBar
                 books={visibleBooks}
                 selectedBookIds={visibleBookIds}
                 activeEvidence={activeEvidence}
-                conversationCount={history.conversations.length}
-                onOpenLibrary={openRail}
               />
             )
           : undefined

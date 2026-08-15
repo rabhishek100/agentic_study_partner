@@ -31,7 +31,7 @@
 ### Final pass — passed
 
 - **Fonts and typography:** Source Serif 4 remains the editorial voice for the question, answer heading, and principle titles; Geist handles navigation, labels, evidence, and long-form answer copy. Size, weight, wrapping, and line-height match the selected hierarchy without clipped text.
-- **Spacing and layout rhythm:** Desktop preserves the 45/55 answer/source division, 80 px context bar, single-row PDF toolbar, full-height composer, and narrow evidence rail. Mobile collapses to a full-width source reader with no horizontal overflow.
+- **Spacing and layout rhythm:** Desktop preserves the 45/55 answer/source division, compact context bar, single-row PDF toolbar, full-height composer, and narrow evidence rail. Mobile collapses to a full-width source reader with no horizontal overflow.
 - **Colors and tokens:** Sumi black, warm bone, restrained jade, fine green-gray borders, and the warm paper surface match the selected direction. Existing AA-oriented tokens and jade focus ring remain unchanged.
 - **Image and asset fidelity:** The real product path continues to render authenticated source bytes with `react-pdf` and real text-layer citation highlights. The local fixture is development-only and exists solely to reproduce the selected QA state when no local book is uploaded; it is not shipped as a production document replacement.
 - **Copy and content:** Study-context labels, grounded-question language, evidence labels, composer copy, and the training-serving-skew example are coherent and match the selected screen's purpose.
@@ -62,5 +62,23 @@
 - **Responsive behavior:** Outside focused study mode, the normal sidebar is visible at desktop widths and the standard drawer trigger remains available below the desktop breakpoint.
 - **Regression evidence:** Browser checks confirmed `standardHasContext: false`, `focusedHasContext: true`, and `focusedHasSidebar: false`. No local console warnings or errors were reported.
 - **Production verification:** Railway deployment `b67fa581-6d6b-46be-b82c-5ff827f449e1` succeeded. The signed-in live sidebar state reported no Study context region and no app-originated console warnings or errors.
+
+## Follow-up — consolidated Books navigation
+
+- User-reported source: `artifacts/design-qa/mugensei-books-hamburger/source-large-context-controls.png` (914 × 238 px).
+- Browser-rendered implementation: `artifacts/design-qa/mugensei-books-hamburger/implementation-focused.png` (1440 × 900 CSS px at 1× density).
+- Drawer interaction evidence: `artifacts/design-qa/mugensei-books-hamburger/implementation-drawer-open.png` (1440 × 900 CSS px at 1× density).
+- Focused comparison: `artifacts/design-qa/mugensei-books-hamburger/comparison-header-before-after.png` (1488 × 500 px). The implementation header and context area was cropped to its top 126 CSS px and placed with the source in one comparison board; no density normalization was required.
+- **[P2 · Information architecture, resolved]** The focused context strip duplicated library navigation through large Change book and Conversations buttons. Both controls were removed. A single hamburger beside the Mugensei logo now opens the existing library sheet, which includes the library, conversations, upload, and advanced settings.
+- **[P2 · Spacing, resolved]** Removing the controls left excess vertical space. The read-only book/chapter strip was reduced from 80 px to 64 px, preserving hierarchy while returning space to the study workspace.
+- **Fonts and typography:** Existing Geist UI labels and Source Serif study content are unchanged; the compact strip retains clear label/title/author hierarchy without new wrapping.
+- **Colors and tokens:** The change reuses the existing Sumi, jade, border, and focus tokens; no new color drift or contrast regression was introduced.
+- **Image and asset fidelity:** The existing Mugensei brand mark remains unchanged. The menu uses the shared Lucide icon family rather than custom or placeholder art.
+- **Copy and content:** The strip is now descriptive only: book, author, and current chapter/path. Navigation language lives in the drawer where the actions occur.
+- **Interactions and accessibility:** Browser checks confirmed that the named “Open the library panel” button expands the Library and settings dialog and exposes both Your library and Conversations. The standard desktop route keeps its persistent sidebar and does not render the hamburger there; compact layouts retain drawer access.
+- **Browser errors:** A reload-time `pageerror` check reported no runtime errors.
+- **Responsive note:** The current in-app browser session rendered at 1440 × 900 despite a temporary compact viewport override, so the existing responsive component tests remain the primary compact-breakpoint evidence for this follow-up.
+- **Residual P3:** The deterministic preview has no persisted local library, so its open drawer shows the expected failed fixture request while still validating sheet behavior. This is not a production UI state.
+- **Verification:** `npm run typecheck`, the focused 9-test AppShell/SplitPane suite, `npm run build`, and `git diff --check` all passed.
 
 final result: passed

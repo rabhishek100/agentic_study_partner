@@ -1,6 +1,6 @@
 "use client";
 
-import { PanelLeft } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
@@ -86,7 +86,7 @@ export function AppShell({
                 )}
                 aria-label="Open the library panel"
               >
-                <PanelLeft aria-hidden />
+                <Menu aria-hidden />
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-80 bg-sidebar p-0">

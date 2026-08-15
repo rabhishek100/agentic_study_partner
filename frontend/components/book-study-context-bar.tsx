@@ -1,14 +1,7 @@
 "use client";
 
-import {
-  BookOpenText,
-  ChevronDown,
-  ChevronRight,
-  Library,
-  MessagesSquare,
-} from "lucide-react";
+import { BookOpenText, ChevronRight } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { formatPath } from "@/lib/citations";
 import type { BookSummary, EvidenceRef } from "@/lib/types";
 
@@ -16,14 +9,10 @@ export function BookStudyContextBar({
   books,
   selectedBookIds,
   activeEvidence,
-  conversationCount,
-  onOpenLibrary,
 }: {
   books: BookSummary[];
   selectedBookIds: number[];
   activeEvidence: EvidenceRef | null;
-  conversationCount: number;
-  onOpenLibrary: () => void;
 }) {
   const selected = books.filter((book) => selectedBookIds.includes(book.book_id));
   const primary =
@@ -39,7 +28,7 @@ export function BookStudyContextBar({
   return (
     <section
       aria-label="Study context"
-      className="flex min-h-20 items-center gap-4 border-b border-border bg-card/45 px-4 py-3 md:px-7"
+      className="flex min-h-16 items-center gap-4 border-b border-border bg-card/45 px-4 py-2 md:px-7"
     >
       <div className="flex min-w-0 flex-1 items-center gap-3 xl:w-[360px] xl:flex-none">
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-positive-muted text-positive">
@@ -65,33 +54,6 @@ export function BookStudyContextBar({
         <p className="truncate text-sm font-medium" title={chapter}>
           {chapter}
         </p>
-      </div>
-
-      <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
-        <Button
-          variant="outline"
-          size="lg"
-          aria-label="Change book"
-          onClick={onOpenLibrary}
-        >
-          <Library className="size-4" aria-hidden />
-          <span className="hidden lg:inline">Change book</span>
-          <ChevronDown className="hidden size-3.5 opacity-60 lg:block" aria-hidden />
-        </Button>
-        <Button
-          variant="outline"
-          size="lg"
-          aria-label="Open conversations"
-          onClick={onOpenLibrary}
-        >
-          <MessagesSquare className="size-4" aria-hidden />
-          <span className="hidden lg:inline">Conversations</span>
-          {conversationCount > 0 ? (
-            <span className="rounded bg-muted px-1.5 font-mono text-[0.65rem] text-muted-foreground">
-              {conversationCount}
-            </span>
-          ) : null}
-        </Button>
       </div>
     </section>
   );
