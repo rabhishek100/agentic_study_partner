@@ -77,6 +77,7 @@
 - **Copy and content:** The strip is now descriptive only: book, author, and current chapter/path. Navigation language lives in the drawer where the actions occur.
 - **Interactions and accessibility:** Browser checks confirmed that the named “Open the library panel” button expands the Library and settings dialog and exposes both Your library and Conversations. The standard desktop route keeps its persistent sidebar and does not render the hamburger there; compact layouts retain drawer access.
 - **Browser errors:** A reload-time `pageerror` check reported no runtime errors.
+- **Production verification:** Railway deployment `aea215d2-6d03-4914-b394-3817506035e2` succeeded, and `https://web-production-8529e.up.railway.app/` returned HTTP 200 after release.
 - **Responsive note:** The current in-app browser session rendered at 1440 × 900 despite a temporary compact viewport override, so the existing responsive component tests remain the primary compact-breakpoint evidence for this follow-up.
 - **Residual P3:** The deterministic preview has no persisted local library, so its open drawer shows the expected failed fixture request while still validating sheet behavior. This is not a production UI state.
 - **Verification:** `npm run typecheck`, the focused 9-test AppShell/SplitPane suite, `npm run build`, and `git diff --check` all passed.
