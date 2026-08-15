@@ -76,6 +76,7 @@ describe("ConversationView source language", () => {
       screen.getByRole("heading", { name: "Upload a paper to begin" }),
     ).toBeTruthy();
     expect(screen.getByPlaceholderText("Upload a paper first…")).toBeTruthy();
+    expect(screen.getByLabelText("Ask about the paper")).toBeTruthy();
     expect(
       screen.getByText("Answers are limited to the evidence found in your papers."),
     ).toBeTruthy();

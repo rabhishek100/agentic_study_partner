@@ -156,6 +156,7 @@ export function ConversationView({
                 ? `Ask about the ${documentType}…`
                 : `Upload a ${documentType} first…`
             }
+            label={`Ask about the ${documentType}`}
             onSubmit={onSend}
             onStop={onStop}
             books={books}

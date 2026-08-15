@@ -30,6 +30,7 @@ export interface ComposerProps {
   disabled: boolean;
   isStreaming: boolean;
   placeholder: string;
+  label?: string;
   onSubmit: (question: string, mentionedBookIds?: number[]) => void;
   onStop: () => void;
   books?: BookSummary[];
@@ -43,6 +44,7 @@ export function Composer({
   disabled,
   isStreaming,
   placeholder,
+  label = "Ask about the book",
   onSubmit,
   onStop,
   books = [],
@@ -186,7 +188,7 @@ export function Composer({
         {settingsControl}
       </div>
       <label className="sr-only" htmlFor="question">
-        Ask about the book
+        {label}
       </label>
       <Textarea
         ref={textareaRef}
