@@ -25,7 +25,7 @@ useful structure.
 - The header and sidebar metadata are small and subdued. Contrast should be
   measured for these exact rendered text sizes, not inferred from token values.
 
-### 2. Papers — needs immediate correction
+### 2. Papers — corrected during this audit
 
 ![Papers](02-papers.png)
 
@@ -37,6 +37,16 @@ useful structure.
   paper conversations.
 - The next pass should make the shared conversation shell source-aware rather
   than duplicating the Books wording.
+
+#### Production resolution
+
+![Corrected Papers experience](06-papers-fixed.png)
+
+The follow-up release made the shared selector, upload panel, empty state,
+question composer, accessible textarea label, scope summary, and evidence
+promise paper-aware. The final production DOM and screenshot contain the
+expected paper language throughout; the original screenshot above is retained
+as the evidence that prompted the fix.
 
 ### 3. Videos — functional but visually unfinished
 
@@ -76,8 +86,9 @@ useful structure.
 
 ## Highest-impact implementation order
 
-1. Replace book-specific copy and empty-state behavior on Papers with a
-   source-aware shared conversation shell.
+1. ~~Replace book-specific copy and empty-state behavior on Papers with a
+   source-aware shared conversation shell.~~ Completed in production during
+   this audit.
 2. Bring Videos into the Mugensei component system with branded upload controls,
    richer lecture metadata, and a more intentional desktop composition.
 3. Add search, grouping, or filters to the Books conversation history and the
