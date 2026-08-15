@@ -19,15 +19,16 @@ const readingSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic Study Partner",
-  description: "A grounded study companion for technical books",
-  icons: { icon: "/favicon.svg" },
+  title: "Mugensei — The endless path to mastery",
+  description:
+    "Master difficult technical material with evidence-grounded study tools.",
+  icons: { icon: "/brand/mugensei-mark.png" },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f0e8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1612" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f0e6" },
+    { media: "(prefers-color-scheme: dark)", color: "#08100f" },
   ],
 };
 

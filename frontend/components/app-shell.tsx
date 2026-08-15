@@ -94,7 +94,7 @@ export function AppShell({
           <BrandMark size="sm" />
           <div className="min-w-0">
             <p className="truncate font-heading text-sm font-medium leading-tight">
-              Agentic Study Partner
+              Mugensei
             </p>
             <div className="truncate text-xs text-muted-foreground">
               {status}

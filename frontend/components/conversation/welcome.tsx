@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
 
-import { BrandMark } from "@/components/brand-mark";
+import { BrandLockup } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api";
@@ -70,7 +70,7 @@ export function Welcome({
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center py-12 text-center">
-      <BrandMark className="mb-5" />
+      <BrandLockup className="-mb-2 w-64 max-w-full" />
       <h2 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
         {hasBooks ? "What would you like to understand?" : "Upload a book to begin"}
       </h2>

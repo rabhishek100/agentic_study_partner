@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
-import { BrandMark } from "@/components/brand-mark";
+import { BrandLockup } from "@/components/brand-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,14 +80,15 @@ export function AuthGate() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <BrandMark className="mb-3" />
+        <BrandLockup className="-mb-2 w-64 max-w-full self-start" />
         <CardTitle className="font-heading text-xl font-medium">
           {mode === "sign-in"
             ? "Sign in to your library"
             : "Create your library"}
         </CardTitle>
         <CardDescription>
-          Your books, uploads, and conversations are private to your account.
+          The endless path to mastery. Your books, uploads, and conversations
+          stay private to your account.
         </CardDescription>
       </CardHeader>
 
