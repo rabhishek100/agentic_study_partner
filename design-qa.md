@@ -16,6 +16,7 @@
 - Final focused answer comparison: `artifacts/design-qa/mugensei-books-option-3/comparison-answer-focused.jpg`
 - Final desktop implementation: `artifacts/design-qa/mugensei-books-option-3/implementation-desktop-final.jpg`
 - Mobile implementation: `artifacts/design-qa/mugensei-books-option-3/implementation-mobile.jpg`
+- Signed-in production verification: `artifacts/design-qa/mugensei-books-option-3/production-empty-state.jpg`
 
 ## Comparison history
 
@@ -38,6 +39,7 @@
 - **States and interactions:** Browser-verified Change book drawer access, citation navigation from page 142 to page 147, active evidence state, document page controls, and the grounded-question composer. The real answer flow auto-opens the first cited source once per completed turn but respects a reader closing it.
 - **Accessibility:** Keyboard-operable separator and citations remain intact; icon-only controls have names; source regions and evidence index have landmarks; focus styling and reduced-motion support remain inherited from the design system.
 - **Browser errors:** The final local browser pass reported no console warnings or errors.
+- **Production verification:** Railway deployment `d7eb577f-2fdb-40a3-999a-00d1f01fc5ba` succeeded. The signed-in production route loaded the deployed header, navigation, upload controls, and empty state with no app-originated console errors. That account currently contains no books, so the populated study state was verified locally against the deterministic fixture and covered by the production build rather than fabricated in production.
 - **Focused comparison:** The answer crop was compared separately because heading treatment, numbered principles, citation chips, and composer density were too small to judge confidently in the full board.
 
 ## Verification
