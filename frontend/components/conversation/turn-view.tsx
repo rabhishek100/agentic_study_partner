@@ -6,6 +6,7 @@ import {
   Copy,
   MessageSquarePlus,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -17,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { figuresForMarker, resolveMarker } from "@/lib/citations";
 import type { ChatTurn, EvidenceRef } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -74,6 +76,7 @@ export interface TurnViewProps {
    * server recorded, since an anchor names a stored turn index.
    */
   onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
+  studyMode?: boolean;
 }
 
 export function TurnView({
@@ -83,29 +86,51 @@ export function TurnView({
   onRetry,
   onOpenReference,
   onAskOnTheSide,
+  studyMode = false,
 }: TurnViewProps) {
   const showThinking = turn.status === "streaming" && !turn.answer;
   const result = turn.result;
 
   return (
     <article
-      className="space-y-4"
+      className={cn("space-y-4", studyMode && "study-answer space-y-6")}
       aria-labelledby={`question-${turn.id}`}
       // Lets a text selection be traced back to the turn it sits in, which is
       // what a side chat anchors to. Absent for a turn the server never
       // recorded, so a selection there offers nothing to anchor.
       data-turn-index={turn.turnIndex ?? undefined}
     >
-      <div className="flex justify-end">
-        <h3
-          id={`question-${turn.id}`}
-          className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-2.5 text-[0.95rem] font-normal text-secondary-foreground"
-        >
-          {turn.question}
-        </h3>
-      </div>
+      {studyMode ? (
+        <div className="border-b border-border pb-5">
+          <p className="mb-3 flex items-center gap-1.5 text-xs font-medium text-positive">
+            <Sparkles className="size-3.5" aria-hidden />
+            Grounded question
+          </p>
+          <h3
+            id={`question-${turn.id}`}
+            className="max-w-2xl font-heading text-[1.65rem] font-medium leading-[1.16] tracking-[-0.02em] text-foreground"
+          >
+            {turn.question}
+          </h3>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <h3
+            id={`question-${turn.id}`}
+            className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-2.5 text-[0.95rem] font-normal text-secondary-foreground"
+          >
+            {turn.question}
+          </h3>
+        </div>
+      )}
 
       <div className="space-y-3">
+        {studyMode && turn.answer ? (
+          <p className="flex items-center gap-1.5 text-xs font-medium text-positive">
+            <Sparkles className="size-3.5" aria-hidden />
+            Answer
+          </p>
+        ) : null}
         {showThinking && <ThinkingIndicator label="Checking the book…" />}
 
         {turn.answer && (
@@ -137,7 +162,7 @@ export function TurnView({
           />
         )}
 
-        {result && (result.evidence.length > 0 || (result.web_sources && result.web_sources.length > 0)) && (
+        {!studyMode && result && (result.evidence.length > 0 || (result.web_sources && result.web_sources.length > 0)) && (
           <References
             evidence={result.evidence}
             citations={result.citations}

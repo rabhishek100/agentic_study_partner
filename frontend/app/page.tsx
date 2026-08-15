@@ -1,13 +1,16 @@
 "use client";
 
 import { LogOut, PanelRightOpen } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { BookStudyContextBar } from "@/components/book-study-context-bar";
 import { describeSelection } from "@/components/book-selector";
 import { AuthGate } from "@/components/auth-gate";
 import { ConversationView } from "@/components/conversation/conversation-view";
+import { EvidenceIndex } from "@/components/conversation/evidence-index";
 import { LibraryRail } from "@/components/library-rail";
+import { DesignPreviewDocument } from "@/components/pdf/design-preview-document";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
@@ -38,7 +41,92 @@ import type {
   EvidenceRef,
   ResponseDepth,
   RetrievalMode,
+  TurnResult,
 } from "@/lib/types";
+
+const DESIGN_PREVIEW_BOOK: BookSummary = {
+  book_id: -1,
+  title: "Designing Machine Learning Systems",
+  author: "Chip Huyen",
+  page_count: 232,
+  ready_at: "2026-08-15T00:00:00Z",
+  chunk_count: 1842,
+  embedding_count: 1842,
+  retrieval_complete: true,
+  document_type: "book",
+};
+
+const DESIGN_PREVIEW_EVIDENCE: EvidenceRef[] = [
+  {
+    node_id: 142,
+    pages: [142],
+    path: "Chapter 4 :: Data Distribution Shifts :: Training-serving skew definition and causes",
+    book_id: -1,
+    book_title: DESIGN_PREVIEW_BOOK.title,
+    rank: 1,
+    chunk_id: "preview-142",
+    chunk_index: 0,
+    retrieval_method: "hybrid_rerank",
+    score: 0.94,
+    excerpt: "Training-serving skew occurs when production data differs from the data used to train the model.",
+  },
+  {
+    node_id: 147,
+    pages: [147],
+    path: "Chapter 4 :: Data Distribution Shifts :: Handling shifts: retrain, features, architecture, labeling",
+    book_id: -1,
+    book_title: DESIGN_PREVIEW_BOOK.title,
+    rank: 2,
+    chunk_id: "preview-147",
+    chunk_index: 1,
+    retrieval_method: "hybrid_rerank",
+    score: 0.89,
+    excerpt: "The response depends on the shift: retraining, feature changes, architecture changes, or relabeling may be required.",
+  },
+];
+
+const DESIGN_PREVIEW_RESULT: TurnResult = {
+  question: "How should an ML system handle training-serving skew?",
+  answer:
+    "## Training-serving skew\n\nTraining-serving skew occurs when the data distribution at inference time differs from the one seen during training. It often leads to degraded accuracy and unpredictable model behavior.\n\nThree principles help address it in practice:\n\n1. **Detect skew early and continuously.** Monitor feature and prediction distributions between training and serving using statistical tests and divergence metrics. Alert on drift before quality degrades. [S1]\n\n2. **Keep the training and serving pipelines consistent.** Align feature definitions, transformations, and data sources across environments. Treat the training pipeline as a versioned, testable artifact to minimize skew from implementation gaps. [S1]\n\n3. **Close the loop with production feedback.** Use online metrics, human feedback, and logged outcomes to retrain and recalibrate. This adapts the model to real-world shifts while controlling for feedback latency and noise. [S2]\n\nTogether, these practices improve robustness to distribution shifts and sustain model performance in production.",
+  route: "retrieval_qa",
+  history_dependency: "independent",
+  standalone_query: "handling training-serving skew",
+  resolved_scope: {
+    kind: "chapter",
+    book_id: -1,
+    node_id: 4,
+    display_path: "Chapter 4 :: Data Distribution Shifts",
+    start_page: 142,
+    end_page: 151,
+  },
+  evidence: DESIGN_PREVIEW_EVIDENCE,
+  citations: [
+    { marker: "[S1]", node_id: 142, page: 142, book_id: -1, evidence_rank: 1 },
+    { marker: "[S2]", node_id: 147, page: 147, book_id: -1, evidence_rank: 2 },
+  ],
+  figures: [],
+  outline_node_ids: [],
+  outcome: "answer",
+  retrieval_mode: "hybrid_rerank",
+  warnings: [],
+  answer_archetype: "system_design",
+  response_depth: "interview",
+  routing_reason: "The question asks for a grounded operating approach.",
+  prompt_profile_version: "design-preview",
+  side_context: null,
+  source_type: "book_library",
+};
+
+const DESIGN_PREVIEW_TURN: ChatTurn = {
+  id: "design-preview-turn",
+  question: DESIGN_PREVIEW_RESULT.question,
+  answer: DESIGN_PREVIEW_RESULT.answer,
+  status: "complete",
+  result: DESIGN_PREVIEW_RESULT,
+  error: null,
+  turnIndex: 0,
+};
 
 export default function Page() {
   const { session, sessionLoading } = useSession();
@@ -54,6 +142,8 @@ export default function Page() {
   const [readingMinimized, setReadingMinimized] = useState(false);
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfZoom, setPdfZoom] = useState(1);
+  const [designPreview, setDesignPreview] = useState(false);
+  const autoOpenedTurn = useRef<string | null>(null);
 
   const {
     turns,
@@ -68,6 +158,14 @@ export default function Page() {
   } = useChat();
   const history = useConversations("book");
   const sideChats = useSideChats(conversationId, BOOK_SIDE_CHATS);
+
+  useEffect(() => {
+    const preview =
+      process.env.NODE_ENV === "development" &&
+      new URLSearchParams(window.location.search).get("design-preview") === "books";
+    setDesignPreview(preview);
+    if (preview) setPdfPage(142);
+  }, []);
 
   const loadBooks = useCallback(async () => {
     setBooksError("");
@@ -104,8 +202,12 @@ export default function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, loadBooks]);
 
-  const hasBooks = books.length > 0;
-  const canSend = hasBooks && selectedBookIds.length > 0;
+  const visibleBooks = designPreview && books.length === 0 ? [DESIGN_PREVIEW_BOOK] : books;
+  const visibleTurns = designPreview && turns.length === 0 ? [DESIGN_PREVIEW_TURN] : turns;
+  const visibleBookIds =
+    designPreview && selectedBookIds.length === 0 ? [-1] : selectedBookIds;
+  const hasBooks = visibleBooks.length > 0;
+  const canSend = hasBooks && visibleBookIds.length > 0;
 
   const closeDocument = useCallback(() => {
     setReading(null);
@@ -250,6 +352,39 @@ export default function Page() {
     [books, reading?.document],
   );
 
+  useEffect(() => {
+    const latest = [...turns]
+      .reverse()
+      .find(
+        (turn) =>
+          turn.status === "complete" &&
+          turn.result &&
+          turn.result.evidence.length > 0 &&
+          turn.result.citations.length > 0,
+      );
+    if (!latest?.result || autoOpenedTurn.current === latest.id || reading) return;
+    const first = latest.result.evidence.find((reference) =>
+      latest.result!.citations.some(
+        (citation) =>
+          citation.node_id === reference.node_id &&
+          (citation.book_id == null || citation.book_id === reference.book_id),
+      ),
+    );
+    if (!first || first.book_id === null) return;
+    autoOpenedTurn.current = latest.id;
+    openReference(first, latest.result.citations[0]?.page);
+  }, [turns, reading, openReference]);
+
+  const activeTurn = [...visibleTurns]
+    .reverse()
+    .find((turn) => turn.status === "complete" && turn.result?.evidence.length);
+  const activeResult = activeTurn?.result ?? null;
+  const activeEvidence =
+    activeResult?.evidence.find((reference) => reference.pages.includes(pdfPage)) ??
+    activeResult?.evidence[0] ??
+    null;
+  const studyMode = designPreview || Boolean(reading && !readingMinimized);
+
   /**
    * Which recorded turn a passage came from, matched against this
    * conversation's answers.
@@ -323,18 +458,17 @@ export default function Page() {
   return (
     <AppShell
       nav={<SectionNav active="books" />}
-      status={
-        <span className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className={
-              conversation
-                ? "size-1.5 rounded-full bg-positive"
-                : "size-1.5 rounded-full bg-muted-foreground"
-            }
+      showRailTrigger={!hasBooks}
+      contextBar={({ openRail }) =>
+        hasBooks ? (
+          <BookStudyContextBar
+            books={visibleBooks}
+            selectedBookIds={visibleBookIds}
+            activeEvidence={activeEvidence}
+            conversationCount={history.conversations.length}
+            onOpenLibrary={openRail}
           />
-          {conversation ? "Conversation active" : "Ready to study"}
-        </span>
+        ) : null
       }
       account={
         <DropdownMenu>
@@ -407,25 +541,39 @@ export default function Page() {
         ) : null
       }
       aside={
-        reading && !readingMinimized ? (
-          <PdfViewer
-            target={reading}
-            page={pdfPage}
-            onPageChange={setPdfPage}
-            zoom={pdfZoom}
-            onZoomChange={setPdfZoom}
-            onMinimize={() => setReadingMinimized(true)}
-            onClose={closeDocument}
-          />
+        studyMode ? (
+          <div className="flex h-full min-h-0 w-full overflow-hidden">
+            {designPreview ? (
+              <DesignPreviewDocument page={pdfPage} onPageChange={setPdfPage} />
+            ) : reading ? (
+              <PdfViewer
+                target={reading}
+                page={pdfPage}
+                onPageChange={setPdfPage}
+                zoom={pdfZoom}
+                onZoomChange={setPdfZoom}
+                onMinimize={() => setReadingMinimized(true)}
+                onClose={closeDocument}
+              />
+            ) : null}
+            {activeResult ? (
+              <EvidenceIndex
+                evidence={activeResult.evidence}
+                citations={activeResult.citations}
+                activePage={pdfPage}
+                onOpen={openReference}
+              />
+            ) : null}
+          </div>
         ) : null
       }
       rail={
         <LibraryRail
-          books={books}
+          books={visibleBooks}
           booksLoaded={booksLoaded}
           booksError={booksError}
           onRetryLoadBooks={loadBooks}
-          selectedBookIds={selectedBookIds}
+          selectedBookIds={visibleBookIds}
           onSelectBooks={selectBooks}
           retrievalMode={retrievalMode}
           onRetrievalModeChange={setRetrievalMode}
@@ -444,13 +592,13 @@ export default function Page() {
       }
     >
       <ConversationView
-        books={books}
-        selectedBookIds={selectedBookIds}
+        books={visibleBooks}
+        selectedBookIds={visibleBookIds}
         onOpenReference={openReference}
         onAskOnTheSide={(turnIndex, quotedText) => {
           void sideChats.open({ parentTurnIndex: turnIndex, quotedText });
         }}
-        turns={turns}
+        turns={visibleTurns}
         isStreaming={isStreaming}
         hasBooks={hasBooks}
         canSend={canSend}
@@ -461,8 +609,9 @@ export default function Page() {
         responseDepth={responseDepth}
         onResponseDepthChange={setResponseDepth}
         scopeSummary={
-          hasBooks ? describeSelection(books, selectedBookIds) : null
+          hasBooks ? describeSelection(visibleBooks, visibleBookIds) : null
         }
+        studyMode={studyMode}
       />
     </AppShell>
   );

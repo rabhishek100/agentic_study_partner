@@ -1,50 +1,54 @@
-# Design QA — Mugensei Videos, Option 3
+# Design QA — Mugensei Books, Option 3
 
 ## Scope
 
-- Selected source: `artifacts/design-qa/mugensei-videos-option-3/source-option-3.png`
-- Implemented route: `/videos`
-- Deterministic local QA state: `/videos?design-preview=videos` (development only)
+- Source visual truth: `artifacts/design-qa/mugensei-books-option-3/source-option-3.png`
+- Implemented route: `/`
+- Deterministic local QA state: `/?design-preview=books` (development only)
 - Desktop viewport: 1440 × 1024 CSS px at 1× density
 - Mobile viewport: 390 × 844 CSS px at 1× density
-- Reference source normalized from 1487 × 1058 to 1440 × 1024 for comparison. The aspect-ratio difference is under 0.1%.
+- Source pixels: 1487 × 1058. Implementation pixels: 1440 × 1024. For the comparison board, the implementation was normalized to 1487 × 1058; both images have the same 1.405 aspect ratio within rounding.
+- State: signed-in dark theme, one completed grounded answer, source page 142 open, two cited evidence items.
 
 ## Evidence
 
-- Final full desktop comparison (source left, implementation right): `artifacts/design-qa/mugensei-videos-option-3/comparison-desktop-final.png`
-- Final focused feature comparison (source left, implementation right): `artifacts/design-qa/mugensei-videos-option-3/comparison-feature-focused.png`
-- Final desktop implementation: `artifacts/design-qa/mugensei-videos-option-3/implementation-desktop-final.png`
-- Mobile first viewport: `artifacts/design-qa/mugensei-videos-option-3/implementation-mobile-viewport.png`
-- Mobile expanded import flow: `artifacts/design-qa/mugensei-videos-option-3/implementation-mobile-import.png`
-- Verified signed-in production: `artifacts/design-qa/mugensei-videos-option-3/production-final.png`
+- Final full-view comparison: `artifacts/design-qa/mugensei-books-option-3/comparison-desktop-final.jpg`
+- Final focused answer comparison: `artifacts/design-qa/mugensei-books-option-3/comparison-answer-focused.jpg`
+- Final desktop implementation: `artifacts/design-qa/mugensei-books-option-3/implementation-desktop-final.jpg`
+- Mobile implementation: `artifacts/design-qa/mugensei-books-option-3/implementation-mobile.jpg`
 
 ## Comparison history
 
 ### Pass 1 — blocked
 
-- **[P1 · Color/state]** The browser had persisted the light theme, so the first screenshot did not exercise the selected dark direction. Switched the controlled QA state to explicit dark mode and recaptured.
-- **[P2 · Layout/fidelity]** The first featured image used a 16:9 thumbnail, making the central card much shorter than the source and weakening the lecture-first hierarchy. Changed the image slot to 4:3 and rebalanced the two-column grid.
-- **[P2 · Evidence path]** The first implementation used three divided columns instead of a visible transcript → screen → slides sequence. Replaced the dividers with solid and dashed connectors and kept the optional slide state in vermilion.
-- **[P2 · Content order]** Metadata appeared above the primary action. Reordered the title, CTA, date metadata, and evidence path to match the selected composition.
-- **[P2 · Real-data imagery]** The first live production check selected an opening Stanford title card, which became an oversized cropped logo. The representative-frame selector now skips title, branding, logo, and intro frames when a teaching frame exists; a regression test covers this case.
+- **[P2 · Layout]** The evidence rail was 208 px wide, leaving the document page visibly narrower than the source. Reduced the rail to 160 px while retaining the selected 45/55 answer-to-source split.
+- **[P2 · Typography and density]** The answer initially used the app's generic serif reading body and browser list markers. Added the selected editorial hierarchy: serif learning headings, sans explanatory prose, numbered jade circles, and stronger list rhythm.
+- **[P2 · Context hierarchy]** The first study bar pushed both controls to the far edge and repeated status under the logo. Rebalanced the book/chapter tracks, kept controls adjacent to context, enlarged the brand title, and removed redundant status from this workspace.
+- **[P2 · Source toolbar]** The production PDF viewer used separate title and control rows. Consolidated page, zoom, minimize, and close controls into one 48 px toolbar; linked video documents retain their visible resource title.
+- **[P2 · Mobile accessibility]** Icon-only Change book and Conversations controls had no accessible names at the compact breakpoint. Added explicit labels and rechecked the 390 px layout.
 
 ### Final pass — passed
 
-- **Typography:** Mugensei's existing serif heading and sans-serif UI pairing preserves the source hierarchy. Long lecture filenames wrap safely on mobile.
-- **Layout and spacing:** Desktop maintains the left library rail, wide featured lecture card, tall visual, paired action/evidence column, and compact import module. Mobile collapses to one column without horizontal overflow or clipped controls.
-- **Colors and tokens:** Near-black sumi surfaces, jade actions/status, warm bone text, and rare vermilion attention states match the selected direction. Measured dark-theme contrast ratios: foreground/background 17.08:1, muted/background 10.58:1, primary/background 10.76:1, primary-foreground/primary 10.42:1, and seal/background 6.85:1.
-- **Image quality:** The QA fixture uses a generated 1152 × 648 lecture still sized for the slot. Production uses the lecture's authenticated indexed frame. The implementation intentionally does not fake playback chrome on a non-player library card.
-- **Icons:** Existing Lucide icons provide one consistent stroke family for navigation, evidence states, actions, and import controls.
-- **Copy:** The page and import language consistently describes grounded transcript, screen, and optional slide evidence.
-- **States and interactions:** Verified the dark-theme control, featured CTA, overflow action, collapsible import module, YouTube/video-file source switch, and no-slides/PDF-link/PDF-file choices. The submit control stays disabled until required source input exists.
-- **Production data:** Verified the signed-in live lecture with a representative authenticated teaching frame, 258 indexed screen frames, and 135 slide pages.
-- **Accessibility:** Controls have names or associated labels, pressed states are exposed, focus styling inherits the high-contrast jade ring, mobile targets remain practical, and the existing reduced-motion-aware design system remains in force.
-- **Responsive behavior:** Verified at 1440 × 1024 and 390 × 844. No content overlap, horizontal clipping, or unusable controls was observed. The black circular “N” visible in local mobile evidence is the Next.js development overlay and is absent from production.
+- **Fonts and typography:** Source Serif 4 remains the editorial voice for the question, answer heading, and principle titles; Geist handles navigation, labels, evidence, and long-form answer copy. Size, weight, wrapping, and line-height match the selected hierarchy without clipped text.
+- **Spacing and layout rhythm:** Desktop preserves the 45/55 answer/source division, 80 px context bar, single-row PDF toolbar, full-height composer, and narrow evidence rail. Mobile collapses to a full-width source reader with no horizontal overflow.
+- **Colors and tokens:** Sumi black, warm bone, restrained jade, fine green-gray borders, and the warm paper surface match the selected direction. Existing AA-oriented tokens and jade focus ring remain unchanged.
+- **Image and asset fidelity:** The real product path continues to render authenticated source bytes with `react-pdf` and real text-layer citation highlights. The local fixture is development-only and exists solely to reproduce the selected QA state when no local book is uploaded; it is not shipped as a production document replacement.
+- **Copy and content:** Study-context labels, grounded-question language, evidence labels, composer copy, and the training-serving-skew example are coherent and match the selected screen's purpose.
+- **Icons:** Lucide supplies one consistent fine-line icon family. No custom SVG, emoji, or placeholder icon art was introduced.
+- **States and interactions:** Browser-verified Change book drawer access, citation navigation from page 142 to page 147, active evidence state, document page controls, and the grounded-question composer. The real answer flow auto-opens the first cited source once per completed turn but respects a reader closing it.
+- **Accessibility:** Keyboard-operable separator and citations remain intact; icon-only controls have names; source regions and evidence index have landmarks; focus styling and reduced-motion support remain inherited from the design system.
+- **Browser errors:** The final local browser pass reported no console warnings or errors.
+- **Focused comparison:** The answer crop was compared separately because heading treatment, numbered principles, citation chips, and composer density were too small to judge confidently in the full board.
 
 ## Verification
 
 - `npm run typecheck` — passed
-- `npx vitest run tests/video-feature-card.test.tsx tests/video-card.test.tsx` — 12 tests passed
+- Focused component suite — 23 tests passed
+- Full frontend suite — 416 tests passed
 - `npm run build` — passed
+
+## Residual P3 polish
+
+- The live interface keeps compact Copy, Ask on the side, Regenerate, and answer-inspector controls that the static mock omits. They are existing functional utilities and do not alter the selected hierarchy.
 
 final result: passed

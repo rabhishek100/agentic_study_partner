@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { AppShell } from "@/components/app-shell";
@@ -55,5 +55,23 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("button", { name: "Restore document" }),
     ).toBeVisible();
+  });
+
+  it("lets the study context open the library drawer", () => {
+    render(
+      <AppShell
+        rail={<div>Library rail</div>}
+        status="Ready"
+        account={<button type="button">Account</button>}
+        contextBar={({ openRail }) => (
+          <button type="button" onClick={openRail}>Change book</button>
+        )}
+      >
+        <div>Conversation</div>
+      </AppShell>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Change book" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Library rail");
   });
 });

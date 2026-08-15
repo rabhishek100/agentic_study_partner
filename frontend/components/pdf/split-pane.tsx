@@ -3,10 +3,10 @@
 import { useResizablePane } from "@/hooks/use-resizable-pane";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "asp:reading-pane-width";
-const DEFAULT_PERCENT = 50;
-const MIN_PERCENT = 35;
-const MAX_PERCENT = 62;
+const STORAGE_KEY = "asp:reading-pane-width-v2";
+const DEFAULT_PERCENT = 55;
+const MIN_PERCENT = 45;
+const MAX_PERCENT = 68;
 
 /**
  * Conversation on the left, document on the right, with a draggable divider.

@@ -309,30 +309,17 @@ export function PdfViewer({
   }, [onPageChange, page, pageCount]);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-card">
-      <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{target.title}</p>
-        </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Minimize the document"
-          onClick={onMinimize}
-        >
-          <Minimize2 aria-hidden />
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Close the document"
-          onClick={onClose}
-        >
-          <X aria-hidden />
-        </Button>
-      </header>
-
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-card">
+      <p
+        className={cn(
+          pdfDocument.kind === "video-resource"
+            ? "absolute left-1/2 top-4 z-10 max-w-40 -translate-x-1/2 truncate text-xs text-muted-foreground"
+            : "sr-only",
+        )}
+      >
+        {target.title}
+      </p>
+      <div className="relative flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
         <div
           role="group"
           aria-label="Document page navigation. Use Left and Right Arrow keys."
@@ -406,6 +393,23 @@ export function PdfViewer({
             onClick={() => setZoomWithinLimits(zoom + PDF_ZOOM_STEP)}
           >
             <ZoomIn aria-hidden />
+          </Button>
+          <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden />
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Minimize the document"
+            onClick={onMinimize}
+          >
+            <Minimize2 aria-hidden />
+          </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Close the document"
+            onClick={onClose}
+          >
+            <X aria-hidden />
           </Button>
         </div>
       </div>

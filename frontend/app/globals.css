@@ -243,12 +243,66 @@
         @apply font-serif leading-[1.75] text-foreground;
     }
 
+    .study-answer .answer-prose {
+        --answer-size: 0.95rem;
+        @apply font-sans leading-[1.65];
+    }
+
+    .study-answer .answer-prose h2:first-child {
+        font-size: 1.65rem;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    .study-answer .answer-prose ol strong {
+        font-family: var(--font-heading);
+        font-size: 1.08em;
+        font-weight: 500;
+    }
+
+    .study-answer .answer-prose ol {
+        counter-reset: study-principle;
+        list-style: none;
+        padding-left: 0;
+    }
+
+    .study-answer .answer-prose ol > li {
+        counter-increment: study-principle;
+        position: relative;
+        padding-left: 3.1rem;
+        min-height: 2rem;
+    }
+
+    .study-answer .answer-prose li + li {
+        margin-top: 0.85em;
+    }
+
+    .study-answer .answer-prose ol > li::before {
+        content: counter(study-principle);
+        position: absolute;
+        left: 0.35rem;
+        top: 0.05rem;
+        display: grid;
+        width: 1.85rem;
+        height: 1.85rem;
+        place-items: center;
+        border: 1px solid color-mix(in oklch, var(--positive) 65%, transparent);
+        border-radius: 999px;
+        color: var(--positive);
+        font-family: var(--font-sans);
+        font-size: 0.78rem;
+        line-height: 1;
+    }
+
     .answer-prose > * + * {
         margin-top: 1.0256em;
     }
 
     .answer-prose h1,
-    .answer-prose h2,
+    .answer-prose h2 {
+        @apply font-heading font-semibold tracking-tight text-foreground;
+    }
+
     .answer-prose h3,
     .answer-prose h4 {
         @apply font-sans font-semibold tracking-tight text-foreground;

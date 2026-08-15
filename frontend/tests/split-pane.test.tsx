@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { SplitPane } from "@/components/pdf/split-pane";
 
-const STORAGE_KEY = "asp:reading-pane-width";
+const STORAGE_KEY = "asp:reading-pane-width-v2";
 
 afterEach(() => {
   window.localStorage.removeItem(STORAGE_KEY);
@@ -24,9 +24,9 @@ describe("SplitPane", () => {
     const separator = screen.getByRole("separator", {
       name: "Resize the document pane",
     });
-    await waitFor(() => expect(separator).toHaveAttribute("aria-valuenow", "62"));
+    await waitFor(() => expect(separator).toHaveAttribute("aria-valuenow", "68"));
     expect(screen.getByRole("complementary", { name: "Source document" })).toHaveStyle({
-      "--pane": "62%",
+      "--pane": "68%",
     });
   });
 
@@ -42,8 +42,8 @@ describe("SplitPane", () => {
     });
     fireEvent.keyDown(separator, { key: "ArrowRight" });
 
-    expect(separator).toHaveAttribute("aria-valuenow", "45");
-    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("45");
+    expect(separator).toHaveAttribute("aria-valuenow", "50");
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("50");
   });
 
   it("releases global drag styles when the pane unmounts mid-drag", () => {

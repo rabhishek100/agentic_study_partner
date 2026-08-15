@@ -24,7 +24,7 @@ export interface AppShellProps {
   /** Switches between the library's sections; books and videos are peers. */
   nav?: React.ReactNode;
   /** Short status line for the current conversation. */
-  status: React.ReactNode;
+  status?: React.ReactNode;
   /** Account controls, right-aligned in the header. */
   account: React.ReactNode;
   /** Restores a document that has been minimized. */
@@ -36,6 +36,12 @@ export interface AppShellProps {
   aside?: React.ReactNode;
   /** Floating side-chat windows, positioned against the viewport. */
   overlay?: React.ReactNode;
+  /** Workspace-specific context, rendered below the global navigation. */
+  contextBar?:
+    | React.ReactNode
+    | ((controls: { openRail: () => void }) => React.ReactNode);
+  /** Contextual workspaces can provide their own always-visible drawer button. */
+  showRailTrigger?: boolean;
 }
 
 export function AppShell({
@@ -49,6 +55,8 @@ export function AppShell({
   children,
   aside,
   overlay,
+  contextBar,
+  showRailTrigger = true,
 }: AppShellProps) {
   const [railOpen, setRailOpen] = useState(false);
 
@@ -72,6 +80,7 @@ export function AppShell({
                 variant="ghost"
                 size="icon-sm"
                 className={cn(
+                  !showRailTrigger && "hidden",
                   !aside && railMode === "responsive" && "lg:hidden",
                   railMode === "drawer-only" && "sm:hidden",
                 )}
@@ -93,12 +102,14 @@ export function AppShell({
         <div className="flex min-w-0 items-center gap-2.5">
           <BrandMark size="sm" />
           <div className="min-w-0">
-            <p className="truncate font-heading text-sm font-medium leading-tight">
+            <p className="truncate font-heading text-base font-medium leading-tight">
               Mugensei
             </p>
-            <div className="truncate text-xs text-muted-foreground">
-              {status}
-            </div>
+            {status ? (
+              <div className="truncate text-xs text-muted-foreground">
+                {status}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -110,6 +121,14 @@ export function AppShell({
           {account}
         </div>
       </header>
+
+      {contextBar ? (
+        <div className="shrink-0">
+          {typeof contextBar === "function"
+            ? contextBar({ openRail: () => setRailOpen(true) })
+            : contextBar}
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {!aside && rail && railMode === "responsive" ? (

@@ -10,6 +10,7 @@ import { Welcome } from "@/components/conversation/welcome";
 import { AskSelection } from "@/components/side-chat/ask-selection";
 import { Button } from "@/components/ui/button";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
+import { cn } from "@/lib/utils";
 import type {
   BookSummary,
   ChatTurn,
@@ -50,6 +51,8 @@ export interface ConversationViewProps {
   scopeSummary?: string | null;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
   onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
+  /** Editorial answer layout used while a source document is docked. */
+  studyMode?: boolean;
 }
 
 export function ConversationView({
@@ -69,6 +72,7 @@ export function ConversationView({
   scopeSummary,
   onOpenReference,
   onAskOnTheSide,
+  studyMode = false,
 }: ConversationViewProps) {
   const { viewportRef, contentRef, isPinned, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
@@ -96,7 +100,10 @@ export function ConversationView({
       >
         <div
           ref={contentRef}
-          className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6"
+          className={cn(
+            "mx-auto flex w-full flex-col gap-8 px-4 py-6 sm:px-6",
+            studyMode ? "max-w-none md:px-7 md:py-7" : "max-w-3xl",
+          )}
         >
           {isEmpty ? (
             <Welcome
@@ -116,6 +123,7 @@ export function ConversationView({
                 onRetry={onRetry}
                 onOpenReference={onOpenReference}
                 onAskOnTheSide={onAskOnTheSide}
+                studyMode={studyMode}
               />
             ))
           )}
@@ -147,13 +155,20 @@ export function ConversationView({
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6">
+        <div
+          className={cn(
+            "mx-auto w-full px-4 py-3 sm:px-6",
+            studyMode ? "max-w-none md:px-7" : "max-w-3xl",
+          )}
+        >
           <Composer
             disabled={!hasBooks}
             isStreaming={isStreaming}
             placeholder={
               hasBooks
-                ? `Ask about the ${documentType}…`
+                ? studyMode
+                  ? "Ask a grounded question…"
+                  : `Ask about the ${documentType}…`
                 : `Upload a ${documentType} first…`
             }
             label={`Ask about the ${documentType}`}
