@@ -100,5 +100,6 @@
 - **Interactions and accessibility:** Browser checks opened the named menu on all five routes and confirmed that every dialog contains Books, Papers, Videos, Interview, and Cards. The close control remained keyboard-named, and a reload-time `pageerror` check reported no runtime errors.
 - **Responsive coverage:** The same trigger is no longer hidden by `lg:hidden` or drawer-only breakpoint rules. Component tests cover both contextual-rail and no-rail workspaces.
 - **Verification:** `npm run typecheck`, the focused 10-test AppShell/SplitPane suite, `npm run build`, and `git diff --check` passed. The build emitted a non-fatal local cache-compaction shutdown warning after completing successfully; the generated build cache was removed and regenerated because the workstation volume was full.
+- **Production verification:** Railway deployment `03570df7-f012-498c-947c-69b17c04857a` succeeded, and `https://web-production-8529e.up.railway.app/` returned HTTP 200 after release.
 
 final result: passed
