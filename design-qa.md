@@ -61,5 +61,6 @@
 - **[P2 · Information architecture, resolved]** The context strip repeated book selection and conversations while the persistent library sidebar already exposed both. It now renders only in focused study mode, where the PDF/evidence workspace replaces the sidebar.
 - **Responsive behavior:** Outside focused study mode, the normal sidebar is visible at desktop widths and the standard drawer trigger remains available below the desktop breakpoint.
 - **Regression evidence:** Browser checks confirmed `standardHasContext: false`, `focusedHasContext: true`, and `focusedHasSidebar: false`. No local console warnings or errors were reported.
+- **Production verification:** Railway deployment `b67fa581-6d6b-46be-b82c-5ff827f449e1` succeeded. The signed-in live sidebar state reported no Study context region and no app-originated console warnings or errors.
 
 final result: passed
