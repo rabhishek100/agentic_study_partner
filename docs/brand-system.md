@@ -50,16 +50,16 @@ not an imitation of a traditional seal or written character.
 
 | Role | Value | Use |
 |---|---:|---|
-| Background | `#08100f` | Signature dark study environment |
-| Sidebar | `#0b1517` | Slightly cooler navigation field |
-| Card | `#101b18` | Layered content surface |
+| Background | `#070b0a` | Signature sumi-ink study environment |
+| Sidebar | `#09110f` | Quiet pine-black navigation field |
+| Card | `#0d1714` | Layered content surface |
 | Foreground | `#f2eee4` | Warm, low-glare reading text |
-| Muted foreground | `#a3b1aa` | Secondary copy and metadata |
-| Primary jade | `#8bd5b4` | Primary actions and focus |
+| Muted foreground | `#a8c4b5` | Celadon-tinted secondary copy and metadata |
+| Primary jade | `#69d39f` | Primary actions and focus |
 | Evidence jade | `#83d0ad` | Citations and grounded states |
-| Soft jade | `#183b30` | Evidence chips and selected surfaces |
+| Soft jade | `#153b2d` | Evidence chips and selected surfaces |
 | Vermilion seal | `#e97850` | Rare identity accent and signature |
-| Border | `#293b35` | Dividers without high-contrast boxes |
+| Border | `#263930` | Dividers without high-contrast boxes |
 
 Jade has semantic meaning: evidence, progress, selection, focus, and successful
 grounding. Vermilion is intentionally scarce so the logo's seal and exceptional
