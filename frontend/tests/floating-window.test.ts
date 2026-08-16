@@ -159,6 +159,15 @@ describe("keyboard geometry", () => {
 
     expect(resizeByKey(small, "ArrowLeft", VIEWPORT).width).toBe(MIN_WIDTH);
   });
+  it("clears a header that has grown past its design height", () => {
+    // At 200% text the masthead grows. Windows clamped against the constant
+    // instead of the measurement end up tucked underneath it, unreachable.
+    const grown = { ...VIEWPORT, inset: 96 };
+
+    expect(clampRect(rect({ y: 0 }), grown).y).toBe(96);
+    expect(snapRect(rect({ x: 9, y: 96 + 7 }), grown)).toMatchObject({ y: 96 });
+  });
+
 });
 
 describe("remembered geometry", () => {

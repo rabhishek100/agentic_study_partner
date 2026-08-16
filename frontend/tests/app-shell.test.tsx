@@ -33,11 +33,10 @@ describe("AppShell", () => {
     const { container } = shell();
     const header = container.querySelector("header");
 
-    // These were two independent numbers that happened to agree. The
-    // floating-window tests assert against the imported symbol, so they pass at
-    // any value, and nothing checked the header itself — a change to one would
-    // have silently put every side-chat window underneath the masthead.
-    expect(header).toHaveStyle({ height: `${HEADER_INSET}px` });
+    // A minimum, not a fixed height: pinning it clipped the masthead at 200%
+    // text. The floating layer measures the header rather than trusting this
+    // number, so they stay agreed when it grows.
+    expect(header).toHaveStyle({ minHeight: `${HEADER_INSET}px` });
   });
 
   it("owns exactly one viewport and clips document-level overflow", () => {

@@ -104,13 +104,13 @@ export function AppShell({
         to agree, with nothing asserting they still did — the floating-window
         tests assert against the imported symbol, so they pass at any value.
 
-        Setting it in pixels also fixes a real drift: `h-14` is rem-based, while
-        HEADER_INSET is compared against raw clientY/innerHeight. Under a raised
-        browser font size the header grew past 56 and windows sat underneath it.
-        Browser *zoom* scales both together, so only font size was affected.
+        A *minimum*, not a fixed height. Pinning it clipped the masthead at 200%
+        text: the box stayed 56px while its content needed 81px, so the wordmark
+        and the status line disappeared. The floating layer measures the header
+        instead of trusting this number, so the two stay agreed when it grows.
       */}
       <header
-        style={{ height: HEADER_INSET }}
+        style={{ minHeight: HEADER_INSET }}
         className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4"
       >
         {rail && railMode === "responsive" ? (

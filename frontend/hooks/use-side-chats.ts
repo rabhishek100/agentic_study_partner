@@ -13,6 +13,7 @@ import {
   writeGeometry,
   type Viewport,
   type WindowRect,
+  HEADER_INSET,
 } from "@/lib/floating-window";
 import type { SideChatSurface, SideChatThread } from "@/lib/side-chat";
 import type { QuoteAnchor } from "@/lib/types";
@@ -46,6 +47,14 @@ const OPEN_KEY_PREFIX = "side-chat:open:";
  */
 export const MAXIMUM_QUOTE_CHARS = 16_000;
 
+/**
+ * The header's actual height, so windows clear it even when the reader has
+ * enlarged text and it has grown past its design height.
+ */
+function measuredInset(): number {
+  const header = document.querySelector("header");
+  return header ? Math.round(header.getBoundingClientRect().height) : HEADER_INSET;
+}
 export function clampQuote(text: string): string {
   const trimmed = text.trim();
   if (trimmed.length <= MAXIMUM_QUOTE_CHARS) return trimmed;
@@ -102,7 +111,11 @@ function writeOpen(parentId: string, windows: SideChatWindow[]): void {
 
 function viewportSize(): Viewport {
   if (typeof window === "undefined") return { width: 1280, height: 800 };
-  return { width: window.innerWidth, height: window.innerHeight };
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    inset: measuredInset(),
+  };
 }
 
 /**

@@ -11,11 +11,24 @@ import {
   resizeByKey,
   snapRect,
   type WindowRect,
+  HEADER_INSET,
 } from "@/lib/floating-window";
 import { cn } from "@/lib/utils";
 
+/**
+ * The header's actual height, so windows clear it even when the reader has
+ * enlarged text and it has grown past its design height.
+ */
+function measuredInset(): number {
+  const header = document.querySelector("header");
+  return header ? Math.round(header.getBoundingClientRect().height) : HEADER_INSET;
+}
 function viewport() {
-  return { width: window.innerWidth, height: window.innerHeight };
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    inset: measuredInset(),
+  };
 }
 
 export interface FloatingWindowProps {

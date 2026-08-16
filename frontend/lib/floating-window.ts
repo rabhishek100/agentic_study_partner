@@ -21,6 +21,12 @@ export interface WindowRect {
 export interface Viewport {
   width: number;
   height: number;
+  /**
+   * How much of the top the header occupies. Measured by the caller rather than
+   * assumed: the header grows when the reader enlarges text, and windows tucked
+   * under a header that is taller than the constant are unreachable.
+   */
+  inset?: number;
 }
 
 export const MIN_WIDTH = 288;
@@ -56,6 +62,11 @@ export const KEYBOARD_LARGE_STEP = 64;
  */
 export const HEADER_INSET = 56;
 
+/** The header's measured height, falling back to the design value. */
+function insetOf(viewport: Viewport): number {
+  return viewport.inset ?? HEADER_INSET;
+}
+
 /** Below this width the floating layer is replaced by a docked sheet. */
 export const FLOATING_MIN_VIEWPORT_WIDTH = 1024;
 
@@ -80,7 +91,7 @@ export function clampRect(rect: WindowRect, viewport: Viewport): WindowRect {
   const height = clamp(
     Math.round(rect.height),
     MIN_HEIGHT,
-    Math.max(MIN_HEIGHT, viewport.height - HEADER_INSET),
+    Math.max(MIN_HEIGHT, viewport.height - insetOf(viewport)),
   );
   return {
     width,
@@ -90,8 +101,8 @@ export function clampRect(rect: WindowRect, viewport: Viewport): WindowRect {
     // lives down there.
     y: clamp(
       Math.round(rect.y),
-      HEADER_INSET,
-      Math.max(HEADER_INSET, viewport.height - height),
+      insetOf(viewport),
+      Math.max(insetOf(viewport), viewport.height - height),
     ),
   };
 }
@@ -111,7 +122,7 @@ export function snapRect(rect: WindowRect, viewport: Viewport): WindowRect {
   else if (Math.abs(right) <= SNAP_THRESHOLD) x = viewport.width - rect.width;
   // The top edge a window snaps to is the bottom of the app header, not the
   // top of the viewport, for the same reason `clampRect` stops there.
-  if (Math.abs(rect.y - HEADER_INSET) <= SNAP_THRESHOLD) y = HEADER_INSET;
+  if (Math.abs(rect.y - insetOf(viewport)) <= SNAP_THRESHOLD) y = insetOf(viewport);
   else if (Math.abs(bottom) <= SNAP_THRESHOLD) y = viewport.height - rect.height;
   return { ...rect, x, y };
 }
@@ -133,7 +144,7 @@ export function cascadePlacement(
 ): WindowRect {
   const offset = 28;
   const margin = 16;
-  const top = HEADER_INSET + margin;
+  const top = insetOf(viewport) + margin;
   const steps = Math.max(
     1,
     Math.floor((viewport.height - size.height - top) / offset) || 1,
