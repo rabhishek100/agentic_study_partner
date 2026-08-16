@@ -122,11 +122,25 @@ function GroupHeading({
   );
 }
 
+/** How many sources an answer actually cites, for a heading that owns the count. */
+export function citedSourceCount(
+  evidence: EvidenceRef[],
+  citations: CitationRef[],
+): number {
+  return partitionByCitation(evidence, citations).cited.length;
+}
+
 export interface ReferencesProps {
   evidence: EvidenceRef[];
   citations: CitationRef[];
   webSources?: WebSourceRef[];
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  /**
+   * Drop the section's own heading and rule. The right region already names
+   * itself and counts the sources; two headings disagreeing about the number —
+   * cited here, total there — is worse than none.
+   */
+  headless?: boolean;
 }
 
 export function References({
@@ -134,6 +148,7 @@ export function References({
   citations,
   webSources,
   onOpenReference,
+  headless = false,
 }: ReferencesProps) {
   const [showUncited, setShowUncited] = useState(false);
   const hasEvidence = evidence.length > 0;
@@ -151,16 +166,19 @@ export function References({
 
   return (
     <section
-      aria-labelledby="references-heading"
-      className="space-y-2 border-t border-border pt-3"
+      aria-labelledby={headless ? undefined : "references-heading"}
+      aria-label={headless ? "Sources" : undefined}
+      className={cn("space-y-2", !headless && "border-t border-border pt-3")}
     >
-      <h4
-        id="references-heading"
-        className="flex items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
-      >
-        <BookOpen className="size-3.5" aria-hidden />
-        {cited.length} {cited.length === 1 ? "source" : "sources"}
-      </h4>
+      {headless ? null : (
+        <h4
+          id="references-heading"
+          className="flex items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        >
+          <BookOpen className="size-3.5" aria-hidden />
+          {cited.length} {cited.length === 1 ? "source" : "sources"}
+        </h4>
+      )}
 
       {citedGroups.map((group) => (
         <div key={group.bookId ?? group.bookTitle} className="space-y-1">

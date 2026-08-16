@@ -13,7 +13,10 @@ import { useEffect, useState } from "react";
 import { Answer } from "@/components/conversation/answer";
 import { Figures } from "@/components/conversation/figures";
 import { AnswerInspector } from "@/components/conversation/inspector";
-import { References } from "@/components/conversation/references";
+import {
+  References,
+  citedSourceCount,
+} from "@/components/conversation/references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { figuresForMarker, resolveMarker } from "@/lib/citations";
@@ -161,9 +164,14 @@ export function TurnView({
                 onClick={onShowSources}
               >
                 <BookOpen aria-hidden />
-                {result.evidence.length > 0
-                  ? `${result.evidence.length} ${result.evidence.length === 1 ? "source" : "sources"}`
-                  : "Sources"}
+                {(() => {
+                  // Count what the answer cites, matching the numbered chips in
+                  // the prose and the region's own heading.
+                  const cited = citedSourceCount(result.evidence, result.citations);
+                  return cited > 0
+                    ? `${cited} ${cited === 1 ? "source" : "sources"}`
+                    : "Sources";
+                })()}
                 {sourcesShown ? (
                   <span className="text-muted-foreground">shown</span>
                 ) : null}

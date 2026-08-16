@@ -1,6 +1,9 @@
 "use client";
 
-import { References } from "@/components/conversation/references";
+import {
+  References,
+  citedSourceCount,
+} from "@/components/conversation/references";
 import type { ChatTurn, EvidenceRef } from "@/lib/types";
 
 /**
@@ -28,14 +31,17 @@ export function EvidencePanel({
   const result = turn?.result ?? null;
   const evidence = result?.evidence ?? [];
   const webSources = result?.web_sources ?? [];
+  // The heading counts what the answer cites, which is what the numbered chips
+  // in the prose refer to — not every passage retrieved.
+  const cited = citedSourceCount(evidence, result?.citations ?? []);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
       <header className="flex shrink-0 items-baseline gap-2 border-b border-divider px-4 py-3">
         <h2 className="text-eyebrow uppercase text-muted-foreground">Evidence</h2>
-        {evidence.length > 0 ? (
+        {cited > 0 ? (
           <span className="text-xs tabular-nums text-muted-foreground">
-            {evidence.length} {evidence.length === 1 ? "source" : "sources"}
+            {cited} {cited === 1 ? "source" : "sources"}
           </span>
         ) : null}
         {turnNumber ? (
@@ -57,6 +63,7 @@ export function EvidencePanel({
             citations={result?.citations ?? []}
             webSources={webSources}
             onOpenReference={onOpenReference}
+            headless
           />
         )}
       </div>
