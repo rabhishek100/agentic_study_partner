@@ -5,11 +5,13 @@ code implements it and does not extend it. Creative intent lives in
 [`MUGENSEI_DESIGN_BRIEF.md`](../MUGENSEI_DESIGN_BRIEF.md) — where the two
 disagree, the brief wins and this document is wrong and must be corrected.
 
-Status: **awaiting approval, not implemented.** No production UI has changed.
+Status: **approved and shipping.** Stages 1–6 are live; see
+[Implementation staging](#implementation-staging).
 
-Revision 2. Two design reviews ran against revision 1; what they corrected is
-recorded in [Deviations and corrections](#deviations-and-corrections) rather
-than quietly folded in.
+Revision 3. Two design reviews ran against revision 1, and production itself
+corrected revision 2 twice. All of it is recorded in
+[Deviations and corrections](#deviations-and-corrections) rather than quietly
+folded in — a contract that edits its own history is not a contract.
 
 ## The selected direction
 
@@ -49,6 +51,7 @@ variants. If a tone is needed often enough to use, it is a role.
 | `action-on` | `#070B0A` | `#FFFDF7` | Text on an action fill. |
 | `evidence` | `#8FC9AF` | `#1F5647` | Grounding and source relationships. |
 | `wash` | `#1B4A38` | `#D8E9DF` | Selected / emphasized quiet surface. |
+| `surface-hover` | `#16211D` | `#EAE5D8` | Neutral hover ground for quiet controls. |
 | `disabled-surface` | `#0D1714` | `#F4F0E6` | Disabled control ground. |
 | `disabled-foreground` | `#6B8579` | `#84897F` | Disabled control text. |
 | `seal` | `#E97850` | `#AA482B` | The signature. Identity only. |
@@ -111,7 +114,7 @@ Floating side-chat windows keep their own relative ordering *within* the
 
 shadcn/Radix primitives depend on `accent` (a hover *surface*), `secondary`,
 `card`, and `sidebar-*`. Stage 1 keeps those names as **aliases onto roles**
-(`card → surface`, `accent → wash`, `sidebar → surface`, and so on) so the
+(`card → surface`, `accent → surface-hover`, `sidebar → surface`, and so on) so the
 primitives keep working. Aliases are a migration mechanism, not part of the
 API — new code uses roles.
 
@@ -193,7 +196,7 @@ defaults.
 | State | Treatment |
 |---|---|
 | `default` | Role colours as declared. |
-| `hover` | Fill moves to `action-hover`; ghost and quiet controls move ground to `wash`. Never a size or position change. |
+| `hover` | Fill moves to `action-hover`; ghost and quiet controls move ground to `surface-hover`. Never a size or position change. |
 | `pressed` | Same ground as hover, no transition — the press must feel immediate. |
 | `focus` | 2px `action` outline at 2px offset. **One treatment everywhere.** |
 | `selected` | `wash` ground **plus** a 3px `action` marker **plus** `aria-selected` / `aria-current`. Never colour alone. |
@@ -386,4 +389,15 @@ since the focus ring and the action colour are the same value by design.
   `disabled-foreground`, shadow tokens, z-index scale.
 - Missing state specs added: hover, pressed, read-only, indeterminate, and the
   skeleton-vs-spinner policy.
+
+**Corrected in revision 3**, after seeing the system against real content:
+
+- Hover was specified as moving quiet controls to the `wash`. Shipped, that
+  turned every menu item, list row, and quiet fill jade, because `wash` is the
+  *selected* ground and hover is not selection. A neutral `surface-hover` role
+  now carries hover, and the wash goes back to meaning selected — which is what
+  keeps it rare.
+- "Headings are the system's words, so headings are sans" over-corrected; the
+  brief assigns serif to major headings and reflective moments. The rule is now
+  subject-versus-scaffolding, recorded above.
 - Migration order corrected; the frame stage split in two.
