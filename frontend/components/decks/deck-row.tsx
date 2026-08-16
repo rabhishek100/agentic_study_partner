@@ -112,7 +112,7 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
   const extracted = deck.generation_mode === "book_extracted";
 
   return (
-    <li className="group border-b border-border px-3 py-3 last:border-b-0 hover:bg-accent/25 focus-within:bg-accent/25 sm:grid sm:grid-cols-[minmax(0,2.15fr)_minmax(7rem,1.15fr)_4.5rem_7rem_8rem_7rem_4.5rem] sm:items-center sm:gap-4 sm:px-4">
+    <li className="group border-b border-border px-3 py-3 last:border-b-0 hover:bg-accent/25 focus-within:bg-accent/25 sm:grid sm:grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5.5rem_7rem_5.5rem_4.5rem] sm:items-center sm:gap-3 sm:px-4">
       <div className="min-w-0">
         <Link
           href={`/decks/${deck.deck_id}`}
