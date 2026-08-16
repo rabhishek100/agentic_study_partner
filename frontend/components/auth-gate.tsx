@@ -7,12 +7,12 @@ import { BrandMark } from "@/components/brand-mark";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Panel,
+  PanelContent,
+  PanelDescription,
+  PanelHeader,
+  PanelTitle,
+} from "@/components/ui/panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
@@ -64,34 +64,34 @@ export function AuthGate() {
 
   if (!supabaseConfigured) {
     return (
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Sign-in is not configured</CardTitle>
-          <CardDescription>
+      <Panel className="w-full max-w-md">
+        <PanelHeader>
+          <PanelTitle>Sign-in is not configured</PanelTitle>
+          <PanelDescription>
             Set <code className="font-mono">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
             <code className="font-mono">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>,
             then restart the app.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+          </PanelDescription>
+        </PanelHeader>
+      </Panel>
     );
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
+    <Panel className="w-full max-w-md">
+      <PanelHeader>
         <BrandMark className="mb-3" />
-        <CardTitle className="font-heading text-xl font-medium">
+        <PanelTitle className="font-heading text-xl font-medium">
           {mode === "sign-in"
             ? "Sign in to your library"
             : "Create your library"}
-        </CardTitle>
-        <CardDescription>
+        </PanelTitle>
+        <PanelDescription>
           Your books, uploads, and conversations are private to your account.
-        </CardDescription>
-      </CardHeader>
+        </PanelDescription>
+      </PanelHeader>
 
-      <CardContent className="space-y-4">
+      <PanelContent className="space-y-4">
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="auth-email">Email</Label>
@@ -156,7 +156,7 @@ export function AuthGate() {
             ? "New here? Create an account"
             : "Already have an account? Sign in"}
         </Button>
-      </CardContent>
-    </Card>
+      </PanelContent>
+    </Panel>
   );
 }

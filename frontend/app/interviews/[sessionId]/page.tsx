@@ -32,7 +32,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/ui/panel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -272,20 +272,20 @@ function SessionReportView({ report }: { report: InterviewReport }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-        <Card><CardHeader><CardTitle>Score profile</CardTitle></CardHeader><CardContent className="space-y-4">{dimensions.map(([name, score]) => <div key={name}><div className="mb-1.5 flex justify-between gap-3 text-sm"><span>{titleCase(name)}</span><span className="font-medium tabular-nums">{score.toFixed(1)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", scoreColor(score))} style={{ width: `${score * 20}%` }} /></div></div>)}</CardContent></Card>
-        <Card><CardHeader><CardTitle>What to do next</CardTitle></CardHeader><CardContent><p className="text-sm leading-6 text-muted-foreground">{report.evidence_confidence}</p>{session.metrics.strengths.length ? <div className="mt-4"><p className="text-sm font-medium">Strengths</p><ul className="mt-2 space-y-1.5 text-sm">{session.metrics.strengths.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}{report.suggested_next_steps.length ? <div className="mt-4"><p className="text-sm font-medium">Focused revision</p><ul className="mt-2 space-y-1.5 text-sm">{report.suggested_next_steps.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}</CardContent></Card>
+        <Panel><PanelHeader><PanelTitle>Score profile</PanelTitle></PanelHeader><PanelContent className="space-y-4">{dimensions.map(([name, score]) => <div key={name}><div className="mb-1.5 flex justify-between gap-3 text-sm"><span>{titleCase(name)}</span><span className="font-medium tabular-nums">{score.toFixed(1)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", scoreColor(score))} style={{ width: `${score * 20}%` }} /></div></div>)}</PanelContent></Panel>
+        <Panel><PanelHeader><PanelTitle>What to do next</PanelTitle></PanelHeader><PanelContent><p className="text-sm leading-6 text-muted-foreground">{report.evidence_confidence}</p>{session.metrics.strengths.length ? <div className="mt-4"><p className="text-sm font-medium">Strengths</p><ul className="mt-2 space-y-1.5 text-sm">{session.metrics.strengths.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}{report.suggested_next_steps.length ? <div className="mt-4"><p className="text-sm font-medium">Focused revision</p><ul className="mt-2 space-y-1.5 text-sm">{report.suggested_next_steps.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}</PanelContent></Panel>
       </div>
 
-      <div className="space-y-4"><h2 className="font-heading text-xl font-semibold">Question review</h2>{session.turns.filter((turn) => turn.answer_text).map((turn) => <Card key={turn.turn_index}><CardContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{turn.turn_index + 1}</span><div className="min-w-0 flex-1"><p className="font-medium leading-6">{turn.question.text}</p><p className="mt-3 rounded-lg bg-muted/70 p-3 text-sm leading-6">{turn.answer_text}</p>{turn.evaluation ? <><Feedback evaluation={turn.evaluation} /><div className="mt-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recommended answer</p><p className="mt-2 text-sm leading-6">{turn.evaluation.recommended_answer}</p></div></> : null}<div className="mt-4 flex flex-wrap gap-2">{turn.citations.map((citation) => citation.page && session.book_id ? <Link key={citation.marker} href={`/?book=${session.book_id}&page=${citation.page}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · p. {citation.page}<ExternalLink aria-hidden className="size-3" /></Link> : citation.start_ms !== null && session.video_id ? <Link key={citation.marker} href={`/videos/${session.video_id}?t=${Math.floor(citation.start_ms / 1000)}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · {clock(citation.start_ms / 1000)}<ExternalLink aria-hidden className="size-3" /></Link> : null)}{turn.web_sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">Web {source.rank}<ExternalLink aria-hidden className="size-3" /></a>)}</div></div></div></CardContent></Card>)}</div>
+      <div className="space-y-4"><h2 className="font-heading text-xl font-semibold">Question review</h2>{session.turns.filter((turn) => turn.answer_text).map((turn) => <Panel key={turn.turn_index}><PanelContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{turn.turn_index + 1}</span><div className="min-w-0 flex-1"><p className="font-medium leading-6">{turn.question.text}</p><p className="mt-3 rounded-lg bg-muted/70 p-3 text-sm leading-6">{turn.answer_text}</p>{turn.evaluation ? <><Feedback evaluation={turn.evaluation} /><div className="mt-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recommended answer</p><p className="mt-2 text-sm leading-6">{turn.evaluation.recommended_answer}</p></div></> : null}<div className="mt-4 flex flex-wrap gap-2">{turn.citations.map((citation) => citation.page && session.book_id ? <Link key={citation.marker} href={`/?book=${session.book_id}&page=${citation.page}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · p. {citation.page}<ExternalLink aria-hidden className="size-3" /></Link> : citation.start_ms !== null && session.video_id ? <Link key={citation.marker} href={`/videos/${session.video_id}?t=${Math.floor(citation.start_ms / 1000)}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · {clock(citation.start_ms / 1000)}<ExternalLink aria-hidden className="size-3" /></Link> : null)}{turn.web_sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">Web {source.rank}<ExternalLink aria-hidden className="size-3" /></a>)}</div></div></div></PanelContent></Panel>)}</div>
       {session.turns.some((turn) => turn.coding_answer) ? (
         <div className="space-y-4">
           <h2 className="font-heading text-xl font-semibold">Submitted code</h2>
           {session.turns.filter((turn) => turn.coding_answer).map((turn) => (
-            <Card key={`code-${turn.turn_index}`}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Question {turn.turn_index + 1} · Python</CardTitle>
-              </CardHeader>
-              <CardContent>
+            <Panel key={`code-${turn.turn_index}`}>
+              <PanelHeader className="pb-3">
+                <PanelTitle className="text-base">Question {turn.turn_index + 1} · Python</PanelTitle>
+              </PanelHeader>
+              <PanelContent>
                 <div className="mb-3 flex flex-wrap gap-2">
                   <Badge variant={turn.coding_answer?.execution.status === "passed" ? "default" : "secondary"}>
                     {turn.coding_answer?.execution.status.replace("_", " ")}
@@ -305,8 +305,8 @@ function SessionReportView({ report }: { report: InterviewReport }) {
                     </pre>
                   </details>
                 ) : null}
-              </CardContent>
-            </Card>
+              </PanelContent>
+            </Panel>
           ))}
         </div>
       ) : null}
@@ -822,16 +822,16 @@ export default function InterviewWorkspace() {
                 </div>
 
                 {current ? (
-                  <Card className="overflow-hidden border-primary/20 shadow-sm">
+                  <Panel className="overflow-hidden border-primary/20 shadow-sm">
                     <div className="h-1 bg-primary" />
-                    <CardHeader className="pb-3">
+                    <PanelHeader className="pb-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <Badge variant="outline">Question {current.turn_index + 1}</Badge>
                         <Badge variant="secondary" className="capitalize">{current.question.kind.replace("_", " ")}</Badge>
                       </div>
-                      <CardTitle className="mt-3 text-xl leading-8 sm:text-2xl">{current.question.text}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                      <PanelTitle className="mt-3 text-xl leading-8 sm:text-2xl">{current.question.text}</PanelTitle>
+                    </PanelHeader>
+                    <PanelContent>
                       <div className="flex flex-wrap gap-2">
                         <Button
                           variant="outline"
@@ -1013,8 +1013,8 @@ export default function InterviewWorkspace() {
                         </div>
                       ) : null}
                       {current.screen_observation ? <Alert className="mt-4"><MonitorUp aria-hidden /><AlertDescription>Screen checkpoint received: {current.screen_observation.summary}</AlertDescription></Alert> : null}
-                    </CardContent>
-                  </Card>
+                    </PanelContent>
+                  </Panel>
                 ) : null}
 
                 {current && codingExercise && activeCodingDraft && interview.status === "active" ? (
@@ -1041,8 +1041,8 @@ export default function InterviewWorkspace() {
                 ) : null}
 
                 {current && interview.status === "active" ? (
-                  <Card id="question">
-                    <CardContent className="p-4">
+                  <Panel id="question">
+                    <PanelContent className="p-4">
                       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <span className={cn("size-2 rounded-full", voice.status === "recording" ? "bg-destructive motion-safe:animate-pulse" : voice.status === "listening" ? "bg-emerald-500" : "bg-muted-foreground/40")} />
@@ -1205,11 +1205,11 @@ export default function InterviewWorkspace() {
                               : "Send answer"}
                         </Button>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </PanelContent>
+                  </Panel>
                 ) : current && interview.status === "paused" ? (
-                  <Card className="border-amber-500/30 bg-amber-500/[0.04]">
-                    <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <Panel className="border-amber-500/30 bg-amber-500/[0.04]">
+                    <PanelContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-medium">This interview is paused</p>
                         <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -1220,20 +1220,20 @@ export default function InterviewWorkspace() {
                         {operation === "resuming" ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : <Play aria-hidden />}
                         {operation === "resuming" ? "Restoring interview…" : "Resume interview"}
                       </Button>
-                    </CardContent>
-                  </Card>
+                    </PanelContent>
+                  </Panel>
                 ) : null}
               </div>
 
               <aside className="space-y-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base">
+                <Panel>
+                  <PanelHeader className="pb-3">
+                    <PanelTitle className="flex items-center gap-2 text-base">
                       <MonitorUp aria-hidden className="size-4" />
                       {codingExercise ? "Coding workspace" : "Screen workspace"}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
+                    </PanelTitle>
+                  </PanelHeader>
+                  <PanelContent>
                     <p className="text-xs leading-5 text-muted-foreground">
                       {codingExercise
                         ? "Python runs locally in a resettable browser worker. Your source is uploaded only with the answer you explicitly submit."
@@ -1258,9 +1258,9 @@ export default function InterviewWorkspace() {
                         ) : null}
                       </>
                     ) : null}
-                  </CardContent>
-                </Card>
-                <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Clock3 aria-hidden className="size-4" />Session budget</CardTitle></CardHeader><CardContent><div className="flex items-end justify-between"><div><p className="font-heading text-2xl font-semibold">${interview.total_cost_usd.toFixed(4)}</p><p className="text-xs text-muted-foreground">≈₹{(interview.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)} provider cost</p></div><span className="text-xs text-muted-foreground">Target ₹5–10</span></div><Progress className="mt-3" value={Math.min(100, (interview.total_cost_usd * INR_PER_USD_ESTIMATE / 10) * 100)} /><p className="mt-3 text-xs leading-5 text-muted-foreground">Raw audio and screen images are discarded after processing.</p></CardContent></Card>
+                  </PanelContent>
+                </Panel>
+                <Panel><PanelHeader className="pb-3"><PanelTitle className="flex items-center gap-2 text-base"><Clock3 aria-hidden className="size-4" />Session budget</PanelTitle></PanelHeader><PanelContent><div className="flex items-end justify-between"><div><p className="font-heading text-2xl font-semibold">${interview.total_cost_usd.toFixed(4)}</p><p className="text-xs text-muted-foreground">≈₹{(interview.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)} provider cost</p></div><span className="text-xs text-muted-foreground">Target ₹5–10</span></div><Progress className="mt-3" value={Math.min(100, (interview.total_cost_usd * INR_PER_USD_ESTIMATE / 10) * 100)} /><p className="mt-3 text-xs leading-5 text-muted-foreground">Raw audio and screen images are discarded after processing.</p></PanelContent></Panel>
               </aside>
             </div>
           </div>

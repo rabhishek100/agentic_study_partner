@@ -23,7 +23,7 @@ import { primeInterviewerSpeech } from "@/hooks/use-interviewer-speech";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/ui/panel";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -315,9 +315,9 @@ export default function InterviewsPage() {
           </div>
 
           <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.78fr]">
-            <Card>
-              <CardHeader><CardTitle>Interview setup</CardTitle></CardHeader>
-              <CardContent className="space-y-6">
+            <Panel>
+              <PanelHeader><PanelTitle>Interview setup</PanelTitle></PanelHeader>
+              <PanelContent className="space-y-6">
                 <fieldset className="space-y-3">
                   <legend className="text-sm font-medium">Study source</legend>
                   <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
@@ -417,13 +417,13 @@ export default function InterviewsPage() {
                     Microphone access is required for the voice interview. Testing the live input meter is optional.
                   </p>
                 ) : null}
-              </CardContent>
-            </Card>
+              </PanelContent>
+            </Panel>
 
             <div className="space-y-4">
-              <Card className={cn(!preview && "border-dashed")}>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Clock3 aria-hidden className="size-5" />Source preflight</CardTitle></CardHeader>
-                <CardContent>
+              <Panel className={cn(!preview && "border-dashed")}>
+                <PanelHeader><PanelTitle className="flex items-center gap-2"><Clock3 aria-hidden className="size-5" />Source preflight</PanelTitle></PanelHeader>
+                <PanelContent>
                   {preview ? (
                     <div className="space-y-4">
                       <div><p className="text-sm font-medium">{preview.title}</p><p className="mt-1 text-xs text-muted-foreground">{preview.source_title}</p></div>
@@ -441,8 +441,8 @@ export default function InterviewsPage() {
                   ) : (
                     <p className="text-sm leading-6 text-muted-foreground">Choose a source and review the setup. The preflight checks evidence readiness, detects the interview shape, and estimates an honest duration before any question is generated.</p>
                   )}
-                </CardContent>
-              </Card>
+                </PanelContent>
+              </Panel>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 <div className="rounded-xl border bg-card p-4"><ShieldCheck aria-hidden className="size-5 text-primary" /><p className="mt-3 text-sm font-medium">Grounded scoring</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Corrections and suggested answers trace back to pages, timestamps, or verified external sources.</p></div>
                 <div className="rounded-xl border bg-card p-4"><MessagesSquare aria-hidden className="size-5 text-primary" /><p className="mt-3 text-sm font-medium">Voice and screen ready</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Adaptive microphone detection, natural interviewer speech, and explicit screen checkpoints—with no raw media retained.</p></div>
