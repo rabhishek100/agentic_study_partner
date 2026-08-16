@@ -1,7 +1,7 @@
 "use client";
 
 import { PanelLeft } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { HEADER_INSET } from "@/lib/floating-window";
@@ -33,10 +33,42 @@ export interface AppShellProps {
   /** Lists the conversation's side chats, including closed ones. */
   sideChatControl?: React.ReactNode;
   children: React.ReactNode;
-  /** The document pane, docked right of the conversation when open. */
+  /**
+   * The right region's content, docked beside the conversation. Pass it for as
+   * long as it exists — closing it is `asideHidden`, not `null`. Unmounting is
+   * what loses a document's scroll position and re-fetches its pages.
+   */
   aside?: React.ReactNode;
+  /** Closed but not discarded. */
+  asideHidden?: boolean;
+  /** Names the region for its current mode. */
+  asideLabel?: string;
   /** Floating side-chat windows, positioned against the viewport. */
   overlay?: React.ReactNode;
+}
+
+
+const RAIL_STORAGE_KEY = "asp:rail-collapsed";
+
+/**
+ * Whether the docked rail is collapsed, remembered across visits.
+ *
+ * Read after mount rather than during render: the server has no localStorage,
+ * and seeding state from it directly would hydrate against a different value.
+ */
+function useRailCollapsed(): [boolean, (next: boolean) => void] {
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(RAIL_STORAGE_KEY) === "true");
+  }, []);
+
+  const update = useCallback((next: boolean) => {
+    setCollapsed(next);
+    window.localStorage.setItem(RAIL_STORAGE_KEY, String(next));
+  }, []);
+
+  return [collapsed, update];
 }
 
 export function AppShell({
@@ -49,9 +81,12 @@ export function AppShell({
   sideChatControl,
   children,
   aside,
+  asideHidden = false,
+  asideLabel,
   overlay,
 }: AppShellProps) {
   const [railOpen, setRailOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useRailCollapsed();
 
   return (
     <div
@@ -81,6 +116,21 @@ export function AppShell({
         style={{ height: HEADER_INSET }}
         className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4"
       >
+        {rail && railMode === "responsive" ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="hidden lg:inline-flex"
+            aria-label={
+              railCollapsed ? "Show the library panel" : "Hide the library panel"
+            }
+            aria-pressed={!railCollapsed}
+            onClick={() => setRailCollapsed(!railCollapsed)}
+          >
+            <PanelLeft aria-hidden />
+          </Button>
+        ) : null}
+
         {rail ? (
           <Sheet open={railOpen} onOpenChange={setRailOpen}>
             <SheetTrigger asChild>
@@ -88,7 +138,7 @@ export function AppShell({
                 variant="ghost"
                 size="icon-sm"
                 className={cn(
-                  !aside && railMode === "responsive" && "lg:hidden",
+                  railMode === "responsive" && "lg:hidden",
                   railMode === "drawer-only" && "sm:hidden",
                 )}
                 aria-label="Open the library panel"
@@ -128,12 +178,28 @@ export function AppShell({
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!aside && rail && railMode === "responsive" ? (
-          <aside className="hidden w-72 shrink-0 border-r border-border bg-sidebar lg:block xl:w-80">
+        {/*
+          The rail no longer disappears when a document opens. It used to be
+          gated on `!aside`, so the frame reorganised itself underneath the
+          reader the moment they followed a citation — the one thing a fixed
+          frame is supposed to never do. Reclaiming that space is now the
+          reader's decision, through the masthead control, and it is remembered.
+        */}
+        {rail && railMode === "responsive" ? (
+          <aside
+            className={cn(
+              "hidden w-72 shrink-0 border-r border-border bg-sidebar xl:w-80",
+              railCollapsed ? "lg:hidden" : "lg:block",
+            )}
+          >
             {rail}
           </aside>
         ) : null}
-        <SplitPane aside={aside ?? null}>
+        <SplitPane
+          aside={aside ?? null}
+          asideHidden={asideHidden}
+          asideLabel={asideLabel}
+        >
           <main className="flex min-w-0 flex-1 flex-col">{children}</main>
         </SplitPane>
       </div>

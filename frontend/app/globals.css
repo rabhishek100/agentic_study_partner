@@ -145,6 +145,20 @@
     --measure: 68ch;
 
     /*
+     * The stacking scale. Nothing may set a z-index outside these names — the
+     * sheet, the skip link, the floating windows, and the popovers all had to
+     * agree on an order and had no shared vocabulary to do it in.
+     */
+    --z-index-docked: 10;
+    --z-index-sticky: 20;
+    --z-index-floating-window: 30;
+    --z-index-drawer: 40;
+    --z-index-popover: 50;
+    --z-index-dialog: 60;
+    --z-index-toast: 70;
+    --z-index-skip-link: 80;
+
+    /*
      * Radii, snapped to the scale: menu 6, control 8, panel 10, floating 14.
      * The Tailwind steps map onto those so existing `rounded-*` classes land on
      * the scale instead of on arbitrary values.

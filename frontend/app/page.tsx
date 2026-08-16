@@ -406,8 +406,14 @@ export default function Page() {
           </Button>
         ) : null
       }
+      /*
+        Passed for as long as a document exists, not only while it is showing.
+        Minimizing hides it; unmounting it here used to throw away the rendered
+        pages and the reader's place in them, and fetch every page again on the
+        way back.
+      */
       aside={
-        reading && !readingMinimized ? (
+        reading ? (
           <PdfViewer
             target={reading}
             page={pdfPage}
@@ -419,6 +425,8 @@ export default function Page() {
           />
         ) : null
       }
+      asideHidden={readingMinimized}
+      asideLabel={reading ? `${reading.title}, source document` : undefined}
       rail={
         <LibraryRail
           books={books}
