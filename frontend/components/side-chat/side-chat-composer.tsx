@@ -97,7 +97,7 @@ export function SideChatComposer({
         small input with buttons floating beside it: at this width every pixel
         of horizontal room belongs to the text being typed.
       */}
-      <div className="rounded-xl border border-input bg-transparent transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
+      <div className="rounded-xl border border-input bg-transparent transition-colors focus-within:border-ring focus-within:ring-3 focus-within: dark:bg-surface">
         <Textarea
           ref={textareaRef}
           value={value}

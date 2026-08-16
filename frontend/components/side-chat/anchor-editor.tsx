@@ -70,7 +70,7 @@ export function AnchorEditor({
   }
 
   return (
-    <div className="shrink-0 border-b border-border bg-muted/30 px-3 py-2">
+    <div className="shrink-0 border-b border-border bg-surface px-3 py-2">
       {anchors.length > 0 && (
         <ul className="space-y-1.5">
           {anchors.map((anchor) => (

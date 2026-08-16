@@ -71,7 +71,7 @@ function PdfLoadingState({ label = "Loading document…" }: { label?: string }) 
     <div
       role="status"
       aria-live="polite"
-      className="flex h-96 w-full flex-col items-center justify-center gap-3 rounded-lg border border-border/60 bg-muted/20 text-sm text-muted-foreground"
+      className="flex h-96 w-full flex-col items-center justify-center gap-3 rounded-lg border border-divider bg-surface text-sm text-muted-foreground"
     >
       <Loader2 className="size-6 animate-spin" aria-hidden />
       <span>{label}</span>
@@ -415,7 +415,7 @@ export function PdfViewer({
       </div>
 
       {exactMatch === false && target.excerpt && (
-        <p className="shrink-0 border-b border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+        <p className="shrink-0 border-b border-border bg-surface px-3 py-1.5 text-xs text-muted-foreground">
           Showing the cited page. The exact passage could not be located in
           this page&apos;s text.
         </p>

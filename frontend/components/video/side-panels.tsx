@@ -52,7 +52,7 @@ export function ResourcePanel({
   );
   const rebuild =
     onRebuild && unread ? (
-      <div className="mb-3 rounded-md border border-border bg-muted/40 p-2">
+      <div className="mb-3 rounded-md border border-border bg-surface p-2">
         <p className="mb-2 text-xs text-muted-foreground">
           A document here has not been read yet. Rebuilding indexes it without
           re-downloading the video or re-running the visual analysis.
@@ -85,7 +85,7 @@ export function ResourcePanel({
           <button
             type="button"
             onClick={() => onOpen(resource)}
-            className="flex min-w-0 flex-1 items-start gap-2 rounded-md border border-border p-2 text-left hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-md border border-border p-2 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {resource.resource_kind === "pdf" ? (
               <FileText aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -248,7 +248,7 @@ export function ChapterList({
           <button
             type="button"
             onClick={() => onSeek(chapter.start_ms)}
-            className="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="w-12 shrink-0 text-xs text-muted-foreground">
               {formatTimestamp(chapter.start_ms)}

@@ -37,7 +37,7 @@ function ReferenceRow({
   const ancestors = parts.slice(0, -1);
 
   return (
-    <li className="border-b border-border/60 last:border-b-0">
+    <li className="border-b border-divider last:border-b-0">
       <div className="flex items-baseline gap-2 py-1.5">
         <span
           className={cn(
@@ -89,7 +89,7 @@ function ReferenceRow({
 
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleContent>
-          <blockquote className="mb-2 ml-6 border-l-2 border-citation/40 pl-3 font-serif text-xs leading-relaxed text-muted-foreground">
+          <blockquote className="mb-2 ml-6 border-l-2 border-evidence pl-3 font-serif text-xs leading-relaxed text-muted-foreground">
             {reference.excerpt}
           </blockquote>
         </CollapsibleContent>
@@ -215,14 +215,14 @@ export function References({
       )}
 
       {webSources && webSources.length > 0 && (
-        <div className="space-y-1.5 border-t border-border/60 pt-2">
+        <div className="space-y-1.5 border-t border-divider pt-2">
           <h4 className="flex items-center gap-1.5 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             <Globe className="size-3.5" aria-hidden />
             {webSources.length} web {webSources.length === 1 ? "source" : "sources"}
           </h4>
           <ul className="space-y-1.5">
             {webSources.map((ws, idx) => (
-              <li key={ws.url || idx} className="text-xs border-b border-border/40 pb-1 last:border-b-0">
+              <li key={ws.url || idx} className="text-xs border-b border-divider pb-1 last:border-b-0">
                 <a
                   href={ws.url}
                   target="_blank"

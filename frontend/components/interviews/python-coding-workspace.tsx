@@ -137,8 +137,8 @@ export function PythonCodingWorkspace({
   const failed = ["failed", "error", "timed_out"].includes(execution.status);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-primary/25 bg-card" aria-labelledby="coding-workspace-title">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/35 px-4 py-3">
+    <section className="overflow-hidden rounded-xl border border-action bg-card" aria-labelledby="coding-workspace-title">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-surface px-4 py-3">
         <div>
           <div className="flex items-center gap-2">
             <Braces aria-hidden className="size-4 text-primary" />
@@ -193,7 +193,7 @@ export function PythonCodingWorkspace({
             readOnly={disabled}
             indentWithTab={false}
             basicSetup={{ autocompletion: true, foldGutter: true, highlightActiveLine: true }}
-            className="text-sm [&_.cm-editor]:min-w-0 [&_.cm-editor]:outline-none [&_.cm-focused]:ring-2 [&_.cm-focused]:ring-primary/50"
+            className="text-sm [&_.cm-editor]:min-w-0 [&_.cm-editor]:outline-none [&_.cm-focused]:ring-2 [&_.cm-focused]:ring-action"
           />
         </div>
 
@@ -202,7 +202,7 @@ export function PythonCodingWorkspace({
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <TestTube2 aria-hidden className="size-4" />Visible tests
             </p>
-            <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/65 p-3 font-mono text-xs leading-5" aria-label="Read-only official Python tests">
+            <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg bg-surface p-3 font-mono text-xs leading-5" aria-label="Read-only official Python tests">
               {exercise.visible_tests}
             </pre>
           </div>
@@ -224,22 +224,22 @@ export function PythonCodingWorkspace({
               readOnly={disabled}
               indentWithTab={false}
               basicSetup={{ lineNumbers: false, foldGutter: false, autocompletion: true }}
-              className="mt-2 overflow-hidden rounded-lg border text-xs [&_.cm-editor]:outline-none [&_.cm-focused]:ring-2 [&_.cm-focused]:ring-primary/50"
+              className="mt-2 overflow-hidden rounded-lg border text-xs [&_.cm-editor]:outline-none [&_.cm-focused]:ring-2 [&_.cm-focused]:ring-action"
             />
           </div>
           <div className="p-4" role="status" aria-live="polite" aria-atomic="true">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Run result</p>
               {execution.status !== "not_run" ? (
-                <Badge className={cn(passed && "bg-emerald-600", failed && "bg-destructive")}>
+                <Badge className={cn(passed && "bg-positive", failed && "bg-destructive")}>
                   {passed ? "Tests passed" : execution.status.replace("_", " ")}
                 </Badge>
               ) : null}
             </div>
             {runtimeError ? <Alert variant="destructive" className="mt-3"><AlertDescription>{runtimeError}</AlertDescription></Alert> : null}
             {execution.status === "not_run" && !runtimeError ? <p className="mt-3 text-xs leading-5 text-muted-foreground">Run the scaffold when you are ready. A failed run does not prevent submission.</p> : null}
-            {execution.stdout ? <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/65 p-3 font-mono text-xs leading-5">{execution.stdout}</pre> : null}
-            {execution.error ? <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-destructive/8 p-3 font-mono text-xs leading-5 text-destructive">{execution.error}</pre> : null}
+            {execution.stdout ? <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-surface p-3 font-mono text-xs leading-5">{execution.stdout}</pre> : null}
+            {execution.error ? <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-destructive-wash p-3 font-mono text-xs leading-5 text-destructive">{execution.error}</pre> : null}
             {execution.duration_ms ? <p className="mt-2 text-xs text-muted-foreground">Completed in {execution.duration_ms} ms</p> : null}
           </div>
         </div>

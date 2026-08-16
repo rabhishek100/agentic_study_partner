@@ -65,7 +65,7 @@ export function VisualEvidence({
                 alt={card.summary}
               />
             ) : (
-              <div className="grid aspect-video w-full place-items-center rounded-md border border-border bg-muted/50 text-xs text-muted-foreground">
+              <div className="grid aspect-video w-full place-items-center rounded-md border border-border bg-surface text-xs text-muted-foreground">
                 Change
               </div>
             )}

@@ -25,9 +25,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // The canvas roles. Kept in sync with `--canvas` in globals.css.
+  // The canvas roles, kept in sync with `--canvas` in globals.css. These are the
+  // one place a literal is unavoidable: the browser chrome reads them before any
+  // stylesheet exists, so they cannot reference a custom property.
   themeColor: [
+    // design-tokens-ignore-next-line: browser chrome, no stylesheet available
     { media: "(prefers-color-scheme: light)", color: "#f4f0e6" },
+    // design-tokens-ignore-next-line: browser chrome, no stylesheet available
     { media: "(prefers-color-scheme: dark)", color: "#070b0a" },
   ],
 };

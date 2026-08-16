@@ -65,6 +65,9 @@
     --color-wash: var(--wash);
     --color-seal: var(--seal);
     --color-warning: var(--warning);
+    --color-warning-wash: var(--warning-wash);
+    --color-destructive: var(--destructive);
+    --color-destructive-wash: var(--destructive-wash);
     --color-surface-hover: var(--surface-hover);
     --color-disabled-surface: var(--disabled-surface);
     --color-disabled-foreground: var(--disabled-foreground);
@@ -188,6 +191,7 @@
     --surface-hover: #eae5d8;
     --seal: #aa482b;
     --warning: #7a5410;
+    --warning-wash: #f5e7c4;
     --disabled-surface: #f4f0e6;
     --disabled-foreground: #84897f;
 
@@ -207,6 +211,7 @@
     --accent: var(--surface-hover);
     --accent-foreground: var(--foreground);
     --destructive: #a32741;
+    --destructive-wash: #fae3e8;
 
     /* `border` is the decorative divider; `input` is the 3:1 control edge. */
     --border: var(--divider);
@@ -265,6 +270,7 @@
     --surface-hover: #16211d;
     --seal: #e97850;
     --warning: #e3b341;
+    --warning-wash: #3a2e12;
     --disabled-surface: #0d1714;
     --disabled-foreground: #6b8579;
 
@@ -282,6 +288,7 @@
     --accent: var(--surface-hover);
     --accent-foreground: var(--foreground);
     --destructive: #f0798c;
+    --destructive-wash: #3a1620;
 
     --border: var(--divider);
     --input: #4a6f5d;

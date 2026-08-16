@@ -211,7 +211,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                     onClick={() => setGenerationMode("topic_generated")}
                     className={
                       generationMode === "topic_generated"
-                        ? "rounded-md border border-primary bg-primary/10 p-2.5 text-left text-xs font-medium"
+                        ? "rounded-md border border-primary bg-wash p-2.5 text-left text-xs font-medium"
                         : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >
@@ -223,7 +223,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                     onClick={() => setGenerationMode("book_extracted")}
                     className={
                       generationMode === "book_extracted"
-                        ? "rounded-md border border-primary bg-primary/10 p-2.5 text-left text-xs font-medium"
+                        ? "rounded-md border border-primary bg-wash p-2.5 text-left text-xs font-medium"
                         : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >

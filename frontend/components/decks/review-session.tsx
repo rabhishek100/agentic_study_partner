@@ -334,7 +334,7 @@ export function ReviewSession({
   if (cards.length === 0) {
     return (
       <div className="mx-auto max-w-md rounded-xl border border-dashed border-border p-10 text-center">
-        <Check aria-hidden className="mx-auto mb-3 size-6 text-emerald-600" />
+        <Check aria-hidden className="mx-auto mb-3 size-6 text-positive" />
         <p className="text-base font-medium">Nothing due</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Everything scheduled for today is done. New cards appear as your
@@ -381,7 +381,7 @@ export function ReviewSession({
                           ? "border-primary bg-primary text-primary-foreground"
                           : entryState?.rating
                             ? "border-transparent bg-accent text-accent-foreground"
-                            : "border-border text-muted-foreground hover:bg-accent/60",
+                            : "border-border text-muted-foreground hover:bg-surface-hover",
                       )}
                     >
                       {position + 1}
@@ -408,7 +408,7 @@ export function ReviewSession({
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
         <div className="rounded-xl border border-border bg-card p-10 text-center">
-          <Check aria-hidden className="mx-auto mb-3 size-6 text-emerald-600" />
+          <Check aria-hidden className="mx-auto mb-3 size-6 text-positive" />
           <p className="font-serif text-lg font-medium">
             {gradedCount} of {cards.length} card
             {cards.length === 1 ? "" : "s"} reviewed
@@ -444,7 +444,7 @@ export function ReviewSession({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background">
-      <header className="shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+      <header className="shrink-0 border-b border-border bg-canvas px-4 py-3 backdrop-blur sm:px-6">
         <div className="mx-auto grid w-full max-w-6xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4">
           <Button variant="ghost" size="sm" onClick={finish}>
             <ChevronLeft aria-hidden />
@@ -596,7 +596,7 @@ export function ReviewSession({
         />
       ) : null}
 
-      <footer className="shrink-0 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+      <footer className="shrink-0 border-t border-border bg-canvas px-4 py-3 backdrop-blur sm:px-6">
         {!state.revealed ? (
           <div className="mx-auto flex w-full max-w-3xl justify-center">
             <Button
@@ -606,7 +606,7 @@ export function ReviewSession({
             >
               <Eye aria-hidden />
               Show answer
-              <kbd className="ml-2 rounded border border-current/30 px-1.5 text-xs opacity-70">
+              <kbd className="ml-2 rounded border border-divider px-1.5 text-xs opacity-70">
                 space
               </kbd>
             </Button>
@@ -646,11 +646,11 @@ export function ReviewSession({
                   onClick={() => void grade(rating)}
                   className={cn(
                     "h-auto min-w-0 flex-col gap-0.5 py-2",
-                    rating === 1 && "border-destructive/50 text-destructive",
-                    rating === 2 && "border-citation/50 text-citation",
-                    rating === 3 && "border-primary/60 text-primary",
-                    rating === 4 && "border-positive/60 text-positive",
-                    state.rating === rating && "bg-accent ring-1 ring-current/30",
+                    rating === 1 && "border-destructive text-destructive",
+                    rating === 2 && "border-evidence text-citation",
+                    rating === 3 && "border-action text-primary",
+                    rating === 4 && "border-positive text-positive",
+                    state.rating === rating && "bg-accent ring-1 ring-divider",
                   )}
                 >
                   <span className="text-sm font-medium">

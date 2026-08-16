@@ -274,7 +274,7 @@ function VideoMarkdownCitation({ marker }: { marker: string }) {
           variant="ghost"
           size="sm"
           className={cn(
-            "mx-0.5 h-6 gap-1 rounded-full border border-border bg-muted/60 px-2",
+            "mx-0.5 h-6 gap-1 rounded-full border border-border bg-surface px-2",
             "align-baseline text-xs font-normal",
           )}
           onClick={() =>

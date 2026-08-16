@@ -128,7 +128,7 @@ export function MicrophoneSetup({
       ?.label ?? "System default";
 
   return (
-    <fieldset className="space-y-3 rounded-xl border bg-muted/25 p-4">
+    <fieldset className="space-y-3 rounded-xl border bg-surface p-4">
       <legend className="px-1 text-sm font-medium">Microphone</legend>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <div className="space-y-1.5">
@@ -174,7 +174,7 @@ export function MicrophoneSetup({
           <div
             className={cn(
               "h-full rounded-full transition-[width] duration-75",
-              detected ? "bg-emerald-500" : "bg-primary",
+              detected ? "bg-positive" : "bg-primary",
             )}
             style={{ width: `${level}%` }}
           />
@@ -182,7 +182,7 @@ export function MicrophoneSetup({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {detected || enabled ? (
-              <CheckCircle2 className="size-4 shrink-0 text-emerald-600" aria-hidden />
+              <CheckCircle2 className="size-4 shrink-0 text-positive" aria-hidden />
             ) : (
               <AudioLines className={cn("size-4 shrink-0", testing && "text-primary")} aria-hidden />
             )}

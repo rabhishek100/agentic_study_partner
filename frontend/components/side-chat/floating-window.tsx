@@ -187,7 +187,7 @@ export function FloatingWindow({
         hidden && "hidden",
       )}
     >
-      <header className="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 pr-1">
+      <header className="flex shrink-0 items-center gap-1 border-b border-border bg-surface pr-1">
         <button
           type="button"
           aria-label={`Move the ${title} side chat. Use the arrow keys, or hold Shift for larger steps.`}
@@ -241,7 +241,7 @@ export function FloatingWindow({
       >
         <span
           aria-hidden
-          className="absolute bottom-1 right-1 size-2 border-b-2 border-r-2 border-muted-foreground/60"
+          className="absolute bottom-1 right-1 size-2 border-b-2 border-r-2 border-divider"
         />
       </button>
     </section>

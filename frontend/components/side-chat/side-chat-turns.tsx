@@ -19,7 +19,7 @@ import type { ChatTurn, EvidenceRef, QuoteAnchor } from "@/lib/types";
 export function AnchorChips({ anchors }: { anchors: QuoteAnchor[] }) {
   if (anchors.length === 0) return null;
   return (
-    <ul className="shrink-0 space-y-1.5 border-b border-border bg-muted/30 px-3 py-2">
+    <ul className="shrink-0 space-y-1.5 border-b border-border bg-surface px-3 py-2">
       {anchors.map((anchor) => (
         <li key={anchor.anchor_id} className="flex gap-1.5">
           <Quote

@@ -82,7 +82,7 @@ function ReferenceRow({
   const canOpen = isDocument ? Boolean(reference.resource_id) : true;
 
   return (
-    <li className="border-b border-border/60 last:border-b-0">
+    <li className="border-b border-divider last:border-b-0">
       <div className="flex items-baseline gap-2 py-1.5">
         <span
           className={cn(
@@ -141,7 +141,7 @@ function ReferenceRow({
 
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleContent>
-          <blockquote className="mb-2 ml-6 border-l-2 border-citation/40 pl-3 font-serif text-xs leading-relaxed text-muted-foreground">
+          <blockquote className="mb-2 ml-6 border-l-2 border-evidence pl-3 font-serif text-xs leading-relaxed text-muted-foreground">
             {reference.excerpt}
           </blockquote>
         </CollapsibleContent>

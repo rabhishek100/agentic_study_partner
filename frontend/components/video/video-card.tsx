@@ -143,7 +143,7 @@ function Confirm({
   onCancel(): void;
 }) {
   return (
-    <div className="mt-3 space-y-1.5 rounded-md border border-destructive/40 p-2.5">
+    <div className="mt-3 space-y-1.5 rounded-md border border-destructive p-2.5">
       <p className="text-xs">
         Remove “{video.title}”? Its stored video file, transcript, frames, and
         conversations go with it, and this cannot be undone.
@@ -185,7 +185,7 @@ function StateLine({ video }: { video: VideoSummary }) {
 
   if (state === "awaiting_upload") {
     return (
-      <div className="mt-3 flex items-start gap-2 rounded-md bg-muted/50 px-2.5 py-2 text-xs">
+      <div className="mt-3 flex items-start gap-2 rounded-md bg-surface px-2.5 py-2 text-xs">
         <Upload aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         <span>
           The upload never finished, so nothing has been processed. Open the
@@ -206,7 +206,7 @@ function StateLine({ video }: { video: VideoSummary }) {
 
   if (state === "failed") {
     return (
-      <div className="mt-3 flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-xs">
+      <div className="mt-3 flex items-start gap-2 rounded-md bg-destructive-wash px-2.5 py-2 text-xs">
         <AlertCircle
           aria-hidden
           className="mt-0.5 size-3.5 shrink-0 text-destructive"
@@ -220,7 +220,7 @@ function StateLine({ video }: { video: VideoSummary }) {
 
   if (state === "partial") {
     return (
-      <div className="mt-3 flex items-start gap-2 rounded-md bg-muted/50 px-2.5 py-2">
+      <div className="mt-3 flex items-start gap-2 rounded-md bg-surface px-2.5 py-2">
         <Info
           aria-hidden
           className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
@@ -287,7 +287,7 @@ export function VideoCard({ video, onRetry, onDelete, now }: VideoCardProps) {
       <li
         className={cn(
           "rounded-lg border p-4",
-          confirming ? "border-destructive/40" : "border-border",
+          confirming ? "border-destructive" : "border-border",
         )}
       >
         {inner}
@@ -314,7 +314,7 @@ export function VideoCard({ video, onRetry, onDelete, now }: VideoCardProps) {
         href={`/videos/${video.video_id}`}
         className={cn(
           "block rounded-lg border border-border p-4 transition-colors",
-          "hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         )}
       >
         {inner}

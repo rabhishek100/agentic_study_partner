@@ -210,7 +210,7 @@ export function PromptSettings({
                   readOnly
                   rows={10}
                   value={settings.locked_system_prompt}
-                  className="max-h-64 bg-muted/40 font-mono text-xs"
+                  className="max-h-64 bg-surface font-mono text-xs"
                 />
               </section>
 
@@ -282,7 +282,7 @@ export function PromptSettings({
                   readOnly
                   rows={12}
                   value={preview?.preview_system_prompt ?? ""}
-                  className="max-h-72 bg-muted/40 font-mono text-xs"
+                  className="max-h-72 bg-surface font-mono text-xs"
                 />
                 <Label htmlFor="compiled-user">User message</Label>
                 <Textarea
@@ -290,7 +290,7 @@ export function PromptSettings({
                   readOnly
                   rows={8}
                   value={preview?.preview_user_prompt ?? ""}
-                  className="max-h-56 bg-muted/40 font-mono text-xs"
+                  className="max-h-56 bg-surface font-mono text-xs"
                 />
               </section>
             </>

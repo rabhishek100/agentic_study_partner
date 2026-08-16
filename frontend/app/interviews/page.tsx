@@ -293,7 +293,7 @@ export default function InterviewsPage() {
               <Link
                 key={item.session_id}
                 href={`/interviews/${item.session_id}`}
-                className="block rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="line-clamp-2 text-sm font-medium">{item.title.replace("Interview · ", "")}</p>
@@ -339,7 +339,7 @@ export default function InterviewsPage() {
 
                 <fieldset className="space-y-3"><legend className="text-sm font-medium">Maximum time</legend><div className="grid grid-cols-3 gap-2 sm:grid-cols-6">{INTERVIEW_DURATIONS.map((value) => <button key={value} type="button" onClick={() => setDuration(value)} aria-pressed={duration === value} className={cn("rounded-md border px-2 py-2 text-sm transition-colors", duration === value ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-accent")}>{value < 60 ? value : value === 60 ? "1h" : value === 90 ? "1.5h" : "2h"}</button>)}</div><p className="text-xs text-muted-foreground">A ceiling, not a quota. The session ends when meaningful coverage is complete.</p></fieldset>
 
-                <fieldset className="space-y-3"><legend className="text-sm font-medium">Target level</legend><div className="grid gap-2 sm:grid-cols-3">{LEVELS.map((item) => <button key={item.value} type="button" onClick={() => setLevel(item.value)} aria-pressed={level === item.value} className={cn("rounded-lg border p-3 text-left transition-colors", level === item.value ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50")}><span className="block text-sm font-medium">{item.label}</span><span className="mt-1 block text-xs text-muted-foreground">{item.note}</span></button>)}</div></fieldset>
+                <fieldset className="space-y-3"><legend className="text-sm font-medium">Target level</legend><div className="grid gap-2 sm:grid-cols-3">{LEVELS.map((item) => <button key={item.value} type="button" onClick={() => setLevel(item.value)} aria-pressed={level === item.value} className={cn("rounded-lg border p-3 text-left transition-colors", level === item.value ? "border-primary bg-wash" : "border-border hover:bg-surface-hover")}><span className="block text-sm font-medium">{item.label}</span><span className="mt-1 block text-xs text-muted-foreground">{item.note}</span></button>)}</div></fieldset>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5"><Label htmlFor="feedback-mode">Feedback</Label><Select value={mode} onValueChange={(value) => setMode(value as InterviewMode)}><SelectTrigger id="feedback-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="realistic">Realistic · report at end</SelectItem><SelectItem value="guided">Guided · coach each turn</SelectItem></SelectContent></Select></div>
@@ -402,7 +402,7 @@ export default function InterviewsPage() {
                   </Alert>
                 ) : null}
                 {operation !== "idle" ? (
-                  <div className="rounded-lg border border-primary/25 bg-primary/[0.035] p-3" role="status" aria-live="polite" aria-atomic="true">
+                  <div className="rounded-lg border border-action bg-primary/[0.035] p-3" role="status" aria-live="polite" aria-atomic="true">
                     <div className="flex items-start gap-2.5">
                       <Loader2 aria-hidden className="mt-0.5 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
                       <div>

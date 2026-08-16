@@ -112,7 +112,7 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
   const extracted = deck.generation_mode === "book_extracted";
 
   return (
-    <li className="group border-b border-border px-3 py-3 last:border-b-0 hover:bg-accent/25 focus-within:bg-accent/25 sm:grid sm:grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5rem_7.75rem_5.5rem_4.5rem] sm:items-center sm:gap-3 sm:px-4">
+    <li className="group border-b border-border px-3 py-3 last:border-b-0 hover:bg-surface-hover focus-within:bg-surface-hover sm:grid sm:grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5rem_7.75rem_5.5rem_4.5rem] sm:items-center sm:gap-3 sm:px-4">
       <div className="min-w-0">
         <Link
           href={`/decks/${deck.deck_id}`}
@@ -169,7 +169,7 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
         {deck.new_count > 0 ? <Badge variant="secondary">{deck.new_count} new</Badge> : null}
       </div>
       {deck.metrics.notice ? (
-        <p className="col-span-full mt-2 pl-6 text-xs font-medium text-amber-600 dark:text-amber-400">
+        <p className="col-span-full mt-2 pl-6 text-xs font-medium text-warning dark:text-warning">
           {deck.metrics.notice}
         </p>
       ) : null}
@@ -188,7 +188,7 @@ function StageIcon({ state }: { state: "done" | "active" | "pending" }) {
   if (state === "active") {
     return <LoaderCircle aria-hidden className="size-5 animate-spin text-primary" />;
   }
-  return <Circle aria-hidden className="size-5 text-muted-foreground/70" />;
+  return <Circle aria-hidden className="size-5 text-muted-foreground" />;
 }
 
 /** One live or failed generation, with the same observable detail as ingestion. */
@@ -231,8 +231,8 @@ export function DeckJobRow({
   return (
     <li
       className={cn(
-        "rounded-lg border bg-card/35 p-4",
-        failed && "border-destructive/45 bg-destructive/5",
+        "rounded-lg border bg-surface p-4",
+        failed && "border-destructive bg-destructive-wash",
       )}
       aria-live={live ? "polite" : undefined}
     >
@@ -285,7 +285,7 @@ export function DeckJobRow({
                   <summary className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     Technical details
                   </summary>
-                  <div className="mt-2 rounded-md bg-muted/70 p-3 text-xs leading-5 text-muted-foreground">
+                  <div className="mt-2 rounded-md bg-surface p-3 text-xs leading-5 text-muted-foreground">
                     <p>Reference: {failure.reference}</p>
                     <p>Code: {job.error_code || "generation_stopped"}</p>
                     {job.error_detail ? (

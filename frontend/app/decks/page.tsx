@@ -79,7 +79,7 @@ function DeckGroup({
       <div className="overflow-hidden rounded-lg border border-border">
         <div
           aria-hidden
-          className="hidden grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5rem_7.75rem_5.5rem_4.5rem] gap-3 border-b border-border bg-muted/20 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid"
+          className="hidden grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5rem_7.75rem_5.5rem_4.5rem] gap-3 border-b border-border bg-surface px-4 py-2 text-xs font-medium text-muted-foreground sm:grid"
         >
           <span>Deck</span>
           <span>Source</span>
@@ -378,7 +378,7 @@ export default function DecksPage() {
               <div className="min-w-0 space-y-5">
                 <section
                   aria-labelledby="today-heading"
-                  className="grid gap-5 rounded-lg border border-border bg-card/30 p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
+                  className="grid gap-5 rounded-lg border border-border bg-surface p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
                 >
               <div className="sm:border-r sm:border-border sm:pr-5">
                 <h2 id="today-heading" className="text-base font-medium">
@@ -498,7 +498,7 @@ export default function DecksPage() {
 
               <aside
                 aria-labelledby="generation-activity-heading"
-                className="rounded-lg border border-border bg-card/20 p-4 xl:sticky xl:top-6"
+                className="rounded-lg border border-border bg-surface p-4 xl:sticky xl:top-6"
               >
                 <div className="mb-4">
                   <h2 id="generation-activity-heading" className="text-lg font-medium">

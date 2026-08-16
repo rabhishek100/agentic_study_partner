@@ -100,7 +100,13 @@ function scan() {
     for (const file of files) {
       const rel = relative(ROOT, file);
       const text = readFileSync(file, "utf8");
-      text.split("\n").forEach((line, i) => {
+      const lines = text.split("\n");
+      lines.forEach((line, i) => {
+        // A few places genuinely cannot use a role — a PWA theme-colour is read
+        // by the browser chrome, which has no stylesheet. Those opt out one line
+        // at a time, with the reason written next to them, rather than being
+        // buried in the baseline where they look like debt.
+        if (/design-tokens-ignore-next-line/.test(lines[i - 1] ?? "")) return;
         for (const rule of RULES) {
           rule.re.lastIndex = 0;
           for (const m of line.matchAll(rule.re)) {
@@ -122,7 +128,11 @@ function scan() {
           });
         }
         for (const m of line.matchAll(RADIUS_RE)) {
-          if (!RADIUS_OK.has(m[1])) {
+          // `em`-relative radii scale with their text — that is how a citation
+          // marker stays proportional inside resizable prose — and `inherit`
+          // takes whatever the parent is already on. Both are the scale working.
+          const proportional = /^\[(.*em|inherit)\]$/.test(m[1]);
+          if (!RADIUS_OK.has(m[1]) && !proportional) {
             found.push({
               file: rel, line: i + 1, rule: "off-scale-radius", match: m[0],
               why: "not on the radius scale (6/8/10/14/full)",

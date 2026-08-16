@@ -78,7 +78,7 @@ export function ResumeUpload({
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3">
+    <div className="space-y-2 rounded-md border border-border bg-surface p-3">
       <div className="space-y-1.5">
         <Label htmlFor="resume-upload">
           Finish this upload

@@ -96,7 +96,7 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
       <ul className="space-y-1 text-sm">
         {items.map((item, index) => (
           <li key={index} className="flex gap-2">
-            <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-muted-foreground/60" />
+            <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-divider" />
             <span>{plain(item)}</span>
           </li>
         ))}
@@ -131,7 +131,7 @@ function SayItAloud({
     );
   }
   return (
-    <p className="rounded-lg border-l-2 border-primary bg-accent/40 px-3 py-2 font-serif text-base leading-snug">
+    <p className="rounded-lg border-l-2 border-primary bg-surface-hover px-3 py-2 font-serif text-base leading-snug">
       {plain(text)}
     </p>
   );
@@ -174,7 +174,7 @@ export function CardFront({
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   selected === option.label
                     ? "border-primary bg-accent"
-                    : "border-border hover:bg-accent/50",
+                    : "border-border hover:bg-surface-hover",
                 )}
               >
                 <span className="font-mono text-xs text-muted-foreground">
@@ -250,9 +250,9 @@ export function CardBackFace({
               className={cn(
                 "rounded-lg border px-3 py-2.5 text-sm",
                 option.correct
-                  ? "border-emerald-600/60 bg-emerald-500/10"
+                  ? "border-positive bg-wash"
                   : selected === option.label
-                    ? "border-destructive/60 bg-destructive/10"
+                    ? "border-destructive bg-destructive-wash"
                     : "border-border opacity-70",
               )}
             >
@@ -345,7 +345,7 @@ export function CardBackFace({
       ) : null}
 
       {card.interview_angle ? (
-        <div className="rounded-lg border border-dashed border-border bg-muted/40 p-3">
+        <div className="rounded-lg border border-dashed border-border bg-surface p-3">
           <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Sparkles aria-hidden className="size-3.5" />
             Interview angle
@@ -402,11 +402,11 @@ export function CardMeta({ card }: { card: DeckCard }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {card.answer_source === "printed_in_book" ? (
-        <Badge variant="default" className="bg-emerald-600/90 text-white font-normal hover:bg-emerald-600">
+        <Badge variant="default" className="bg-wash text-white font-normal hover:bg-positive">
           Original Book Answer
         </Badge>
       ) : card.answer_source === "rag_generated" ? (
-        <Badge variant="secondary" className="font-normal border border-primary/20">
+        <Badge variant="secondary" className="font-normal border border-action">
           Grounded RAG Answer
         </Badge>
       ) : null}

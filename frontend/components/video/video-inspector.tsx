@@ -75,7 +75,7 @@ export function VideoInspector({ result }: { result: VideoTurnResult }) {
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        <dl className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-1">
+        <dl className="mt-2 rounded-lg border border-border bg-surface px-3 py-1">
           <Row term="Route">{ROUTE_LABELS[result.route] ?? result.route}</Row>
           <Row term="Question type">
             {DEPENDENCY_LABELS[result.history_dependency]}

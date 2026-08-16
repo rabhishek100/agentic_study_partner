@@ -227,7 +227,7 @@ export function DeckOverview({
         </div>
 
         <Collapsible open={coverageOpen} onOpenChange={setCoverageOpen}>
-          <div className="border-t border-border/70 px-4 sm:px-6 lg:px-8">
+          <div className="border-t border-divider px-4 sm:px-6 lg:px-8">
             <div className="flex min-h-12 items-center gap-2 text-sm text-muted-foreground">
               <BookOpen aria-hidden className="size-4 shrink-0" />
               <span className="truncate">
@@ -253,7 +253,7 @@ export function DeckOverview({
               </CollapsibleTrigger>
             </div>
             <CollapsibleContent className="pb-4">
-              <div className="grid gap-3 rounded-lg border border-border bg-card/60 p-4 text-sm sm:grid-cols-3">
+              <div className="grid gap-3 rounded-lg border border-border bg-surface p-4 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
                     {sourceQuestions ? "Questions found" : "Topics required"}
@@ -347,8 +347,8 @@ export function DeckOverview({
                           "group relative grid min-h-14 w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-r-lg py-3 pl-3 pr-2 text-left text-sm transition-colors",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                           active
-                            ? "bg-primary/10 text-foreground before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
-                            : "hover:bg-accent/60",
+                            ? "bg-wash text-foreground before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
+                            : "hover:bg-surface-hover",
                         )}
                       >
                         <span className="self-start pt-0.5 font-medium tabular-nums">
