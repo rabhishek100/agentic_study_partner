@@ -8,6 +8,7 @@ import { AuthGate } from "@/components/auth-gate";
 import { CardsSettings } from "@/components/decks/cards-settings";
 import { DeckJobRow, DeckRow } from "@/components/decks/deck-row";
 import { GenerateDeck } from "@/components/decks/generate-deck";
+import { GenerationActivity } from "@/components/decks/generation-activity";
 import { ReviewSession } from "@/components/decks/review-session";
 import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
@@ -259,6 +260,28 @@ export default function DecksPage() {
     <AppShell
       nav={<SectionNav active="decks" />}
       railMode="drawer-only"
+      /*
+        Absent until there is work, rather than a permanent column explaining
+        that it has nothing to report.
+      */
+      regions={[
+        {
+          key: "activity",
+          label: "Deck generation activity",
+          fixedWidth: 340,
+          node: (
+            <GenerationActivity
+              working={working}
+              recentlyFailed={recentlyFailed}
+              onCancel={(job) => void cancelJob(job)}
+              onRetry={(job) => void retryJob(job)}
+            />
+          ),
+        },
+      ]}
+      activeRegion={
+        working.length > 0 || recentlyFailed.length > 0 ? "activity" : null
+      }
       rail={
         <div className="space-y-6 p-4">
           <SectionNav active="decks" />
@@ -374,7 +397,7 @@ export default function DecksPage() {
               </Alert>
             ) : null}
 
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.85fr)_minmax(24rem,1fr)]">
+            <div className="grid items-start gap-6">
               <div className="min-w-0 space-y-6">
                 <section
                   aria-labelledby="today-heading"
@@ -496,45 +519,6 @@ export default function DecksPage() {
                 </section>
               </div>
 
-              <aside
-                aria-labelledby="generation-activity-heading"
-                className="rounded-lg border border-border bg-surface p-4 xl:sticky xl:top-6"
-              >
-                <div className="mb-4">
-                  <h2 id="generation-activity-heading" className="text-lg font-medium">
-                    Generation activity
-                  </h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Track book extraction and AI generation without keeping this page open.
-                  </p>
-                </div>
-                {working.length > 0 || recentlyFailed.length > 0 ? (
-                  <ul className="space-y-3">
-                    {working.map((job) => (
-                      <DeckJobRow
-                        key={job.job_id}
-                        job={job}
-                        onCancel={(active) => void cancelJob(active)}
-                      />
-                    ))}
-                    {recentlyFailed.map((job) => (
-                      <DeckJobRow
-                        key={job.job_id}
-                        job={job}
-                        onRetry={(failed) => void retryJob(failed)}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-border px-6 py-8 text-center">
-                    <Sparkles aria-hidden className="mx-auto mb-2 size-5 text-primary" />
-                    <p className="text-sm font-medium">No generation in progress</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Start a deck and its percentage, current step, and time estimate will appear here.
-                    </p>
-                  </div>
-                )}
-              </aside>
             </div>
           </div>
         )}
