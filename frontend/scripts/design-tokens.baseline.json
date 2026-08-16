@@ -192,7 +192,6 @@
   "components/pdf/pdf-viewer.tsx:derived-colour:bg-muted/50": 1,
   "components/pdf/pdf-viewer.tsx:derived-colour:border-border/60": 1,
   "components/pdf/pdf-viewer.tsx:off-scale-spacing:px-1.5": 1,
-  "components/pdf/pdf-viewer.tsx:off-scale-spacing:py-0.5": 2,
   "components/pdf/pdf-viewer.tsx:off-scale-spacing:py-1.5": 2,
   "components/section-nav.tsx:off-scale-spacing:gap-1.5": 1,
   "components/section-nav.tsx:off-scale-spacing:px-2.5": 1,

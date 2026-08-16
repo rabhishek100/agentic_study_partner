@@ -362,16 +362,20 @@ export function PdfViewer({
           >
             <ChevronRight aria-hidden />
           </Button>
+          {/*
+            A hint, not a control. These sat immediately beside the real page
+            buttons wearing the same border and the same size, so they read as
+            two more buttons and got clicked — reasonably, since nothing said
+            otherwise. They now say what they are, take no pointer events, and
+            carry no button-like edge.
+          */}
           <span
-            className="ml-1 hidden items-center gap-1 text-xs text-muted-foreground xl:flex"
-            title="Previous and next page keyboard shortcuts"
+            aria-hidden
+            className="ml-2 hidden select-none items-center gap-1 text-xs text-muted-foreground pointer-events-none xl:flex"
           >
-            <kbd className="rounded border border-border px-1 py-0.5 font-sans">
-              ←
-            </kbd>
-            <kbd className="rounded border border-border px-1 py-0.5 font-sans">
-              →
-            </kbd>
+            <kbd className="rounded-sm bg-surface-hover px-1 font-sans">←</kbd>
+            <kbd className="rounded-sm bg-surface-hover px-1 font-sans">→</kbd>
+            <span>to turn pages</span>
           </span>
         </div>
 
