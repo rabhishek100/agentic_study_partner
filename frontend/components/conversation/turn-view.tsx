@@ -2,6 +2,7 @@
 
 import {
   AlertCircle,
+  BookOpen,
   Check,
   Copy,
   MessageSquarePlus,
@@ -74,6 +75,10 @@ export interface TurnViewProps {
    * server recorded, since an anchor names a stored turn index.
    */
   onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
+  /** Points the right region at this turn's sources. */
+  onShowSources?: () => void;
+  /** Whether the region is currently showing this turn. */
+  sourcesShown?: boolean;
 }
 
 export function TurnView({
@@ -83,6 +88,8 @@ export function TurnView({
   onRetry,
   onOpenReference,
   onAskOnTheSide,
+  onShowSources,
+  sourcesShown,
 }: TurnViewProps) {
   const showThinking = turn.status === "streaming" && !turn.answer;
   const result = turn.result;
@@ -137,13 +144,39 @@ export function TurnView({
           />
         )}
 
+        {/*
+          The sources themselves live in the right region, not under the answer.
+          That is the whole composition: the page is asymmetric because grounding
+          fills the space beside the prose. What stays here is the way back to
+          them — which turn's evidence the region is showing is only meaningful
+          per answer, so each answer can claim it.
+        */}
         {result && (result.evidence.length > 0 || (result.web_sources && result.web_sources.length > 0)) && (
-          <References
-            evidence={result.evidence}
-            citations={result.citations}
-            webSources={result.web_sources}
-            onOpenReference={onOpenReference}
-          />
+          onShowSources ? (
+            <div>
+              <Button
+                variant="ghost"
+                size="xs"
+                aria-pressed={sourcesShown}
+                onClick={onShowSources}
+              >
+                <BookOpen aria-hidden />
+                {result.evidence.length > 0
+                  ? `${result.evidence.length} ${result.evidence.length === 1 ? "source" : "sources"}`
+                  : "Sources"}
+                {sourcesShown ? (
+                  <span className="text-muted-foreground">shown</span>
+                ) : null}
+              </Button>
+            </div>
+          ) : (
+            <References
+              evidence={result.evidence}
+              citations={result.citations}
+              webSources={result.web_sources}
+              onOpenReference={onOpenReference}
+            />
+          )
         )}
 
         {turn.status === "stopped" && (

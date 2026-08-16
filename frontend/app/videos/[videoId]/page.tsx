@@ -424,26 +424,32 @@ export default function VideoWorkspace() {
         ) : null
       }
       /*
-        Passed for as long as a document exists, not only while it is showing.
-        Minimizing hides it; unmounting it here used to throw away the rendered
-        pages and the reader's place in them, and fetch every page again on the
-        way back.
+        A lecture has no evidence region of its own — its sources are the
+        transcript and frames, which live in the canvas. The right region carries
+        the linked document only.
       */
-      aside={
-        reading ? (
-          <PdfViewer
-            target={reading}
-            page={pdfPage}
-            onPageChange={setPdfPage}
-            zoom={pdfZoom}
-            onZoomChange={setPdfZoom}
-            onMinimize={() => setReadingMinimized(true)}
-            onClose={closeDocument}
-          />
-        ) : null
+      regions={
+        reading
+          ? [
+              {
+                key: "document",
+                label: `${reading.title}, source document`,
+                node: (
+                  <PdfViewer
+                    target={reading}
+                    page={pdfPage}
+                    onPageChange={setPdfPage}
+                    zoom={pdfZoom}
+                    onZoomChange={setPdfZoom}
+                    onMinimize={() => setReadingMinimized(true)}
+                    onClose={closeDocument}
+                  />
+                ),
+              },
+            ]
+          : []
       }
-      asideHidden={readingMinimized}
-      asideLabel={reading ? `${reading.title}, source document` : undefined}
+      activeRegion={documentOpen ? "document" : null}
       account={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -34,6 +34,10 @@ function liveStatus(turns: ChatTurn[]): string {
 
 export interface ConversationViewProps {
   turns: ChatTurn[];
+  /** Points the right region at one turn's sources. */
+  onShowSources?: (turnIndex: number) => void;
+  /** Which turn the region is currently showing, if any. */
+  shownSourcesTurn?: number | null;
   isStreaming: boolean;
   hasBooks: boolean;
   selectedBookIds?: number[];
@@ -53,6 +57,8 @@ export interface ConversationViewProps {
 
 export function ConversationView({
   turns,
+  onShowSources,
+  shownSourcesTurn,
   isStreaming,
   hasBooks,
   selectedBookIds = [],
@@ -112,6 +118,14 @@ export function ConversationView({
                 canRetry={hasBooks && !isStreaming}
                 onRetry={onRetry}
                 onOpenReference={onOpenReference}
+                onShowSources={
+                  onShowSources && turn.turnIndex != null
+                    ? () => onShowSources(turn.turnIndex!)
+                    : undefined
+                }
+                sourcesShown={
+                  turn.turnIndex != null && turn.turnIndex === shownSourcesTurn
+                }
                 onAskOnTheSide={onAskOnTheSide}
               />
             ))

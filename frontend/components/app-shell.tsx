@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { HEADER_INSET } from "@/lib/floating-window";
-import { SplitPane } from "@/components/pdf/split-pane";
+import { SplitPane, type RightRegionMode } from "@/components/pdf/split-pane";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,15 +34,13 @@ export interface AppShellProps {
   sideChatControl?: React.ReactNode;
   children: React.ReactNode;
   /**
-   * The right region's content, docked beside the conversation. Pass it for as
-   * long as it exists — closing it is `asideHidden`, not `null`. Unmounting is
-   * what loses a document's scroll position and re-fetches its pages.
+   * The right region's modes. Every one provided stays mounted; `activeRegion`
+   * decides which is shown. Unmounting is what loses a document's rendered pages
+   * and its scroll position, so closing is never `null` here.
    */
-  aside?: React.ReactNode;
-  /** Closed but not discarded. */
-  asideHidden?: boolean;
-  /** Names the region for its current mode. */
-  asideLabel?: string;
+  regions?: RightRegionMode[];
+  /** The mode currently shown. `null` is `none` — margin, not a collapsed panel. */
+  activeRegion?: string | null;
   /** Floating side-chat windows, positioned against the viewport. */
   overlay?: React.ReactNode;
 }
@@ -80,9 +78,8 @@ export function AppShell({
   documentControl,
   sideChatControl,
   children,
-  aside,
-  asideHidden = false,
-  asideLabel,
+  regions,
+  activeRegion = null,
   overlay,
 }: AppShellProps) {
   const [railOpen, setRailOpen] = useState(false);
@@ -195,11 +192,7 @@ export function AppShell({
             {rail}
           </aside>
         ) : null}
-        <SplitPane
-          aside={aside ?? null}
-          asideHidden={asideHidden}
-          asideLabel={asideLabel}
-        >
+        <SplitPane regions={regions} active={activeRegion}>
           <main className="flex min-w-0 flex-1 flex-col">{children}</main>
         </SplitPane>
       </div>

@@ -12,7 +12,12 @@ function shell(aside?: React.ReactNode, documentControl?: React.ReactNode) {
       status="Ready"
       account={<button type="button">Account</button>}
       documentControl={documentControl}
-      aside={aside}
+      regions={
+        aside
+          ? [{ key: "document", label: "Source document", node: aside }]
+          : []
+      }
+      activeRegion={aside ? "document" : null}
     >
       <div>Conversation</div>
     </AppShell>,
@@ -90,14 +95,16 @@ describe("AppShell", () => {
     );
   });
 
-  it("hides a minimized document without unmounting it", () => {
+  it("keeps an inactive region mounted rather than discarding it", () => {
     render(
       <AppShell
         rail={<div>Library rail</div>}
         status="Ready"
         account={<button type="button">Account</button>}
-        aside={<div>Document viewer</div>}
-        asideHidden
+        regions={[
+          { key: "document", label: "Source document", node: <div>Document viewer</div> },
+        ]}
+        activeRegion={null}
       >
         <div>Conversation</div>
       </AppShell>,
