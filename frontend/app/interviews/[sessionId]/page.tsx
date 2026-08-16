@@ -215,7 +215,7 @@ function InterviewExchange({
   return (
     <div className="space-y-3">
       <div className="max-w-[88%] rounded-2xl rounded-tl-sm border bg-card p-4">
-        <p className="text-xs font-medium text-primary">Interviewer</p>
+        <p className="text-xs font-medium text-muted-foreground">Interviewer</p>
         <p className="mt-2 text-sm leading-6">{turn.question.text}</p>
       </div>
       <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-wash px-4 py-3 text-foreground">

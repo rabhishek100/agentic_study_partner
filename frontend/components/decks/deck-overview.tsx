@@ -414,7 +414,7 @@ export function DeckOverview({
                 <span>{CARD_TYPE_LABELS[selected.card.card_type]}</span>
               </div>
 
-              <p className="mb-6 text-sm font-medium text-primary">
+              <p className="mb-6 text-sm font-medium text-muted-foreground">
                 {sourceQuestions ? "Exercise" : "Question"} {selected.card.card_index + 1}
               </p>
               <h2 className="whitespace-pre-wrap font-serif text-xl font-normal leading-[1.5] sm:text-lg">
@@ -424,12 +424,12 @@ export function DeckOverview({
               <section className="mt-8 border-y border-border py-6" aria-labelledby="answer-preview-heading">
                 <h3
                   id="answer-preview-heading"
-                  className="flex items-center gap-2 font-serif text-base font-medium text-primary"
+                  className="flex items-center gap-2 font-serif text-base font-medium text-evidence"
                 >
                   <Timer aria-hidden className="size-5" />
                   30-second answer <span className="font-normal">(preview)</span>
                 </h3>
-                <p className="mt-3 border-l-2 border-primary py-1 pl-4 font-serif text-base leading-relaxed sm:text-base">
+                <p className="mt-3 border-l-2 border-evidence py-1 pl-4 font-serif text-base leading-relaxed sm:text-base">
                   {plain(
                     selected.card.back.say_it_aloud || selected.card.back.answer,
                   )}
