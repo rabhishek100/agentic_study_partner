@@ -328,9 +328,21 @@ is simpler than it is.
 | `medium` | `48–64em` | Rail collapses to icons. Right region becomes an overlay drawer. |
 | `wide` | `≥ 64em` | Full frame. |
 
-`em` rather than device widths, so a reader at 200% zoom gets the compact
-layout. `FLOATING_MIN_VIEWPORT_WIDTH = 1024` is a raw-pixel breakpoint and must
-be reconciled with `64em` in stage 4.
+`em` rather than device widths, so the layout follows the reader rather than the
+device. Which unit is doing that work matters, and the distinction is easy to
+get wrong: in a media query `em` and `rem` both resolve against the browser's
+**default** font size — the reader's own setting — and ignore anything the page
+sets on `html`. So these breakpoints answer "has this reader made text bigger?",
+which is the question worth asking, and they do *not* move when a stylesheet
+changes the root size.
+
+The floating side-chat layer switches on the same `64em` boundary, so the frame
+and the side chats recompose together rather than one at a time. It was a raw
+`1024px` until it was reconciled: a reader running their browser at 24px text
+got floating windows on a viewport with no room to drag them, because a pixel
+query cannot see the setting that caused the problem. `FLOATING_MIN_VIEWPORT_EM`
+is the boundary; the pixel form is derived from it for geometry and tests, so
+the two cannot drift.
 
 ## Accessibility contract
 

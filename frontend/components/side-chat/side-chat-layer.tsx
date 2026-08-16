@@ -7,7 +7,7 @@ import { SideChatWindow } from "@/components/side-chat/side-chat-window";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
-import { FLOATING_MIN_VIEWPORT_WIDTH } from "@/lib/floating-window";
+import { FLOATING_MEDIA_QUERY } from "@/lib/floating-window";
 import type { SideChatSurface, SideChatTurn } from "@/lib/side-chat";
 import type { QuoteAnchor } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
@@ -27,9 +27,7 @@ export function useFloatingCapable(): boolean {
   const [capable, setCapable] = useState(true);
 
   useEffect(() => {
-    const query = window.matchMedia(
-      `(min-width: ${FLOATING_MIN_VIEWPORT_WIDTH}px)`,
-    );
+    const query = window.matchMedia(FLOATING_MEDIA_QUERY);
     const update = () => setCapable(query.matches);
     update();
     query.addEventListener("change", update);

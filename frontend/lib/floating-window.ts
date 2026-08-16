@@ -67,8 +67,26 @@ function insetOf(viewport: Viewport): number {
   return viewport.inset ?? HEADER_INSET;
 }
 
-/** Below this width the floating layer is replaced by a docked sheet. */
-export const FLOATING_MIN_VIEWPORT_WIDTH = 1024;
+/**
+ * Below this width the floating layer is replaced by a docked sheet.
+ *
+ * Expressed in `em`, not pixels, and it matters which. In a media query `em`
+ * resolves against the browser's *default* font size — the reader's own setting
+ * — rather than anything the page does to `html`. So a reader who runs their
+ * browser at 24px gets the docked sheet at a viewport where a pixel breakpoint
+ * would still have insisted on floating windows, on a screen that no longer has
+ * room to move and resize them.
+ *
+ * 64em is the same boundary as the layout's `wide` breakpoint, so the frame and
+ * the side chats change together rather than one at a time.
+ */
+export const FLOATING_MIN_VIEWPORT_EM = 64;
+
+/** The same boundary in pixels at a default 16px root, for geometry and tests. */
+export const FLOATING_MIN_VIEWPORT_WIDTH = FLOATING_MIN_VIEWPORT_EM * 16;
+
+/** The media query the floating layer switches on. */
+export const FLOATING_MEDIA_QUERY = `(min-width: ${FLOATING_MIN_VIEWPORT_EM}em)`;
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
