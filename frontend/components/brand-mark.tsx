@@ -1,29 +1,28 @@
 import { cn } from "@/lib/utils";
 
 /**
- * The Mugensei mark: an open book, one continuous path rising out of the gutter
- * and leaving the frame, three nodes that grow as they rise, and the vermilion
- * seal.
+ * The Mugensei mark: three pieces of evidence converging into one understanding.
  *
- * The concept is the brief's; the geometry is drawn rather than traced. A few
- * things in it are load-bearing:
+ * Scattered squares on the left are discrete and unconnected. Three lines carry
+ * them right, meeting at exactly 45 degrees on a single filled square — the
+ * point where separate evidence becomes connected understanding, which is the
+ * brand's promise stated as geometry rather than illustrated.
  *
- * - The book is two *filled* planes, not stroked outlines. An outlined open book
- *   is indistinguishable from the Lucide book in the interface icon family, and
- *   a mark that reads as the eleventh icon is not a mark.
- * - The path ends on the top edge at y=0, where its cap is clipped. That is what
- *   makes "no terminus" true rather than asserted — a rounded cap short of the
- *   edge reads as a finial.
- * - The nodes carry no outline. Ringing them in the ground colour made them punch
- *   out of the ribbon, but it also cut the ribbon: the continuous path rendered
- *   as disconnected chunks with dots floating between them.
- * - One geometry at every size, so the mark is the same mark in the masthead and
- *   on the sign-in screen.
+ * Things in it that are load-bearing:
  *
- * The path uses jade, which is otherwise a semantic colour. That is the single
- * documented exception in the system: the mark is identity, not state.
+ * - The lines converge directly on the terminal square rather than merging into
+ *   a shared trunk first. A trunk reads as a bracket or a merge icon; converging
+ *   lines read as gathering.
+ * - Three sources, not five or eight. Five tributaries arriving at an 8-unit
+ *   square land about a pixel apart at 24px and blur into one blob.
+ * - The terminal square is the vermilion seal. The brief keeps vermilion as a
+ *   rare signature, and one small square at the point of resolution is exactly
+ *   that — it also gives the composition its single focal point.
+ * - One geometry at every size. The mark is the same mark in the masthead and on
+ *   the sign-in screen.
  *
- * See docs/mugensei-design-system.md.
+ * The jade is the one documented exception to "jade carries meaning": the mark
+ * is identity, not state. See docs/mugensei-design-system.md.
  */
 export function BrandMark({
   className,
@@ -37,19 +36,6 @@ export function BrandMark({
 }) {
   const px = size === "sm" ? 24 : 40;
 
-  /*
-   * One geometry at every size. There were briefly two — a full mark and a
-   * simplified one for 24px — and two different marks in one product reads as a
-   * bug rather than as an optical adjustment.
-   *
-   * What made the small size fail was never the nodes. Each node carried a
-   * ground-coloured ring so it would punch out of the ribbon, and those rings
-   * severed the ribbon: "one continuous path" rendered as disconnected chunks
-   * with dots floating between them, at every size. Without them the path stays
-   * whole and the nodes read as swellings on it, which survives down to 24px —
-   * the individual dots stop resolving there, but the path does not break, and a
-   * continuous mark at small size is what matters.
-   */
   return (
     <svg
       aria-hidden
@@ -59,29 +45,32 @@ export function BrandMark({
       viewBox="0 0 40 40"
       className={cn("shrink-0", className)}
     >
-      <g fill="var(--foreground)">
-        <path d="M18.7 28.4C15.6 26.1 11 25.1 6 25.5v7.8c5-.4 9.6.6 12.7 3Z" />
-        <path d="M20.1 28.4c3.1-2.3 7.7-3.3 12.7-2.9v7.8c-5-.4-9.6.6-12.7 3Z" />
+      {/* Optically centred: the content spans 2.8–35 before this nudge. */}
+      <g transform="translate(1 0)">
+        <g
+          fill="none"
+          stroke={monochrome ? "var(--foreground)" : "var(--action)"}
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M7.4 7.7H14.7L27 20" />
+          <path d="M6.2 20H27" />
+          <path d="M7.4 32.3H14.7L27 20" />
+        </g>
+        <g fill="var(--foreground)">
+          <rect x="4" y="6" width="3.4" height="3.4" />
+          <rect x="2.8" y="18.3" width="3.4" height="3.4" />
+          <rect x="4" y="30.6" width="3.4" height="3.4" />
+        </g>
+        <rect
+          x="27"
+          y="16"
+          width="8"
+          height="8"
+          fill={monochrome ? "var(--foreground)" : "var(--seal)"}
+        />
       </g>
-      <path
-        d="M19.4 27.6C20.2 22.8 26.8 21.8 26.6 16.6 26.4 10.8 14 11.6 14.8 5.8 15.2 3 16.8 1.4 18 0"
-        fill="none"
-        stroke={monochrome ? "var(--foreground)" : "var(--action)"}
-        strokeWidth={2}
-        strokeLinecap="round"
-      />
-      <g fill="var(--foreground)">
-        <circle cx="23.4" cy="22.3" r={2.4} />
-        <circle cx="20.3" cy="11.2" r={2.4} />
-        <circle cx="15.3" cy="3.9" r={2.4} />
-      </g>
-      <rect
-        x={34.4}
-        y={30.4}
-        width={4.4}
-        height={4.4}
-        fill={monochrome ? "var(--foreground)" : "var(--seal)"}
-      />
     </svg>
   );
 }

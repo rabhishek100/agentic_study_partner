@@ -399,6 +399,15 @@ since the focus ring and the action colour are the same value by design.
 - Missing state specs added: hover, pressed, read-only, indeterminate, and the
   skeleton-vs-spinner policy.
 
+**The mark departs from the brief's logo concept.** The brief lists the
+open-book-and-rising-path idea, with three nodes and a vermilion seal, among the
+durable decisions. That concept was built, shipped, and then replaced: the mark
+is now three pieces of evidence converging on a single square. The reasoning
+that survives is the *meaning* — evidence becoming connected understanding — and
+the seal; the book is gone. This was the user's decision after exploring
+alternatives, and it is recorded here because a contract that quietly edits its
+own history is not a contract.
+
 **Corrected in revision 3**, after seeing the system against real content:
 
 - Hover was specified as moving quiet controls to the `wash`. Shipped, that

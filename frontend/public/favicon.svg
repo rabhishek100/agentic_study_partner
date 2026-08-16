@@ -1,25 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
   <!--
-    The Mugensei mark, the same geometry the component draws at every size: an
-    open book, one continuous path rising past it and leaving the frame, three
-    nodes on that path, and the vermilion seal.
-
-    The nodes carry no outline. Ringing them in the ground colour severed the
-    ribbon, which is the one thing the path must not do.
+    The Mugensei mark, the same geometry the component draws at every size:
+    three scattered pieces of evidence converging at 45 degrees on one square,
+    where separate evidence becomes connected understanding. The terminal square
+    is the vermilion seal.
 
     Colours are literal because a favicon has no stylesheet to inherit tokens
     from. These are the sumi-theme values, which hold on light and dark chrome.
   -->
-  <g fill="#f2eee4">
-    <path d="M18.7 28.4C15.6 26.1 11 25.1 6 25.5v7.8c5-.4 9.6.6 12.7 3Z"/>
-    <path d="M20.1 28.4c3.1-2.3 7.7-3.3 12.7-2.9v7.8c-5-.4-9.6.6-12.7 3Z"/>
+  <g transform="translate(1 0)">
+    <g fill="none" stroke="#69d39f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7.4 7.7H14.7L27 20"/>
+      <path d="M6.2 20H27"/>
+      <path d="M7.4 32.3H14.7L27 20"/>
+    </g>
+    <g fill="#f2eee4">
+      <rect x="4" y="6" width="3.4" height="3.4"/>
+      <rect x="2.8" y="18.3" width="3.4" height="3.4"/>
+      <rect x="4" y="30.6" width="3.4" height="3.4"/>
+    </g>
+    <rect x="27" y="16" width="8" height="8" fill="#e97850"/>
   </g>
-  <path d="M19.4 27.6C20.2 22.8 26.8 21.8 26.6 16.6 26.4 10.8 14 11.6 14.8 5.8 15.2 3 16.8 1.4 18 0"
-        fill="none" stroke="#69d39f" stroke-width="2" stroke-linecap="round"/>
-  <g fill="#f2eee4">
-    <circle cx="23.4" cy="22.3" r="2.4"/>
-    <circle cx="20.3" cy="11.2" r="2.4"/>
-    <circle cx="15.3" cy="3.9" r="2.4"/>
-  </g>
-  <rect x="34.4" y="30.4" width="4.4" height="4.4" fill="#e97850"/>
 </svg>
