@@ -116,14 +116,14 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
       <div className="min-w-0">
         <Link
           href={`/decks/${deck.deck_id}`}
-          className="flex min-w-0 items-start gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-w-0 items-start gap-3 rounded-sm"
         >
-          <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+          <Icon aria-hidden className="mt-1 size-4 shrink-0 text-primary" />
           <span className="min-w-0">
             <span className="block truncate font-serif text-sm font-medium">
               {deck.title}
             </span>
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground sm:hidden">
+            <span className="mt-1 block truncate text-xs text-muted-foreground sm:hidden">
               {deck.source_title}
             </span>
           </span>
@@ -138,7 +138,7 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
         <div className="flex items-center justify-between text-xs tabular-nums">
           <span>{percent}%</span>
         </div>
-        <Progress className="mt-1.5 h-0.5" value={percent} />
+        <Progress className="mt-2 h-0.5" value={percent} />
       </div>
       <div className="hidden items-center gap-1 text-xs tabular-nums sm:flex">
         {deck.due_count > 0 ? (
@@ -156,7 +156,7 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
         <Link href={`/decks/${deck.deck_id}`}>Open</Link>
       </Button>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-6 sm:hidden">
+      <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 sm:hidden">
         <Badge variant={extracted ? "secondary" : "outline"} className="gap-1 font-normal">
           {extracted ? <BookOpen aria-hidden className="size-3" /> : <Sparkles aria-hidden className="size-3" />}
           {extracted ? "From book" : "AI-generated"}
@@ -238,14 +238,14 @@ export function DeckJobRow({
     >
       <div className="flex items-start gap-3">
         {failed ? (
-          <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <AlertCircle aria-hidden className="mt-1 size-4 shrink-0 text-destructive" />
         ) : (
-          <BookOpen aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <BookOpen aria-hidden className="mt-1 size-4 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="mb-1 flex flex-wrap items-center gap-1.5">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
                 <Badge
                   variant={extracted ? "secondary" : "outline"}
                   className="font-normal"
@@ -282,7 +282,7 @@ export function DeckJobRow({
                   </Button>
                 ) : null}
                 <details className="group/details">
-                  <summary className="cursor-pointer rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <summary className="cursor-pointer rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-accent">
                     Technical details
                   </summary>
                   <div className="mt-2 rounded-md bg-surface p-3 text-xs leading-5 text-muted-foreground">
@@ -331,7 +331,7 @@ export function DeckJobRow({
                   You can close this page safely.
                 </p>
               </div>
-              <ol className="mt-3 space-y-2.5">
+              <ol className="mt-3 space-y-3">
                 {job.timing.stages.map((stage) => (
                   <li key={stage.stage} className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
                     <StageIcon state={stage.state} />

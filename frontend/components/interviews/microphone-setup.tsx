@@ -131,7 +131,7 @@ export function MicrophoneSetup({
     <fieldset className="space-y-3 rounded-xl border bg-surface p-4">
       <legend className="px-1 text-sm font-medium">Microphone</legend>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="interview-microphone">Input device</Label>
           <Select
             value={microphones.selectedId ?? DEFAULT_DEVICE}

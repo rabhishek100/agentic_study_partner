@@ -249,7 +249,7 @@ export function Composer({
         }
         placeholder={placeholder}
         disabled={disabled}
-        className="max-h-[200px] resize-none rounded-xl bg-card py-3 pl-3.5 pr-24 text-xs shadow-sm"
+        className="max-h-[200px] resize-none rounded-xl bg-card py-3 pl-4 pr-24 text-xs shadow-sm"
       />
 
       {mention && mention.matches.length > 0 && (
@@ -271,7 +271,7 @@ export function Composer({
               role="option"
               aria-selected={index === activeMentionIndex}
               className={cn(
-                "flex w-full flex-col rounded-md px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
+                "flex w-full flex-col rounded-md px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent",
                 index === activeMentionIndex && "bg-accent",
               )}
               onMouseDown={(event) => event.preventDefault()}

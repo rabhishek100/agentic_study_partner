@@ -152,7 +152,7 @@ export function AskSelection({ container, onAsk }: AskSelectionProps) {
         dismiss();
       }}
       style={{ left: selected.x, top: selected.y }}
-      className="fixed z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-popover px-3 py-1.5 text-xs font-medium text-popover-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="fixed z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-popover px-3 py-2 text-xs font-medium text-popover-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <MessageSquarePlus aria-hidden className="size-3.5" />
       Ask about this

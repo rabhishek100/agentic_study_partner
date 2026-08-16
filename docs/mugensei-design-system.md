@@ -176,8 +176,17 @@ container steps stay.
 
 ## Space, shape, depth
 
-**Spacing** — 4px foundation. Permitted: `4, 8, 12, 16, 24, 32, 48, 64`.
-Layout uses flex/grid `gap`, not per-element margins.
+**Spacing** — a 4px foundation, with `4, 8, 12, 16, 24, 32, 48` as its primary
+intervals. The test is alignment to the foundation, not membership of that list:
+every whole Tailwind step lands on 4px, and the fractional ones (2px, 6px, 10px)
+do not. Layout uses flex/grid `gap`, not per-element margins.
+
+**One documented exception: primitives own their internal metrics.** A control's
+padding is balanced against an explicit height — an `h-8` button with `py-1.5`
+is 32px because those two numbers agree — so snapping the padding changes the
+control rather than the rhythm. Layout spacing across every screen is on the
+foundation; 38 values inside `components/ui/` are not, and are tracked in the
+token baseline rather than waved through.
 
 **Radii** — `menu 6`, `control 8`, `panel 10`, `floating 14`, `pill full`.
 

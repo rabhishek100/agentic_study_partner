@@ -252,7 +252,7 @@ export default function InterviewsPage() {
   }, [payload, router]);
 
   if (sessionLoading) {
-    return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-5" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-0.5 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">Checking your session</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Verifying sign-in before loading interview sources and history.</p></div></div></div>;
+    return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-6" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-1 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">Checking your session</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Verifying sign-in before loading interview sources and history.</p></div></div></div>;
   }
   if (!session) {
     return (
@@ -283,7 +283,7 @@ export default function InterviewsPage() {
       }
       rail={
         <div className="flex h-full flex-col overflow-y-auto p-4">
-          <div className="mb-5 sm:hidden"><SectionNav active="interviews" /></div>
+          <div className="mb-6 sm:hidden"><SectionNav active="interviews" /></div>
           <h2 className="text-sm font-medium">Recent interviews</h2>
           <p className="mt-1 text-xs text-muted-foreground">Resume a paused session or revisit a report.</p>
           <div className="mt-4 space-y-2">
@@ -293,7 +293,7 @@ export default function InterviewsPage() {
               <Link
                 key={item.session_id}
                 href={`/interviews/${item.session_id}`}
-                className="block rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block rounded-lg border border-transparent px-3 py-3 transition-colors hover:border-border hover:bg-surface-hover"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="line-clamp-2 text-sm font-medium">{item.title.replace("Interview · ", "")}</p>
@@ -329,11 +329,11 @@ export default function InterviewsPage() {
                   </div>
                   {sourceKind === "book" ? (
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                      <div className="min-w-0 space-y-1.5"><Label htmlFor="interview-book">Book</Label><Select value={bookId} onValueChange={setBookId}><SelectTrigger id="interview-book" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loaded ? "Choose a book" : "Loading…"} /></SelectTrigger><SelectContent>{books.map((book) => <SelectItem key={book.book_id} value={String(book.book_id)}>{book.title}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="min-w-0 space-y-1.5"><Label htmlFor="interview-chapter">Chapter</Label><Select value={nodeId} onValueChange={setNodeId} disabled={!bookId || loadingChapters || chapters.length === 0}><SelectTrigger id="interview-chapter" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loadingChapters ? "Loading chapters…" : bookId ? "Choose a chapter" : "Choose a book first"} /></SelectTrigger><SelectContent>{chapters.map((chapter) => <SelectItem key={chapter.node_id} value={String(chapter.node_id)}>{chapter.title}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="min-w-0 space-y-2"><Label htmlFor="interview-book">Book</Label><Select value={bookId} onValueChange={setBookId}><SelectTrigger id="interview-book" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loaded ? "Choose a book" : "Loading…"} /></SelectTrigger><SelectContent>{books.map((book) => <SelectItem key={book.book_id} value={String(book.book_id)}>{book.title}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="min-w-0 space-y-2"><Label htmlFor="interview-chapter">Chapter</Label><Select value={nodeId} onValueChange={setNodeId} disabled={!bookId || loadingChapters || chapters.length === 0}><SelectTrigger id="interview-chapter" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loadingChapters ? "Loading chapters…" : bookId ? "Choose a chapter" : "Choose a book first"} /></SelectTrigger><SelectContent>{chapters.map((chapter) => <SelectItem key={chapter.node_id} value={String(chapter.node_id)}>{chapter.title}</SelectItem>)}</SelectContent></Select></div>
                     </div>
                   ) : (
-                    <div className="space-y-1.5"><Label htmlFor="interview-video">Lecture</Label><Select value={videoId} onValueChange={setVideoId}><SelectTrigger id="interview-video"><SelectValue placeholder="Choose a processed lecture" /></SelectTrigger><SelectContent>{videos.map((video) => <SelectItem key={video.video_id} value={video.video_id}>{video.title}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label htmlFor="interview-video">Lecture</Label><Select value={videoId} onValueChange={setVideoId}><SelectTrigger id="interview-video"><SelectValue placeholder="Choose a processed lecture" /></SelectTrigger><SelectContent>{videos.map((video) => <SelectItem key={video.video_id} value={video.video_id}>{video.title}</SelectItem>)}</SelectContent></Select></div>
                   )}
                 </fieldset>
 
@@ -342,8 +342,8 @@ export default function InterviewsPage() {
                 <fieldset className="space-y-3"><legend className="text-sm font-medium">Target level</legend><div className="grid gap-2 sm:grid-cols-3">{LEVELS.map((item) => <button key={item.value} type="button" onClick={() => setLevel(item.value)} aria-pressed={level === item.value} className={cn("rounded-lg border p-3 text-left transition-colors", level === item.value ? "border-primary bg-wash" : "border-border hover:bg-surface-hover")}><span className="block text-sm font-medium">{item.label}</span><span className="mt-1 block text-xs text-muted-foreground">{item.note}</span></button>)}</div></fieldset>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5"><Label htmlFor="feedback-mode">Feedback</Label><Select value={mode} onValueChange={(value) => setMode(value as InterviewMode)}><SelectTrigger id="feedback-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="realistic">Realistic · report at end</SelectItem><SelectItem value="guided">Guided · coach each turn</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-1.5"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label htmlFor="feedback-mode">Feedback</Label><Select value={mode} onValueChange={(value) => setMode(value as InterviewMode)}><SelectTrigger id="feedback-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="realistic">Realistic · report at end</SelectItem><SelectItem value="guided">Guided · coach each turn</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
                 </div>
 
                 <div className="flex items-start gap-3 rounded-lg border p-4">
@@ -403,11 +403,11 @@ export default function InterviewsPage() {
                 ) : null}
                 {operation !== "idle" ? (
                   <div className="rounded-lg border border-action bg-primary/[0.035] p-3" role="status" aria-live="polite" aria-atomic="true">
-                    <div className="flex items-start gap-2.5">
-                      <Loader2 aria-hidden className="mt-0.5 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
+                    <div className="flex items-start gap-3">
+                      <Loader2 aria-hidden className="mt-1 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
                       <div>
                         <p className="text-sm font-medium">{SETUP_ACTIVITY[operation].title}</p>
-                        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{SETUP_ACTIVITY[operation].detail}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{SETUP_ACTIVITY[operation].detail}</p>
                       </div>
                     </div>
                   </div>

@@ -255,7 +255,7 @@ export default function PapersPage() {
     <AppShell
       nav={<SectionNav active="papers" />}
       status={
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-2">
           <span
             aria-hidden
             className={

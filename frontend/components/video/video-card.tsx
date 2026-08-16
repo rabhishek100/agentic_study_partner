@@ -48,7 +48,7 @@ function Meta({ video, now }: { video: VideoSummary; now?: Date }) {
     added ? `added ${added}` : null,
   ].filter(Boolean);
   return (
-    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+    <p className="mt-1 truncate text-xs text-muted-foreground">
       {parts.join(" · ")}
     </p>
   );
@@ -111,7 +111,7 @@ function Decision({
 }) {
   const retryable = Boolean(video.latest_ingestion?.retryable);
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+    <div className="mt-3 flex flex-wrap items-center gap-2">
       {retryable && (
         <Button size="xs" variant="outline" onClick={onRetry}>
           <RotateCcw aria-hidden />
@@ -143,12 +143,12 @@ function Confirm({
   onCancel(): void;
 }) {
   return (
-    <div className="mt-3 space-y-1.5 rounded-md border border-destructive p-2.5">
+    <div className="mt-3 space-y-2 rounded-md border border-destructive p-3">
       <p className="text-xs">
         Remove “{video.title}”? Its stored video file, transcript, frames, and
         conversations go with it, and this cannot be undone.
       </p>
-      <div className="flex gap-1.5">
+      <div className="flex gap-2">
         <Button size="xs" variant="destructive" onClick={onConfirm}>
           Remove
         </Button>
@@ -168,7 +168,7 @@ function StateLine({ video }: { video: VideoSummary }) {
     const stage = job?.stage ?? null;
     const { step, percent } = stagePercent(stage, job?.progress.percent);
     return (
-      <div className="mt-3 space-y-1.5" role="status" aria-live="polite">
+      <div className="mt-3 space-y-2" role="status" aria-live="polite">
         <div className="flex items-center gap-2 text-xs">
           <Loader2 aria-hidden className="size-3.5 animate-spin" />
           <span>{stageLabel(stage)}</span>
@@ -185,8 +185,8 @@ function StateLine({ video }: { video: VideoSummary }) {
 
   if (state === "awaiting_upload") {
     return (
-      <div className="mt-3 flex items-start gap-2 rounded-md bg-surface px-2.5 py-2 text-xs">
-        <Upload aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      <div className="mt-3 flex items-start gap-2 rounded-md bg-surface px-3 py-2 text-xs">
+        <Upload aria-hidden className="mt-1 size-3.5 shrink-0" />
         <span>
           The upload never finished, so nothing has been processed. Open the
           lecture to send the file again.
@@ -198,7 +198,7 @@ function StateLine({ video }: { video: VideoSummary }) {
   if (state === "cancelled") {
     return (
       <div className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
-        <CircleSlash aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+        <CircleSlash aria-hidden className="mt-1 size-3.5 shrink-0" />
         <span>Processing was cancelled before it finished.</span>
       </div>
     );
@@ -206,10 +206,10 @@ function StateLine({ video }: { video: VideoSummary }) {
 
   if (state === "failed") {
     return (
-      <div className="mt-3 flex items-start gap-2 rounded-md bg-destructive-wash px-2.5 py-2 text-xs">
+      <div className="mt-3 flex items-start gap-2 rounded-md bg-destructive-wash px-3 py-2 text-xs">
         <AlertCircle
           aria-hidden
-          className="mt-0.5 size-3.5 shrink-0 text-destructive"
+          className="mt-1 size-3.5 shrink-0 text-destructive"
         />
         {/* The worker's own sentence, which names the cause. This showed one
             constant for every kind of failure. */}
@@ -220,12 +220,12 @@ function StateLine({ video }: { video: VideoSummary }) {
 
   if (state === "partial") {
     return (
-      <div className="mt-3 flex items-start gap-2 rounded-md bg-surface px-2.5 py-2">
+      <div className="mt-3 flex items-start gap-2 rounded-md bg-surface px-3 py-2">
         <Info
           aria-hidden
-          className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+          className="mt-1 size-3.5 shrink-0 text-muted-foreground"
         />
-        <div className="min-w-0 space-y-0.5 text-xs text-muted-foreground">
+        <div className="min-w-0 space-y-1 text-xs text-muted-foreground">
           {video.readiness_notes.map((note) => (
             <p key={note}>{note}</p>
           ))}
@@ -314,7 +314,7 @@ export function VideoCard({ video, onRetry, onDelete, now }: VideoCardProps) {
         href={`/videos/${video.video_id}`}
         className={cn(
           "block rounded-lg border border-border p-4 transition-colors",
-          "hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "hover:bg-surface-hover",
         )}
       >
         {inner}

@@ -59,7 +59,7 @@ export function BookSelector({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -106,14 +106,14 @@ export function BookSelector({
                   <label
                     htmlFor={inputId}
                     className={cn(
-                      "flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
+                      "flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-sm transition-colors hover:bg-accent",
                     )}
                   >
                     <Checkbox
                       id={inputId}
                       checked={isSelected}
                       onCheckedChange={() => toggle(book.book_id)}
-                      className="mt-0.5"
+                      className="mt-1"
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">
@@ -132,7 +132,7 @@ export function BookSelector({
                     </span>
                     {isSelected && (
                       <Check
-                        className="mt-0.5 size-3.5 shrink-0 text-primary"
+                        className="mt-1 size-3.5 shrink-0 text-primary"
                         aria-hidden
                       />
                     )}

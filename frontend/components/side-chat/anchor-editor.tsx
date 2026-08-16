@@ -72,9 +72,9 @@ export function AnchorEditor({
   return (
     <div className="shrink-0 border-b border-border bg-surface px-3 py-2">
       {anchors.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {anchors.map((anchor) => (
-            <li key={anchor.anchor_id} className="group flex gap-1.5">
+            <li key={anchor.anchor_id} className="group flex gap-2">
               <Quote
                 aria-hidden
                 className="mt-[0.2em] size-[1em] shrink-0 text-muted-foreground"
@@ -149,7 +149,7 @@ export function AnchorEditor({
               {problem}
             </p>
           )}
-          <div className="flex justify-end gap-1.5">
+          <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Cancel
             </Button>

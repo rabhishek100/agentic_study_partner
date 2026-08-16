@@ -85,16 +85,16 @@ export function ResourcePanel({
           <button
             type="button"
             onClick={() => onOpen(resource)}
-            className="flex min-w-0 flex-1 items-start gap-2 rounded-md border border-border p-2 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-md border border-border p-2 text-left hover:bg-surface-hover"
           >
             {resource.resource_kind === "pdf" ? (
-              <FileText aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <FileText aria-hidden className="mt-1 size-4 shrink-0" />
             ) : (
-              <ExternalLink aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <ExternalLink aria-hidden className="mt-1 size-4 shrink-0" />
             )}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm">{resource.title}</span>
-              <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant="outline">{resource.role}</Badge>
                 {resource.page_count ? `${resource.page_count} pages` : null}
                 <span
@@ -141,7 +141,7 @@ function TimelineThumb({
       <button
         type="button"
         onClick={() => onSeek(entry.timestamp_ms)}
-        className="w-full space-y-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="w-full space-y-1 rounded-md text-left"
         aria-label={`Play from ${formatTimestamp(entry.timestamp_ms)}`}
       >
         {image.status === "ready" ? (
@@ -248,7 +248,7 @@ export function ChapterList({
           <button
             type="button"
             onClick={() => onSeek(chapter.start_ms)}
-            className="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left text-sm hover:bg-surface-hover"
           >
             <span className="w-12 shrink-0 text-xs text-muted-foreground">
               {formatTimestamp(chapter.start_ms)}

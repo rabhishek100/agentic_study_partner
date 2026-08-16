@@ -260,7 +260,7 @@ export default function DecksPage() {
       nav={<SectionNav active="decks" />}
       railMode="drawer-only"
       rail={
-        <div className="space-y-5 p-4">
+        <div className="space-y-6 p-4">
           <SectionNav active="decks" />
           <p className="border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
             Create decks and adjust your daily pace from the Cards workspace.
@@ -331,7 +331,7 @@ export default function DecksPage() {
             />
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-[100rem] space-y-5 p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[100rem] space-y-6 p-4 sm:p-6 lg:p-8">
             <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
                 <h1 className="font-serif text-3xl font-medium tracking-tight">Cards</h1>
@@ -374,13 +374,13 @@ export default function DecksPage() {
               </Alert>
             ) : null}
 
-            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(24rem,1fr)]">
-              <div className="min-w-0 space-y-5">
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.85fr)_minmax(24rem,1fr)]">
+              <div className="min-w-0 space-y-6">
                 <section
                   aria-labelledby="today-heading"
-                  className="grid gap-5 rounded-lg border border-border bg-surface p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
+                  className="grid gap-6 rounded-lg border border-border bg-surface p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
                 >
-              <div className="sm:border-r sm:border-border sm:pr-5">
+              <div className="sm:border-r sm:border-border sm:pr-6">
                 <h2 id="today-heading" className="text-base font-medium">
                   Today
                 </h2>
@@ -418,12 +418,12 @@ export default function DecksPage() {
                 </section>
 
                 <section aria-labelledby="deck-library-heading" className="min-w-0">
-                <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                   <div>
                     <h2 id="deck-library-heading" className="text-lg font-medium">
                       Deck library
                     </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       AI-written revision cards and printed book questions stay clearly separated.
                     </p>
                   </div>
@@ -435,7 +435,7 @@ export default function DecksPage() {
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search decks"
                         aria-label="Search decks"
-                        className="w-full pl-9 sm:w-56"
+                        className="w-full pl-8 sm:w-56"
                       />
                     </div>
                     <Select value={filter} onValueChange={(value) => setFilter(value as DeckFilter)}>
@@ -469,7 +469,7 @@ export default function DecksPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-7">
+                  <div className="space-y-8">
                     {generatedDecks.length > 0 ? (
                       <DeckGroup
                         id="ai-generated-decks"
@@ -504,7 +504,7 @@ export default function DecksPage() {
                   <h2 id="generation-activity-heading" className="text-lg font-medium">
                     Generation activity
                   </h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Track book extraction and AI generation without keeping this page open.
                   </p>
                 </div>
@@ -526,7 +526,7 @@ export default function DecksPage() {
                     ))}
                   </ul>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-border px-5 py-8 text-center">
+                  <div className="rounded-lg border border-dashed border-border px-6 py-8 text-center">
                     <Sparkles aria-hidden className="mx-auto mb-2 size-5 text-primary" />
                     <p className="text-sm font-medium">No generation in progress</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">

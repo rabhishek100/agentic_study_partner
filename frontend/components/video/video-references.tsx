@@ -83,10 +83,10 @@ function ReferenceRow({
 
   return (
     <li className="border-b border-divider last:border-b-0">
-      <div className="flex items-baseline gap-2 py-1.5">
+      <div className="flex items-baseline gap-2 py-2">
         <span
           className={cn(
-            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded text-xs font-semibold tabular-nums",
+            "mt-1 flex size-4 shrink-0 items-center justify-center rounded text-xs font-semibold tabular-nums",
             index === null
               ? "text-muted-foreground"
               : "bg-citation-muted text-citation",
@@ -98,7 +98,7 @@ function ReferenceRow({
         <p className="min-w-0 flex-1 text-sm leading-snug">
           <Icon
             aria-hidden
-            className="mr-1.5 inline size-3.5 align-[-0.15em] text-muted-foreground"
+            className="mr-2 inline size-3.5 align-[-0.15em] text-muted-foreground"
           />
           <span className="text-muted-foreground">
             {MODALITY_LABEL[reference.modality]}
@@ -152,7 +152,7 @@ function ReferenceRow({
 
 function GroupHeading({ group }: { group: VideoReferenceGroup }) {
   return (
-    <p className="flex items-baseline gap-1.5 text-xs">
+    <p className="flex items-baseline gap-2 text-xs">
       <span className="font-medium text-foreground">{group.title}</span>
       <span className="text-muted-foreground">
         {group.items.length}{" "}
@@ -198,14 +198,14 @@ export function VideoReferences({
     >
       <h4
         id="video-references-heading"
-        className="flex items-center gap-1.5 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        className="flex items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <Layers className="size-3.5" aria-hidden />
         {cited.length} {cited.length === 1 ? "source" : "sources"}
       </h4>
 
       {groupBySource(cited).map((group) => (
-        <div key={group.key} className="space-y-0.5">
+        <div key={group.key} className="space-y-1">
           <GroupHeading group={group} />
           <ul>
             {group.items.map((reference) => (
@@ -233,7 +233,7 @@ export function VideoReferences({
           </CollapsibleTrigger>
           <CollapsibleContent>
             {groupBySource(uncited).map((group) => (
-              <div key={group.key} className="mt-1 space-y-0.5 opacity-80">
+              <div key={group.key} className="mt-1 space-y-1 opacity-80">
                 <GroupHeading group={group} />
                 <ul>
                   {group.items.map((reference) => (

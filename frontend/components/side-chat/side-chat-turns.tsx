@@ -19,9 +19,9 @@ import type { ChatTurn, EvidenceRef, QuoteAnchor } from "@/lib/types";
 export function AnchorChips({ anchors }: { anchors: QuoteAnchor[] }) {
   if (anchors.length === 0) return null;
   return (
-    <ul className="shrink-0 space-y-1.5 border-b border-border bg-surface px-3 py-2">
+    <ul className="shrink-0 space-y-2 border-b border-border bg-surface px-3 py-2">
       {anchors.map((anchor) => (
-        <li key={anchor.anchor_id} className="flex gap-1.5">
+        <li key={anchor.anchor_id} className="flex gap-2">
           <Quote
             aria-hidden
             className="mt-[0.2em] size-[1em] shrink-0 text-muted-foreground"
@@ -77,12 +77,12 @@ export function SideChatTurns({
   }
 
   return (
-    <div className="space-y-5 px-3 py-3">
+    <div className="space-y-6 px-3 py-3">
       {turns.map((turn) => (
-        <article key={turn.id} className="space-y-2.5">
+        <article key={turn.id} className="space-y-3">
           {/* The reader's own question, mirroring the main conversation's
               right-aligned bubble at this window's scale. */}
-          <p className="side-chat-ui ml-auto w-fit max-w-[92%] rounded-xl rounded-br-sm bg-secondary px-2.5 py-1.5 leading-snug text-secondary-foreground">
+          <p className="side-chat-ui ml-auto w-fit max-w-[92%] rounded-xl rounded-br-sm bg-secondary px-3 py-2 leading-snug text-secondary-foreground">
             {turn.question}
           </p>
 

@@ -100,7 +100,7 @@ export function LibraryRail({
   const hasBooks = books.length > 0;
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-y-auto overscroll-contain p-4 [scrollbar-gutter:stable]">
+    <div className="flex h-full flex-col gap-6 overflow-y-auto overscroll-contain p-4 [scrollbar-gutter:stable]">
       <section aria-labelledby="library-heading" className="space-y-2">
         <SectionHeading id="library-heading">
           {documentType === "paper" ? "Your paper library" : "Your library"}
@@ -167,7 +167,7 @@ export function LibraryRail({
         inspector, where it is actually interpretable.
       */}
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-        <CollapsibleTrigger className="flex w-full items-center gap-1.5 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground transition-colors hover:text-foreground">
+        <CollapsibleTrigger className="flex w-full items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground transition-colors hover:text-foreground">
           <Settings2 className="size-3.5" aria-hidden />
           Advanced
           <ChevronDown
@@ -179,7 +179,7 @@ export function LibraryRail({
           />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2 space-y-2">
             <Label htmlFor="retrieval-mode">Search method</Label>
             <Select
               value={retrievalMode}

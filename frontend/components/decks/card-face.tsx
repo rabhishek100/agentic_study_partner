@@ -90,13 +90,13 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
   return (
     <div>
-      <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {title}
       </h4>
       <ul className="space-y-1 text-sm">
         {items.map((item, index) => (
           <li key={index} className="flex gap-2">
-            <span aria-hidden className="mt-1.5 size-1 shrink-0 rounded-full bg-divider" />
+            <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-divider" />
             <span>{plain(item)}</span>
           </li>
         ))}
@@ -124,7 +124,7 @@ function SayItAloud({
           <Timer aria-hidden className="size-4" />
           30-second answer
         </h3>
-        <p className="border-l-2 border-primary py-0.5 pl-4 font-serif text-base leading-relaxed sm:text-base">
+        <p className="border-l-2 border-primary py-1 pl-4 font-serif text-base leading-relaxed sm:text-base">
           {plain(text)}
         </p>
       </section>
@@ -170,8 +170,8 @@ export function CardFront({
                 onClick={() => onSelect?.(option.label)}
                 aria-pressed={selected === option.label}
                 className={cn(
-                  "flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left text-sm transition-colors",
+                  "",
                   selected === option.label
                     ? "border-primary bg-accent"
                     : "border-border hover:bg-surface-hover",
@@ -248,7 +248,7 @@ export function CardBackFace({
             <li
               key={option.label}
               className={cn(
-                "rounded-lg border px-3 py-2.5 text-sm",
+                "rounded-lg border px-3 py-3 text-sm",
                 option.correct
                   ? "border-positive bg-wash"
                   : selected === option.label
@@ -282,7 +282,7 @@ export function CardBackFace({
             <div className="divide-y divide-border border-y border-border">
               {answerSections.map((section) => (
                 <details key={section.label} className="group">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 py-3 text-sm [&::-webkit-details-marker]:hidden">
                     <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                       {section.label.slice(1, -1)}
                     </span>
@@ -294,7 +294,7 @@ export function CardBackFace({
                       className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
                     />
                   </summary>
-                  <p className="whitespace-pre-wrap pb-4 pl-9 text-sm leading-7">
+                  <p className="whitespace-pre-wrap pb-4 pl-8 text-sm leading-7">
                     {section.body}
                   </p>
                 </details>
@@ -346,7 +346,7 @@ export function CardBackFace({
 
       {card.interview_angle ? (
         <div className="rounded-lg border border-dashed border-border bg-surface p-3">
-          <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <p className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <Sparkles aria-hidden className="size-3.5" />
             Interview angle
             {/*
@@ -376,7 +376,7 @@ export function CardSources({
   if (card.citations.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs text-muted-foreground">Source:</span>
       {card.citations.map((citation) => {
         const label =
@@ -388,7 +388,7 @@ export function CardSources({
             key={citation.marker}
             type="button"
             onClick={() => onOpenSource?.(citation)}
-            className="rounded-md border border-border px-2 py-0.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md border border-border px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             {label}
           </button>
@@ -400,7 +400,7 @@ export function CardSources({
 
 export function CardMeta({ card }: { card: DeckCard }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2">
       {card.answer_source === "printed_in_book" ? (
         <Badge variant="default" className="bg-wash text-white font-normal hover:bg-positive">
           Original Book Answer

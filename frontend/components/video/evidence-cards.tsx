@@ -55,7 +55,7 @@ export function VisualEvidence({
           <button
             type="button"
             onClick={() => onSeek(card.start_ms)}
-            className="group w-full space-y-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group w-full space-y-1 rounded-md text-left"
             aria-label={`Play from ${formatTimestamp(card.start_ms)}: ${card.summary}`}
           >
             {card.frame_id ? (

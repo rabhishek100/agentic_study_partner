@@ -145,8 +145,8 @@ function ActivityStatus({
           <div className="h-full w-full bg-wash motion-safe:animate-pulse" />
         </div>
       ) : null}
-      <div className="flex items-start gap-3 px-4 py-3.5">
-        <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-muted">
+      <div className="flex items-start gap-3 px-4 py-4">
+        <div className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-muted">
           {working ? (
             <Loader2 aria-hidden className="size-4 animate-spin text-primary motion-reduce:animate-none" />
           ) : activity.tone === "live" ? (
@@ -166,11 +166,11 @@ function ActivityStatus({
               </span>
             ) : null}
           </div>
-          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{activity.detail}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{activity.detail}</p>
           {activity.stages?.length ? (
-            <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Work included in this request">
+            <div className="mt-2 flex flex-wrap gap-2" aria-label="Work included in this request">
               {activity.stages.map((stage) => (
-                <span key={stage} className="rounded-full border bg-canvas px-2 py-0.5 text-xs text-muted-foreground">
+                <span key={stage} className="rounded-full border bg-canvas px-2 py-1 text-xs text-muted-foreground">
                   {stage}
                 </span>
               ))}
@@ -216,11 +216,11 @@ function InterviewExchange({
     <div className="space-y-3">
       <div className="max-w-[88%] rounded-2xl rounded-tl-sm border bg-card p-4">
         <p className="text-xs font-medium text-primary">Interviewer</p>
-        <p className="mt-1.5 text-sm leading-6">{turn.question.text}</p>
+        <p className="mt-2 text-sm leading-6">{turn.question.text}</p>
       </div>
       <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground">
         <p className="text-xs font-medium opacity-70">You</p>
-        <p className="mt-1.5 text-sm leading-6">{turn.answer_text}</p>
+        <p className="mt-2 text-sm leading-6">{turn.answer_text}</p>
       </div>
       {turn.coding_answer ? (
         <details className="ml-auto max-w-[94%] rounded-xl border bg-card p-3">
@@ -234,11 +234,11 @@ function InterviewExchange({
       ) : null}
       {turn.interviewer_reaction ? (
         <div className="max-w-[88%] rounded-2xl rounded-tl-sm border border-action bg-primary/[0.035] p-4">
-          <p className="flex items-center gap-1.5 text-xs font-medium text-primary">
+          <p className="flex items-center gap-2 text-xs font-medium text-primary">
             <Volume2 aria-hidden className="size-3.5" />
             Interviewer response
           </p>
-          <p className="mt-1.5 text-sm leading-6">{turn.interviewer_reaction}</p>
+          <p className="mt-2 text-sm leading-6">{turn.interviewer_reaction}</p>
           {reacting ? (
             <p className="mt-2 text-xs text-muted-foreground">
               {reactionLoading
@@ -264,7 +264,7 @@ function SessionReportView({ report }: { report: InterviewReport }) {
     <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-8">
       <div className="rounded-2xl border bg-card p-6 sm:p-8">
         <Badge variant="secondary"><CheckCircle2 aria-hidden /> Interview complete</Badge>
-        <div className="mt-5 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div><h1 className="font-serif text-3xl font-semibold">Your interview report</h1><p className="mt-2 text-muted-foreground">{session.title.replace("Interview · ", "")} · {session.metrics.questions_answered} answered</p></div>
           <div className="rounded-xl bg-primary px-6 py-4 text-primary-foreground"><p className="text-xs font-medium uppercase tracking-wider opacity-75">Overall</p><p className="mt-1 text-4xl font-semibold tabular-nums">{session.metrics.overall_score?.toFixed(1) ?? "—"}<span className="text-lg opacity-75">/5</span></p></div>
         </div>
@@ -272,11 +272,11 @@ function SessionReportView({ report }: { report: InterviewReport }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-        <Panel><PanelHeader><PanelTitle>Score profile</PanelTitle></PanelHeader><PanelContent className="space-y-4">{dimensions.map(([name, score]) => <div key={name}><div className="mb-1.5 flex justify-between gap-3 text-sm"><span>{titleCase(name)}</span><span className="font-medium tabular-nums">{score.toFixed(1)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", scoreColor(score))} style={{ width: `${score * 20}%` }} /></div></div>)}</PanelContent></Panel>
-        <Panel><PanelHeader><PanelTitle>What to do next</PanelTitle></PanelHeader><PanelContent><p className="text-sm leading-6 text-muted-foreground">{report.evidence_confidence}</p>{session.metrics.strengths.length ? <div className="mt-4"><p className="text-sm font-medium">Strengths</p><ul className="mt-2 space-y-1.5 text-sm">{session.metrics.strengths.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}{report.suggested_next_steps.length ? <div className="mt-4"><p className="text-sm font-medium">Focused revision</p><ul className="mt-2 space-y-1.5 text-sm">{report.suggested_next_steps.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}</PanelContent></Panel>
+        <Panel><PanelHeader><PanelTitle>Score profile</PanelTitle></PanelHeader><PanelContent className="space-y-4">{dimensions.map(([name, score]) => <div key={name}><div className="mb-2 flex justify-between gap-3 text-sm"><span>{titleCase(name)}</span><span className="font-medium tabular-nums">{score.toFixed(1)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", scoreColor(score))} style={{ width: `${score * 20}%` }} /></div></div>)}</PanelContent></Panel>
+        <Panel><PanelHeader><PanelTitle>What to do next</PanelTitle></PanelHeader><PanelContent><p className="text-sm leading-6 text-muted-foreground">{report.evidence_confidence}</p>{session.metrics.strengths.length ? <div className="mt-4"><p className="text-sm font-medium">Strengths</p><ul className="mt-2 space-y-2 text-sm">{session.metrics.strengths.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}{report.suggested_next_steps.length ? <div className="mt-4"><p className="text-sm font-medium">Focused revision</p><ul className="mt-2 space-y-2 text-sm">{report.suggested_next_steps.map((item) => <li key={item}>• {item}</li>)}</ul></div> : null}</PanelContent></Panel>
       </div>
 
-      <div className="space-y-4"><h2 className="text-xl font-semibold">Question review</h2>{session.turns.filter((turn) => turn.answer_text).map((turn) => <Panel key={turn.turn_index}><PanelContent className="p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-wash text-xs font-semibold text-primary">{turn.turn_index + 1}</span><div className="min-w-0 flex-1"><p className="font-medium leading-6">{turn.question.text}</p><p className="mt-3 rounded-lg bg-surface p-3 text-sm leading-6">{turn.answer_text}</p>{turn.evaluation ? <><Feedback evaluation={turn.evaluation} /><div className="mt-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recommended answer</p><p className="mt-2 text-sm leading-6">{turn.evaluation.recommended_answer}</p></div></> : null}<div className="mt-4 flex flex-wrap gap-2">{turn.citations.map((citation) => citation.page && session.book_id ? <Link key={citation.marker} href={`/?book=${session.book_id}&page=${citation.page}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · p. {citation.page}<ExternalLink aria-hidden className="size-3" /></Link> : citation.start_ms !== null && session.video_id ? <Link key={citation.marker} href={`/videos/${session.video_id}?t=${Math.floor(citation.start_ms / 1000)}`} className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">{citation.marker} · {clock(citation.start_ms / 1000)}<ExternalLink aria-hidden className="size-3" /></Link> : null)}{turn.web_sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs hover:bg-accent">Web {source.rank}<ExternalLink aria-hidden className="size-3" /></a>)}</div></div></div></PanelContent></Panel>)}</div>
+      <div className="space-y-4"><h2 className="text-xl font-semibold">Question review</h2>{session.turns.filter((turn) => turn.answer_text).map((turn) => <Panel key={turn.turn_index}><PanelContent className="p-6 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-7 shrink-0 place-items-center rounded-full bg-wash text-xs font-semibold text-primary">{turn.turn_index + 1}</span><div className="min-w-0 flex-1"><p className="font-medium leading-6">{turn.question.text}</p><p className="mt-3 rounded-lg bg-surface p-3 text-sm leading-6">{turn.answer_text}</p>{turn.evaluation ? <><Feedback evaluation={turn.evaluation} /><div className="mt-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recommended answer</p><p className="mt-2 text-sm leading-6">{turn.evaluation.recommended_answer}</p></div></> : null}<div className="mt-4 flex flex-wrap gap-2">{turn.citations.map((citation) => citation.page && session.book_id ? <Link key={citation.marker} href={`/?book=${session.book_id}&page=${citation.page}`} className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs hover:bg-accent">{citation.marker} · p. {citation.page}<ExternalLink aria-hidden className="size-3" /></Link> : citation.start_ms !== null && session.video_id ? <Link key={citation.marker} href={`/videos/${session.video_id}?t=${Math.floor(citation.start_ms / 1000)}`} className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs hover:bg-accent">{citation.marker} · {clock(citation.start_ms / 1000)}<ExternalLink aria-hidden className="size-3" /></Link> : null)}{turn.web_sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs hover:bg-accent">Web {source.rank}<ExternalLink aria-hidden className="size-3" /></a>)}</div></div></div></PanelContent></Panel>)}</div>
       {session.turns.some((turn) => turn.coding_answer) ? (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Submitted code</h2>
@@ -778,7 +778,7 @@ export default function InterviewWorkspace() {
     finally { endOperation("screen_checkpoint"); }
   }, [beginOperation, endOperation, screen, sessionId]);
 
-  if (sessionLoading || (authSession && !interview && !error)) return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-5" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-0.5 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">{sessionLoading ? "Checking your session" : "Restoring your interview"}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{sessionLoading ? "Verifying sign-in before loading interview data." : "Loading the saved question, transcript, timer, and media state."}</p></div></div></div>;
+  if (sessionLoading || (authSession && !interview && !error)) return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-6" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-1 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">{sessionLoading ? "Checking your session" : "Restoring your interview"}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{sessionLoading ? "Verifying sign-in before loading interview data." : "Loading the saved question, transcript, timer, and media state."}</p></div></div></div>;
   if (!authSession) return <div className="relative grid h-dvh place-items-center p-6"><div className="absolute right-3 top-3"><ThemeToggle /></div><AuthGate /></div>;
   if (!interview) return <div className="grid h-dvh place-items-center p-6"><Alert variant="destructive" className="max-w-lg"><AlertDescription>{error || "Interview not found."}</AlertDescription></Alert></div>;
 
@@ -787,7 +787,7 @@ export default function InterviewWorkspace() {
       nav={<SectionNav active="interviews" />}
       status={<span>{interview.status === "active" ? (remaining > 0 ? `${clock(remaining)} remaining` : "Finish your current answer") : titleCase(interview.status)}</span>}
       account={<DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="max-w-44"><span className="truncate">{authSession.user.email}</span></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuLabel className="font-normal text-muted-foreground">Signed in</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => signOut()}><LogOut aria-hidden />Sign out</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
-      rail={<div className="flex h-full flex-col overflow-y-auto p-4"><div className="mb-5 sm:hidden"><SectionNav active="interviews" /></div><Link href="/interviews" className="mb-5 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4" />All interviews</Link><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scope</p><h2 className="mt-2 font-serif text-base font-medium">{interview.title.replace("Interview · ", "")}</h2><p className="mt-1 text-xs text-muted-foreground">{interview.source_title}</p><div className="mt-5 space-y-3 border-t pt-4"><div className="flex justify-between text-xs"><span className="text-muted-foreground">Format</span><span className="capitalize">{interview.interview_format.replace("_", " ")}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Level</span><span className="capitalize">{interview.target_level}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Mode</span><span className="capitalize">{interview.feedback_mode}</span></div></div><div className="mt-6"><div className="mb-2 flex justify-between text-xs"><span>Source coverage</span><span>{Math.round(coverage)}%</span></div><Progress value={coverage} /></div><p className="mt-4 text-xs leading-5 text-muted-foreground">Topic order and future questions remain hidden. The interview finishes early when meaningful coverage is complete.</p></div>}
+      rail={<div className="flex h-full flex-col overflow-y-auto p-4"><div className="mb-6 sm:hidden"><SectionNav active="interviews" /></div><Link href="/interviews" className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4" />All interviews</Link><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scope</p><h2 className="mt-2 font-serif text-base font-medium">{interview.title.replace("Interview · ", "")}</h2><p className="mt-1 text-xs text-muted-foreground">{interview.source_title}</p><div className="mt-6 space-y-3 border-t pt-4"><div className="flex justify-between text-xs"><span className="text-muted-foreground">Format</span><span className="capitalize">{interview.interview_format.replace("_", " ")}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Level</span><span className="capitalize">{interview.target_level}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Mode</span><span className="capitalize">{interview.feedback_mode}</span></div></div><div className="mt-6"><div className="mb-2 flex justify-between text-xs"><span>Source coverage</span><span>{Math.round(coverage)}%</span></div><Progress value={coverage} /></div><p className="mt-4 text-xs leading-5 text-muted-foreground">Topic order and future questions remain hidden. The interview finishes early when meaningful coverage is complete.</p></div>}
     >
       {report ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -795,7 +795,7 @@ export default function InterviewWorkspace() {
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
             {error || voice.error || speech.error || screen.error ? <Alert variant="destructive"><AlertDescription>{error || voice.error || speech.error || screen.error}</AlertDescription></Alert> : null}
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
@@ -805,8 +805,8 @@ export default function InterviewWorkspace() {
 
             <ActivityStatus activity={activity} elapsedSeconds={operationElapsed} />
 
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-              <div className="space-y-5">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="space-y-6">
                 <div className="space-y-4">
                   {interview.turns
                     .filter((turn) => turn.answer_text)
@@ -1209,7 +1209,7 @@ export default function InterviewWorkspace() {
                   </Panel>
                 ) : current && interview.status === "paused" ? (
                   <Panel className="border-warning bg-warning/[0.04]">
-                    <PanelContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                    <PanelContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-medium">This interview is paused</p>
                         <p className="mt-1 text-sm leading-6 text-muted-foreground">

@@ -418,7 +418,7 @@ export function UploadPanel({
       <label
         htmlFor="book-file"
         className={cn(
-          "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-input bg-card px-4 py-5 text-center text-sm font-medium transition-colors",
+          "flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-input bg-card px-4 py-6 text-center text-sm font-medium transition-colors",
           busy
             ? "cursor-default opacity-60"
             : "hover:border-primary hover:bg-accent",

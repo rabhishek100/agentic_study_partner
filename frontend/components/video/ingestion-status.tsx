@@ -90,7 +90,7 @@ export function IngestionStatus({
 }) {
   if (readiness === "ready" || readiness === "degraded") {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <CheckCircle2 aria-hidden className="size-4 text-positive" />
           Ready to answer questions.
@@ -126,7 +126,7 @@ export function IngestionStatus({
   if (ingestion?.status === "awaiting_upload") {
     return (
       <div className="flex items-start gap-2 text-sm" role="status">
-        <Upload aria-hidden className="mt-0.5 size-4 shrink-0" />
+        <Upload aria-hidden className="mt-1 size-4 shrink-0" />
         <span>
           Waiting for the video file. Nothing is processing yet — the upload
           never finished, so the lecture has not started ingesting.

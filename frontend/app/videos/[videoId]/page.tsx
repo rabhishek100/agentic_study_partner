@@ -467,7 +467,7 @@ export default function VideoWorkspace() {
         <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
           <Link
             href="/videos"
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft aria-hidden className="size-4" />
             All videos

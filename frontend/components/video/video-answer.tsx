@@ -215,7 +215,7 @@ function InlineFrame({
       <button
         type="button"
         onClick={() => onSeek(startMs)}
-        className="block w-full rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="block w-full rounded-md"
         aria-label={`Play from ${formatTimestamp(startMs)}: ${caption}`}
       >
         {image.status === "loading" ? (
@@ -231,7 +231,7 @@ function InlineFrame({
           />
         )}
       </button>
-      <figcaption className="mt-1 flex gap-1.5 text-xs text-muted-foreground">
+      <figcaption className="mt-1 flex gap-2 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">
           {formatTimestamp(startMs)}
         </span>
@@ -274,7 +274,7 @@ function VideoMarkdownCitation({ marker }: { marker: string }) {
           variant="ghost"
           size="sm"
           className={cn(
-            "mx-0.5 h-6 gap-1 rounded-full border border-border bg-surface px-2",
+            "mx-1 h-6 gap-1 rounded-full border border-border bg-surface px-2",
             "align-baseline text-xs font-normal",
           )}
           onClick={() =>
@@ -382,8 +382,8 @@ export function VideoAnswer({
         data-answer=""
         className={cn(
           "text-sm leading-relaxed",
-          "[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5",
-          "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5",
+          "[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6",
+          "[&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1",
           "[&_strong]:font-semibold [&_h1]:text-base [&_h2]:text-base",
           "[&_h3]:text-sm [&_h1]:font-medium [&_h2]:font-medium",
           "[&_h3]:font-medium [&_code]:rounded [&_code]:bg-muted [&_code]:px-1",

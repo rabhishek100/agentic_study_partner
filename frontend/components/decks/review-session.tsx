@@ -333,14 +333,14 @@ export function ReviewSession({
 
   if (cards.length === 0) {
     return (
-      <div className="mx-auto max-w-md rounded-xl border border-dashed border-border p-10 text-center">
+      <div className="mx-auto max-w-md rounded-xl border border-dashed border-border p-12 text-center">
         <Check aria-hidden className="mx-auto mb-3 size-6 text-positive" />
         <p className="text-base font-medium">Nothing due</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Everything scheduled for today is done. New cards appear as your
           daily allowance frees up.
         </p>
-        <Button className="mt-5" variant="outline" onClick={finish}>
+        <Button className="mt-6" variant="outline" onClick={finish}>
           Back to the decks
         </Button>
       </div>
@@ -354,7 +354,7 @@ export function ReviewSession({
           type="button"
           onClick={() => setOverviewOpen((open) => !open)}
           aria-expanded={overviewOpen}
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
         >
           {overviewOpen ? "Hide all cards" : `See all ${cards.length} cards`}
         </button>
@@ -376,7 +376,7 @@ export function ReviewSession({
                       aria-current={position === index ? "true" : undefined}
                       className={cn(
                         "size-7 rounded-md border text-xs tabular-nums transition-colors",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        "",
                         position === index
                           ? "border-primary bg-primary text-primary-foreground"
                           : entryState?.rating
@@ -407,7 +407,7 @@ export function ReviewSession({
   if (atSummary) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
-        <div className="rounded-xl border border-border bg-card p-10 text-center">
+        <div className="rounded-xl border border-border bg-card p-12 text-center">
           <Check aria-hidden className="mx-auto mb-3 size-6 text-positive" />
           <p className="font-serif text-lg font-medium">
             {gradedCount} of {cards.length} card
@@ -418,7 +418,7 @@ export function ReviewSession({
               ? "The ones you struggled with are already scheduled to come back sooner."
               : "The rest are still waiting — step back to reach them."}
           </p>
-          <div className="mt-5 flex justify-center gap-2">
+          <div className="mt-6 flex justify-center gap-2">
             <Button variant="outline" onClick={() => goTo(cards.length - 1)}>
               <ChevronLeft aria-hidden />
               Back to the cards
@@ -456,14 +456,14 @@ export function ReviewSession({
               <span className="truncate font-serif font-medium">
                 {item.deck_title}
               </span>
-              <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+              <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs tabular-nums text-muted-foreground">
                 {index + 1} / {cards.length}
               </span>
             </div>
             <Progress value={((index + 1) / cards.length) * 100} />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -488,7 +488,7 @@ export function ReviewSession({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <article className="mx-auto w-full max-w-4xl px-5 py-6 sm:px-8 sm:py-8">
+        <article className="mx-auto w-full max-w-4xl px-6 py-6 sm:px-8 sm:py-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
             <span className="font-medium text-primary">
               {sourceQuestions ? "Exercise" : "Card"} {index + 1}
@@ -536,7 +536,7 @@ export function ReviewSession({
 
           {state.revealed ? (
             <>
-              <div className="my-5 flex items-center gap-3">
+              <div className="my-6 flex items-center gap-3">
                 <div className="h-px flex-1 bg-border" />
                 <button
                   type="button"
@@ -546,7 +546,7 @@ export function ReviewSession({
                       questionCollapsed: !state.questionCollapsed,
                     })
                   }
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-primary hover:bg-accent"
                 >
                   <ChevronDown
                     aria-hidden
@@ -569,7 +569,7 @@ export function ReviewSession({
                 ref={backRef}
                 data-turn-index="0"
                 data-answer
-                className="space-y-5"
+                className="space-y-6"
               >
                 <CardBackFace
                   item={item}
@@ -582,7 +582,7 @@ export function ReviewSession({
           ) : null}
 
           {error ? (
-            <p role="alert" className="mt-5 text-sm text-destructive">
+            <p role="alert" className="mt-6 text-sm text-destructive">
               {error}
             </p>
           ) : null}
@@ -606,7 +606,7 @@ export function ReviewSession({
             >
               <Eye aria-hidden />
               Show answer
-              <kbd className="ml-2 rounded border border-divider px-1.5 text-xs opacity-70">
+              <kbd className="ml-2 rounded border border-divider px-2 text-xs opacity-70">
                 space
               </kbd>
             </Button>
@@ -633,7 +633,7 @@ export function ReviewSession({
             <div className="hidden h-10 w-px bg-border lg:block" />
             <div className="min-w-32 shrink-0">
               <p className="text-xs font-medium">How well did you recall this?</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Choose one rating
               </p>
             </div>
@@ -645,7 +645,7 @@ export function ReviewSession({
                   disabled={pending}
                   onClick={() => void grade(rating)}
                   className={cn(
-                    "h-auto min-w-0 flex-col gap-0.5 py-2",
+                    "h-auto min-w-0 flex-col gap-1 py-2",
                     rating === 1 && "border-destructive text-destructive",
                     rating === 2 && "border-evidence text-citation",
                     rating === 3 && "border-action text-primary",

@@ -240,7 +240,7 @@ export function SideChatLayer({
 
       {minimized.length > 0 && (
         <div
-          className="fixed bottom-3 right-3 z-30 flex max-w-[min(90vw,32rem)] flex-wrap items-center justify-end gap-1.5"
+          className="fixed bottom-3 right-3 z-30 flex max-w-[min(90vw,32rem)] flex-wrap items-center justify-end gap-2"
           aria-label="Minimized side chats"
         >
           {minimized.map((entry) => {

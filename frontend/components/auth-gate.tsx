@@ -93,7 +93,7 @@ export function AuthGate() {
 
       <PanelContent className="space-y-4">
         <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="auth-email">Email</Label>
             <Input
               id="auth-email"
@@ -105,7 +105,7 @@ export function AuthGate() {
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="auth-password">Password</Label>
             <Input
               id="auth-password"

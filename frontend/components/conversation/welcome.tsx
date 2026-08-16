@@ -70,7 +70,7 @@ export function Welcome({
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center py-12 text-center">
-      <BrandMark className="mb-5" />
+      <BrandMark className="mb-6" />
       <h2 className="font-serif text-2xl font-medium tracking-tight sm:text-3xl">
         {hasBooks ? "What would you like to understand?" : "Upload a book to begin"}
       </h2>

@@ -332,7 +332,7 @@ export function PdfViewer({
         </Button>
       </header>
 
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div
           role="group"
           aria-label="Document page navigation. Use Left and Right Arrow keys."
@@ -396,7 +396,7 @@ export function PdfViewer({
           <Button
             size="sm"
             variant="ghost"
-            className="min-w-14 px-1.5 text-xs tabular-nums"
+            className="min-w-14 px-2 text-xs tabular-nums"
             aria-label={`Reset zoom to 100%. Current zoom ${zoomPercent}%`}
             onClick={() => setZoomWithinLimits(1)}
           >
@@ -415,7 +415,7 @@ export function PdfViewer({
       </div>
 
       {exactMatch === false && target.excerpt && (
-        <p className="shrink-0 border-b border-border bg-surface px-3 py-1.5 text-xs text-muted-foreground">
+        <p className="shrink-0 border-b border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
           Showing the cited page. The exact passage could not be located in
           this page&apos;s text.
         </p>

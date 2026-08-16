@@ -193,7 +193,7 @@ export function FloatingWindow({
           aria-label={`Move the ${title} side chat. Use the arrow keys, or hold Shift for larger steps.`}
           onPointerDown={beginDrag("move")}
           onKeyDown={handleKeys("move")}
-          className="flex min-w-0 flex-1 cursor-grab items-center gap-1.5 rounded-tl-xl px-2 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring active:cursor-grabbing"
+          className="flex min-w-0 flex-1 cursor-grab items-center gap-2 rounded-tl-xl px-2 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring active:cursor-grabbing"
         >
           <GripVertical
             aria-hidden

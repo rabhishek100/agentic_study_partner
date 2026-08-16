@@ -112,7 +112,7 @@ export function DocumentPages({
     <section aria-labelledby="cited-pages-heading" className="space-y-2">
       <h4
         id="cited-pages-heading"
-        className="flex items-center gap-1.5 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        className="flex items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <FileText className="size-3.5" aria-hidden />
         {pages.length === 1 ? "Cited page" : "Cited pages"}
@@ -135,14 +135,14 @@ export function DocumentPages({
                   excerpt: reference.excerpt,
                 })
               }
-              className="block w-full overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-citation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="block w-full overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-citation"
             >
               <PageImage
                 videoId={videoId}
                 reference={reference}
                 className="max-h-64"
               />
-              <span className="block border-t border-border px-2.5 py-1.5 text-xs text-muted-foreground">
+              <span className="block border-t border-border px-3 py-2 text-xs text-muted-foreground">
                 <span className="block truncate">
                   {reference.resource_title ?? "Linked document"}
                 </span>

@@ -45,7 +45,7 @@ function PromptField({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       <p className="text-xs text-muted-foreground">{description}</p>
       <Textarea
@@ -214,7 +214,7 @@ export function PromptSettings({
                 />
               </section>
 
-              <section className="space-y-5">
+              <section className="space-y-6">
                 <PromptField
                   id="interview-instructions"
                   label="Interview system instructions"

@@ -56,8 +56,14 @@ const RULES = [
   },
 ];
 
-/** 4px foundation: 4, 8, 12, 16, 24, 32, 48, 64 — expressed in Tailwind steps. */
-const SPACING_STEPS = new Set(["1", "2", "3", "4", "6", "8", "12", "16"]);
+/**
+ * The 4px foundation. The brief names 4/8/12/16/24/32/48 as the *primary*
+ * intervals on it, not as the whole permitted set — so the test is alignment,
+ * not membership. A Tailwind step is 4px, so every integer step lands on the
+ * foundation and every fractional one (0.5 = 2px, 1.5 = 6px, 2.5 = 10px) does
+ * not. Zero is spacing removed, which is always on any grid.
+ */
+const onFoundation = (step) => step === "0" || /^\d+$/.test(step);
 const SPACING_RE = /\b(?:gap|gap-x|gap-y|p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|space-x|space-y)-(\d+(?:\.\d+)?)\b/g;
 
 /** menu 6, control 8, panel 10, floating 14, pill full. */
@@ -114,7 +120,7 @@ function scan() {
           }
         }
         for (const m of line.matchAll(SPACING_RE)) {
-          if (!SPACING_STEPS.has(m[1])) {
+          if (!onFoundation(m[1])) {
             found.push({
               file: rel, line: i + 1, rule: "off-scale-spacing", match: m[0],
               why: "not on the 4px foundation (4/8/12/16/24/32/48/64)",
