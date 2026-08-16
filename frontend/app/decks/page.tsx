@@ -79,7 +79,7 @@ function DeckGroup({
       <div className="overflow-hidden rounded-lg border border-border">
         <div
           aria-hidden
-          className="hidden grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5.5rem_7rem_5.5rem_4.5rem] gap-3 border-b border-border bg-muted/20 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid"
+          className="hidden grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5rem_7.75rem_5.5rem_4.5rem] gap-3 border-b border-border bg-muted/20 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid"
         >
           <span>Deck</span>
           <span>Source</span>
