@@ -65,6 +65,7 @@
     --color-wash: var(--wash);
     --color-seal: var(--seal);
     --color-warning: var(--warning);
+    --color-surface-hover: var(--surface-hover);
     --color-disabled-surface: var(--disabled-surface);
     --color-disabled-foreground: var(--disabled-foreground);
 
@@ -131,6 +132,7 @@
     --action-on: #fffdf7;
     --evidence: #1f5647;
     --wash: #d8e9df;
+    --surface-hover: #eae5d8;
     --seal: #aa482b;
     --warning: #7a5410;
     --disabled-surface: #f4f0e6;
@@ -148,7 +150,8 @@
     --secondary-foreground: var(--foreground);
     --muted: var(--surface);
     --muted-foreground: #586a63;
-    --accent: var(--wash);
+    /* Hover ground, not selection. The wash means selected and stays rare. */
+    --accent: var(--surface-hover);
     --accent-foreground: var(--foreground);
     --destructive: #a32741;
 
@@ -168,7 +171,7 @@
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--action);
     --sidebar-primary-foreground: var(--action-on);
-    --sidebar-accent: var(--wash);
+    --sidebar-accent: var(--surface-hover);
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--divider);
     --sidebar-ring: var(--action);
@@ -206,6 +209,7 @@
     --action-on: #070b0a;
     --evidence: #8fc9af;
     --wash: #1b4a38;
+    --surface-hover: #16211d;
     --seal: #e97850;
     --warning: #e3b341;
     --disabled-surface: #0d1714;
@@ -222,7 +226,7 @@
     --secondary-foreground: var(--foreground);
     --muted: var(--surface);
     --muted-foreground: #a8c4b5;
-    --accent: var(--wash);
+    --accent: var(--surface-hover);
     --accent-foreground: var(--foreground);
     --destructive: #f0798c;
 
@@ -240,7 +244,7 @@
     --sidebar-foreground: var(--foreground);
     --sidebar-primary: var(--action);
     --sidebar-primary-foreground: var(--action-on);
-    --sidebar-accent: var(--wash);
+    --sidebar-accent: var(--surface-hover);
     --sidebar-accent-foreground: var(--foreground);
     --sidebar-border: var(--divider);
     --sidebar-ring: var(--action);

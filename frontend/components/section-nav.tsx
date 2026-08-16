@@ -37,9 +37,12 @@ export function SectionNav({
           className={cn(
             "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            // Selection is the jade wash; hover is the neutral ground. They
+            // were both `accent` before, so the current section and a hovered
+            // one looked identical.
             active === key
-              ? "bg-accent font-medium text-accent-foreground"
-              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+              ? "bg-wash font-medium text-foreground"
+              : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
           )}
         >
           <Icon aria-hidden className="size-4" />
