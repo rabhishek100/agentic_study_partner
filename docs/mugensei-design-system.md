@@ -3,15 +3,18 @@
 The selected direction, formalized. This document is the contract; component
 code implements it and does not extend it. Creative intent lives in
 [`MUGENSEI_DESIGN_BRIEF.md`](../MUGENSEI_DESIGN_BRIEF.md) — where the two
-disagree, the brief wins and this document is wrong and must be corrected.
+disagree, the brief wins and this document is wrong, *unless* the departure was
+decided deliberately and is recorded in
+[Deviations and corrections](#deviations-and-corrections). Silent divergence is
+always a defect; declared divergence is a decision.
 
-Status: **approved and shipping.** Stages 1–6 are live; see
-[Implementation staging](#implementation-staging).
+Status: **approved and shipping.** All seven stages are live, plus evidence in
+the right region; see [Implementation staging](#implementation-staging).
 
-Revision 3. Two design reviews ran against revision 1, and production itself
-corrected revision 2 twice. All of it is recorded in
-[Deviations and corrections](#deviations-and-corrections) rather than quietly
-folded in — a contract that edits its own history is not a contract.
+Revision 4. Two design reviews ran against revision 1, production itself
+corrected revision 2 twice, and revision 4 replaced the mark. All of it is
+recorded rather than quietly folded in — a contract that edits its own history
+is not a contract.
 
 ## The selected direction
 
@@ -28,6 +31,35 @@ grafts from *Ma* and *Kakejiku*.
 - **Serif means the reader's material** — the text under study and the reader's
   own words. Never system chrome.
 - **One vermilion seal per screen.**
+
+## The mark
+
+Three pieces of evidence converging into one understanding.
+
+Scattered squares on the left are discrete and unconnected. Three lines carry
+them right, meeting at exactly 45 degrees on a single filled square — the point
+where separate evidence becomes connected understanding. The promise stated as
+geometry rather than illustrated.
+
+Four things in it are load-bearing, and each was arrived at by rendering the mark
+at 24px and magnifying it without resampling rather than by judging it large:
+
+- **The lines converge directly on the terminal square** rather than merging into
+  a shared trunk first. With a trunk it reads as a bracket or a merge icon;
+  converging, it reads as gathering.
+- **Three sources, not more.** Five tributaries arriving at an eight-unit square
+  land about a pixel apart at 24px and blur into one blob.
+- **Nothing outlines the squares or interrupts the lines.** The previous mark
+  ringed its nodes in the ground colour so they would punch out of the stroke,
+  and those rings severed the stroke — a continuous path rendered as
+  disconnected chunks.
+- **One geometry at every size.** Two geometries, one simplified for small sizes,
+  reads as a bug rather than as an optical adjustment.
+
+Four forms, all verified on both themes and at 24px: colour on sumi, colour on
+washi, and monochrome on each. The geometry carries the mark with colour removed
+entirely, which is the test that matters — shape distinguishes the squares from
+the lines, not hue.
 
 ## Colour
 
@@ -82,9 +114,11 @@ non-interactive text. The tonal difference is a courtesy, not a signal.
 3:1 against the dark wash without becoming a highlight. An emphasized row takes
 its boundary from its own marker.
 
-**4. The mark is outside the semantic system.** The logo uses jade for its path
-because it is identity, not state. This is the single documented exception to
-"jade carries meaning," and it applies to the mark only.
+**4. The mark is outside the semantic system.** The logo uses jade for its
+converging lines and vermilion for its terminal square because it is identity,
+not state. This is the single documented exception to "jade carries meaning" and
+to "vermilion is a signature, used once per screen" — the mark carries its own
+seal, and it is the one place both rules are suspended.
 
 ### Elevation reads differently per theme — deliberately
 
