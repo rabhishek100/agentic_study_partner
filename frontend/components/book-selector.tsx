@@ -14,24 +14,36 @@ import { Separator } from "@/components/ui/separator";
 import type { BookSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-/** How the current selection reads in one line. */
+/**
+ * How the current selection reads in one line.
+ *
+ * The noun is a parameter because this component serves two libraries. The
+ * papers route said "All 31 books" under a heading reading "Your paper
+ * library" — the rail knew which it was and nothing else did.
+ */
 export function describeSelection(
   books: BookSummary[],
   selected: number[],
+  noun: DocumentNoun = "book",
 ): string {
-  if (books.length === 0) return "No books";
-  if (selected.length === 0) return "No books selected";
+  const one = noun;
+  const many = `${noun}s`;
+  if (books.length === 0) return `No ${many}`;
+  if (selected.length === 0) return `No ${many} selected`;
   if (selected.length === books.length) {
     return books.length === 1
-      ? (books[0]?.title ?? "1 book")
-      : `All ${books.length} books`;
+      ? (books[0]?.title ?? `1 ${one}`)
+      : `All ${books.length} ${many}`;
   }
   if (selected.length === 1) {
     const only = books.find((book) => book.book_id === selected[0]);
-    return only?.title ?? "1 book";
+    return only?.title ?? `1 ${one}`;
   }
-  return `${selected.length} of ${books.length} books`;
+  return `${selected.length} of ${books.length} ${many}`;
 }
+
+/** Which library this is, so the copy can name it. */
+export type DocumentNoun = "book" | "paper";
 
 export interface BookSelectorProps {
   books: BookSummary[];
@@ -39,6 +51,7 @@ export interface BookSelectorProps {
   onChange: (bookIds: number[]) => void;
   /** True once the conversation has turns that were answered under `selected`. */
   hasConversation: boolean;
+  noun?: DocumentNoun;
 }
 
 export function BookSelector({
@@ -46,6 +59,7 @@ export function BookSelector({
   selected,
   onChange,
   hasConversation,
+  noun = "book",
 }: BookSelectorProps) {
   const [open, setOpen] = useState(false);
   const selectedSet = new Set(selected);
@@ -66,12 +80,12 @@ export function BookSelector({
             variant="outline"
             size="lg"
             className="w-full justify-between font-normal"
-            aria-label="Choose which books to search"
+            aria-label={`Choose which ${noun}s to search`}
           >
             <span className="flex min-w-0 items-center gap-2">
               <Library className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               <span className="truncate">
-                {describeSelection(books, selected)}
+                {describeSelection(books, selected, noun)}
               </span>
             </span>
             <ChevronsUpDown className="size-3.5 shrink-0 opacity-50" aria-hidden />

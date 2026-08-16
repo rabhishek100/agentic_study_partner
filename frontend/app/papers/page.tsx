@@ -431,6 +431,7 @@ export default function PapersPage() {
       }
     >
       <ConversationView
+        noun="paper"
         onShowSources={(turnIndex: number) => {
           setPinnedSourcesTurn(turnIndex);
           // The reader asked for these sources; a document over them would hide
@@ -457,7 +458,7 @@ export default function PapersPage() {
         responseDepth={responseDepth}
         onResponseDepthChange={setResponseDepth}
         scopeSummary={
-          hasBooks ? describeSelection(books, selectedBookIds) : null
+          hasBooks ? describeSelection(books, selectedBookIds, "paper") : null
         }
       />
     </AppShell>

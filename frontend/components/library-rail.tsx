@@ -130,6 +130,7 @@ export function LibraryRail({
           </Alert>
         ) : hasBooks ? (
           <BookSelector
+            noun={documentType}
             books={books}
             selected={selectedBookIds}
             onChange={onSelectBooks}

@@ -5,6 +5,7 @@ import { useLayoutEffect } from "react";
 
 import { Composer } from "@/components/conversation/composer";
 import { PromptSettings } from "@/components/conversation/prompt-settings";
+import type { DocumentNoun } from "@/components/book-selector";
 import { TurnView } from "@/components/conversation/turn-view";
 import { Welcome } from "@/components/conversation/welcome";
 import { AskSelection } from "@/components/side-chat/ask-selection";
@@ -34,6 +35,8 @@ function liveStatus(turns: ChatTurn[]): string {
 
 export interface ConversationViewProps {
   turns: ChatTurn[];
+  /** Which library this is, so the copy can name it. */
+  noun?: DocumentNoun;
   /** Points the right region at one turn's sources. */
   onShowSources?: (turnIndex: number) => void;
   /** Which turn the region is currently showing, if any. */
@@ -57,6 +60,7 @@ export interface ConversationViewProps {
 
 export function ConversationView({
   turns,
+  noun = "book",
   onShowSources,
   shownSourcesTurn,
   isStreaming,
@@ -160,10 +164,11 @@ export function ConversationView({
 
         <div className="mx-auto w-full max-w-3xl px-4 py-3 sm:px-6">
           <Composer
+            noun={noun}
             disabled={!hasBooks}
             isStreaming={isStreaming}
             placeholder={
-              hasBooks ? "Ask about the book…" : "Upload a book first…"
+              hasBooks ? `Ask about the ${noun}…` : `Upload a ${noun} first…`
             }
             onSubmit={onSend}
             onStop={onStop}
@@ -183,7 +188,7 @@ export function ConversationView({
               ? "No default scope — type @ to tag a book for this question."
               : scopeSummary
               ? `Answers are limited to evidence found in ${scopeSummary.toLowerCase()}.`
-              : "Answers are limited to the evidence found in your books."}
+              : `Answers are limited to the evidence found in your ${noun}s.`}
           </p>
         </div>
       </div>

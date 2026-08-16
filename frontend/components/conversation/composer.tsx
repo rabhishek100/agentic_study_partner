@@ -22,11 +22,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { spliceTranscript } from "@/lib/dictation";
 import type { BookSummary, ResponseDepth } from "@/lib/types";
+import type { DocumentNoun } from "@/components/book-selector";
 import { cn } from "@/lib/utils";
 
 const MAX_TEXTAREA_HEIGHT_PX = 200;
 
 export interface ComposerProps {
+  /** Which library this is, so the copy can name it. */
+  noun?: DocumentNoun;
   disabled: boolean;
   isStreaming: boolean;
   placeholder: string;
@@ -40,6 +43,7 @@ export interface ComposerProps {
 }
 
 export function Composer({
+  noun = "book",
   disabled,
   isStreaming,
   placeholder,
@@ -186,7 +190,7 @@ export function Composer({
         {settingsControl}
       </div>
       <label className="sr-only" htmlFor="question">
-        Ask about the book
+        {`Ask about the ${noun}`}
       </label>
       <Textarea
         ref={textareaRef}

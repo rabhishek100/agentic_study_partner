@@ -412,7 +412,7 @@ export function UploadPanel({
         id="upload-heading"
         className="text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
-        Add a book
+        {documentType === "paper" ? "Add a paper" : "Add a book"}
       </h2>
 
       <label
