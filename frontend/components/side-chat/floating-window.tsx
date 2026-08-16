@@ -11,11 +11,24 @@ import {
   resizeByKey,
   snapRect,
   type WindowRect,
+  HEADER_INSET,
 } from "@/lib/floating-window";
 import { cn } from "@/lib/utils";
 
+/**
+ * The header's actual height, so windows clear it even when the reader has
+ * enlarged text and it has grown past its design height.
+ */
+function measuredInset(): number {
+  const header = document.querySelector("header");
+  return header ? Math.round(header.getBoundingClientRect().height) : HEADER_INSET;
+}
 function viewport() {
-  return { width: window.innerWidth, height: window.innerHeight };
+  return {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    inset: measuredInset(),
+  };
 }
 
 export interface FloatingWindowProps {
@@ -187,13 +200,13 @@ export function FloatingWindow({
         hidden && "hidden",
       )}
     >
-      <header className="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 pr-1">
+      <header className="flex shrink-0 items-center gap-1 border-b border-border bg-surface pr-1">
         <button
           type="button"
           aria-label={`Move the ${title} side chat. Use the arrow keys, or hold Shift for larger steps.`}
           onPointerDown={beginDrag("move")}
           onKeyDown={handleKeys("move")}
-          className="flex min-w-0 flex-1 cursor-grab items-center gap-1.5 rounded-tl-xl px-2 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring active:cursor-grabbing"
+          className="flex min-w-0 flex-1 cursor-grab items-center gap-2 rounded-tl-xl px-2 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring active:cursor-grabbing"
         >
           <GripVertical
             aria-hidden
@@ -241,7 +254,7 @@ export function FloatingWindow({
       >
         <span
           aria-hidden
-          className="absolute bottom-1 right-1 size-2 border-b-2 border-r-2 border-muted-foreground/60"
+          className="absolute bottom-1 right-1 size-2 border-b-2 border-r-2 border-divider"
         />
       </button>
     </section>

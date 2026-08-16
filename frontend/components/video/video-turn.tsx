@@ -49,7 +49,7 @@ function CopyButton({ text }: { text: string }) {
 export function ThinkingIndicator({ label }: { label: string }) {
   return (
     <p
-      className="flex items-center gap-1.5 text-sm text-muted-foreground"
+      className="flex items-center gap-2 text-sm text-muted-foreground"
       role="status"
     >
       <span className="flex gap-1" aria-hidden>
@@ -113,7 +113,7 @@ export function VideoTurnView({
       <div className="flex justify-end">
         <h3
           id={`question-${turn.id}`}
-          className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-2.5 text-[0.95rem] font-normal text-secondary-foreground"
+          className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-3 text-xs font-normal text-secondary-foreground"
         >
           {turn.question}
         </h3>

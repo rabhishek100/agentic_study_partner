@@ -143,7 +143,7 @@ function Figure({ figure, onOpen }: { figure: FigureRef; onOpen: () => void }) {
         className="group/figure block w-full overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-citation"
       >
         <FigureImage figure={figure} className="max-h-56" />
-        <span className="block border-t border-border px-2.5 py-1.5 text-xs text-muted-foreground">
+        <span className="block border-t border-border px-3 py-2 text-xs text-muted-foreground">
           <span className="block truncate">{parts.at(-1) ?? figure.path}</span>
           <span className="block">p. {figure.page}</span>
         </span>
@@ -164,7 +164,7 @@ export function Figures({ figures }: FiguresProps) {
     <section aria-labelledby="figures-heading" className="space-y-2">
       <h4
         id="figures-heading"
-        className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        className="flex items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <Images className="size-3.5" aria-hidden />
         {figures.length === 1

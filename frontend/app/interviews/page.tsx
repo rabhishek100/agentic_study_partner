@@ -23,7 +23,7 @@ import { primeInterviewerSpeech } from "@/hooks/use-interviewer-speech";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/ui/panel";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -252,7 +252,7 @@ export default function InterviewsPage() {
   }, [payload, router]);
 
   if (sessionLoading) {
-    return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-5" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-0.5 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">Checking your session</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Verifying sign-in before loading interview sources and history.</p></div></div></div>;
+    return <div className="grid h-dvh place-items-center p-6"><div className="flex max-w-sm items-start gap-3 rounded-xl border bg-card p-6" role="status" aria-live="polite"><Loader2 aria-hidden className="mt-1 size-5 shrink-0 animate-spin text-primary motion-reduce:animate-none" /><div><p className="font-medium">Checking your session</p><p className="mt-1 text-sm leading-6 text-muted-foreground">Verifying sign-in before loading interview sources and history.</p></div></div></div>;
   }
   if (!session) {
     return (
@@ -283,8 +283,8 @@ export default function InterviewsPage() {
       }
       rail={
         <div className="flex h-full flex-col overflow-y-auto p-4">
-          <div className="mb-5 sm:hidden"><SectionNav active="interviews" /></div>
-          <h2 className="font-heading text-sm font-medium">Recent interviews</h2>
+          <div className="mb-6 sm:hidden"><SectionNav active="interviews" /></div>
+          <h2 className="text-sm font-medium">Recent interviews</h2>
           <p className="mt-1 text-xs text-muted-foreground">Resume a paused session or revisit a report.</p>
           <div className="mt-4 space-y-2">
             {history.length === 0 ? (
@@ -293,11 +293,11 @@ export default function InterviewsPage() {
               <Link
                 key={item.session_id}
                 href={`/interviews/${item.session_id}`}
-                className="block rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-border hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block rounded-lg border border-transparent px-3 py-3 transition-colors hover:border-border hover:bg-surface-hover"
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="line-clamp-2 text-sm font-medium">{item.title.replace("Interview · ", "")}</p>
-                  <Badge variant="outline" className="shrink-0 text-[10px]">{statusLabel(item.status)}</Badge>
+                  <Badge variant="outline" className="shrink-0 text-xs">{statusLabel(item.status)}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{item.target_level} · {formatDuration(item.maximum_duration_minutes)} max</p>
               </Link>
@@ -310,14 +310,14 @@ export default function InterviewsPage() {
         <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
           <div className="max-w-2xl">
             <Badge variant="secondary" className="mb-4"><Sparkles aria-hidden /> Adaptive practice</Badge>
-            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">Practice the interview, not a question list.</h1>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">Practice the interview, not a question list.</h1>
             <p className="mt-3 text-base leading-7 text-muted-foreground">Choose one chapter or lecture. The interviewer follows its evidence, adapts to your answers, and finishes when the useful material is covered.</p>
           </div>
 
           <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.78fr]">
-            <Card>
-              <CardHeader><CardTitle>Interview setup</CardTitle></CardHeader>
-              <CardContent className="space-y-6">
+            <Panel>
+              <PanelHeader><PanelTitle>Interview setup</PanelTitle></PanelHeader>
+              <PanelContent className="space-y-6">
                 <fieldset className="space-y-3">
                   <legend className="text-sm font-medium">Study source</legend>
                   <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
@@ -329,21 +329,21 @@ export default function InterviewsPage() {
                   </div>
                   {sourceKind === "book" ? (
                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                      <div className="min-w-0 space-y-1.5"><Label htmlFor="interview-book">Book</Label><Select value={bookId} onValueChange={setBookId}><SelectTrigger id="interview-book" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loaded ? "Choose a book" : "Loading…"} /></SelectTrigger><SelectContent>{books.map((book) => <SelectItem key={book.book_id} value={String(book.book_id)}>{book.title}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="min-w-0 space-y-1.5"><Label htmlFor="interview-chapter">Chapter</Label><Select value={nodeId} onValueChange={setNodeId} disabled={!bookId || loadingChapters || chapters.length === 0}><SelectTrigger id="interview-chapter" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loadingChapters ? "Loading chapters…" : bookId ? "Choose a chapter" : "Choose a book first"} /></SelectTrigger><SelectContent>{chapters.map((chapter) => <SelectItem key={chapter.node_id} value={String(chapter.node_id)}>{chapter.title}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="min-w-0 space-y-2"><Label htmlFor="interview-book">Book</Label><Select value={bookId} onValueChange={setBookId}><SelectTrigger id="interview-book" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loaded ? "Choose a book" : "Loading…"} /></SelectTrigger><SelectContent>{books.map((book) => <SelectItem key={book.book_id} value={String(book.book_id)}>{book.title}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="min-w-0 space-y-2"><Label htmlFor="interview-chapter">Chapter</Label><Select value={nodeId} onValueChange={setNodeId} disabled={!bookId || loadingChapters || chapters.length === 0}><SelectTrigger id="interview-chapter" className="w-full min-w-0 overflow-hidden"><SelectValue className="min-w-0 truncate" placeholder={loadingChapters ? "Loading chapters…" : bookId ? "Choose a chapter" : "Choose a book first"} /></SelectTrigger><SelectContent>{chapters.map((chapter) => <SelectItem key={chapter.node_id} value={String(chapter.node_id)}>{chapter.title}</SelectItem>)}</SelectContent></Select></div>
                     </div>
                   ) : (
-                    <div className="space-y-1.5"><Label htmlFor="interview-video">Lecture</Label><Select value={videoId} onValueChange={setVideoId}><SelectTrigger id="interview-video"><SelectValue placeholder="Choose a processed lecture" /></SelectTrigger><SelectContent>{videos.map((video) => <SelectItem key={video.video_id} value={video.video_id}>{video.title}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="space-y-2"><Label htmlFor="interview-video">Lecture</Label><Select value={videoId} onValueChange={setVideoId}><SelectTrigger id="interview-video"><SelectValue placeholder="Choose a processed lecture" /></SelectTrigger><SelectContent>{videos.map((video) => <SelectItem key={video.video_id} value={video.video_id}>{video.title}</SelectItem>)}</SelectContent></Select></div>
                   )}
                 </fieldset>
 
                 <fieldset className="space-y-3"><legend className="text-sm font-medium">Maximum time</legend><div className="grid grid-cols-3 gap-2 sm:grid-cols-6">{INTERVIEW_DURATIONS.map((value) => <button key={value} type="button" onClick={() => setDuration(value)} aria-pressed={duration === value} className={cn("rounded-md border px-2 py-2 text-sm transition-colors", duration === value ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-accent")}>{value < 60 ? value : value === 60 ? "1h" : value === 90 ? "1.5h" : "2h"}</button>)}</div><p className="text-xs text-muted-foreground">A ceiling, not a quota. The session ends when meaningful coverage is complete.</p></fieldset>
 
-                <fieldset className="space-y-3"><legend className="text-sm font-medium">Target level</legend><div className="grid gap-2 sm:grid-cols-3">{LEVELS.map((item) => <button key={item.value} type="button" onClick={() => setLevel(item.value)} aria-pressed={level === item.value} className={cn("rounded-lg border p-3 text-left transition-colors", level === item.value ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50")}><span className="block text-sm font-medium">{item.label}</span><span className="mt-1 block text-xs text-muted-foreground">{item.note}</span></button>)}</div></fieldset>
+                <fieldset className="space-y-3"><legend className="text-sm font-medium">Target level</legend><div className="grid gap-2 sm:grid-cols-3">{LEVELS.map((item) => <button key={item.value} type="button" onClick={() => setLevel(item.value)} aria-pressed={level === item.value} className={cn("rounded-lg border p-3 text-left transition-colors", level === item.value ? "border-primary bg-wash" : "border-border hover:bg-surface-hover")}><span className="block text-sm font-medium">{item.label}</span><span className="mt-1 block text-xs text-muted-foreground">{item.note}</span></button>)}</div></fieldset>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1.5"><Label htmlFor="feedback-mode">Feedback</Label><Select value={mode} onValueChange={(value) => setMode(value as InterviewMode)}><SelectTrigger id="feedback-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="realistic">Realistic · report at end</SelectItem><SelectItem value="guided">Guided · coach each turn</SelectItem></SelectContent></Select></div>
-                  <div className="space-y-1.5"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label htmlFor="feedback-mode">Feedback</Label><Select value={mode} onValueChange={(value) => setMode(value as InterviewMode)}><SelectTrigger id="feedback-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="realistic">Realistic · report at end</SelectItem><SelectItem value="guided">Guided · coach each turn</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label htmlFor="interview-format">Format</Label><Select value={format} onValueChange={(value) => setFormat(value as InterviewFormatChoice)}><SelectTrigger id="interview-format"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="auto">Detect from source</SelectItem><SelectItem value="concept">Concept interview</SelectItem><SelectItem value="system_design">System design</SelectItem><SelectItem value="source_led">Follow source sequence</SelectItem></SelectContent></Select></div>
                 </div>
 
                 <div className="flex items-start gap-3 rounded-lg border p-4">
@@ -402,12 +402,12 @@ export default function InterviewsPage() {
                   </Alert>
                 ) : null}
                 {operation !== "idle" ? (
-                  <div className="rounded-lg border border-primary/25 bg-primary/[0.035] p-3" role="status" aria-live="polite" aria-atomic="true">
-                    <div className="flex items-start gap-2.5">
-                      <Loader2 aria-hidden className="mt-0.5 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
+                  <div className="rounded-lg border border-action bg-surface p-3" role="status" aria-live="polite" aria-atomic="true">
+                    <div className="flex items-start gap-3">
+                      <Loader2 aria-hidden className="mt-1 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
                       <div>
                         <p className="text-sm font-medium">{SETUP_ACTIVITY[operation].title}</p>
-                        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{SETUP_ACTIVITY[operation].detail}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{SETUP_ACTIVITY[operation].detail}</p>
                       </div>
                     </div>
                   </div>
@@ -417,13 +417,13 @@ export default function InterviewsPage() {
                     Microphone access is required for the voice interview. Testing the live input meter is optional.
                   </p>
                 ) : null}
-              </CardContent>
-            </Card>
+              </PanelContent>
+            </Panel>
 
             <div className="space-y-4">
-              <Card className={cn(!preview && "border-dashed")}>
-                <CardHeader><CardTitle className="flex items-center gap-2"><Clock3 aria-hidden className="size-5" />Source preflight</CardTitle></CardHeader>
-                <CardContent>
+              <Panel className={cn(!preview && "border-dashed")}>
+                <PanelHeader><PanelTitle className="flex items-center gap-2"><Clock3 aria-hidden className="size-5" />Source preflight</PanelTitle></PanelHeader>
+                <PanelContent>
                   {preview ? (
                     <div className="space-y-4">
                       <div><p className="text-sm font-medium">{preview.title}</p><p className="mt-1 text-xs text-muted-foreground">{preview.source_title}</p></div>
@@ -441,8 +441,8 @@ export default function InterviewsPage() {
                   ) : (
                     <p className="text-sm leading-6 text-muted-foreground">Choose a source and review the setup. The preflight checks evidence readiness, detects the interview shape, and estimates an honest duration before any question is generated.</p>
                   )}
-                </CardContent>
-              </Card>
+                </PanelContent>
+              </Panel>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 <div className="rounded-xl border bg-card p-4"><ShieldCheck aria-hidden className="size-5 text-primary" /><p className="mt-3 text-sm font-medium">Grounded scoring</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Corrections and suggested answers trace back to pages, timestamps, or verified external sources.</p></div>
                 <div className="rounded-xl border bg-card p-4"><MessagesSquare aria-hidden className="size-5 text-primary" /><p className="mt-3 text-sm font-medium">Voice and screen ready</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Adaptive microphone detection, natural interviewer speech, and explicit screen checkpoints—with no raw media retained.</p></div>

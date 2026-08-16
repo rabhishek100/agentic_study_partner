@@ -16,7 +16,10 @@ describe("SplitPane", () => {
     window.localStorage.setItem(STORAGE_KEY, "70");
 
     render(
-      <SplitPane aside={<div>Document</div>}>
+      <SplitPane
+        regions={[{ key: "document", label: "Source document", node: <div>Document</div> }]}
+        active="document"
+      >
         <div>Conversation</div>
       </SplitPane>,
     );
@@ -32,7 +35,10 @@ describe("SplitPane", () => {
 
   it("supports keyboard resizing and persists the new width", () => {
     render(
-      <SplitPane aside={<div>Document</div>}>
+      <SplitPane
+        regions={[{ key: "document", label: "Source document", node: <div>Document</div> }]}
+        active="document"
+      >
         <div>Conversation</div>
       </SplitPane>,
     );
@@ -48,7 +54,10 @@ describe("SplitPane", () => {
 
   it("releases global drag styles when the pane unmounts mid-drag", () => {
     const { unmount } = render(
-      <SplitPane aside={<div>Document</div>}>
+      <SplitPane
+        regions={[{ key: "document", label: "Source document", node: <div>Document</div> }]}
+        active="document"
+      >
         <div>Conversation</div>
       </SplitPane>,
     );
@@ -67,14 +76,17 @@ describe("SplitPane", () => {
   it("keeps the workspace mounted when a document opens and closes", () => {
     const workspace = <div data-testid="workspace">Conversation</div>;
     const { rerender } = render(
-      <SplitPane aside={null}>{workspace}</SplitPane>,
+      <SplitPane regions={[]} active={null}>{workspace}</SplitPane>,
     );
     const original = screen.getByTestId("workspace");
 
-    rerender(<SplitPane aside={<div>Document</div>}>{workspace}</SplitPane>);
+    rerender(<SplitPane
+        regions={[{ key: "document", label: "Source document", node: <div>Document</div> }]}
+        active="document"
+      >{workspace}</SplitPane>);
     expect(screen.getByTestId("workspace")).toBe(original);
 
-    rerender(<SplitPane aside={null}>{workspace}</SplitPane>);
+    rerender(<SplitPane regions={[]} active={null}>{workspace}</SplitPane>);
     expect(screen.getByTestId("workspace")).toBe(original);
   });
 });

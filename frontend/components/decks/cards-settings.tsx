@@ -64,7 +64,7 @@ export function CardsSettings({
           Set a sustainable daily pace. These limits apply across every deck.
         </DialogDescription>
         <div className="space-y-4 pt-2">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="new-per-day">New cards per day</Label>
             <Input
               id="new-per-day"
@@ -78,7 +78,7 @@ export function CardsSettings({
               New cards are added after anything already due.
             </p>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="max-per-day">Review ceiling per day</Label>
             <Input
               id="max-per-day"

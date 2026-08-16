@@ -87,7 +87,7 @@ function ConversationRow({
 
   if (renaming) {
     return (
-      <li className="flex items-center gap-1 px-1 py-0.5">
+      <li className="flex items-center gap-1 px-1 py-1">
         <Input
           autoFocus
           value={draft}
@@ -133,9 +133,9 @@ function ConversationRow({
 
   if (confirmingDelete) {
     return (
-      <li className="space-y-1.5 rounded-md border border-destructive/40 px-2 py-2">
+      <li className="space-y-2 rounded-md border border-destructive px-2 py-2">
         <p className="text-xs">Delete “{conversation.title}”?</p>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           <Button size="xs" variant="destructive" onClick={onDelete}>
             Delete
           </Button>
@@ -158,15 +158,15 @@ function ConversationRow({
         onClick={onOpen}
         aria-current={isActive ? "true" : undefined}
         className={cn(
-          "flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 pr-7 text-left text-sm transition-colors",
+          "flex w-full items-baseline gap-2 rounded-md px-2 py-2 pr-8 text-left text-sm transition-colors",
           isActive
             ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-            : "hover:bg-sidebar-accent/60",
+            : "hover:bg-surface-hover",
         )}
       >
         <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
         {conversation.turn_count > 0 && (
-          <span className="shrink-0 text-[0.7rem] tabular-nums text-muted-foreground">
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
             {conversation.turn_count}
           </span>
         )}
@@ -230,7 +230,7 @@ export function ConversationHistory({
       <div className="flex items-center justify-between">
         <h2
           id="history-heading"
-          className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+          className="text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
         >
           Conversations
         </h2>
@@ -241,7 +241,7 @@ export function ConversationHistory({
       </div>
 
       {!loaded ? (
-        <div className="space-y-1.5" aria-hidden>
+        <div className="space-y-2" aria-hidden>
           <Skeleton className="h-6 w-full" />
           <Skeleton className="h-6 w-4/5" />
         </div>
@@ -252,8 +252,8 @@ export function ConversationHistory({
       ) : (
         <div className="space-y-3">
           {groups.map((group) => (
-            <div key={group.label} className="space-y-0.5">
-              <p className="px-2 text-[0.7rem] text-muted-foreground">
+            <div key={group.label} className="space-y-1">
+              <p className="px-2 text-xs text-muted-foreground">
                 {group.label}
               </p>
               <ul>

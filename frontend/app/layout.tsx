@@ -19,15 +19,20 @@ const readingSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic Study Partner",
-  description: "A grounded study companion for technical books",
+  title: "Mugensei",
+  description: "Master difficult material. A grounded study companion.",
   icons: { icon: "/favicon.svg" },
 };
 
 export const viewport: Viewport = {
+  // The canvas roles, kept in sync with `--canvas` in globals.css. These are the
+  // one place a literal is unavoidable: the browser chrome reads them before any
+  // stylesheet exists, so they cannot reference a custom property.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f0e8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1612" },
+    // design-tokens-ignore-next-line: browser chrome, no stylesheet available
+    { media: "(prefers-color-scheme: light)", color: "#f4f0e6" },
+    // design-tokens-ignore-next-line: browser chrome, no stylesheet available
+    { media: "(prefers-color-scheme: dark)", color: "#070b0a" },
   ],
 };
 

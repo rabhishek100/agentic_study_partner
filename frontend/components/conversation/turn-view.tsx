@@ -2,6 +2,7 @@
 
 import {
   AlertCircle,
+  BookOpen,
   Check,
   Copy,
   MessageSquarePlus,
@@ -12,7 +13,10 @@ import { useEffect, useState } from "react";
 import { Answer } from "@/components/conversation/answer";
 import { Figures } from "@/components/conversation/figures";
 import { AnswerInspector } from "@/components/conversation/inspector";
-import { References } from "@/components/conversation/references";
+import {
+  References,
+  citedSourceCount,
+} from "@/components/conversation/references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { figuresForMarker, resolveMarker } from "@/lib/citations";
@@ -46,7 +50,7 @@ function CopyButton({ text }: { text: string }) {
 export function ThinkingIndicator({ label }: { label: string }) {
   return (
     <p
-      className="flex items-center gap-1.5 text-sm text-muted-foreground"
+      className="flex items-center gap-2 text-sm text-muted-foreground"
       role="status"
     >
       <span className="flex gap-1" aria-hidden>
@@ -74,6 +78,10 @@ export interface TurnViewProps {
    * server recorded, since an anchor names a stored turn index.
    */
   onAskOnTheSide?: (turnIndex: number, quotedText: string) => void;
+  /** Points the right region at this turn's sources. */
+  onShowSources?: () => void;
+  /** Whether the region is currently showing this turn. */
+  sourcesShown?: boolean;
 }
 
 export function TurnView({
@@ -83,6 +91,8 @@ export function TurnView({
   onRetry,
   onOpenReference,
   onAskOnTheSide,
+  onShowSources,
+  sourcesShown,
 }: TurnViewProps) {
   const showThinking = turn.status === "streaming" && !turn.answer;
   const result = turn.result;
@@ -99,7 +109,7 @@ export function TurnView({
       <div className="flex justify-end">
         <h3
           id={`question-${turn.id}`}
-          className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-2.5 text-[0.95rem] font-normal text-secondary-foreground"
+          className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-3 text-xs font-normal text-secondary-foreground"
         >
           {turn.question}
         </h3>
@@ -137,13 +147,44 @@ export function TurnView({
           />
         )}
 
+        {/*
+          The sources themselves live in the right region, not under the answer.
+          That is the whole composition: the page is asymmetric because grounding
+          fills the space beside the prose. What stays here is the way back to
+          them — which turn's evidence the region is showing is only meaningful
+          per answer, so each answer can claim it.
+        */}
         {result && (result.evidence.length > 0 || (result.web_sources && result.web_sources.length > 0)) && (
-          <References
-            evidence={result.evidence}
-            citations={result.citations}
-            webSources={result.web_sources}
-            onOpenReference={onOpenReference}
-          />
+          onShowSources ? (
+            <div>
+              <Button
+                variant="ghost"
+                size="xs"
+                aria-pressed={sourcesShown}
+                onClick={onShowSources}
+              >
+                <BookOpen aria-hidden />
+                {(() => {
+                  // Count what the answer cites, matching the numbered chips in
+                  // the prose and the region's own heading.
+                  const cited = citedSourceCount(result.evidence, result.citations);
+                  return cited > 0
+                    ? `${cited} ${cited === 1 ? "source" : "sources"}`
+                    : "Sources";
+                })()}
+                {sourcesShown ? (
+                  <span className="text-muted-foreground">shown</span>
+                ) : null}
+              </Button>
+            </div>
+          ) : (
+            <References
+              evidence={result.evidence}
+              citations={result.citations}
+              webSources={result.web_sources}
+              onOpenReference={onOpenReference}
+            />
+          )
         )}
 
         {turn.status === "stopped" && (

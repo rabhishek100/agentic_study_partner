@@ -165,7 +165,7 @@ export function DeckOverview({
 
           <div className="min-w-0 flex-1 md:pl-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="truncate font-heading text-lg font-medium sm:text-xl">
+              <h1 className="truncate font-serif text-lg font-medium sm:text-xl">
                 {deck.title}
               </h1>
               <span className="hidden truncate text-sm text-muted-foreground lg:inline">
@@ -185,7 +185,7 @@ export function DeckOverview({
 
           <Button
             size="lg"
-            className="hidden h-12 gap-2 px-5 sm:inline-flex"
+            className="hidden h-12 gap-2 px-6 sm:inline-flex"
             disabled={dueNow === 0}
             onClick={onStartReview}
           >
@@ -227,7 +227,7 @@ export function DeckOverview({
         </div>
 
         <Collapsible open={coverageOpen} onOpenChange={setCoverageOpen}>
-          <div className="border-t border-border/70 px-4 sm:px-6 lg:px-8">
+          <div className="border-t border-divider px-4 sm:px-6 lg:px-8">
             <div className="flex min-h-12 items-center gap-2 text-sm text-muted-foreground">
               <BookOpen aria-hidden className="size-4 shrink-0" />
               <span className="truncate">
@@ -239,7 +239,7 @@ export function DeckOverview({
               </span>
               <CollapsibleTrigger
                 aria-label="Provenance & coverage"
-                className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-md px-2 text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-md px-2 text-foreground hover:bg-accent"
               >
                 <span className="hidden sm:inline">Provenance &amp; coverage</span>
                 <span className="sm:hidden">Coverage</span>
@@ -253,7 +253,7 @@ export function DeckOverview({
               </CollapsibleTrigger>
             </div>
             <CollapsibleContent className="pb-4">
-              <div className="grid gap-3 rounded-lg border border-border bg-card/60 p-4 text-sm sm:grid-cols-3">
+              <div className="grid gap-3 rounded-lg border border-border bg-surface p-4 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
                     {sourceQuestions ? "Questions found" : "Topics required"}
@@ -305,10 +305,10 @@ export function DeckOverview({
           )}
         >
           <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
-            <h2 className="font-heading text-lg font-medium">
+            <h2 className="font-serif text-lg font-medium">
               {sourceQuestions ? "Chapter exercises" : "Study questions"}
             </h2>
-            <div className="flex rounded-lg border border-border p-0.5" aria-label="Question filter">
+            <div className="flex rounded-lg border border-border p-1" aria-label="Question filter">
               {(["all", "top"] as DeckFilter[]).map((value) => (
                 <button
                   key={value}
@@ -316,7 +316,7 @@ export function DeckOverview({
                   onClick={() => onFilterChange(value)}
                   aria-pressed={filter === value}
                   className={cn(
-                    "min-h-8 rounded-md px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "min-h-8 rounded-md px-3 text-sm transition-colors",
                     filter === value
                       ? "bg-accent font-medium text-foreground"
                       : "text-muted-foreground hover:text-foreground",
@@ -345,13 +345,13 @@ export function DeckOverview({
                         aria-current={active ? "true" : undefined}
                         className={cn(
                           "group relative grid min-h-14 w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-r-lg py-3 pl-3 pr-2 text-left text-sm transition-colors",
-                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                          "",
                           active
-                            ? "bg-primary/10 text-foreground before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
-                            : "hover:bg-accent/60",
+                            ? "bg-wash text-foreground before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
+                            : "hover:bg-surface-hover",
                         )}
                       >
-                        <span className="self-start pt-0.5 font-medium tabular-nums">
+                        <span className="self-start pt-1 font-medium tabular-nums">
                           {index + 1}
                         </span>
                         <span
@@ -362,7 +362,7 @@ export function DeckOverview({
                         </span>
                         <span
                           className={cn(
-                            "self-start pt-0.5 text-xs tabular-nums",
+                            "self-start pt-1 text-xs tabular-nums",
                             active ? "text-primary" : "text-muted-foreground",
                           )}
                         >
@@ -389,7 +389,7 @@ export function DeckOverview({
           aria-live="polite"
         >
           {selected ? (
-            <article className="w-full max-w-4xl px-5 py-8 sm:px-8 lg:px-12">
+            <article className="w-full max-w-4xl px-6 py-8 sm:px-8 lg:px-12">
               <Button
                 variant="ghost"
                 size="sm"
@@ -399,7 +399,7 @@ export function DeckOverview({
                 <ArrowLeft aria-hidden />
                 All exercises
               </Button>
-              <div className="mb-7 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+              <div className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
                   <BookOpen aria-hidden className="size-4" />
                   {deck.source_title}
@@ -414,28 +414,28 @@ export function DeckOverview({
                 <span>{CARD_TYPE_LABELS[selected.card.card_type]}</span>
               </div>
 
-              <p className="mb-5 text-sm font-medium text-primary">
+              <p className="mb-6 text-sm font-medium text-muted-foreground">
                 {sourceQuestions ? "Exercise" : "Question"} {selected.card.card_index + 1}
               </p>
-              <h2 className="whitespace-pre-wrap font-heading text-xl font-normal leading-[1.5] sm:text-[1.4rem]">
+              <h2 className="whitespace-pre-wrap font-serif text-xl font-normal leading-[1.5] sm:text-lg">
                 {sourceQuestion(selected.card.front)}
               </h2>
 
-              <section className="mt-7 border-y border-border py-5" aria-labelledby="answer-preview-heading">
+              <section className="mt-8 border-y border-border py-6" aria-labelledby="answer-preview-heading">
                 <h3
                   id="answer-preview-heading"
-                  className="flex items-center gap-2 font-heading text-base font-medium text-primary"
+                  className="flex items-center gap-2 font-serif text-base font-medium text-evidence"
                 >
                   <Timer aria-hidden className="size-5" />
                   30-second answer <span className="font-normal">(preview)</span>
                 </h3>
-                <p className="mt-3 border-l-2 border-primary py-0.5 pl-4 font-heading text-base leading-relaxed sm:text-[1.05rem]">
+                <p className="mt-3 border-l-2 border-evidence py-1 pl-4 font-serif text-base leading-relaxed sm:text-base">
                   {plain(
                     selected.card.back.say_it_aloud || selected.card.back.answer,
                   )}
                 </p>
 
-                <div className="mt-5 flex flex-wrap items-center gap-3">
+                <div className="mt-6 flex flex-wrap items-center gap-3">
                   <CardSources
                     item={selected}
                     onOpenSource={(citation) => onOpenSource(selected, citation)}
@@ -446,7 +446,7 @@ export function DeckOverview({
                 </div>
               </section>
 
-              <Collapsible className="mt-5">
+              <Collapsible className="mt-6">
                 <div className="flex flex-wrap items-center gap-3">
                   <Button
                     size="lg"
@@ -466,7 +466,7 @@ export function DeckOverview({
                     </Button>
                   </CollapsibleTrigger>
                 </div>
-                <CollapsibleContent className="mt-5 border-t border-border pt-5">
+                <CollapsibleContent className="mt-6 border-t border-border pt-6">
                   <CardBackFace item={selected} hideSummary />
                 </CollapsibleContent>
               </Collapsible>

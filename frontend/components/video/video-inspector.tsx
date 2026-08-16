@@ -35,7 +35,7 @@ const DEPENDENCY_LABELS: Record<
 
 function Row({ term, children }: { term: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-3 border-b border-border py-1.5 last:border-b-0">
+    <div className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-3 border-b border-border py-2 last:border-b-0">
       <dt className="text-xs text-muted-foreground">{term}</dt>
       <dd className="min-w-0 break-words text-xs">{children}</dd>
     </div>
@@ -65,7 +65,7 @@ export function VideoInspector({ result }: { result: VideoTurnResult }) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+      <CollapsibleTrigger className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
         <FlaskConical className="size-3.5" aria-hidden />
         How this answer was built
         <ChevronDown
@@ -75,7 +75,7 @@ export function VideoInspector({ result }: { result: VideoTurnResult }) {
       </CollapsibleTrigger>
 
       <CollapsibleContent>
-        <dl className="mt-2 rounded-lg border border-border bg-muted/40 px-3 py-1">
+        <dl className="mt-2 rounded-lg border border-border bg-surface px-3 py-1">
           <Row term="Route">{ROUTE_LABELS[result.route] ?? result.route}</Row>
           <Row term="Question type">
             {DEPENDENCY_LABELS[result.history_dependency]}
@@ -151,7 +151,7 @@ export function VideoInspector({ result }: { result: VideoTurnResult }) {
 
           {result.evidence.length > 0 && (
             <Row term="Evidence">
-              <ol className="space-y-0.5">
+              <ol className="space-y-1">
                 {result.evidence.map((reference) => (
                   <li
                     key={reference.evidence_id}
@@ -162,7 +162,7 @@ export function VideoInspector({ result }: { result: VideoTurnResult }) {
                     </span>
                     <span className="min-w-0 flex-1 truncate">
                       {rankLocator(reference)}
-                      <span className="ml-1.5 text-muted-foreground">
+                      <span className="ml-2 text-muted-foreground">
                         {reference.retrieval_method}
                       </span>
                     </span>

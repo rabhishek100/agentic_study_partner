@@ -90,7 +90,7 @@ export function AttachResource({
 
   return (
     <div className="space-y-2 rounded-md border border-dashed border-border p-3">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="attach-file">Attach slides or notes (PDF)</Label>
         <Input
           id="attach-file"
@@ -100,7 +100,7 @@ export function AttachResource({
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="attach-url">…or a PDF link</Label>
         <Input
           id="attach-url"

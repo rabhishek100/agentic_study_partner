@@ -1,10 +1,11 @@
 "use client";
 
 import { PanelLeft } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
-import { SplitPane } from "@/components/pdf/split-pane";
+import { HEADER_INSET } from "@/lib/floating-window";
+import { SplitPane, type RightRegionMode } from "@/components/pdf/split-pane";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,10 +33,40 @@ export interface AppShellProps {
   /** Lists the conversation's side chats, including closed ones. */
   sideChatControl?: React.ReactNode;
   children: React.ReactNode;
-  /** The document pane, docked right of the conversation when open. */
-  aside?: React.ReactNode;
+  /**
+   * The right region's modes. Every one provided stays mounted; `activeRegion`
+   * decides which is shown. Unmounting is what loses a document's rendered pages
+   * and its scroll position, so closing is never `null` here.
+   */
+  regions?: RightRegionMode[];
+  /** The mode currently shown. `null` is `none` — margin, not a collapsed panel. */
+  activeRegion?: string | null;
   /** Floating side-chat windows, positioned against the viewport. */
   overlay?: React.ReactNode;
+}
+
+
+const RAIL_STORAGE_KEY = "asp:rail-collapsed";
+
+/**
+ * Whether the docked rail is collapsed, remembered across visits.
+ *
+ * Read after mount rather than during render: the server has no localStorage,
+ * and seeding state from it directly would hydrate against a different value.
+ */
+function useRailCollapsed(): [boolean, (next: boolean) => void] {
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(RAIL_STORAGE_KEY) === "true");
+  }, []);
+
+  const update = useCallback((next: boolean) => {
+    setCollapsed(next);
+    window.localStorage.setItem(RAIL_STORAGE_KEY, String(next));
+  }, []);
+
+  return [collapsed, update];
 }
 
 export function AppShell({
@@ -47,10 +78,12 @@ export function AppShell({
   documentControl,
   sideChatControl,
   children,
-  aside,
+  regions,
+  activeRegion = null,
   overlay,
 }: AppShellProps) {
   const [railOpen, setRailOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useRailCollapsed();
 
   return (
     <div
@@ -59,12 +92,42 @@ export function AppShell({
     >
       <a
         href="#question"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:shadow-md"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-skip-link focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:shadow-md"
       >
         Skip to the question box
       </a>
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4">
+      {/*
+        The height comes from HEADER_INSET rather than an `h-14` class, because
+        the floating side-chat windows are clamped, snapped, and cascaded
+        against that constant. They were two independent numbers that happened
+        to agree, with nothing asserting they still did — the floating-window
+        tests assert against the imported symbol, so they pass at any value.
+
+        A *minimum*, not a fixed height. Pinning it clipped the masthead at 200%
+        text: the box stayed 56px while its content needed 81px, so the wordmark
+        and the status line disappeared. The floating layer measures the header
+        instead of trusting this number, so the two stay agreed when it grows.
+      */}
+      <header
+        style={{ minHeight: HEADER_INSET }}
+        className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4"
+      >
+        {rail && railMode === "responsive" ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="hidden lg:inline-flex"
+            aria-label={
+              railCollapsed ? "Show the library panel" : "Hide the library panel"
+            }
+            aria-pressed={!railCollapsed}
+            onClick={() => setRailCollapsed(!railCollapsed)}
+          >
+            <PanelLeft aria-hidden />
+          </Button>
+        ) : null}
+
         {rail ? (
           <Sheet open={railOpen} onOpenChange={setRailOpen}>
             <SheetTrigger asChild>
@@ -72,7 +135,7 @@ export function AppShell({
                 variant="ghost"
                 size="icon-sm"
                 className={cn(
-                  !aside && railMode === "responsive" && "lg:hidden",
+                  railMode === "responsive" && "lg:hidden",
                   railMode === "drawer-only" && "sm:hidden",
                 )}
                 aria-label="Open the library panel"
@@ -90,11 +153,11 @@ export function AppShell({
           </Sheet>
         ) : null}
 
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-3">
           <BrandMark size="sm" />
           <div className="min-w-0">
-            <p className="truncate font-heading text-sm font-medium leading-tight">
-              Agentic Study Partner
+            <p className="truncate font-serif text-base font-medium leading-tight tracking-tight">
+              Mugensei
             </p>
             <div className="truncate text-xs text-muted-foreground">
               {status}
@@ -102,7 +165,7 @@ export function AppShell({
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-2">
           {nav ? <div className="hidden sm:block">{nav}</div> : null}
           {sideChatControl}
           {documentControl}
@@ -112,12 +175,24 @@ export function AppShell({
       </header>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!aside && rail && railMode === "responsive" ? (
-          <aside className="hidden w-72 shrink-0 border-r border-border bg-sidebar lg:block xl:w-80">
+        {/*
+          The rail no longer disappears when a document opens. It used to be
+          gated on `!aside`, so the frame reorganised itself underneath the
+          reader the moment they followed a citation — the one thing a fixed
+          frame is supposed to never do. Reclaiming that space is now the
+          reader's decision, through the masthead control, and it is remembered.
+        */}
+        {rail && railMode === "responsive" ? (
+          <aside
+            className={cn(
+              "hidden w-72 shrink-0 border-r border-border bg-sidebar xl:w-80",
+              railCollapsed ? "lg:hidden" : "lg:block",
+            )}
+          >
             {rail}
           </aside>
         ) : null}
-        <SplitPane aside={aside ?? null}>
+        <SplitPane regions={regions} active={activeRegion}>
           <main className="flex min-w-0 flex-1 flex-col">{children}</main>
         </SplitPane>
       </div>

@@ -58,7 +58,7 @@ export function VideoSideChatTurns({
     <div className="space-y-4 px-3 py-3">
       {turns.map((turn) => (
         <article key={turn.id} className="space-y-2">
-          <p className="side-chat-ui rounded-lg rounded-br-sm bg-secondary px-2.5 py-1.5 text-secondary-foreground">
+          <p className="side-chat-ui rounded-lg rounded-br-sm bg-secondary px-3 py-2 text-secondary-foreground">
             {turn.question}
           </p>
 

@@ -8,6 +8,7 @@ import { AuthGate } from "@/components/auth-gate";
 import { CardsSettings } from "@/components/decks/cards-settings";
 import { DeckJobRow, DeckRow } from "@/components/decks/deck-row";
 import { GenerateDeck } from "@/components/decks/generate-deck";
+import { GenerationActivity } from "@/components/decks/generation-activity";
 import { ReviewSession } from "@/components/decks/review-session";
 import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
@@ -69,7 +70,7 @@ function DeckGroup({
     <section aria-labelledby={id}>
       <div className="mb-2 flex items-center gap-2 px-1">
         <Icon aria-hidden className="size-4 text-primary" />
-        <h3 id={id} className="font-heading text-base font-medium">
+        <h3 id={id} className="text-base font-medium">
           {title}
         </h3>
         <Badge variant="secondary" className="font-normal tabular-nums">
@@ -79,7 +80,7 @@ function DeckGroup({
       <div className="overflow-hidden rounded-lg border border-border">
         <div
           aria-hidden
-          className="hidden grid-cols-[minmax(0,2.15fr)_minmax(7rem,1.15fr)_4.5rem_7rem_8rem_7rem_4.5rem] gap-4 border-b border-border bg-muted/20 px-4 py-2 text-[0.7rem] font-medium text-muted-foreground sm:grid"
+          className="hidden grid-cols-[minmax(0,2.6fr)_minmax(6rem,1.1fr)_3.5rem_5rem_7.75rem_5.5rem_4.5rem] gap-3 border-b border-border bg-surface px-4 py-2 text-xs font-medium text-muted-foreground sm:grid"
         >
           <span>Deck</span>
           <span>Source</span>
@@ -259,8 +260,30 @@ export default function DecksPage() {
     <AppShell
       nav={<SectionNav active="decks" />}
       railMode="drawer-only"
+      /*
+        Absent until there is work, rather than a permanent column explaining
+        that it has nothing to report.
+      */
+      regions={[
+        {
+          key: "activity",
+          label: "Deck generation activity",
+          fixedWidth: 340,
+          node: (
+            <GenerationActivity
+              working={working}
+              recentlyFailed={recentlyFailed}
+              onCancel={(job) => void cancelJob(job)}
+              onRetry={(job) => void retryJob(job)}
+            />
+          ),
+        },
+      ]}
+      activeRegion={
+        working.length > 0 || recentlyFailed.length > 0 ? "activity" : null
+      }
       rail={
-        <div className="space-y-5 p-4">
+        <div className="space-y-6 p-4">
           <SectionNav active="decks" />
           <p className="border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
             Create decks and adjust your daily pace from the Cards workspace.
@@ -331,10 +354,10 @@ export default function DecksPage() {
             />
           </div>
         ) : (
-          <div className="mx-auto w-full max-w-[100rem] space-y-5 p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[100rem] space-y-6 p-4 sm:p-6 lg:p-8">
             <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
-                <h1 className="font-heading text-3xl font-medium tracking-tight">Cards</h1>
+                <h1 className="font-serif text-3xl font-medium tracking-tight">Cards</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Your review queue, decks, and generation activity at a glance.
                 </p>
@@ -365,7 +388,7 @@ export default function DecksPage() {
                       <summary className="cursor-pointer text-xs text-muted-foreground">
                         Technical details
                       </summary>
-                      <p className="mt-1 break-words font-mono text-[0.7rem] text-muted-foreground">
+                      <p className="mt-1 break-words font-mono text-xs text-muted-foreground">
                         {error}
                       </p>
                     </details>
@@ -374,14 +397,14 @@ export default function DecksPage() {
               </Alert>
             ) : null}
 
-            <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.85fr)_minmax(24rem,1fr)]">
-              <div className="min-w-0 space-y-5">
+            <div className="grid items-start gap-6">
+              <div className="min-w-0 space-y-6">
                 <section
                   aria-labelledby="today-heading"
-                  className="grid gap-5 rounded-lg border border-border bg-card/30 p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
+                  className="grid gap-6 rounded-lg border border-border bg-surface p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
                 >
-              <div className="sm:border-r sm:border-border sm:pr-5">
-                <h2 id="today-heading" className="font-heading text-base font-medium">
+              <div className="sm:border-r sm:border-border sm:pr-6">
+                <h2 id="today-heading" className="text-base font-medium">
                   Today
                 </h2>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -398,32 +421,32 @@ export default function DecksPage() {
                 </div>
               </div>
               <div>
-                <p className="font-heading text-xl font-medium tabular-nums">{dueToday}</p>
+                <p className="text-xl font-medium tabular-nums">{dueToday}</p>
                 <p className="text-xs text-muted-foreground">In today’s review</p>
               </div>
               <div>
-                <p className="font-heading text-xl font-medium tabular-nums">{scheduledNew}</p>
+                <p className="text-xl font-medium tabular-nums">{scheduledNew}</p>
                 <p className="text-xs text-muted-foreground">New cards today</p>
               </div>
               <div>
-                <p className="font-heading text-xl font-medium tabular-nums">
+                <p className="text-xl font-medium tabular-nums">
                   {queue?.max_reviews_per_day ?? "—"}
                 </p>
                 <p className="text-xs text-muted-foreground">Daily review ceiling</p>
               </div>
               <div>
-                <p className="font-heading text-xl font-medium tabular-nums">{coverage}%</p>
+                <p className="text-xl font-medium tabular-nums">{coverage}%</p>
                 <p className="text-xs text-muted-foreground">Coverage across decks</p>
               </div>
                 </section>
 
                 <section aria-labelledby="deck-library-heading" className="min-w-0">
-                <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                   <div>
-                    <h2 id="deck-library-heading" className="font-heading text-lg font-medium">
+                    <h2 id="deck-library-heading" className="text-lg font-medium">
                       Deck library
                     </h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       AI-written revision cards and printed book questions stay clearly separated.
                     </p>
                   </div>
@@ -435,7 +458,7 @@ export default function DecksPage() {
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search decks"
                         aria-label="Search decks"
-                        className="w-full pl-9 sm:w-56"
+                        className="w-full pl-8 sm:w-56"
                       />
                     </div>
                     <Select value={filter} onValueChange={(value) => setFilter(value as DeckFilter)}>
@@ -469,7 +492,7 @@ export default function DecksPage() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-7">
+                  <div className="space-y-8">
                     {generatedDecks.length > 0 ? (
                       <DeckGroup
                         id="ai-generated-decks"
@@ -496,45 +519,6 @@ export default function DecksPage() {
                 </section>
               </div>
 
-              <aside
-                aria-labelledby="generation-activity-heading"
-                className="rounded-lg border border-border bg-card/20 p-4 xl:sticky xl:top-6"
-              >
-                <div className="mb-4">
-                  <h2 id="generation-activity-heading" className="font-heading text-lg font-medium">
-                    Generation activity
-                  </h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Track book extraction and AI generation without keeping this page open.
-                  </p>
-                </div>
-                {working.length > 0 || recentlyFailed.length > 0 ? (
-                  <ul className="space-y-3">
-                    {working.map((job) => (
-                      <DeckJobRow
-                        key={job.job_id}
-                        job={job}
-                        onCancel={(active) => void cancelJob(active)}
-                      />
-                    ))}
-                    {recentlyFailed.map((job) => (
-                      <DeckJobRow
-                        key={job.job_id}
-                        job={job}
-                        onRetry={(failed) => void retryJob(failed)}
-                      />
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-border px-5 py-8 text-center">
-                    <Sparkles aria-hidden className="mx-auto mb-2 size-5 text-primary" />
-                    <p className="text-sm font-medium">No generation in progress</p>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      Start a deck and its percentage, current step, and time estimate will appear here.
-                    </p>
-                  </div>
-                )}
-              </aside>
             </div>
           </div>
         )}

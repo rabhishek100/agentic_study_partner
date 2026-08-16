@@ -91,13 +91,13 @@ export function SideChatComposer({
   }
 
   return (
-    <div className="shrink-0 border-t border-border bg-background p-2.5">
+    <div className="shrink-0 border-t border-border bg-background p-3">
       {/*
         One bordered field containing the input and its controls, rather than a
         small input with buttons floating beside it: at this width every pixel
         of horizontal room belongs to the text being typed.
       */}
-      <div className="rounded-xl border border-input bg-transparent transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
+      <div className="rounded-xl border border-input bg-transparent transition-colors focus-within:border-ring focus-within:ring-3 focus-within: dark:bg-surface">
         <Textarea
           ref={textareaRef}
           value={value}
@@ -105,7 +105,7 @@ export function SideChatComposer({
           aria-label={`Ask a question in the ${label} side chat`}
           placeholder="Ask about this…"
           style={{ minHeight: MIN_TEXTAREA_HEIGHT_PX }}
-          className="side-chat-ui resize-none rounded-none border-0 bg-transparent px-2.5 py-2 leading-snug shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+          className="side-chat-ui resize-none rounded-none border-0 bg-transparent px-3 py-2 leading-snug shadow-none focus-visible:border-0 dark:bg-transparent"
           onChange={(event) => {
             setValue(event.target.value);
             resize();
@@ -117,7 +117,7 @@ export function SideChatComposer({
             }
           }}
         />
-        <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
+        <div className="flex items-center justify-between gap-1 px-2 pb-2">
           {showDepth ? (
           <Select
             value={responseDepth}
@@ -127,7 +127,7 @@ export function SideChatComposer({
           >
             <SelectTrigger
               size="sm"
-              className="side-chat-ui h-7 border-0 bg-transparent px-1.5 text-muted-foreground shadow-none"
+              className="side-chat-ui h-7 border-0 bg-transparent px-2 text-muted-foreground shadow-none"
               aria-label={`Answer depth for the ${label} side chat`}
             >
               <SelectValue />

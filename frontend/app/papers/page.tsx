@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { describeSelection } from "@/components/book-selector";
 import { AuthGate } from "@/components/auth-gate";
 import { ConversationView } from "@/components/conversation/conversation-view";
+import { EvidencePanel } from "@/components/conversation/evidence-panel";
 import { LibraryRail } from "@/components/library-rail";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SectionNav } from "@/components/section-nav";
@@ -52,6 +53,12 @@ export default function PapersPage() {
     useState<ResponseDepth>("interview");
   const [reading, setReading] = useState<PdfTarget | null>(null);
   const [readingMinimized, setReadingMinimized] = useState(false);
+  /*
+    Which turn's evidence the region shows. `null` follows the newest grounded
+    answer, which is what makes the region fill on its own as the conversation
+    goes; picking a turn pins it there until the reader picks another.
+  */
+  const [pinnedSourcesTurn, setPinnedSourcesTurn] = useState<number | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
   const [pdfZoom, setPdfZoom] = useState(1);
 
@@ -225,6 +232,65 @@ export default function PapersPage() {
     reset();
   }
 
+  /*
+    The right region: empty until an answer is grounded, then it fills. That is
+    the composition working — the page is asymmetric because evidence occupies
+    the space, not because a panel lives there.
+
+    Both modes stay mounted; `activeRegion` decides which shows. A document wins
+    while it is open, since the reader opened it from the evidence and wants to
+    read it.
+  */
+  const groundedTurns = turns.filter(
+    (turn) => turn.turnIndex != null && (turn.result?.evidence.length ?? 0) > 0,
+  );
+  const sourcesTurn =
+    groundedTurns.find((turn) => turn.turnIndex === pinnedSourcesTurn) ??
+    groundedTurns[groundedTurns.length - 1] ??
+    null;
+  const documentOpen = Boolean(reading) && !readingMinimized;
+  const activeRegion = documentOpen
+    ? "document"
+    : sourcesTurn
+      ? "evidence"
+      : null;
+
+  const regionsForShell = [
+    {
+      key: "evidence",
+      label: "Evidence for this answer",
+      fixedWidth: 340,
+      node: (
+        <EvidencePanel
+          turn={sourcesTurn}
+          turnNumber={
+            sourcesTurn?.turnIndex != null ? sourcesTurn.turnIndex + 1 : null
+          }
+          onOpenReference={openReference}
+        />
+      ),
+    },
+    ...(reading
+      ? [
+          {
+            key: "document",
+            label: `${reading.title}, source document`,
+            node: (
+              <PdfViewer
+                target={reading}
+                page={pdfPage}
+                onPageChange={setPdfPage}
+                zoom={pdfZoom}
+                onZoomChange={setPdfZoom}
+                onMinimize={() => setReadingMinimized(true)}
+                onClose={closeDocument}
+              />
+            ),
+          },
+        ]
+      : []),
+  ];
+
   if (sessionLoading) {
     return (
       <div className="grid h-dvh overflow-y-auto place-items-center p-6">
@@ -255,7 +321,7 @@ export default function PapersPage() {
     <AppShell
       nav={<SectionNav active="papers" />}
       status={
-        <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-2">
           <span
             aria-hidden
             className={
@@ -337,19 +403,8 @@ export default function PapersPage() {
           </Button>
         ) : null
       }
-      aside={
-        reading && !readingMinimized ? (
-          <PdfViewer
-            target={reading}
-            page={pdfPage}
-            onPageChange={setPdfPage}
-            zoom={pdfZoom}
-            onZoomChange={setPdfZoom}
-            onMinimize={() => setReadingMinimized(true)}
-            onClose={closeDocument}
-          />
-        ) : null
-      }
+      regions={regionsForShell}
+      activeRegion={activeRegion}
       rail={
         <LibraryRail
           books={books}
@@ -376,6 +431,16 @@ export default function PapersPage() {
       }
     >
       <ConversationView
+        noun="paper"
+        onShowSources={(turnIndex: number) => {
+          setPinnedSourcesTurn(turnIndex);
+          // The reader asked for these sources; a document over them would hide
+          // the thing they just asked to see.
+          setReadingMinimized(true);
+        }}
+        shownSourcesTurn={
+          activeRegion === "evidence" ? (sourcesTurn?.turnIndex ?? null) : null
+        }
         books={books}
         selectedBookIds={selectedBookIds}
         onOpenReference={openReference}
@@ -393,7 +458,7 @@ export default function PapersPage() {
         responseDepth={responseDepth}
         onResponseDepthChange={setResponseDepth}
         scopeSummary={
-          hasBooks ? describeSelection(books, selectedBookIds) : null
+          hasBooks ? describeSelection(books, selectedBookIds, "paper") : null
         }
       />
     </AppShell>

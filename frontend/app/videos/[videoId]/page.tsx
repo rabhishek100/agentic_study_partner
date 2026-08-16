@@ -116,10 +116,22 @@ export default function VideoWorkspace() {
     },
     [turns],
   );
+  /*
+    A lecture page already splits its canvas — player on the left, the ask pane
+    on the right. Opening a linked document adds the right region beside both,
+    and with the rail that is four columns: at 1500px the ask pane collapsed to
+    roughly one character per line.
+
+    The right region stays singular; it is the canvas that yields. While a
+    document is open the canvas stacks the player above the ask pane instead of
+    splitting, which is the same recomposition it already performs below `lg`.
+  */
+  const documentOpen = Boolean(reading) && !readingMinimized;
   const { percent, containerRef, separatorProps } = useResizablePane({
     ...VIDEO_PANE,
     edge: "left",
     label: "Resize the lecture pane",
+    enabled: !documentOpen,
   });
 
   const loadVideo = useCallback(async () => {
@@ -411,19 +423,33 @@ export default function VideoWorkspace() {
           </Button>
         ) : null
       }
-      aside={
-        reading && !readingMinimized ? (
-          <PdfViewer
-            target={reading}
-            page={pdfPage}
-            onPageChange={setPdfPage}
-            zoom={pdfZoom}
-            onZoomChange={setPdfZoom}
-            onMinimize={() => setReadingMinimized(true)}
-            onClose={closeDocument}
-          />
-        ) : null
+      /*
+        A lecture has no evidence region of its own — its sources are the
+        transcript and frames, which live in the canvas. The right region carries
+        the linked document only.
+      */
+      regions={
+        reading
+          ? [
+              {
+                key: "document",
+                label: `${reading.title}, source document`,
+                node: (
+                  <PdfViewer
+                    target={reading}
+                    page={pdfPage}
+                    onPageChange={setPdfPage}
+                    zoom={pdfZoom}
+                    onZoomChange={setPdfZoom}
+                    onMinimize={() => setReadingMinimized(true)}
+                    onClose={closeDocument}
+                  />
+                ),
+              },
+            ]
+          : []
       }
+      activeRegion={documentOpen ? "document" : null}
       account={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -447,7 +473,7 @@ export default function VideoWorkspace() {
         <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
           <Link
             href="/videos"
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft aria-hidden className="size-4" />
             All videos
@@ -469,7 +495,10 @@ export default function VideoWorkspace() {
     >
       <div
         ref={containerRef}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-y-auto",
+          !documentOpen && "lg:flex-row lg:overflow-hidden",
+        )}
       >
         {/*
           A share of the row on a wide screen, full width stacked below the
@@ -477,7 +506,10 @@ export default function VideoWorkspace() {
           rule stays a plain class rather than an inline style fighting it.
         */}
         <div
-          className="flex min-h-0 w-full shrink-0 flex-col gap-3 p-4 lg:w-[var(--lecture-pane)] lg:overflow-y-auto"
+          className={cn(
+            "flex min-h-0 w-full shrink-0 flex-col gap-3 p-4",
+            !documentOpen && "lg:w-[var(--lecture-pane)] lg:overflow-y-auto",
+          )}
           style={{ "--lecture-pane": `${percent}%` } as React.CSSProperties}
         >
           {error ? (
@@ -489,7 +521,7 @@ export default function VideoWorkspace() {
             <>
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <h1 className="truncate font-heading text-base font-medium">
+                  <h1 className="truncate font-serif text-base font-medium">
                     {video.title}
                   </h1>
                   <p className="text-xs text-muted-foreground">
@@ -594,14 +626,18 @@ export default function VideoWorkspace() {
         <div
           {...separatorProps}
           className={cn(
-            "hidden w-1 shrink-0 cursor-col-resize bg-border transition-colors lg:block",
+            "hidden w-1 shrink-0 cursor-col-resize bg-border transition-colors",
             "hover:bg-primary focus-visible:bg-primary",
+            !documentOpen && "lg:block",
           )}
         />
 
         <section
           aria-label="Ask this lecture"
-          className="flex min-h-[70vh] min-w-0 flex-1 flex-col border-t border-border lg:h-full lg:min-h-0 lg:overflow-hidden lg:border-t-0"
+          className={cn(
+            "flex min-h-[70vh] min-w-0 flex-1 flex-col border-t border-border",
+            !documentOpen && "lg:h-full lg:min-h-0 lg:overflow-hidden lg:border-t-0",
+          )}
         >
           <AskPane
             videoId={videoId}

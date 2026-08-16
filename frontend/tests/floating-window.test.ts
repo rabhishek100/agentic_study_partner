@@ -15,6 +15,9 @@ import {
   resizeByKey,
   snapRect,
   writeGeometry,
+  FLOATING_MEDIA_QUERY,
+  FLOATING_MIN_VIEWPORT_EM,
+  FLOATING_MIN_VIEWPORT_WIDTH,
 } from "@/lib/floating-window";
 
 const VIEWPORT = { width: 1280, height: 800 };
@@ -159,6 +162,28 @@ describe("keyboard geometry", () => {
 
     expect(resizeByKey(small, "ArrowLeft", VIEWPORT).width).toBe(MIN_WIDTH);
   });
+  it("clears a header that has grown past its design height", () => {
+    // At 200% text the masthead grows. Windows clamped against the constant
+    // instead of the measurement end up tucked underneath it, unreachable.
+    const grown = { ...VIEWPORT, inset: 96 };
+
+    expect(clampRect(rect({ y: 0 }), grown).y).toBe(96);
+    expect(snapRect(rect({ x: 9, y: 96 + 7 }), grown)).toMatchObject({ y: 96 });
+  });
+
+  it("switches to the docked sheet on a font-relative boundary", () => {
+    // A pixel breakpoint ignores the reader's browser font size: at 24px
+    // default text, a 1100px viewport carries roughly the content of a 730px
+    // one, and floating windows have nowhere to go. `em` in a media query
+    // resolves against that default, so the sheet arrives when it should.
+    expect(FLOATING_MEDIA_QUERY).toBe("(min-width: 64em)");
+    expect(FLOATING_MEDIA_QUERY).not.toMatch(/px/);
+
+    // The pixel form is the same boundary at a default root, so geometry and
+    // tests that need a number cannot drift from the query.
+    expect(FLOATING_MIN_VIEWPORT_WIDTH).toBe(FLOATING_MIN_VIEWPORT_EM * 16);
+  });
+
 });
 
 describe("remembered geometry", () => {

@@ -21,6 +21,12 @@ export interface WindowRect {
 export interface Viewport {
   width: number;
   height: number;
+  /**
+   * How much of the top the header occupies. Measured by the caller rather than
+   * assumed: the header grows when the reader enlarges text, and windows tucked
+   * under a header that is taller than the constant are unreachable.
+   */
+  inset?: number;
 }
 
 export const MIN_WIDTH = 288;
@@ -56,8 +62,31 @@ export const KEYBOARD_LARGE_STEP = 64;
  */
 export const HEADER_INSET = 56;
 
-/** Below this width the floating layer is replaced by a docked sheet. */
-export const FLOATING_MIN_VIEWPORT_WIDTH = 1024;
+/** The header's measured height, falling back to the design value. */
+function insetOf(viewport: Viewport): number {
+  return viewport.inset ?? HEADER_INSET;
+}
+
+/**
+ * Below this width the floating layer is replaced by a docked sheet.
+ *
+ * Expressed in `em`, not pixels, and it matters which. In a media query `em`
+ * resolves against the browser's *default* font size — the reader's own setting
+ * — rather than anything the page does to `html`. So a reader who runs their
+ * browser at 24px gets the docked sheet at a viewport where a pixel breakpoint
+ * would still have insisted on floating windows, on a screen that no longer has
+ * room to move and resize them.
+ *
+ * 64em is the same boundary as the layout's `wide` breakpoint, so the frame and
+ * the side chats change together rather than one at a time.
+ */
+export const FLOATING_MIN_VIEWPORT_EM = 64;
+
+/** The same boundary in pixels at a default 16px root, for geometry and tests. */
+export const FLOATING_MIN_VIEWPORT_WIDTH = FLOATING_MIN_VIEWPORT_EM * 16;
+
+/** The media query the floating layer switches on. */
+export const FLOATING_MEDIA_QUERY = `(min-width: ${FLOATING_MIN_VIEWPORT_EM}em)`;
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
@@ -80,7 +109,7 @@ export function clampRect(rect: WindowRect, viewport: Viewport): WindowRect {
   const height = clamp(
     Math.round(rect.height),
     MIN_HEIGHT,
-    Math.max(MIN_HEIGHT, viewport.height - HEADER_INSET),
+    Math.max(MIN_HEIGHT, viewport.height - insetOf(viewport)),
   );
   return {
     width,
@@ -90,8 +119,8 @@ export function clampRect(rect: WindowRect, viewport: Viewport): WindowRect {
     // lives down there.
     y: clamp(
       Math.round(rect.y),
-      HEADER_INSET,
-      Math.max(HEADER_INSET, viewport.height - height),
+      insetOf(viewport),
+      Math.max(insetOf(viewport), viewport.height - height),
     ),
   };
 }
@@ -111,7 +140,7 @@ export function snapRect(rect: WindowRect, viewport: Viewport): WindowRect {
   else if (Math.abs(right) <= SNAP_THRESHOLD) x = viewport.width - rect.width;
   // The top edge a window snaps to is the bottom of the app header, not the
   // top of the viewport, for the same reason `clampRect` stops there.
-  if (Math.abs(rect.y - HEADER_INSET) <= SNAP_THRESHOLD) y = HEADER_INSET;
+  if (Math.abs(rect.y - insetOf(viewport)) <= SNAP_THRESHOLD) y = insetOf(viewport);
   else if (Math.abs(bottom) <= SNAP_THRESHOLD) y = viewport.height - rect.height;
   return { ...rect, x, y };
 }
@@ -133,7 +162,7 @@ export function cascadePlacement(
 ): WindowRect {
   const offset = 28;
   const margin = 16;
-  const top = HEADER_INSET + margin;
+  const top = insetOf(viewport) + margin;
   const steps = Math.max(
     1,
     Math.floor((viewport.height - size.height - top) / offset) || 1,

@@ -37,11 +37,11 @@ function ReferenceRow({
   const ancestors = parts.slice(0, -1);
 
   return (
-    <li className="border-b border-border/60 last:border-b-0">
-      <div className="flex items-baseline gap-2 py-1.5">
+    <li className="border-b border-divider last:border-b-0">
+      <div className="flex items-baseline gap-2 py-2">
         <span
           className={cn(
-            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded text-[0.65rem] font-semibold tabular-nums",
+            "mt-1 flex size-4 shrink-0 items-center justify-center rounded text-xs font-semibold tabular-nums",
             index === null
               ? "text-muted-foreground"
               : "bg-citation-muted text-citation",
@@ -89,7 +89,7 @@ function ReferenceRow({
 
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleContent>
-          <blockquote className="mb-2 ml-6 border-l-2 border-citation/40 pl-3 font-serif text-[0.85rem] leading-relaxed text-muted-foreground">
+          <blockquote className="mb-2 ml-6 border-l-2 border-evidence pl-3 font-serif text-xs leading-relaxed text-muted-foreground">
             {reference.excerpt}
           </blockquote>
         </CollapsibleContent>
@@ -108,7 +108,7 @@ function GroupHeading({
   if (!showBook && group.sharedPath.length === 0) return null;
 
   return (
-    <p className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted-foreground">
+    <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
       {showBook && (
         <span className="font-medium text-foreground">{group.bookTitle}</span>
       )}
@@ -122,11 +122,25 @@ function GroupHeading({
   );
 }
 
+/** How many sources an answer actually cites, for a heading that owns the count. */
+export function citedSourceCount(
+  evidence: EvidenceRef[],
+  citations: CitationRef[],
+): number {
+  return partitionByCitation(evidence, citations).cited.length;
+}
+
 export interface ReferencesProps {
   evidence: EvidenceRef[];
   citations: CitationRef[];
   webSources?: WebSourceRef[];
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  /**
+   * Drop the section's own heading and rule. The right region already names
+   * itself and counts the sources; two headings disagreeing about the number —
+   * cited here, total there — is worse than none.
+   */
+  headless?: boolean;
 }
 
 export function References({
@@ -134,6 +148,7 @@ export function References({
   citations,
   webSources,
   onOpenReference,
+  headless = false,
 }: ReferencesProps) {
   const [showUncited, setShowUncited] = useState(false);
   const hasEvidence = evidence.length > 0;
@@ -151,19 +166,22 @@ export function References({
 
   return (
     <section
-      aria-labelledby="references-heading"
-      className="space-y-2 border-t border-border pt-3"
+      aria-labelledby={headless ? undefined : "references-heading"}
+      aria-label={headless ? "Sources" : undefined}
+      className={cn("space-y-2", !headless && "border-t border-border pt-3")}
     >
-      <h4
-        id="references-heading"
-        className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
-      >
-        <BookOpen className="size-3.5" aria-hidden />
-        {cited.length} {cited.length === 1 ? "source" : "sources"}
-      </h4>
+      {headless ? null : (
+        <h4
+          id="references-heading"
+          className="flex items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        >
+          <BookOpen className="size-3.5" aria-hidden />
+          {cited.length} {cited.length === 1 ? "source" : "sources"}
+        </h4>
+      )}
 
       {citedGroups.map((group) => (
-        <div key={group.bookId ?? group.bookTitle} className="space-y-0.5">
+        <div key={group.bookId ?? group.bookTitle} className="space-y-1">
           <GroupHeading group={group} showBook={showBookHeadings} />
           <ul>
             {group.items.map((reference) => (
@@ -193,7 +211,7 @@ export function References({
             {groupByBook(uncited).map((group) => (
               <div
                 key={group.bookId ?? group.bookTitle}
-                className="mt-1 space-y-0.5 opacity-80"
+                className="mt-1 space-y-1 opacity-80"
               >
                 <GroupHeading group={group} showBook={showBookHeadings} />
                 <ul>
@@ -215,32 +233,32 @@ export function References({
       )}
 
       {webSources && webSources.length > 0 && (
-        <div className="space-y-1.5 border-t border-border/60 pt-2">
-          <h4 className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+        <div className="space-y-2 border-t border-divider pt-2">
+          <h4 className="flex items-center gap-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground">
             <Globe className="size-3.5" aria-hidden />
             {webSources.length} web {webSources.length === 1 ? "source" : "sources"}
           </h4>
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             {webSources.map((ws, idx) => (
-              <li key={ws.url || idx} className="text-xs border-b border-border/40 pb-1 last:border-b-0">
+              <li key={ws.url || idx} className="text-xs border-b border-divider pb-1 last:border-b-0">
                 <a
                   href={ws.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-citation hover:underline flex items-center gap-1.5"
+                  className="font-medium text-citation hover:underline flex items-center gap-2"
                 >
-                  <span className="bg-citation-muted text-citation rounded px-1.5 py-0.5 text-[0.65rem] font-semibold tabular-nums shrink-0">
+                  <span className="bg-citation-muted text-citation rounded px-2 py-1 text-xs font-semibold tabular-nums shrink-0">
                     Web {ws.rank ?? idx + 1}
                   </span>
                   <span className="truncate flex-1">{ws.title}</span>
                   {ws.domain && (
-                    <span className="text-muted-foreground text-[0.7rem] shrink-0">
+                    <span className="text-muted-foreground text-xs shrink-0">
                       ({ws.domain})
                     </span>
                   )}
                 </a>
                 {ws.snippet && (
-                  <p className="ml-6 text-muted-foreground text-[0.75rem] line-clamp-2 leading-relaxed mt-0.5">
+                  <p className="ml-6 text-muted-foreground text-xs line-clamp-2 leading-relaxed mt-1">
                     {ws.snippet}
                   </p>
                 )}

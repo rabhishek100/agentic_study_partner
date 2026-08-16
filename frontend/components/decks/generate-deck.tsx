@@ -141,8 +141,8 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                 aria-pressed={mode === value}
                 className={
                   mode === value
-                    ? "flex-1 rounded-md bg-background px-3 py-1.5 text-sm font-medium shadow-sm"
-                    : "flex-1 rounded-md px-3 py-1.5 text-sm text-muted-foreground"
+                    ? "flex-1 rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm"
+                    : "flex-1 rounded-md px-3 py-2 text-sm text-muted-foreground"
                 }
               >
                 {value === "book" ? "From a chapter" : "From a lecture"}
@@ -152,7 +152,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
 
           {mode === "book" ? (
             <>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="deck-book">Book</Label>
                 <Select value={bookId} onValueChange={setBookId}>
                   <SelectTrigger id="deck-book">
@@ -171,7 +171,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="deck-chapter">Chapter</Label>
                 {loadingChapters ? (
                   <Skeleton className="h-9 w-full" />
@@ -203,7 +203,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                 )}
               </div>
 
-              <div className="space-y-1.5 pt-1">
+              <div className="space-y-2 pt-1">
                 <Label>Question source</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -211,30 +211,30 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                     onClick={() => setGenerationMode("topic_generated")}
                     className={
                       generationMode === "topic_generated"
-                        ? "rounded-md border border-primary bg-primary/10 p-2.5 text-left text-xs font-medium"
-                        : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
+                        ? "rounded-md border border-primary bg-wash p-3 text-left text-xs font-medium"
+                        : "rounded-md border bg-card p-3 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >
                     <div className="font-semibold text-foreground">Generate from topics</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">AI writes new revision cards</div>
+                    <div className="mt-1 text-xs text-muted-foreground">AI writes new revision cards</div>
                   </button>
                   <button
                     type="button"
                     onClick={() => setGenerationMode("book_extracted")}
                     className={
                       generationMode === "book_extracted"
-                        ? "rounded-md border border-primary bg-primary/10 p-2.5 text-left text-xs font-medium"
-                        : "rounded-md border bg-card p-2.5 text-left text-xs text-muted-foreground hover:bg-muted"
+                        ? "rounded-md border border-primary bg-wash p-3 text-left text-xs font-medium"
+                        : "rounded-md border bg-card p-3 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >
                     <div className="font-semibold text-foreground">Use questions from book</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">Preserve printed exercises and answers</div>
+                    <div className="mt-1 text-xs text-muted-foreground">Preserve printed exercises and answers</div>
                   </button>
                 </div>
               </div>
             </>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <Label htmlFor="deck-video">Lecture</Label>
               <Select value={videoId} onValueChange={setVideoId}>
                 <SelectTrigger id="deck-video">

@@ -410,15 +410,15 @@ export function UploadPanel({
     <section aria-labelledby="upload-heading" className="space-y-2">
       <h2
         id="upload-heading"
-        className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        className="text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
-        Add a book
+        {documentType === "paper" ? "Add a paper" : "Add a book"}
       </h2>
 
       <label
         htmlFor="book-file"
         className={cn(
-          "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed border-input bg-card px-4 py-5 text-center text-sm font-medium transition-colors",
+          "flex cursor-pointer flex-col items-center gap-2 rounded-lg border border-dashed border-input bg-card px-4 py-6 text-center text-sm font-medium transition-colors",
           busy
             ? "cursor-default opacity-60"
             : "hover:border-primary hover:bg-accent",

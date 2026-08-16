@@ -114,7 +114,7 @@ export function AskPane({
       >
         <div
           ref={contentRef}
-          className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-5 sm:px-6"
+          className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6"
         >
           {isEmpty ? (
             <VideoWelcome
@@ -209,7 +209,7 @@ export function AskPane({
               </Button>
             )}
           </div>
-          <p className="text-center text-[0.7rem] text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             Answers are limited to this lecture&apos;s transcript, frames, and
             linked documents.
           </p>

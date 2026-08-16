@@ -45,7 +45,7 @@ function PromptField({
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       <p className="text-xs text-muted-foreground">{description}</p>
       <Textarea
@@ -210,11 +210,11 @@ export function PromptSettings({
                   readOnly
                   rows={10}
                   value={settings.locked_system_prompt}
-                  className="max-h-64 bg-muted/40 font-mono text-xs"
+                  className="max-h-64 bg-surface font-mono text-xs"
                 />
               </section>
 
-              <section className="space-y-5">
+              <section className="space-y-6">
                 <PromptField
                   id="interview-instructions"
                   label="Interview system instructions"
@@ -282,7 +282,7 @@ export function PromptSettings({
                   readOnly
                   rows={12}
                   value={preview?.preview_system_prompt ?? ""}
-                  className="max-h-72 bg-muted/40 font-mono text-xs"
+                  className="max-h-72 bg-surface font-mono text-xs"
                 />
                 <Label htmlFor="compiled-user">User message</Label>
                 <Textarea
@@ -290,7 +290,7 @@ export function PromptSettings({
                   readOnly
                   rows={8}
                   value={preview?.preview_user_prompt ?? ""}
-                  className="max-h-56 bg-muted/40 font-mono text-xs"
+                  className="max-h-56 bg-surface font-mono text-xs"
                 />
               </section>
             </>

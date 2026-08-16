@@ -71,7 +71,7 @@ function PdfLoadingState({ label = "Loading document…" }: { label?: string }) 
     <div
       role="status"
       aria-live="polite"
-      className="flex h-96 w-full flex-col items-center justify-center gap-3 rounded-lg border border-border/60 bg-muted/20 text-sm text-muted-foreground"
+      className="flex h-96 w-full flex-col items-center justify-center gap-3 rounded-lg border border-divider bg-surface text-sm text-muted-foreground"
     >
       <Loader2 className="size-6 animate-spin" aria-hidden />
       <span>{label}</span>
@@ -332,7 +332,7 @@ export function PdfViewer({
         </Button>
       </header>
 
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <div
           role="group"
           aria-label="Document page navigation. Use Left and Right Arrow keys."
@@ -362,16 +362,20 @@ export function PdfViewer({
           >
             <ChevronRight aria-hidden />
           </Button>
+          {/*
+            A hint, not a control. These sat immediately beside the real page
+            buttons wearing the same border and the same size, so they read as
+            two more buttons and got clicked — reasonably, since nothing said
+            otherwise. They now say what they are, take no pointer events, and
+            carry no button-like edge.
+          */}
           <span
-            className="ml-1 hidden items-center gap-1 text-[0.65rem] text-muted-foreground xl:flex"
-            title="Previous and next page keyboard shortcuts"
+            aria-hidden
+            className="ml-2 hidden select-none items-center gap-1 text-xs text-muted-foreground pointer-events-none xl:flex"
           >
-            <kbd className="rounded border border-border px-1 py-0.5 font-sans">
-              ←
-            </kbd>
-            <kbd className="rounded border border-border px-1 py-0.5 font-sans">
-              →
-            </kbd>
+            <kbd className="rounded-sm bg-surface-hover px-1 font-sans">←</kbd>
+            <kbd className="rounded-sm bg-surface-hover px-1 font-sans">→</kbd>
+            <span>to turn pages</span>
           </span>
         </div>
 
@@ -392,7 +396,7 @@ export function PdfViewer({
           <Button
             size="sm"
             variant="ghost"
-            className="min-w-14 px-1.5 text-xs tabular-nums"
+            className="min-w-14 px-2 text-xs tabular-nums"
             aria-label={`Reset zoom to 100%. Current zoom ${zoomPercent}%`}
             onClick={() => setZoomWithinLimits(1)}
           >
@@ -411,7 +415,7 @@ export function PdfViewer({
       </div>
 
       {exactMatch === false && target.excerpt && (
-        <p className="shrink-0 border-b border-border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground">
+        <p className="shrink-0 border-b border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
           Showing the cited page. The exact passage could not be located in
           this page&apos;s text.
         </p>

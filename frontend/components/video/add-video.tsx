@@ -158,7 +158,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="video-url">YouTube URL</Label>
         <Input
           id="video-url"
@@ -168,7 +168,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
           disabled={busy || videoFile !== null}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="video-file">…or upload a video file</Label>
         <Input
           id="video-file"
@@ -179,7 +179,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
         />
       </div>
       {videoFile ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <Label htmlFor="caption-file">Captions .vtt (recommended)</Label>
           <Input
             id="caption-file"
@@ -194,7 +194,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
           </p>
         </div>
       ) : null}
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="slides-url">Slides PDF URL (optional)</Label>
         <Input
           id="slides-url"
@@ -204,7 +204,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
           disabled={busy || slidesFile !== null}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <Label htmlFor="slides-file">…or upload the slides (optional)</Label>
         <Input
           id="slides-file"
