@@ -135,9 +135,9 @@ function ActivityStatus({
     <div
       className={cn(
         "overflow-hidden rounded-xl border bg-card",
-        working && "border-action bg-primary/[0.035]",
-        activity.tone === "live" && "border-positive bg-positive/[0.035]",
-        activity.tone === "paused" && "border-warning bg-warning/[0.035]",
+        working && "border-action bg-surface",
+        activity.tone === "live" && "border-positive bg-wash",
+        activity.tone === "paused" && "border-warning bg-warning-wash",
       )}
     >
       {working ? (
@@ -190,7 +190,7 @@ function Feedback({
   showConcise?: boolean;
 }) {
   return (
-    <div className="mt-4 rounded-xl border border-action bg-primary/[0.035] p-4">
+    <div className="mt-4 rounded-xl border border-divider bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="secondary">{titleCase(evaluation.classification)}</Badge>
         <span className="text-xs text-muted-foreground">Technical {evaluation.scores.technical_correctness}/5 · Depth {evaluation.scores.depth_completeness}/5</span>
@@ -218,7 +218,7 @@ function InterviewExchange({
         <p className="text-xs font-medium text-primary">Interviewer</p>
         <p className="mt-2 text-sm leading-6">{turn.question.text}</p>
       </div>
-      <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground">
+      <div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-wash px-4 py-3 text-foreground">
         <p className="text-xs font-medium opacity-70">You</p>
         <p className="mt-2 text-sm leading-6">{turn.answer_text}</p>
       </div>
@@ -233,7 +233,7 @@ function InterviewExchange({
         </details>
       ) : null}
       {turn.interviewer_reaction ? (
-        <div className="max-w-[88%] rounded-2xl rounded-tl-sm border border-action bg-primary/[0.035] p-4">
+        <div className="max-w-[88%] rounded-2xl rounded-tl-sm border border-divider bg-surface p-4">
           <p className="flex items-center gap-2 text-xs font-medium text-primary">
             <Volume2 aria-hidden className="size-3.5" />
             Interviewer response
@@ -266,7 +266,7 @@ function SessionReportView({ report }: { report: InterviewReport }) {
         <Badge variant="secondary"><CheckCircle2 aria-hidden /> Interview complete</Badge>
         <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div><h1 className="font-serif text-3xl font-semibold">Your interview report</h1><p className="mt-2 text-muted-foreground">{session.title.replace("Interview · ", "")} · {session.metrics.questions_answered} answered</p></div>
-          <div className="rounded-xl bg-primary px-6 py-4 text-primary-foreground"><p className="text-xs font-medium uppercase tracking-wider opacity-75">Overall</p><p className="mt-1 text-4xl font-semibold tabular-nums">{session.metrics.overall_score?.toFixed(1) ?? "—"}<span className="text-lg opacity-75">/5</span></p></div>
+          <div className="rounded-xl bg-wash px-6 py-4 text-foreground"><p className="text-xs font-medium uppercase tracking-wider opacity-75">Overall</p><p className="mt-1 text-4xl font-semibold tabular-nums">{session.metrics.overall_score?.toFixed(1) ?? "—"}<span className="text-lg opacity-75">/5</span></p></div>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Coverage</p><p className="mt-1 text-sm font-medium">{session.metrics.topics_covered} of {session.metrics.topics_required} topics</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Active time</p><p className="mt-1 text-sm font-medium">{clock(session.elapsed_seconds)}</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Provider cost</p><p className="mt-1 text-sm font-medium">${session.total_cost_usd.toFixed(4)} · ≈₹{(session.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)}</p></div></div>
       </div>
@@ -901,14 +901,14 @@ export default function InterviewWorkspace() {
                         </div>
                       ) : null}
                       {clarificationOpen ? (
-                        <div className="mt-4 rounded-xl border border-action bg-primary/[0.035] p-4">
+                        <div className="mt-4 rounded-xl border border-divider bg-surface p-4">
                           <label htmlFor="candidate-clarification" className="text-sm font-medium">
                             What should the interviewer clarify?
                           </label>
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">
                             Speak or type here. This is sent separately and will not be added to your answer.
                           </p>
-                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-action bg-canvas px-3 py-2" role="status" aria-live="polite">
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-divider bg-canvas px-3 py-2" role="status" aria-live="polite">
                             <span className="text-xs font-medium text-primary">
                               Voice target: clarifying question
                             </span>
@@ -971,7 +971,7 @@ export default function InterviewWorkspace() {
                       {current.question.work_sample !== "none" &&
                       !current.question.coding_exercise &&
                       current.question.work_sample_prompt ? (
-                        <div className="mt-4 rounded-xl border border-action bg-primary/[0.045] p-4">
+                        <div className="mt-4 rounded-xl border border-divider bg-surface p-4">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                               <p className="flex items-center gap-2 text-sm font-semibold text-primary">
@@ -1144,7 +1144,7 @@ export default function InterviewWorkspace() {
                         Thinking pauses are safe. Send is always available and submits exactly the text currently visible; unfinished speech is left out.
                       </p>
                       {operation === "submitting_answer" ? (
-                        <div className="mt-3 rounded-lg border border-action bg-primary/[0.035] p-3 text-xs leading-5" role="status" aria-live="polite">
+                        <div className="mt-3 rounded-lg border border-divider bg-surface p-3 text-xs leading-5" role="status" aria-live="polite">
                           <p className="font-medium">Evaluating and saving your answer · {operationElapsed ?? 0}s</p>
                           <p className="text-muted-foreground">
                             Comparing it with source evidence, validating feedback, and preparing one focused next question. Your draft stays here until the save is confirmed.
@@ -1169,7 +1169,7 @@ export default function InterviewWorkspace() {
                           ) : null}
                         </div>
                       ) : operation === "checking_submission" ? (
-                        <div className="mt-3 rounded-lg border border-warning bg-warning/[0.04] p-3 text-xs leading-5" role="status" aria-live="polite">
+                        <div className="mt-3 rounded-lg border border-warning bg-warning-wash p-3 text-xs leading-5" role="status" aria-live="polite">
                           <p className="font-medium">Checking the saved session before enabling retry…</p>
                           <p className="text-muted-foreground">Your answer remains in the editor during this check.</p>
                         </div>
@@ -1208,7 +1208,7 @@ export default function InterviewWorkspace() {
                     </PanelContent>
                   </Panel>
                 ) : current && interview.status === "paused" ? (
-                  <Panel className="border-warning bg-warning/[0.04]">
+                  <Panel className="border-warning bg-warning-wash">
                     <PanelContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="font-medium">This interview is paused</p>

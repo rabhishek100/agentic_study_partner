@@ -246,7 +246,7 @@ export function PythonCodingWorkspace({
       </div>
 
       {exercise.hints.length ? (
-        <div className="border-t bg-primary/[0.035] p-4" aria-label="Revealed coding hints">
+        <div className="border-t bg-surface p-4" aria-label="Revealed coding hints">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">Revealed hints</p>
           <ol className="mt-2 space-y-2 text-sm leading-6">
             {exercise.hints.map((hint, index) => <li key={`${index}-${hint}`}><span className="font-medium">Hint {index + 1}:</span> {hint}</li>)}

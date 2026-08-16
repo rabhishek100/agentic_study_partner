@@ -45,8 +45,10 @@ const RULES = [
   },
   {
     id: "derived-colour",
-    // `bg-card/30`, `border-primary/25` — an ad-hoc opacity variant.
-    re: /\b(?:bg|text|border|ring|fill|stroke|divide|outline)-[a-z][a-z-]*\/\d+\b/g,
+    // `bg-card/30`, `border-primary/25`, and the bracket form `bg-primary/[0.035]`
+    // — which slipped past the first version of this rule for six stages, and was
+    // doing real work on the interview screen.
+    re: /\b(?:bg|text|border|ring|fill|stroke|divide|outline)-[a-z][a-z-]*\/(?:\d+\b|\[[^\]]+\])/g,
     why: "opacity variant; if the tone is needed, it is a role",
   },
   {

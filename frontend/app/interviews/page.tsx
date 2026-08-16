@@ -402,7 +402,7 @@ export default function InterviewsPage() {
                   </Alert>
                 ) : null}
                 {operation !== "idle" ? (
-                  <div className="rounded-lg border border-action bg-primary/[0.035] p-3" role="status" aria-live="polite" aria-atomic="true">
+                  <div className="rounded-lg border border-action bg-surface p-3" role="status" aria-live="polite" aria-atomic="true">
                     <div className="flex items-start gap-3">
                       <Loader2 aria-hidden className="mt-1 size-4 shrink-0 animate-spin text-primary motion-reduce:animate-none" />
                       <div>
