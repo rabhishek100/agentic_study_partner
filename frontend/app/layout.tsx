@@ -25,9 +25,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // The canvas roles. Kept in sync with `--canvas` in globals.css.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f2f0e8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f1612" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f0e6" },
+    { media: "(prefers-color-scheme: dark)", color: "#070b0a" },
   ],
 };
 

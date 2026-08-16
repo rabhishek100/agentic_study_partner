@@ -5,19 +5,32 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Tokens are derived from the study interface's original palette — warm paper,
- * deep evergreen, terracotta — rather than a default neutral ramp, so the
- * product keeps an identity. Every foreground/background pair below was solved
- * for its WCAG target rather than eyeballed:
+ * Mugensei semantic tokens. The contract is docs/mugensei-design-system.md;
+ * this file implements it and must not extend it.
  *
- *   light  foreground/background 12.6   muted-foreground/background 4.5
- *          citation/background    4.5   input border/card           3.0
- *   dark   foreground/background 15.4   muted-foreground/background 7.5
- *          citation/card          7.5   input border/card           3.0
+ * Roles are the API. Components reference roles, never raw values. Every value
+ * below was solved against its WCAG target rather than eyeballed — worst cases,
+ * per theme:
  *
- * `--accent` is a *surface* in the shadcn contract (hover backgrounds), not the
- * brand accent. The terracotta lives in `--citation`, which is what marks
- * evidence and references throughout the interface.
+ *   dark   foreground/canvas 17.08   muted/canvas 10.58   muted/wash 5.39
+ *          border/raised      3.15   action ring/wash 5.48   disabled 4.57
+ *   light  foreground/canvas 14.23   muted/canvas  5.05   muted/wash 4.55
+ *          border/canvas      3.48   action ring/wash 5.95   disabled 3.15
+ *
+ * Two rules that live in the values themselves:
+ *
+ *   `divider` and `border` are NOT interchangeable. The divider is decorative
+ *   (1.61:1 dark) and cannot bound a control; the border meets 3:1 and must be
+ *   used on anything with an edge the reader interacts with.
+ *
+ *   Elevation reads differently per theme on purpose. Sumi ink has the value
+ *   range to separate planes tonally; warm paper does not — everything above
+ *   #F4F0E6 tops out at 1.14:1. So dark separates by ink value and light by
+ *   hairline, with the same roles and the same hierarchy in both.
+ *
+ * The shadcn/Radix names (card, accent, secondary, sidebar-*) are kept as
+ * ALIASES onto roles so the primitives keep working during the migration. They
+ * are a migration mechanism, not part of the API: new code uses roles.
  */
 
 @theme inline {
@@ -30,9 +43,32 @@
      */
     --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     --font-serif: var(--font-reading-serif), Georgia, "Times New Roman", serif;
+    /*
+     * Stays serif for now. The system reassigns headings to the sans (they are
+     * the system's words, not the reader's), but `font-heading` is currently
+     * doing two different jobs across ~40 call sites — section headings AND
+     * deck card faces, which are material under study and must stay serif.
+     * Splitting them is stage 3; this stage changes colour only.
+     */
     --font-heading: var(--font-reading-serif), Georgia, serif;
     --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
+    /* Semantic roles. */
+    --color-canvas: var(--canvas);
+    --color-surface: var(--surface);
+    --color-raised: var(--raised);
+    --color-divider: var(--divider);
+    --color-action: var(--action);
+    --color-action-hover: var(--action-hover);
+    --color-action-on: var(--action-on);
+    --color-evidence: var(--evidence);
+    --color-wash: var(--wash);
+    --color-seal: var(--seal);
+    --color-warning: var(--warning);
+    --color-disabled-surface: var(--disabled-surface);
+    --color-disabled-foreground: var(--disabled-foreground);
+
+    /* shadcn contract, aliased onto the roles above. */
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -68,89 +104,149 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
+    /*
+     * Radii, snapped to the scale: menu 6, control 8, panel 10, floating 14.
+     * The Tailwind steps map onto those so existing `rounded-*` classes land on
+     * the scale instead of on arbitrary values.
+     */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 14px;
+    --radius-2xl: 14px;
 }
 
 :root {
-    --radius: 0.625rem;
+    /* Panel radius, for anything still reading the single --radius knob. */
+    --radius: 10px;
 
-    --background: oklch(0.9545 0.0108 95.17);
-    --foreground: oklch(0.283 0.0205 185.85);
-    --card: oklch(0.997 0.0041 91.45);
-    --card-foreground: oklch(0.283 0.0205 185.85);
-    --popover: oklch(0.997 0.0041 91.45);
-    --popover-foreground: oklch(0.283 0.0205 185.85);
+    /* ── Washi · light ──────────────────────────────────────────────── */
+    --canvas: #f4f0e6;
+    --surface: #fffdf7;
+    --raised: #fffdf7;
+    --foreground: #17231f;
+    --divider: #d5d7cb;
+    --action: #255e50;
+    --action-hover: #1a4a3e;
+    --action-on: #fffdf7;
+    --evidence: #1f5647;
+    --wash: #d8e9df;
+    --seal: #aa482b;
+    --warning: #7a5410;
+    --disabled-surface: #f4f0e6;
+    --disabled-foreground: #84897f;
 
-    --primary: oklch(0.3665 0.041 178.68);
-    --primary-foreground: oklch(0.985 0.006 95);
-    --secondary: oklch(0.925 0.013 95.2);
-    --secondary-foreground: oklch(0.32 0.025 182);
-    --muted: oklch(0.933 0.012 95.2);
-    --muted-foreground: oklch(0.5345 0.0143 164.44);
-    --accent: oklch(0.925 0.013 95.2);
-    --accent-foreground: oklch(0.32 0.025 182);
-    --destructive: oklch(0.4651 0.1097 35.05);
+    /* shadcn aliases. */
+    --background: var(--canvas);
+    --card: var(--surface);
+    --card-foreground: var(--foreground);
+    --popover: var(--raised);
+    --popover-foreground: var(--foreground);
+    --primary: var(--action);
+    --primary-foreground: var(--action-on);
+    --secondary: var(--surface);
+    --secondary-foreground: var(--foreground);
+    --muted: var(--surface);
+    --muted-foreground: #586a63;
+    --accent: var(--wash);
+    --accent-foreground: var(--foreground);
+    --destructive: #a32741;
 
-    --border: oklch(0.8721 0.0166 95.25);
-    --input: oklch(0.6665 0.0166 95.25);
-    --ring: oklch(0.3665 0.041 178.68);
+    /* `border` is the decorative divider; `input` is the 3:1 control edge. */
+    --border: var(--divider);
+    --input: #7f8175;
+    --ring: var(--action);
 
-    --citation: oklch(0.548 0.1242 44.81);
-    --citation-foreground: oklch(0.985 0.006 95);
-    --citation-muted: oklch(0.928 0.033 55);
-    --positive: oklch(0.4919 0.0704 160.34);
-    --positive-muted: oklch(0.918 0.032 160);
+    /* Evidence keeps its established token name across the codebase. */
+    --citation: var(--evidence);
+    --citation-foreground: var(--action-on);
+    --citation-muted: var(--wash);
+    --positive: var(--evidence);
+    --positive-muted: var(--wash);
 
-    --sidebar: oklch(0.933 0.014 95.2);
-    --sidebar-foreground: oklch(0.283 0.0205 185.85);
-    --sidebar-primary: oklch(0.3665 0.041 178.68);
-    --sidebar-primary-foreground: oklch(0.985 0.006 95);
-    --sidebar-accent: oklch(0.91 0.015 95);
-    --sidebar-accent-foreground: oklch(0.283 0.0205 185.85);
-    --sidebar-border: oklch(0.86 0.017 95);
-    --sidebar-ring: oklch(0.3665 0.041 178.68);
+    --sidebar: var(--surface);
+    --sidebar-foreground: var(--foreground);
+    --sidebar-primary: var(--action);
+    --sidebar-primary-foreground: var(--action-on);
+    --sidebar-accent: var(--wash);
+    --sidebar-accent-foreground: var(--foreground);
+    --sidebar-border: var(--divider);
+    --sidebar-ring: var(--action);
+
+    /* Depth. Docked surfaces carry no shadow at all. */
+    --shadow-popover: 0 8px 24px rgb(23 35 31 / 0.12);
+    --shadow-floating: 0 20px 48px rgb(23 35 31 / 0.16);
+
+    /* Stacking. Nothing outside this scale may set a z-index. */
+    --z-docked: 10;
+    --z-sticky: 20;
+    --z-floating-window: 30;
+    --z-drawer: 40;
+    --z-popover: 50;
+    --z-dialog: 60;
+    --z-toast: 70;
+    --z-skip-link: 80;
+
+    /* Motion. */
+    --duration-fast: 120ms;
+    --duration-base: 180ms;
+    --duration-slow: 240ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
 .dark {
-    --background: oklch(0.1914 0.0133 159.79);
-    --foreground: oklch(0.9392 0.0081 98.88);
-    --card: oklch(0.2341 0.0139 163.48);
-    --card-foreground: oklch(0.9392 0.0081 98.88);
-    --popover: oklch(0.2341 0.0139 163.48);
-    --popover-foreground: oklch(0.9392 0.0081 98.88);
+    /* ── Sumi · dark ────────────────────────────────────────────────── */
+    --canvas: #070b0a;
+    --surface: #0d1714;
+    --raised: #101a17;
+    --foreground: #f2eee4;
+    --divider: #263930;
+    --action: #69d39f;
+    --action-hover: #8cdfb4;
+    --action-on: #070b0a;
+    --evidence: #8fc9af;
+    --wash: #1b4a38;
+    --seal: #e97850;
+    --warning: #e3b341;
+    --disabled-surface: #0d1714;
+    --disabled-foreground: #6b8579;
 
-    --primary: oklch(0.7801 0.0899 164.87);
-    --primary-foreground: oklch(0.1914 0.0133 159.79);
-    --secondary: oklch(0.275 0.014 163);
-    --secondary-foreground: oklch(0.9392 0.0081 98.88);
-    --muted: oklch(0.275 0.014 163);
-    --muted-foreground: oklch(0.7205 0.0115 158.74);
-    --accent: oklch(0.295 0.015 163);
-    --accent-foreground: oklch(0.9392 0.0081 98.88);
-    --destructive: oklch(0.701 0.1502 31.99);
+    --background: var(--canvas);
+    --card: var(--surface);
+    --card-foreground: var(--foreground);
+    --popover: var(--raised);
+    --popover-foreground: var(--foreground);
+    --primary: var(--action);
+    --primary-foreground: var(--action-on);
+    --secondary: var(--surface);
+    --secondary-foreground: var(--foreground);
+    --muted: var(--surface);
+    --muted-foreground: #a8c4b5;
+    --accent: var(--wash);
+    --accent-foreground: var(--foreground);
+    --destructive: #f0798c;
 
-    --border: oklch(0.32 0.013 164.03);
-    --input: oklch(0.517 0.013 164);
-    --ring: oklch(0.7801 0.0899 164.87);
+    --border: var(--divider);
+    --input: #4a6f5d;
+    --ring: var(--action);
 
-    --citation: oklch(0.7593 0.1303 54.81);
-    --citation-foreground: oklch(0.1914 0.0133 159.79);
-    --citation-muted: oklch(0.32 0.045 50);
-    --positive: oklch(0.749 0.0994 158.36);
-    --positive-muted: oklch(0.3 0.04 158);
+    --citation: var(--evidence);
+    --citation-foreground: var(--action-on);
+    --citation-muted: var(--wash);
+    --positive: var(--evidence);
+    --positive-muted: var(--wash);
 
-    --sidebar: oklch(0.2151 0.0137 161.5);
-    --sidebar-foreground: oklch(0.9392 0.0081 98.88);
-    --sidebar-primary: oklch(0.7801 0.0899 164.87);
-    --sidebar-primary-foreground: oklch(0.1914 0.0133 159.79);
-    --sidebar-accent: oklch(0.275 0.014 163);
-    --sidebar-accent-foreground: oklch(0.9392 0.0081 98.88);
-    --sidebar-border: oklch(0.32 0.013 164.03);
-    --sidebar-ring: oklch(0.7801 0.0899 164.87);
+    --sidebar: var(--surface);
+    --sidebar-foreground: var(--foreground);
+    --sidebar-primary: var(--action);
+    --sidebar-primary-foreground: var(--action-on);
+    --sidebar-accent: var(--wash);
+    --sidebar-accent-foreground: var(--foreground);
+    --sidebar-border: var(--divider);
+    --sidebar-ring: var(--action);
+
+    --shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+    --shadow-floating: 0 20px 48px rgb(0 0 0 / 0.6);
 }
 
 @layer base {
