@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { AppShell } from "@/components/app-shell";
+import { HEADER_INSET } from "@/lib/floating-window";
 
 function shell(aside?: React.ReactNode, documentControl?: React.ReactNode) {
   return render(
@@ -18,6 +19,17 @@ function shell(aside?: React.ReactNode, documentControl?: React.ReactNode) {
 }
 
 describe("AppShell", () => {
+  it("sizes the header to the inset that floating windows are clamped against", () => {
+    const { container } = shell();
+    const header = container.querySelector("header");
+
+    // These were two independent numbers that happened to agree. The
+    // floating-window tests assert against the imported symbol, so they pass at
+    // any value, and nothing checked the header itself — a change to one would
+    // have silently put every side-chat window underneath the masthead.
+    expect(header).toHaveStyle({ height: `${HEADER_INSET}px` });
+  });
+
   it("owns exactly one viewport and clips document-level overflow", () => {
     const { container } = shell();
 

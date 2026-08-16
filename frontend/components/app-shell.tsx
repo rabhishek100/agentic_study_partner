@@ -4,6 +4,7 @@ import { PanelLeft } from "lucide-react";
 import { useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { HEADER_INSET } from "@/lib/floating-window";
 import { SplitPane } from "@/components/pdf/split-pane";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,22 @@ export function AppShell({
         Skip to the question box
       </a>
 
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4">
+      {/*
+        The height comes from HEADER_INSET rather than an `h-14` class, because
+        the floating side-chat windows are clamped, snapped, and cascaded
+        against that constant. They were two independent numbers that happened
+        to agree, with nothing asserting they still did — the floating-window
+        tests assert against the imported symbol, so they pass at any value.
+
+        Setting it in pixels also fixes a real drift: `h-14` is rem-based, while
+        HEADER_INSET is compared against raw clientY/innerHeight. Under a raised
+        browser font size the header grew past 56 and windows sat underneath it.
+        Browser *zoom* scales both together, so only font size was affected.
+      */}
+      <header
+        style={{ height: HEADER_INSET }}
+        className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4"
+      >
         {rail ? (
           <Sheet open={railOpen} onOpenChange={setRailOpen}>
             <SheetTrigger asChild>
@@ -93,8 +109,8 @@ export function AppShell({
         <div className="flex min-w-0 items-center gap-2.5">
           <BrandMark size="sm" />
           <div className="min-w-0">
-            <p className="truncate font-serif text-sm font-medium leading-tight">
-              Agentic Study Partner
+            <p className="truncate font-serif text-base font-medium leading-tight tracking-tight">
+              Mugensei
             </p>
             <div className="truncate text-xs text-muted-foreground">
               {status}

@@ -19,8 +19,8 @@ const readingSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic Study Partner",
-  description: "A grounded study companion for technical books",
+  title: "Mugensei",
+  description: "Master difficult material. A grounded study companion.",
   icons: { icon: "/favicon.svg" },
 };
 
