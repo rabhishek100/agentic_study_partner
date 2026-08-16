@@ -489,7 +489,7 @@ export default function VideoWorkspace() {
             <>
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <h1 className="truncate font-heading text-base font-medium">
+                  <h1 className="truncate font-serif text-base font-medium">
                     {video.title}
                   </h1>
                   <p className="text-xs text-muted-foreground">

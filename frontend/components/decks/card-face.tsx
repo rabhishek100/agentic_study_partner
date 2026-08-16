@@ -119,19 +119,19 @@ function SayItAloud({
       <section aria-labelledby="short-answer-heading">
         <h3
           id="short-answer-heading"
-          className="mb-2 flex items-center gap-2 font-heading text-base font-medium text-primary"
+          className="mb-2 flex items-center gap-2 font-serif text-base font-medium text-primary"
         >
           <Timer aria-hidden className="size-4" />
           30-second answer
         </h3>
-        <p className="border-l-2 border-primary py-0.5 pl-4 font-heading text-base leading-relaxed sm:text-[1.05rem]">
+        <p className="border-l-2 border-primary py-0.5 pl-4 font-serif text-base leading-relaxed sm:text-base">
           {plain(text)}
         </p>
       </section>
     );
   }
   return (
-    <p className="rounded-lg border-l-2 border-primary bg-accent/40 px-3 py-2 font-heading text-base leading-snug">
+    <p className="rounded-lg border-l-2 border-primary bg-accent/40 px-3 py-2 font-serif text-base leading-snug">
       {plain(text)}
     </p>
   );
@@ -153,7 +153,7 @@ export function CardFront({
     <div className="space-y-4">
       <p
         className={cn(
-          "whitespace-pre-wrap font-heading",
+          "whitespace-pre-wrap font-serif",
           studyMode
             ? "text-lg leading-[1.55] sm:text-xl"
             : "text-xl leading-snug sm:text-2xl",
@@ -286,7 +286,7 @@ export function CardBackFace({
                     <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                       {section.label.slice(1, -1)}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-heading font-medium">
+                    <span className="min-w-0 flex-1 truncate font-serif font-medium">
                       {section.title}
                     </span>
                     <ChevronDown
@@ -304,7 +304,7 @@ export function CardBackFace({
         ) : (
           <div>
             {studyMode ? (
-              <h3 className="mb-2 font-heading text-sm font-medium text-muted-foreground">
+              <h3 className="mb-2 text-sm font-medium text-muted-foreground">
                 Detailed answer
               </h3>
             ) : null}

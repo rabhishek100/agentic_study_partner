@@ -166,7 +166,7 @@ function ConversationRow({
       >
         <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
         {conversation.turn_count > 0 && (
-          <span className="shrink-0 text-[0.7rem] tabular-nums text-muted-foreground">
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
             {conversation.turn_count}
           </span>
         )}
@@ -230,7 +230,7 @@ export function ConversationHistory({
       <div className="flex items-center justify-between">
         <h2
           id="history-heading"
-          className="text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+          className="text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
         >
           Conversations
         </h2>
@@ -253,7 +253,7 @@ export function ConversationHistory({
         <div className="space-y-3">
           {groups.map((group) => (
             <div key={group.label} className="space-y-0.5">
-              <p className="px-2 text-[0.7rem] text-muted-foreground">
+              <p className="px-2 text-xs text-muted-foreground">
                 {group.label}
               </p>
               <ul>

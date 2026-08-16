@@ -284,7 +284,7 @@ export default function InterviewsPage() {
       rail={
         <div className="flex h-full flex-col overflow-y-auto p-4">
           <div className="mb-5 sm:hidden"><SectionNav active="interviews" /></div>
-          <h2 className="font-heading text-sm font-medium">Recent interviews</h2>
+          <h2 className="text-sm font-medium">Recent interviews</h2>
           <p className="mt-1 text-xs text-muted-foreground">Resume a paused session or revisit a report.</p>
           <div className="mt-4 space-y-2">
             {history.length === 0 ? (
@@ -297,7 +297,7 @@ export default function InterviewsPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="line-clamp-2 text-sm font-medium">{item.title.replace("Interview · ", "")}</p>
-                  <Badge variant="outline" className="shrink-0 text-[10px]">{statusLabel(item.status)}</Badge>
+                  <Badge variant="outline" className="shrink-0 text-xs">{statusLabel(item.status)}</Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{item.target_level} · {formatDuration(item.maximum_duration_minutes)} max</p>
               </Link>
@@ -310,7 +310,7 @@ export default function InterviewsPage() {
         <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
           <div className="max-w-2xl">
             <Badge variant="secondary" className="mb-4"><Sparkles aria-hidden /> Adaptive practice</Badge>
-            <h1 className="font-heading text-3xl font-semibold tracking-tight sm:text-4xl">Practice the interview, not a question list.</h1>
+            <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">Practice the interview, not a question list.</h1>
             <p className="mt-3 text-base leading-7 text-muted-foreground">Choose one chapter or lecture. The interviewer follows its evidence, adapts to your answers, and finishes when the useful material is covered.</p>
           </div>
 

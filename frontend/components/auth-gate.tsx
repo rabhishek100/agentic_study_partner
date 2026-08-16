@@ -81,7 +81,7 @@ export function AuthGate() {
     <Panel className="w-full max-w-md">
       <PanelHeader>
         <BrandMark className="mb-3" />
-        <PanelTitle className="font-heading text-xl font-medium">
+        <PanelTitle className="font-serif text-xl font-medium">
           {mode === "sign-in"
             ? "Sign in to your library"
             : "Create your library"}

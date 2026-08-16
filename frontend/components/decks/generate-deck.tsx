@@ -216,7 +216,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                     }
                   >
                     <div className="font-semibold text-foreground">Generate from topics</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">AI writes new revision cards</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">AI writes new revision cards</div>
                   </button>
                   <button
                     type="button"
@@ -228,7 +228,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                     }
                   >
                     <div className="font-semibold text-foreground">Use questions from book</div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">Preserve printed exercises and answers</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">Preserve printed exercises and answers</div>
                   </button>
                 </div>
               </div>

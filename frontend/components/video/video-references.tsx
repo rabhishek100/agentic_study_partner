@@ -86,7 +86,7 @@ function ReferenceRow({
       <div className="flex items-baseline gap-2 py-1.5">
         <span
           className={cn(
-            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded text-[0.65rem] font-semibold tabular-nums",
+            "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded text-xs font-semibold tabular-nums",
             index === null
               ? "text-muted-foreground"
               : "bg-citation-muted text-citation",
@@ -141,7 +141,7 @@ function ReferenceRow({
 
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleContent>
-          <blockquote className="mb-2 ml-6 border-l-2 border-citation/40 pl-3 font-serif text-[0.85rem] leading-relaxed text-muted-foreground">
+          <blockquote className="mb-2 ml-6 border-l-2 border-citation/40 pl-3 font-serif text-xs leading-relaxed text-muted-foreground">
             {reference.excerpt}
           </blockquote>
         </CollapsibleContent>
@@ -198,7 +198,7 @@ export function VideoReferences({
     >
       <h4
         id="video-references-heading"
-        className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        className="flex items-center gap-1.5 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <Layers className="size-3.5" aria-hidden />
         {cited.length} {cited.length === 1 ? "source" : "sources"}

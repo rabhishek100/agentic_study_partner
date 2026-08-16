@@ -240,7 +240,7 @@ export function PythonCodingWorkspace({
             {execution.status === "not_run" && !runtimeError ? <p className="mt-3 text-xs leading-5 text-muted-foreground">Run the scaffold when you are ready. A failed run does not prevent submission.</p> : null}
             {execution.stdout ? <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/65 p-3 font-mono text-xs leading-5">{execution.stdout}</pre> : null}
             {execution.error ? <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-destructive/8 p-3 font-mono text-xs leading-5 text-destructive">{execution.error}</pre> : null}
-            {execution.duration_ms ? <p className="mt-2 text-[11px] text-muted-foreground">Completed in {execution.duration_ms} ms</p> : null}
+            {execution.duration_ms ? <p className="mt-2 text-xs text-muted-foreground">Completed in {execution.duration_ms} ms</p> : null}
           </div>
         </div>
       </div>

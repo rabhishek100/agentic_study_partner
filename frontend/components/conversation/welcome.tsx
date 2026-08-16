@@ -71,7 +71,7 @@ export function Welcome({
   return (
     <div className="flex min-h-full flex-col items-center justify-center py-12 text-center">
       <BrandMark className="mb-5" />
-      <h2 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
+      <h2 className="font-serif text-2xl font-medium tracking-tight sm:text-3xl">
         {hasBooks ? "What would you like to understand?" : "Upload a book to begin"}
       </h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">

@@ -106,6 +106,45 @@
     --color-sidebar-ring: var(--sidebar-ring);
 
     /*
+     * The type scale, mapped onto the Tailwind steps so ~400 existing `text-*`
+     * classes land on it instead of on a default ramp. Migrating those by hand
+     * would be 400 edits and would still leave the next one free to invent a
+     * size; redefining the scale makes the scale the only thing there is.
+     *
+     * The step that matters most is `xs`. The brief sets a 14px floor for
+     * anything carrying information, and `text-xs` was 12px across 241 call
+     * sites — badges, page counts, evidence metadata, status lines. It is now
+     * the floor itself, and `text-eyebrow` carries the one 12px exception:
+     * labels naming a region whose content already says the same thing.
+     *
+     * The top of the ramp is capped at the display size. The brief asks for
+     * "medium weights and excellent spacing over oversized bold headings", so
+     * `3xl` and `4xl` deliberately stop where `2xl` does.
+     */
+    --text-eyebrow: 0.75rem; /* 12px — labels only, never sole meaning */
+    --text-eyebrow--line-height: 1;
+    --text-eyebrow--letter-spacing: 0.14em;
+    --text-xs: 0.875rem; /* 14px — meta, the information floor */
+    --text-xs--line-height: 1.45;
+    --text-sm: 0.9375rem; /* 15px — controls, table cells, dense regions */
+    --text-sm--line-height: 1.45;
+    --text-base: 1rem; /* 16px — default interface text */
+    --text-base--line-height: 1.5;
+    --text-lg: 1.25rem; /* 20px — section and panel headings */
+    --text-lg--line-height: 1.3;
+    --text-xl: 1.625rem; /* 26px — reader-created titles */
+    --text-xl--line-height: 1.25;
+    --text-2xl: 2.125rem; /* 34px — the page subject, one per screen */
+    --text-2xl--line-height: 1.18;
+    --text-3xl: 2.125rem;
+    --text-3xl--line-height: 1.18;
+    --text-4xl: 2.125rem;
+    --text-4xl--line-height: 1.18;
+
+    /* The reading measure. Applied to prose blocks, never to the frame. */
+    --measure: 68ch;
+
+    /*
      * Radii, snapped to the scale: menu 6, control 8, panel 10, floating 14.
      * The Tailwind steps map onto those so existing `rounded-*` classes land on
      * the scale instead of on arbitrary values.
@@ -338,7 +377,14 @@
      * at the default, so the main conversation is unchanged.
      */
     .answer-prose {
-        font-size: var(--answer-size, 0.975rem);
+        font-size: var(--answer-size, 1.03rem);
+        /*
+         * The reading measure. Capped in `ch` so it follows the type rather than
+         * a pixel guess, and applied here — to the prose block — never to the
+         * frame around it. A side chat sets its own narrower width, so this is a
+         * ceiling and not a floor.
+         */
+        max-width: var(--measure, 68ch);
         @apply font-serif leading-[1.75] text-foreground;
     }
 

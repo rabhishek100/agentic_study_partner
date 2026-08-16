@@ -112,7 +112,7 @@ export function DocumentPages({
     <section aria-labelledby="cited-pages-heading" className="space-y-2">
       <h4
         id="cited-pages-heading"
-        className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        className="flex items-center gap-1.5 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <FileText className="size-3.5" aria-hidden />
         {pages.length === 1 ? "Cited page" : "Cited pages"}

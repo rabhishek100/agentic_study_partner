@@ -363,7 +363,7 @@ export function PdfViewer({
             <ChevronRight aria-hidden />
           </Button>
           <span
-            className="ml-1 hidden items-center gap-1 text-[0.65rem] text-muted-foreground xl:flex"
+            className="ml-1 hidden items-center gap-1 text-xs text-muted-foreground xl:flex"
             title="Previous and next page keyboard shortcuts"
           >
             <kbd className="rounded border border-border px-1 py-0.5 font-sans">

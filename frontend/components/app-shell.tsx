@@ -93,7 +93,7 @@ export function AppShell({
         <div className="flex min-w-0 items-center gap-2.5">
           <BrandMark size="sm" />
           <div className="min-w-0">
-            <p className="truncate font-heading text-sm font-medium leading-tight">
+            <p className="truncate font-serif text-sm font-medium leading-tight">
               Agentic Study Partner
             </p>
             <div className="truncate text-xs text-muted-foreground">

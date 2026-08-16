@@ -335,7 +335,7 @@ export function ReviewSession({
     return (
       <div className="mx-auto max-w-md rounded-xl border border-dashed border-border p-10 text-center">
         <Check aria-hidden className="mx-auto mb-3 size-6 text-emerald-600" />
-        <p className="font-heading text-base font-medium">Nothing due</p>
+        <p className="text-base font-medium">Nothing due</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Everything scheduled for today is done. New cards appear as your
           daily allowance frees up.
@@ -409,7 +409,7 @@ export function ReviewSession({
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
         <div className="rounded-xl border border-border bg-card p-10 text-center">
           <Check aria-hidden className="mx-auto mb-3 size-6 text-emerald-600" />
-          <p className="font-heading text-lg font-medium">
+          <p className="font-serif text-lg font-medium">
             {gradedCount} of {cards.length} card
             {cards.length === 1 ? "" : "s"} reviewed
           </p>
@@ -453,7 +453,7 @@ export function ReviewSession({
 
           <div className="mx-auto w-full max-w-3xl space-y-2">
             <div className="flex min-w-0 items-center gap-2 text-sm">
-              <span className="truncate font-heading font-medium">
+              <span className="truncate font-serif font-medium">
                 {item.deck_title}
               </span>
               <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
@@ -546,7 +546,7 @@ export function ReviewSession({
                       questionCollapsed: !state.questionCollapsed,
                     })
                   }
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1 font-heading text-sm text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <ChevronDown
                     aria-hidden

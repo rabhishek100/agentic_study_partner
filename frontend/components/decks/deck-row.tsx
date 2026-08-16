@@ -120,7 +120,7 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
         >
           <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
           <span className="min-w-0">
-            <span className="block truncate font-heading text-sm font-medium">
+            <span className="block truncate font-serif text-sm font-medium">
               {deck.title}
             </span>
             <span className="mt-0.5 block truncate text-xs text-muted-foreground sm:hidden">
@@ -259,7 +259,7 @@ export function DeckJobRow({
                   {failed ? "Failed" : job.status === "queued" ? "Queued" : "In progress"}
                 </Badge>
               </div>
-              <p className="truncate font-heading text-sm font-medium">{job.title}</p>
+              <p className="truncate font-serif text-sm font-medium">{job.title}</p>
               <p className="truncate text-xs text-muted-foreground">{job.source_title}</p>
             </div>
             {!failed ? (
@@ -289,7 +289,7 @@ export function DeckJobRow({
                     <p>Reference: {failure.reference}</p>
                     <p>Code: {job.error_code || "generation_stopped"}</p>
                     {job.error_detail ? (
-                      <p className="mt-1 break-words font-mono text-[0.7rem]">
+                      <p className="mt-1 break-words font-mono text-xs">
                         {job.error_detail}
                       </p>
                     ) : null}

@@ -90,7 +90,7 @@ export function VideoWelcome({
 
   return (
     <div className="flex flex-col items-center justify-center py-10 text-center">
-      <h2 className="font-heading text-xl font-medium tracking-tight sm:text-2xl">
+      <h2 className="font-serif text-xl font-medium tracking-tight sm:text-2xl">
         What would you like to understand?
       </h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">

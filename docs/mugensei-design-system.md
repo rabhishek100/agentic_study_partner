@@ -123,9 +123,20 @@ API — new code uses roles.
 | Geist | The system: navigation, section names, controls, tables, metrics, status. |
 | System mono | Identifiers, page and section references, timings, retrieval modes. |
 
-**Serif never carries system chrome.** "Cards" and "Books" are the system's
-words and are set in Geist. "Reranking and recall" is a conversation the reader
-made and is set in serif. This is the test: *whose words are these?*
+**Serif carries the subject; sans carries the structure.** The brief asks for
+serif on "major headings, long-form learning content, and reflective moments",
+so the page's subject line is serif — "Cards", "Videos", "What would you like to
+understand?" — as are reader-created titles and all material under study.
+
+Sans carries everything structural beneath that: panel headings, section names,
+table headers, labels, navigation, and every metric. The test is *is this the
+subject, or the scaffolding around it?* — and there is exactly one subject per
+screen.
+
+(Revision 2 stated this as "headings are the system's words, so headings are
+sans". That over-corrected: it put the page subject in sans, which the brief
+explicitly assigns to the serif. The reviewer's actual objection was serif
+leaking into small structural chrome, which is what the rule above forbids.)
 
 Monospace marks genuinely technical content. A metrics row is not technical
 content; a retrieval-mode identifier is.
@@ -136,7 +147,7 @@ content; a retrieval-mode identifier is.
 |---|---|---|---|
 | `display` | 34 / 1.18 | serif | Page subject; one per screen. |
 | `title` | 26 / 1.25 | serif | Reader-created titles. |
-| `heading` | 20 / 1.3 | sans | Section and panel headings (system words). |
+| `heading` | 20 / 1.3 | sans | Section and panel headings — the scaffolding. |
 | `prose` | `1em` of `--answer-size` / 1.75 | serif | Answer and reading text. |
 | `body` | 16 / 1.5 | sans | Default interface text. |
 | `ui` | 15 / 1.45 | sans | Controls, table cells, dense regions. |

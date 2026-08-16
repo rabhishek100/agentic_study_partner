@@ -209,7 +209,7 @@ export function AskPane({
               </Button>
             )}
           </div>
-          <p className="text-center text-[0.7rem] text-muted-foreground">
+          <p className="text-center text-xs text-muted-foreground">
             Answers are limited to this lecture&apos;s transcript, frames, and
             linked documents.
           </p>

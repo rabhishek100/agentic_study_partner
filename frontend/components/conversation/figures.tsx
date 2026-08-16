@@ -164,7 +164,7 @@ export function Figures({ figures }: FiguresProps) {
     <section aria-labelledby="figures-heading" className="space-y-2">
       <h4
         id="figures-heading"
-        className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.1em] text-muted-foreground"
+        className="flex items-center gap-1.5 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground"
       >
         <Images className="size-3.5" aria-hidden />
         {figures.length === 1

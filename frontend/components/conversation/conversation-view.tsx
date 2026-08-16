@@ -164,7 +164,7 @@ export function ConversationView({
               />
             }
           />
-          <p className="mt-2 text-center text-[0.7rem] text-muted-foreground">
+          <p className="mt-2 text-center text-xs text-muted-foreground">
             {!canSend && hasBooks
               ? "No default scope — type @ to tag a book for this question."
               : scopeSummary

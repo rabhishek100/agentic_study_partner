@@ -165,7 +165,7 @@ export function DeckOverview({
 
           <div className="min-w-0 flex-1 md:pl-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="truncate font-heading text-lg font-medium sm:text-xl">
+              <h1 className="truncate font-serif text-lg font-medium sm:text-xl">
                 {deck.title}
               </h1>
               <span className="hidden truncate text-sm text-muted-foreground lg:inline">
@@ -305,7 +305,7 @@ export function DeckOverview({
           )}
         >
           <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
-            <h2 className="font-heading text-lg font-medium">
+            <h2 className="font-serif text-lg font-medium">
               {sourceQuestions ? "Chapter exercises" : "Study questions"}
             </h2>
             <div className="flex rounded-lg border border-border p-0.5" aria-label="Question filter">
@@ -417,19 +417,19 @@ export function DeckOverview({
               <p className="mb-5 text-sm font-medium text-primary">
                 {sourceQuestions ? "Exercise" : "Question"} {selected.card.card_index + 1}
               </p>
-              <h2 className="whitespace-pre-wrap font-heading text-xl font-normal leading-[1.5] sm:text-[1.4rem]">
+              <h2 className="whitespace-pre-wrap font-serif text-xl font-normal leading-[1.5] sm:text-lg">
                 {sourceQuestion(selected.card.front)}
               </h2>
 
               <section className="mt-7 border-y border-border py-5" aria-labelledby="answer-preview-heading">
                 <h3
                   id="answer-preview-heading"
-                  className="flex items-center gap-2 font-heading text-base font-medium text-primary"
+                  className="flex items-center gap-2 font-serif text-base font-medium text-primary"
                 >
                   <Timer aria-hidden className="size-5" />
                   30-second answer <span className="font-normal">(preview)</span>
                 </h3>
-                <p className="mt-3 border-l-2 border-primary py-0.5 pl-4 font-heading text-base leading-relaxed sm:text-[1.05rem]">
+                <p className="mt-3 border-l-2 border-primary py-0.5 pl-4 font-serif text-base leading-relaxed sm:text-base">
                   {plain(
                     selected.card.back.say_it_aloud || selected.card.back.answer,
                   )}

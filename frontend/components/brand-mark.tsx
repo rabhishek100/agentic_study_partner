@@ -12,7 +12,7 @@ export function BrandMark({
     <span
       aria-hidden
       className={cn(
-        "grid shrink-0 place-items-center rounded-xl bg-primary font-heading font-semibold text-primary-foreground",
+        "grid shrink-0 place-items-center rounded-xl bg-primary font-serif font-semibold text-primary-foreground",
         size === "sm" ? "size-7 text-xs" : "size-11 text-sm",
         className,
       )}

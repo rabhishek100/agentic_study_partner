@@ -149,7 +149,7 @@ export default function VideosPage() {
             <SectionNav active="videos" />
           </div>
           <div>
-            <h2 className="font-heading text-sm font-medium">Add a lecture</h2>
+            <h2 className="text-sm font-medium">Add a lecture</h2>
             <p className="mb-3 text-xs text-muted-foreground">
               Paste a YouTube link or upload a file. Slides are optional and can
               be attached now.
@@ -161,7 +161,7 @@ export default function VideosPage() {
     >
       <div className="mx-auto w-full max-w-3xl space-y-4 overflow-y-auto p-4 sm:p-6">
         <div>
-          <h1 className="font-heading text-lg font-medium">Videos</h1>
+          <h1 className="font-serif text-lg font-medium">Videos</h1>
           <p className="text-sm text-muted-foreground">
             Lectures you can ask about — grounded in the transcript, what was on
             screen, and any linked slides.
@@ -194,7 +194,7 @@ export default function VideosPage() {
                 <div className="mb-2">
                   <h2
                     id={`group-${group.key}`}
-                    className="font-heading text-sm font-medium"
+                    className="font-serif text-sm font-medium"
                   >
                     {group.title}
                     <span className="ml-2 text-xs font-normal text-muted-foreground tabular-nums">

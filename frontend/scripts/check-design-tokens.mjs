@@ -66,6 +66,18 @@ const RADIUS_OK = new Set(["none", "sm", "md", "lg", "xl", "2xl", "full", ""]);
 // `rounded-[7px]`, which is exactly the case this rule exists to catch.
 const RADIUS_RE = /\brounded(?:-[a-z]+)?-(\[[^\]]+\]|[a-z0-9]+)/g;
 
+/**
+ * An arbitrary font size sidesteps the scale entirely, and every one of the 36
+ * that existed here was below the 14px information floor. `text-eyebrow` is the
+ * only sub-floor size, and it is a named step rather than a number.
+ *
+ * Only absolute units are flagged. `em`-relative sizes are how a citation marker
+ * stays proportional to the prose around it, which is what lets the same answer
+ * read correctly in a 300px side chat and a 700px one — that is the system
+ * working, not a violation of it.
+ */
+const ARBITRARY_TEXT_RE = /\btext-\[[0-9.]+(?:rem|px|pt)\]/g;
+
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
@@ -102,6 +114,12 @@ function scan() {
               why: "not on the 4px foundation (4/8/12/16/24/32/48/64)",
             });
           }
+        }
+        for (const m of line.matchAll(ARBITRARY_TEXT_RE)) {
+          found.push({
+            file: rel, line: i + 1, rule: "arbitrary-text-size", match: m[0],
+            why: "off the type scale; use a named step",
+          });
         }
         for (const m of line.matchAll(RADIUS_RE)) {
           if (!RADIUS_OK.has(m[1])) {
