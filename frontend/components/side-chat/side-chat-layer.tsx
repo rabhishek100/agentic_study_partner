@@ -67,7 +67,7 @@ function SideChatError({
   onDismiss?: () => void;
 }) {
   return (
-    <div className="fixed bottom-3 left-1/2 z-40 w-[min(90vw,28rem)] -translate-x-1/2">
+    <div className="fixed bottom-3 left-1/2 z-drawer w-[min(90vw,28rem)] -translate-x-1/2">
       <Alert variant="destructive" className="bg-card shadow-lg">
         <AlertCircle aria-hidden />
         <AlertDescription className="flex items-start gap-2">
@@ -131,7 +131,7 @@ export function SideChatLayer({
 
   if (!floating) {
     return (
-      <div className="fixed inset-x-0 bottom-0 z-30 flex h-[70dvh] flex-col border-t border-border bg-card shadow-2xl">
+      <div className="fixed inset-x-0 bottom-0 z-floating-window flex h-[70dvh] flex-col border-t border-border bg-card shadow-2xl">
         <div
           role="tablist"
           aria-label="Open side chats"
@@ -240,7 +240,7 @@ export function SideChatLayer({
 
       {minimized.length > 0 && (
         <div
-          className="fixed bottom-3 right-3 z-30 flex max-w-[min(90vw,32rem)] flex-wrap items-center justify-end gap-2"
+          className="fixed bottom-3 right-3 z-floating-window flex max-w-[min(90vw,32rem)] flex-wrap items-center justify-end gap-2"
           aria-label="Minimized side chats"
         >
           {minimized.map((entry) => {

@@ -84,7 +84,7 @@ export function MicButton({
           float, so the composer never changes size mid-question. */}
       {(error || isRecording) && (
         <span
-          className="absolute bottom-full right-0 z-30 mb-2 w-max max-w-56 rounded-md border border-border bg-popover px-2 py-1 text-xs leading-snug text-popover-foreground shadow-md"
+          className="absolute bottom-full right-0 z-floating-window mb-2 w-max max-w-56 rounded-md border border-border bg-popover px-2 py-1 text-xs leading-snug text-popover-foreground shadow-md"
           // Announced by the live region below, so it is decoration here and
           // would otherwise be read twice.
           aria-hidden

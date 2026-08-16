@@ -86,6 +86,14 @@ const RADIUS_RE = /\brounded(?:-[a-z]+)?-(\[[^\]]+\]|[a-z0-9]+)/g;
  */
 const ARBITRARY_TEXT_RE = /\btext-\[[0-9.]+(?:rem|px|pt)\]/g;
 
+/**
+ * A raw z-index. The stacking scale exists so the sheet, the menus, the dialogs
+ * and the skip link agree on an order; every one of them sat at `z-50` until
+ * this rule went in, which meant their order was whatever the portal happened
+ * to render.
+ */
+const RAW_Z_RE = /\bz-(?:\[\d+\]|\d+)\b/g;
+
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
@@ -133,6 +141,12 @@ function scan() {
           found.push({
             file: rel, line: i + 1, rule: "arbitrary-text-size", match: m[0],
             why: "off the type scale; use a named step",
+          });
+        }
+        for (const m of line.matchAll(RAW_Z_RE)) {
+          found.push({
+            file: rel, line: i + 1, rule: "raw-z-index", match: m[0],
+            why: "off the stacking scale; use a named band",
           });
         }
         for (const m of line.matchAll(RADIUS_RE)) {

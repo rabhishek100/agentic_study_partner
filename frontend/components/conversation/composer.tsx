@@ -262,7 +262,7 @@ export function Composer({
           id={mentionListId}
           role="listbox"
           aria-label="Tag a book"
-          className="absolute bottom-[calc(100%-2.25rem)] left-0 z-20 max-h-56 w-full overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md sm:w-96"
+          className="absolute bottom-[calc(100%-2.25rem)] left-0 z-sticky max-h-56 w-full overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md sm:w-96"
         >
           {mention.matches.map((book, index) => (
             <button
