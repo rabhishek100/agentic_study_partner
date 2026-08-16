@@ -1,20 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
   <!--
-    The Mugensei mark at favicon size, drawn as the `sm` redraw rather than a
-    scaled `md`: heavier path, larger nodes, larger seal. Colours are literal
-    here because a favicon has no stylesheet to inherit tokens from; they are
-    the sumi-theme values, which hold on both light and dark browser chrome.
+    The Mugensei mark in its compact geometry — the same simplification the
+    24px component uses. Three separate nodes cannot resolve at favicon density,
+    so the compact mark carries the book, one heavier ribbon, and the seal; the
+    nodes appear at every size where they can be seen.
+
+    Colours are literal because a favicon has no stylesheet to inherit tokens
+    from. These are the sumi-theme values, which hold on light and dark chrome.
   -->
   <g fill="#f2eee4">
-    <path d="M18.7 28.4C15.6 26.1 11 25.1 6 25.5v7.8c5-.4 9.6.6 12.7 3Z"/>
-    <path d="M20.1 28.4c3.1-2.3 7.7-3.3 12.7-2.9v7.8c-5-.4-9.6.6-12.7 3Z"/>
+    <path d="M18.6 27.8C14.6 24.9 8 23.9 1.6 24.7v10.8c6.4-.8 13 .2 17 3.1Z"/>
+    <path d="M21.4 27.8c4-2.9 10.6-3.9 17-3.1v10.8c-6.4-.8-13 .2-17 3.1Z"/>
   </g>
-  <path d="M19.4 27.6C20.2 22.8 26.8 21.8 26.6 16.6 26.4 10.8 14 11.6 14.8 5.8 15.2 3 16.8 1.4 18 0"
-        fill="none" stroke="#69d39f" stroke-width="2.6" stroke-linecap="round"/>
-  <g fill="#f2eee4" stroke="#070b0a" stroke-width="0.9">
-    <circle cx="23.4" cy="22.3" r="2.5"/>
-    <circle cx="20.3" cy="11.2" r="3.1"/>
-    <circle cx="15.3" cy="3.9" r="3.7"/>
-  </g>
-  <rect x="33.6" y="29.6" width="5.8" height="5.8" fill="#e97850"/>
+  <path d="M20 26.4C22 19.6 29.4 18 28.6 11.4 27.9 5.6 22.6 4 21.4 0"
+        fill="none" stroke="#69d39f" stroke-width="3.4" stroke-linecap="round"/>
+  <rect x="32.6" y="29.8" width="6.6" height="6.6" fill="#e97850"/>
 </svg>
