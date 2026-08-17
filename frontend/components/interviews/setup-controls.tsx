@@ -40,28 +40,31 @@ const UNSELECTED_CARD = "border-border bg-surface hover:bg-surface-hover";
 const FOCUS_WITHIN =
   "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-action";
 
-/** A numbered step. The count is the point — it says how much is left. */
+/**
+ * A numbered step. The count is the point — it says how much is left.
+ *
+ * The number sits inline with the title rather than in a gutter column. A
+ * gutter costs 40px of every step's width on the one axis this screen is short
+ * of, and it bought nothing the numeral itself was not already saying.
+ */
 export function SetupStep({
   index,
   title,
   hint,
   badge,
   children,
+  className,
 }: {
   index: number;
   title: string;
   hint?: string;
   badge?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="grid gap-4 border-t border-divider pt-8 first:border-t-0 first:pt-0">
+    <section className={cn("grid content-start gap-3", className)}>
       <div className="grid gap-1">
-        {/*
-          `items-start`, not `items-center`: a long step title wraps to two
-          lines on a narrow viewport, and centring pushed the numeral onto a
-          line of its own above the heading it numbers.
-        */}
         <div className="flex items-start gap-3">
           <span
             aria-hidden
@@ -70,7 +73,7 @@ export function SetupStep({
             {index}
           </span>
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <h2 className="text-lg font-semibold leading-snug">{title}</h2>
+            <h2 className="text-lg leading-snug font-semibold">{title}</h2>
             {badge}
           </div>
         </div>
@@ -84,26 +87,85 @@ export function SetupStep({
 }
 
 /**
- * A `legend` is always present for the group's accessible name; whether it is
- * *shown* depends on whether the step heading already names the group.
+ * How a labelled group spends the width it is given.
+ *
+ * `stack` puts the label above the control; `row` puts it in a fixed column
+ * beside it. `row` is the default for the settings groups because the label is
+ * two words and the control is a row of chips — stacking them spent a whole
+ * line of height on "Maximum time" and left the space beside it empty. Below
+ * `sm` it collapses back to `stack`, where the width is not there to spend.
  */
-function GroupLegend({
-  legend,
-  showLegend,
-  hint,
-}: {
-  legend: string;
-  showLegend: boolean;
-  hint?: string;
-}) {
-  if (!showLegend) return <legend className="sr-only">{legend}</legend>;
+export type GroupLayout = "stack" | "row";
+
+/**
+ * The label column. Wide enough for the longest legend and no wider — the six
+ * duration chips need 490px to stay on one line and the control column had
+ * 489, so every pixel spent here came straight out of that row.
+ */
+const ROW_GRID = "sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-x-4";
+
+/**
+ * The visible label is `aria-hidden` and the accessible name comes from an
+ * `sr-only` legend, because a `<legend>` is laid out by the fieldset rather
+ * than by its grid and cannot be placed in a column. The hint stays exposed and
+ * is bound as the group's description, so nothing is announced twice and
+ * nothing is lost.
+ */
+function GroupLabel({ legend }: { legend: string }) {
   return (
-    <legend className="grid gap-1 pb-1">
-      <span className="text-sm font-medium">{legend}</span>
-      {hint ? (
-        <span className="block text-xs leading-5 text-muted-foreground">{hint}</span>
-      ) : null}
-    </legend>
+    <p aria-hidden className="text-sm font-medium sm:pt-2">
+      {legend}
+    </p>
+  );
+}
+
+/**
+ * Under the control, never in the label column. A sentence set in a 136px
+ * column runs to five lines and makes the row taller than the control it
+ * describes — which is the opposite of what putting the label beside the
+ * control was for.
+ */
+function GroupHint({
+  hint,
+  hintId,
+  layout,
+}: {
+  hint: string;
+  hintId: string;
+  layout: GroupLayout;
+}) {
+  return (
+    <p
+      id={hintId}
+      className={cn(
+        "text-xs leading-5 text-muted-foreground",
+        layout === "row" && "sm:col-start-2",
+      )}
+    >
+      {hint}
+    </p>
+  );
+}
+
+/**
+ * The same label-beside-control row, for controls that are not a radio group.
+ *
+ * The visible text names the row; each control inside carries its own label, so
+ * this one is context rather than the accessible name. That is what lets two
+ * selects share a row without two more label lines above them.
+ */
+export function SetupField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("grid min-w-0 gap-2", ROW_GRID)}>
+      <p className="text-sm font-medium sm:pt-2">{label}</p>
+      <div className="min-w-0">{children}</div>
+    </div>
   );
 }
 
@@ -117,6 +179,7 @@ export function OptionCards<T extends string>({
   name,
   legend,
   showLegend = false,
+  layout = "row",
   hint,
   value,
   choices,
@@ -128,6 +191,7 @@ export function OptionCards<T extends string>({
   legend: string;
   /** Visible when the group needs naming; `sr-only` when the step already does. */
   showLegend?: boolean;
+  layout?: GroupLayout;
   hint?: string;
   value: T | "";
   choices: ReadonlyArray<SetupChoice<T>>;
@@ -135,15 +199,24 @@ export function OptionCards<T extends string>({
   disabled?: boolean;
   className?: string;
 }) {
+  const hintId = `${name}-group-hint`;
   return (
-    <fieldset disabled={disabled} className="grid min-w-0 gap-2">
-      <GroupLegend legend={legend} showLegend={showLegend} hint={hint} />
+    <fieldset
+      disabled={disabled}
+      aria-describedby={showLegend && hint ? hintId : undefined}
+      className={cn(
+        "grid min-w-0 gap-2",
+        showLegend && layout === "row" && ROW_GRID,
+      )}
+    >
+      <legend className="sr-only">{legend}</legend>
+      {showLegend ? <GroupLabel legend={legend} /> : null}
       <div className={cn("grid gap-2", className)}>
         {choices.map((choice) => {
           const selected = choice.value === value;
           const Icon = choice.icon;
           const unavailable = disabled || choice.disabled;
-          const hintId = `${name}-${choice.value}-hint`;
+          const choiceHintId = `${name}-${choice.value}-hint`;
           return (
             <label
               key={choice.value}
@@ -169,7 +242,7 @@ export function OptionCards<T extends string>({
                 name={name}
                 value={choice.value}
                 aria-label={choice.label}
-                aria-describedby={choice.hint ? hintId : undefined}
+                aria-describedby={choice.hint ? choiceHintId : undefined}
                 checked={selected}
                 disabled={choice.disabled}
                 onChange={() => onChange(choice.value)}
@@ -186,7 +259,7 @@ export function OptionCards<T extends string>({
               </span>
               {choice.hint ? (
                 <span
-                  id={hintId}
+                  id={choiceHintId}
                   className={cn(
                     "text-xs leading-5",
                     unavailable ? "text-disabled-foreground" : "text-muted-foreground",
@@ -199,6 +272,9 @@ export function OptionCards<T extends string>({
           );
         })}
       </div>
+      {showLegend && hint ? (
+        <GroupHint hint={hint} hintId={hintId} layout={layout} />
+      ) : null}
     </fieldset>
   );
 }
@@ -212,6 +288,7 @@ export function ChipChoices<T extends string>({
   name,
   legend,
   showLegend = false,
+  layout = "row",
   hint,
   value,
   choices,
@@ -222,6 +299,7 @@ export function ChipChoices<T extends string>({
   name: string;
   legend: string;
   showLegend?: boolean;
+  layout?: GroupLayout;
   hint?: string;
   value: T;
   choices: ReadonlyArray<SetupChoice<T>>;
@@ -229,17 +307,31 @@ export function ChipChoices<T extends string>({
   disabled?: boolean;
   className?: string;
 }) {
+  const hintId = `${name}-group-hint`;
   return (
-    <fieldset disabled={disabled} className="grid min-w-0 gap-2">
-      <GroupLegend legend={legend} showLegend={showLegend} hint={hint} />
-      <div className={cn("grid gap-2", className)}>
+    <fieldset
+      disabled={disabled}
+      aria-describedby={showLegend && hint ? hintId : undefined}
+      className={cn(
+        "grid min-w-0 gap-2",
+        showLegend && layout === "row" && ROW_GRID,
+      )}
+    >
+      <legend className="sr-only">{legend}</legend>
+      {showLegend ? <GroupLabel legend={legend} /> : null}
+      {/*
+        Wrap flow, not a column grid. Six equal columns forced "1½ hours" to
+        break across two lines and made a row of chips as tall as a row of
+        cards; a chip should be exactly as wide as its own label and no wider.
+      */}
+      <div className={cn("flex flex-wrap gap-2", className)}>
         {choices.map((choice) => {
           const selected = choice.value === value;
           return (
             <label
               key={choice.value}
               className={cn(
-                "flex min-h-11 items-center justify-center rounded-md border px-3 py-2 text-sm transition-colors",
+                "flex min-h-11 min-w-16 items-center justify-center rounded-md border px-3 py-2 text-sm whitespace-nowrap transition-colors",
                 FOCUS_WITHIN,
                 selected
                   ? "border-transparent bg-action font-medium text-action-on"
@@ -263,6 +355,9 @@ export function ChipChoices<T extends string>({
           );
         })}
       </div>
+      {showLegend && hint ? (
+        <GroupHint hint={hint} hintId={hintId} layout={layout} />
+      ) : null}
     </fieldset>
   );
 }

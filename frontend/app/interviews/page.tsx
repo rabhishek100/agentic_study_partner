@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, LogOut, Sparkles } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -11,8 +11,6 @@ import { RecentInterviews } from "@/components/interviews/recent-interviews";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { primeInterviewerSpeech } from "@/hooks/use-interviewer-speech";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -185,40 +183,15 @@ export default function InterviewsPage() {
         </div>
       }
     >
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
-          <div className="max-w-2xl">
-            <Badge variant="secondary" className="mb-4">
-              <Sparkles aria-hidden /> Adaptive practice
-            </Badge>
-            <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
-              Practice the interview, not a question list.
-            </h1>
-            <p className="mt-3 text-base leading-7 text-muted-foreground">
-              Choose one chapter or lecture. The interviewer follows its evidence,
-              adapts to your answers, scores against the source, and finishes when
-              the useful material is covered.
-            </p>
-          </div>
-
-          {loadError ? (
-            <Alert variant="destructive" className="mt-8">
-              <AlertDescription>{loadError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <div className="mt-10">
-            <InterviewSetup
-              books={books}
-              videos={videos}
-              loaded={loaded}
-              fetchChapters={fetchChapters}
-              runPreflight={runPreflight}
-              startInterview={startInterview}
-            />
-          </div>
-        </div>
-      </div>
+      <InterviewSetup
+        books={books}
+        videos={videos}
+        loaded={loaded}
+        loadError={loadError}
+        fetchChapters={fetchChapters}
+        runPreflight={runPreflight}
+        startInterview={startInterview}
+      />
     </AppShell>
   );
 }

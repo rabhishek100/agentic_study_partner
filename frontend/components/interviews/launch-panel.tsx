@@ -129,6 +129,13 @@ export interface LaunchPanelProps {
   /** The preflight was run against a setup the reader has since changed. */
   stale: boolean;
   microphoneReady: boolean;
+  /**
+   * The microphone controls, rendered inside the readiness line that requires
+   * them. This was a numbered step of its own, which meant the panel could only
+   * point at it — "grant access in step 3" — from a line the reader was already
+   * looking at, about a step that had been pushed below the fold.
+   */
+  microphoneControl?: React.ReactNode;
   codingUnavailable: boolean;
   operation: SetupOperation;
   error: string;
@@ -156,6 +163,7 @@ export function LaunchPanel({
   preflight,
   stale,
   microphoneReady,
+  microphoneControl,
   codingUnavailable,
   operation,
   error,
@@ -178,7 +186,13 @@ export function LaunchPanel({
         : "Confirms the source has enough evidence before anything is generated.";
 
   return (
-    <Panel className="lg:sticky lg:top-8">
+    /*
+      `min-w-0`: the panel sits in a fixed 20rem grid track, and a grid item's
+      default `min-width: auto` lets its content push past the track it was
+      given. The panel then clipped its own summary values rather than the
+      track holding them.
+    */
+    <Panel className="min-w-0 lg:sticky lg:top-6">
       <PanelHeader>
         <PanelTitle>Your session</PanelTitle>
       </PanelHeader>
@@ -201,11 +215,29 @@ export function LaunchPanel({
           )}
         </div>
 
+        {/*
+          One `Format` row, not two. A separate "Source check" block repeated
+          the estimate and the topic count that the checklist line below already
+          gives, and set the chosen format ("Detect from the source") beside the
+          resolved one ("Concept") as though they were different facts. Once the
+          check has run, the resolved format simply replaces the setting.
+        */}
         <dl className="grid gap-2 border-t border-divider pt-4">
           <SummaryRow label="Level" value={summary.level} />
           <SummaryRow label="Time" value={summary.duration} />
           <SummaryRow label="Feedback" value={summary.feedback} />
-          <SummaryRow label="Format" value={summary.format} />
+          <SummaryRow
+            label="Format"
+            value={
+              checked && preflight ? (
+                <span className="capitalize">
+                  {preflight.selected_format.replace("_", " ")}
+                </span>
+              ) : (
+                summary.format
+              )
+            }
+          />
           <SummaryRow label="Coding" value={summary.coding} />
         </dl>
 
@@ -240,9 +272,10 @@ export function LaunchPanel({
             label="Microphone ready"
             detail={
               microphoneReady
-                ? "Access granted. The live input test stays optional."
-                : "Required — the interview is spoken. Grant access in step 3."
+                ? "Access granted. Raw audio is never stored, and the live input test stays optional."
+                : "Required — the interview is spoken. Raw audio is never stored."
             }
+            action={microphoneControl}
           />
         </ul>
 
@@ -301,29 +334,8 @@ export function LaunchPanel({
           </div>
         ) : null}
 
-        {preflight && !stale ? (
+        {checked && preflight ? (
           <div className="grid gap-3 border-t border-divider pt-4">
-            <p className="text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              Source check
-            </p>
-            <dl className="grid gap-2">
-              <SummaryRow
-                label="Detected format"
-                value={
-                  <span className="capitalize">
-                    {preflight.selected_format.replace("_", " ")}
-                  </span>
-                }
-              />
-              <SummaryRow
-                label="Estimated finish"
-                value={`${preflight.estimated_min_minutes}–${preflight.estimated_max_minutes} min`}
-              />
-              <SummaryRow
-                label="Coverage"
-                value={`${preflight.required_topic_count} topics`}
-              />
-            </dl>
             <p className="text-xs leading-5 text-muted-foreground">
               Coverage is what ends the session, not the clock. Exact questions
               stay hidden.

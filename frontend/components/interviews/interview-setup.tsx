@@ -12,10 +12,11 @@ import { MicrophoneSetup } from "@/components/interviews/microphone-setup";
 import {
   ChipChoices,
   OptionCards,
+  SetupField,
   SetupStep,
   type SetupChoice,
 } from "@/components/interviews/setup-controls";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
@@ -124,6 +125,8 @@ export interface InterviewSetupProps {
   loaded: boolean;
   fetchChapters: (bookId: string) => Promise<ChapterSummary[]>;
   runPreflight: (payload: InterviewSetupPayload) => Promise<InterviewPreflight>;
+  /** Shown above the form; the sources it describes failed to arrive. */
+  loadError?: string;
   /**
    * Creates the session, starts it, and navigates. Rejects with a message the
    * launch panel shows. `report` names the stage the reader is waiting on —
@@ -147,6 +150,7 @@ export function InterviewSetup({
   books,
   videos,
   loaded,
+  loadError = "",
   fetchChapters,
   runPreflight,
   startInterview,
@@ -277,23 +281,49 @@ export function InterviewSetup({
     loaded && (sourceKind === "book" ? books.length === 0 : videos.length === 0);
 
   return (
-    /*
-      Setup on the left, commitment on the right. The reader fills in a numbered
-      sequence and watches one panel accumulate everything the start depends on,
-      rather than meeting each precondition as a surprise at the moment they
-      press the button.
-    */
-    <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12">
-      <div className="grid gap-8">
-        <SetupStep
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto grid w-full max-w-[92rem] gap-6 px-4 py-6 sm:px-8">
+        {/*
+          One line, not a landing page. The masthead already says what this
+          screen is, and a three-line serif headline over a three-line
+          paragraph was spending a third of the first viewport restating it —
+          on the one screen whose whole job is a form the reader wants to see
+          all of at once. The subtitle sits beside the title rather than under
+          it for the same reason.
+        */}
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h1 className="font-serif text-xl font-semibold tracking-tight">
+            Set up an interview
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            One chapter or one lecture, scored against its own evidence.
+          </p>
+        </div>
+
+        {loadError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{loadError}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {/*
+          Setup on the left, commitment on the right. The reader fills in a
+          numbered sequence and watches one panel accumulate everything the
+          start depends on, rather than meeting each precondition as a surprise
+          at the moment they press the button.
+        */}
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
+          <div className="grid gap-6">
+            <SetupStep
           index={1}
-          title="Choose what you'll be interviewed on"
+          title="Choose your source"
           hint="Exactly one chapter or one lecture. The interview does not widen beyond it."
         >
-          <div className="grid gap-4">
+          <div className="grid gap-3">
             <OptionCards
               name="source-kind"
-              legend="Study source"
+              legend="Type"
+              showLegend
               value={sourceKind}
               choices={SOURCE_KINDS}
               onChange={setSourceKind}
@@ -328,63 +358,82 @@ export function InterviewSetup({
                 )}
               </p>
             ) : sourceKind === "book" ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid min-w-0 gap-2">
-                  <Label htmlFor="interview-book">Book</Label>
-                  <Select value={bookId} onValueChange={setBookId} disabled={busy}>
-                    <SelectTrigger
-                      id="interview-book"
-                      className="w-full min-w-0 overflow-hidden"
+              /*
+                Both selects on one row under a single row label. Each keeps its
+                own `sr-only` label for its accessible name; the placeholder
+                carries it visually until a value is chosen, and once one is,
+                the value names the field better than "Book" did.
+              */
+              <SetupField label="Source">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="min-w-0">
+                    <Label htmlFor="interview-book" className="sr-only">
+                      Book
+                    </Label>
+                    <Select value={bookId} onValueChange={setBookId} disabled={busy}>
+                      <SelectTrigger
+                        id="interview-book"
+                        className="w-full min-w-0 overflow-hidden"
+                      >
+                        <SelectValue
+                          className="min-w-0 truncate"
+                          placeholder={loaded ? "Choose a book" : "Loading…"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {books.map((book) => (
+                          <SelectItem key={book.book_id} value={String(book.book_id)}>
+                            {book.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="min-w-0">
+                    <Label htmlFor="interview-chapter" className="sr-only">
+                      Chapter
+                    </Label>
+                    <Select
+                      value={nodeId}
+                      onValueChange={setNodeId}
+                      disabled={
+                        busy || !bookId || loadingChapters || chapters.length === 0
+                      }
                     >
-                      <SelectValue
-                        className="min-w-0 truncate"
-                        placeholder={loaded ? "Choose a book" : "Loading…"}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {books.map((book) => (
-                        <SelectItem key={book.book_id} value={String(book.book_id)}>
-                          {book.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      <SelectTrigger
+                        id="interview-chapter"
+                        className="w-full min-w-0 overflow-hidden"
+                      >
+                        <SelectValue
+                          className="min-w-0 truncate"
+                          placeholder={
+                            loadingChapters
+                              ? "Loading chapters…"
+                              : bookId
+                                ? "Choose a chapter"
+                                : "Choose a book first"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chapters.map((chapter) => (
+                          <SelectItem
+                            key={chapter.node_id}
+                            value={String(chapter.node_id)}
+                          >
+                            {chapter.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="grid min-w-0 gap-2">
-                  <Label htmlFor="interview-chapter">Chapter</Label>
-                  <Select
-                    value={nodeId}
-                    onValueChange={setNodeId}
-                    disabled={busy || !bookId || loadingChapters || chapters.length === 0}
-                  >
-                    <SelectTrigger
-                      id="interview-chapter"
-                      className="w-full min-w-0 overflow-hidden"
-                    >
-                      <SelectValue
-                        className="min-w-0 truncate"
-                        placeholder={
-                          loadingChapters
-                            ? "Loading chapters…"
-                            : bookId
-                              ? "Choose a chapter"
-                              : "Choose a book first"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {chapters.map((chapter) => (
-                        <SelectItem key={chapter.node_id} value={String(chapter.node_id)}>
-                          {chapter.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              </SetupField>
             ) : (
-              <div className="grid gap-2">
-                <Label htmlFor="interview-video">Lecture</Label>
+              <SetupField label="Source">
+                <Label htmlFor="interview-video" className="sr-only">
+                  Lecture
+                </Label>
                 <Select value={videoId} onValueChange={setVideoId} disabled={busy}>
                   <SelectTrigger
                     id="interview-video"
@@ -403,7 +452,7 @@ export function InterviewSetup({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </SetupField>
             )}
           </div>
         </SetupStep>
@@ -413,7 +462,7 @@ export function InterviewSetup({
           title="Set the challenge"
           hint="Sensible defaults are already chosen. Change what matters to you."
         >
-          <div className="grid gap-6">
+          <div className="grid gap-4">
             <OptionCards
               name="target-level"
               legend="Target level"
@@ -433,7 +482,6 @@ export function InterviewSetup({
               choices={DURATIONS}
               onChange={(value) => setDuration(Number(value))}
               disabled={busy}
-              className="grid-cols-3 sm:grid-cols-6"
             />
             <OptionCards
               name="feedback-mode"
@@ -448,120 +496,112 @@ export function InterviewSetup({
           </div>
         </SetupStep>
 
-        {/*
-          Unnumbered on purpose: two expert overrides sitting in the same rhythm
-          as the source made a four-decision form look like a seven-decision
-          one. The trigger states the values in effect, so collapsing them never
-          hides what they are.
-        */}
-        <Collapsible
-          open={tuning}
-          onOpenChange={setTuning}
-          className="grid gap-4 border-t border-divider pt-8"
-        >
-          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 rounded-md text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action">
-            <span className="grid gap-1">
-              <span className="text-lg font-semibold leading-snug">Fine-tune</span>
-              <span className="text-xs leading-5 text-muted-foreground">
-                {labelOf(FORMATS, format)} ·{" "}
-                {codingExerciseRequested
-                  ? "coding exercise included"
-                  : "no coding exercise"}
-              </span>
-            </span>
-            <ChevronDown
-              aria-hidden
-              className={cn(
-                "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-                tuning && "rotate-180",
-              )}
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="grid gap-6">
-            <OptionCards
-              name="interview-format"
-              legend="Interview format"
-              showLegend
-              hint="Leave this on detection unless the source is classified wrongly."
-              value={format}
-              choices={FORMATS}
-              onChange={setFormat}
-              disabled={busy}
-              className="sm:grid-cols-2"
-            />
-            <div className="grid gap-2">
-              <p className="text-sm font-medium">Coding exercise</p>
-              <label
-                className={cn(
-                  "flex items-start gap-3 rounded-md border p-3 transition-colors",
-                  "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-action",
-                  codingExerciseRequested
-                    ? "border-transparent bg-wash"
-                    : "border-border bg-surface hover:bg-surface-hover",
-                  busy ? "cursor-not-allowed" : "cursor-pointer",
-                )}
+              {/*
+                Unnumbered on purpose: two expert overrides sitting in the same
+                rhythm as the source made a four-decision form look like a
+                seven-decision one. The trigger states the values in effect, so
+                collapsing them never hides what they are.
+              */}
+              <Collapsible
+                open={tuning}
+                onOpenChange={setTuning}
+                className="grid content-start gap-3"
               >
-                <Checkbox
-                  id="coding-exercise-requested"
-                  className="mt-1"
-                  checked={codingExerciseRequested}
-                  disabled={busy}
-                  onCheckedChange={(checked) =>
-                    setCodingExerciseRequested(checked === true)
-                  }
-                />
-                <span className="grid min-w-0 gap-1">
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    <Code2 aria-hidden className="size-4 shrink-0" />
-                    Open with a Python exercise
+                <CollapsibleTrigger className="group flex w-full items-start justify-between gap-3 rounded-md text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action">
+                  <span className="grid gap-1">
+                    <span className="text-lg leading-snug font-semibold">
+                      Fine-tune
+                    </span>
+                    <span className="text-xs leading-5 text-muted-foreground">
+                      {labelOf(FORMATS, format)} ·{" "}
+                      {codingExerciseRequested
+                        ? "coding exercise included"
+                        : "no coding exercise"}
+                    </span>
                   </span>
-                  <span className="text-xs leading-5 text-muted-foreground">
-                    One source-grounded scaffold in an embedded editor, then the
-                    adaptive interview continues. The source check confirms whether
-                    this source has executable material.
-                  </span>
-                </span>
-              </label>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
+                  <ChevronDown
+                    aria-hidden
+                    className={cn(
+                      "mt-1 size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+                      tuning && "rotate-180",
+                    )}
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="grid gap-4">
+                  <OptionCards
+                    name="interview-format"
+                    legend="Interview format"
+                    showLegend
+                    layout="stack"
+                    hint="Leave this on detection unless the source is classified wrongly."
+                    value={format}
+                    choices={FORMATS}
+                    onChange={setFormat}
+                    disabled={busy}
+                    className="sm:grid-cols-2"
+                  />
+                  <label
+                    className={cn(
+                      "flex items-start gap-3 rounded-md border p-3 transition-colors",
+                      "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-action",
+                      codingExerciseRequested
+                        ? "border-transparent bg-wash"
+                        : "border-border bg-surface hover:bg-surface-hover",
+                      busy ? "cursor-not-allowed" : "cursor-pointer",
+                    )}
+                  >
+                    <Checkbox
+                      id="coding-exercise-requested"
+                      className="mt-1"
+                      checked={codingExerciseRequested}
+                      disabled={busy}
+                      onCheckedChange={(checked) =>
+                        setCodingExerciseRequested(checked === true)
+                      }
+                    />
+                    <span className="grid min-w-0 gap-1">
+                      <span className="flex items-center gap-2 text-sm font-medium">
+                        <Code2 aria-hidden className="size-4 shrink-0" />
+                        Open with a Python exercise
+                      </span>
+                      <span className="text-xs leading-5 text-muted-foreground">
+                        One source-grounded scaffold in an embedded editor, then
+                        the adaptive interview continues. The source check
+                        confirms whether this source has executable material.
+                      </span>
+                    </span>
+                  </label>
+                </CollapsibleContent>
+              </Collapsible>
+          </div>
 
-        <SetupStep
-          index={3}
-          title="Check your microphone"
-          hint="The interview is spoken. Raw audio is never stored — only the transcript of what you say."
-          badge={
-            <Badge variant={microphoneAccess ? "secondary" : "outline"}>
-              {microphoneAccess ? "Ready" : "Required"}
-            </Badge>
-          }
-        >
-          <MicrophoneSetup disabled={busy} onAccessChange={setMicrophoneAccess} />
-        </SetupStep>
+          <LaunchPanel
+            summary={{
+              sourceTitle,
+              sourceContext,
+              level: labelOf(LEVELS, level),
+              duration: `${formatDuration(duration)} max`,
+              feedback: labelOf(MODES, mode),
+              format: labelOf(FORMATS, format),
+              coding: codingExerciseRequested ? "Included" : "Not included",
+            }}
+            preflight={preview}
+            stale={stale}
+            microphoneReady={microphoneAccess}
+            microphoneControl={
+              <MicrophoneSetup disabled={busy} onAccessChange={setMicrophoneAccess} />
+            }
+            codingUnavailable={Boolean(
+              preview && codingExerciseRequested && preview.coding_topic_count === 0,
+            )}
+            operation={operation}
+            error={error}
+            onCheck={() => void check()}
+            onStart={() => void start()}
+            onDropCodingExercise={() => setCodingExerciseRequested(false)}
+          />
+        </div>
       </div>
-
-      <LaunchPanel
-        summary={{
-          sourceTitle,
-          sourceContext,
-          level: labelOf(LEVELS, level),
-          duration: `${formatDuration(duration)} max`,
-          feedback: labelOf(MODES, mode),
-          format: labelOf(FORMATS, format),
-          coding: codingExerciseRequested ? "Included" : "Not included",
-        }}
-        preflight={preview}
-        stale={stale}
-        microphoneReady={microphoneAccess}
-        codingUnavailable={Boolean(
-          preview && codingExerciseRequested && preview.coding_topic_count === 0,
-        )}
-        operation={operation}
-        error={error}
-        onCheck={() => void check()}
-        onStart={() => void start()}
-        onDropCodingExercise={() => setCodingExerciseRequested(false)}
-      />
     </div>
   );
 }

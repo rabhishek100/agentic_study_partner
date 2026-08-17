@@ -127,13 +127,20 @@ export function MicrophoneSetup({
     microphones.devices.find((device) => device.deviceId === microphones.selectedId)
       ?.label ?? "System default";
 
-  // No border, no legend box: the setup screen supplies the step heading and
-  // the "required" marker, and a second framed panel inside a framed step is
-  // the nested-card pattern the design brief rejects by name.
+  /*
+   * No border and no legend box: whatever hosts this supplies the heading, and
+   * a second framed panel inside a framed one is the nested-card pattern the
+   * design brief rejects by name.
+   *
+   * The device row measures its *container*, not the viewport. It lives in the
+   * launch panel's 288px content column on a 1440px screen, so a `sm:` query —
+   * which asks about the window — put the select and the button side by side in
+   * a space that fits neither, and the panel clipped 60px of both.
+   */
   return (
-    <fieldset className="grid gap-3">
+    <fieldset className="@container/microphone grid gap-3">
       <legend className="sr-only">Microphone</legend>
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div className="grid gap-3 @sm/microphone:grid-cols-[1fr_auto] @sm/microphone:items-end">
         <div className="space-y-2">
           <Label htmlFor="interview-microphone">Input device</Label>
           <Select

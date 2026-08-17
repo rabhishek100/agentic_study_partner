@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -90,7 +90,7 @@ describe("the interview launch panel", () => {
     expect(screen.getByText(/your setup changed/i)).toBeVisible();
     expect(screen.getByRole("button", { name: /re-check the source/i })).toBeEnabled();
     // The stale estimate is withdrawn rather than left standing as fact.
-    expect(screen.queryByText("18–26 min")).toBeNull();
+    expect(screen.queryByText(/18–26 min/)).toBeNull();
   });
 
   it("holds the start until the microphone is granted, and says so on the button", async () => {
@@ -100,11 +100,28 @@ describe("the interview launch panel", () => {
     expect(
       screen.getByRole("button", { name: /enable your microphone to start/i }),
     ).toBeDisabled();
-    expect(screen.getByText("18–26 min")).toBeVisible();
+    // The estimate is stated once, on the checklist line it belongs to.
+    expect(screen.getByText(/9 topics · about 18–26 min/)).toBeVisible();
 
     update({ microphoneReady: true });
     await user.click(screen.getByRole("button", { name: /start interview/i }));
     expect(props.onStart).toHaveBeenCalledOnce();
+  });
+
+  it("carries the microphone controls on the line that requires them", () => {
+    panel({
+      microphoneControl: <button type="button">Enable microphone</button>,
+    });
+
+    // Not a pointer to somewhere else on the page: the control the requirement
+    // describes sits inside the requirement.
+    const requirement = screen.getByText("Microphone ready").closest("li");
+    expect(requirement).not.toBeNull();
+    expect(
+      within(requirement as HTMLElement).getByRole("button", {
+        name: "Enable microphone",
+      }),
+    ).toBeVisible();
   });
 
   it("offers the fix when the source cannot ground the requested coding exercise", async () => {
