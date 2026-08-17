@@ -118,6 +118,20 @@ function labelOf<T extends string>(
   return choices.find((choice) => choice.value === value)?.label ?? "—";
 }
 
+function hintOf<T extends string>(
+  choices: ReadonlyArray<SetupChoice<T>>,
+  value: T,
+): string | undefined {
+  return choices.find((choice) => choice.value === value)?.hint;
+}
+
+/** The same choices without their per-option prose, for a chip row. */
+function bare<T extends string>(
+  choices: ReadonlyArray<SetupChoice<T>>,
+): ReadonlyArray<SetupChoice<T>> {
+  return choices.map(({ value, label }) => ({ value, label }));
+}
+
 export interface InterviewSetupProps {
   books: BookSummary[];
   videos: VideoSummary[];
@@ -485,15 +499,23 @@ export function InterviewSetup({
           hint="Sensible defaults are already chosen. Change what matters to you."
         >
           <div className="grid gap-4">
-            <OptionCards
+            {/*
+              Chips, not cards. Entry / Mid-level / Senior is an ordinal scale
+              whose labels already say what they mean, so three bordered boxes
+              of prose bought nothing and added three more outlines to a column
+              that had thirteen. The description of the *chosen* level sits
+              under the row instead, where it is bound as the group's
+              description rather than repeated three times.
+            */}
+            <ChipChoices
               name="target-level"
               legend="Target level"
               showLegend
+              hint={hintOf(LEVELS, level)}
               value={level}
-              choices={LEVELS}
+              choices={bare(LEVELS)}
               onChange={setLevel}
               disabled={busy}
-              className="sm:grid-cols-3"
             />
             <ChipChoices
               name="maximum-time"
@@ -527,12 +549,29 @@ export function InterviewSetup({
               <Collapsible
                 open={tuning}
                 onOpenChange={setTuning}
-                className="grid content-start gap-3"
+                className="grid content-start gap-5 border-t border-divider pt-6"
               >
-                <CollapsibleTrigger className="group flex w-full items-start justify-between gap-3 rounded-md text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action">
+                {/*
+                  Same spine as a step: the marker in the label column, the
+                  heading where the controls start. "Optional" rather than a
+                  number, because it is not one of the things you must do.
+                */}
+                <CollapsibleTrigger className="group grid w-full gap-1 rounded-md text-start focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-x-4">
+                  <span className="text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:pt-2">
+                    Optional
+                  </span>
                   <span className="grid gap-1">
-                    <span className="text-lg leading-snug font-semibold">
-                      Fine-tune
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-lg leading-snug font-semibold">
+                        Fine-tune
+                      </span>
+                      <ChevronDown
+                        aria-hidden
+                        className={cn(
+                          "size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
+                          tuning && "rotate-180",
+                        )}
+                      />
                     </span>
                     <span className="text-xs leading-5 text-muted-foreground">
                       {labelOf(FORMATS, format)} ·{" "}
@@ -541,13 +580,6 @@ export function InterviewSetup({
                         : "no coding exercise"}
                     </span>
                   </span>
-                  <ChevronDown
-                    aria-hidden
-                    className={cn(
-                      "mt-1 size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none",
-                      tuning && "rotate-180",
-                    )}
-                  />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="grid gap-4">
                   <OptionCards

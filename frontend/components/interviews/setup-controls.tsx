@@ -63,25 +63,33 @@ export function SetupStep({
   className?: string;
 }) {
   return (
-    <section className={cn("grid content-start gap-3", className)}>
-      <div className="grid gap-1">
-        <div className="flex items-start gap-3">
-          <span
-            aria-hidden
-            className="flex size-7 shrink-0 items-center justify-center rounded-full border border-divider text-xs font-medium tabular-nums text-muted-foreground"
-          >
-            {index}
-          </span>
+    <section
+      className={cn(
+        "grid content-start gap-5 border-t border-divider pt-6 first:border-t-0 first:pt-0",
+        className,
+      )}
+    >
+      <div className={cn("grid gap-1", ROW_GRID)}>
+        {/*
+          The marker lives in the spine's label column, not in a gutter of its
+          own. That is what puts the heading at the same x as every control
+          below it — and an eyebrow rather than a numbered badge because the
+          order is already visible, so removing it removes no meaning.
+        */}
+        <p className="text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground sm:pt-2">
+          Step {index}
+        </p>
+        <div className="grid gap-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <h2 className="text-lg leading-snug font-semibold">{title}</h2>
             {badge}
           </div>
+          {hint ? (
+            <p className="text-xs leading-5 text-muted-foreground">{hint}</p>
+          ) : null}
         </div>
-        {hint ? (
-          <p className="text-xs leading-5 text-muted-foreground sm:ps-10">{hint}</p>
-        ) : null}
       </div>
-      <div className="sm:ps-10">{children}</div>
+      <div className="grid gap-4">{children}</div>
     </section>
   );
 }
@@ -98,9 +106,16 @@ export function SetupStep({
 export type GroupLayout = "stack" | "row";
 
 /**
- * The label column. Wide enough for the longest legend and no wider — the six
- * duration chips need 490px to stay on one line and the control column had
- * 489, so every pixel spent here came straight out of that row.
+ * The spine.
+ *
+ * Every row on this screen — the step marker, each field label, each control —
+ * lands on the same two columns, so the eye follows one vertical edge down the
+ * whole form instead of a different indent per element. Without it the step
+ * headings sat at the same x as the field labels at nearly the same weight,
+ * and the page read as one undifferentiated column of boxes.
+ *
+ * 7rem and no wider: the six duration chips need 490px to stay on one line and
+ * the control column had 489, so every pixel spent here came out of that row.
  */
 const ROW_GRID = "sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-x-4";
 
@@ -111,9 +126,17 @@ const ROW_GRID = "sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-x-4";
  * is bound as the group's description, so nothing is announced twice and
  * nothing is lost.
  */
+/**
+ * Muted, not foreground. A field label and a step heading were both set in
+ * near-black semibold at one size apart, so the form read as a flat list of
+ * equally important things. The label names the row; the control is the
+ * content, and it is the control that should hold the eye.
+ */
+const FIELD_LABEL = "text-sm font-medium text-muted-foreground sm:pt-2";
+
 function GroupLabel({ legend }: { legend: string }) {
   return (
-    <p aria-hidden className="text-sm font-medium sm:pt-2">
+    <p aria-hidden className={FIELD_LABEL}>
       {legend}
     </p>
   );
@@ -163,7 +186,7 @@ export function SetupField({
 }) {
   return (
     <div className={cn("grid min-w-0 gap-2", ROW_GRID)}>
-      <p className="text-sm font-medium sm:pt-2">{label}</p>
+      <p className={FIELD_LABEL}>{label}</p>
       <div className="min-w-0">{children}</div>
     </div>
   );

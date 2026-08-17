@@ -6,7 +6,7 @@ import {
   LaunchPanel,
   type LaunchPanelProps,
 } from "@/components/interviews/launch-panel";
-import { OptionCards } from "@/components/interviews/setup-controls";
+import { ChipChoices, OptionCards } from "@/components/interviews/setup-controls";
 import type { InterviewPreflight } from "@/lib/interview-types";
 
 const PREFLIGHT: InterviewPreflight = {
@@ -145,6 +145,37 @@ describe("the interview launch panel", () => {
 });
 
 describe("the setup choice groups", () => {
+  it("describes the chosen option once, as the group's description", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    // Three bordered cards of prose became three chips plus one line about the
+    // level actually selected — and that line is bound to the group rather than
+    // repeated per option.
+    render(
+      <ChipChoices
+        name="target-level"
+        legend="Target level"
+        showLegend
+        hint="Depth, applications, and trade-offs."
+        value="mid"
+        choices={[
+          { value: "entry", label: "Entry" },
+          { value: "mid", label: "Mid-level" },
+          { value: "senior", label: "Senior" },
+        ]}
+        onChange={onChange}
+      />,
+    );
+
+    const group = screen.getByRole("group", { name: "Target level" });
+    expect(group).toHaveAccessibleDescription("Depth, applications, and trade-offs.");
+    expect(screen.getByRole("radio", { name: "Mid-level" })).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "Senior" }));
+    expect(onChange).toHaveBeenCalledWith("senior");
+  });
+
   it("is one radio group rather than a row of independent toggles", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
