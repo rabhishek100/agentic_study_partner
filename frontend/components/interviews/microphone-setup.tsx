@@ -127,9 +127,12 @@ export function MicrophoneSetup({
     microphones.devices.find((device) => device.deviceId === microphones.selectedId)
       ?.label ?? "System default";
 
+  // No border, no legend box: the setup screen supplies the step heading and
+  // the "required" marker, and a second framed panel inside a framed step is
+  // the nested-card pattern the design brief rejects by name.
   return (
-    <fieldset className="space-y-3 rounded-xl border bg-surface p-4">
-      <legend className="px-1 text-sm font-medium">Microphone</legend>
+    <fieldset className="grid gap-3">
+      <legend className="sr-only">Microphone</legend>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
         <div className="space-y-2">
           <Label htmlFor="interview-microphone">Input device</Label>

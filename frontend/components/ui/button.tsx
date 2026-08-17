@@ -9,7 +9,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-wash",
+        // `hover:bg-wash` left the label at `action-on` over the *selected*
+        // ground — near-white on pale mint, about 1.1:1, so the primary action
+        // became unreadable the moment a pointer touched it in the light
+        // theme. The system specifies `action-hover` for an action fill, and
+        // that pairing is solved: 12.56 / 8.82, with 12.56 / 9.86 for its text.
+        default: "bg-primary text-primary-foreground hover:bg-action-hover",
         // `dark:bg-surface` used the control-border token as a fill, which
         // turned every outline button into a jade tile once the border became a
         // real 3:1 edge. A quiet control sits on a surface and hovers to the

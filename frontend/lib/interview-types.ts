@@ -199,6 +199,19 @@ export interface InterviewSession {
   updated_at: string | null;
 }
 
+/** What the setup form produces, and the only thing preflight and create accept. */
+export interface InterviewSetupPayload {
+  source_kind: InterviewSourceKind;
+  book_id?: number;
+  node_id?: number;
+  video_id?: string;
+  maximum_duration_minutes: number;
+  target_level: TargetLevel;
+  feedback_mode: InterviewMode;
+  interview_format: InterviewFormatChoice;
+  coding_exercise_requested: boolean;
+}
+
 export interface InterviewPreflight {
   source_kind: InterviewSourceKind;
   scope_key: string;
