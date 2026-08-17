@@ -41,12 +41,13 @@ function panel(overrides: Partial<LaunchPanelProps> = {}) {
   const props: LaunchPanelProps = {
     summary: panelSummary(),
     preflight: null,
-    stale: false,
+    checking: false,
+    checkError: "",
     microphoneReady: false,
     codingUnavailable: false,
     operation: "idle",
     error: "",
-    onCheck: vi.fn(),
+    onRetryCheck: vi.fn(),
     onStart: vi.fn(),
     onDropCodingExercise: vi.fn(),
     ...overrides,
@@ -60,65 +61,66 @@ function panel(overrides: Partial<LaunchPanelProps> = {}) {
 }
 
 describe("the interview launch panel", () => {
-  it("names every precondition before the reader presses anything", () => {
+  it("offers one action, and says underneath it what is still missing", () => {
     panel({
       summary: { ...panelSummary(), sourceTitle: null, sourceContext: null },
     });
 
-    expect(screen.getByText("Source selected")).toBeVisible();
-    expect(screen.getByText("Source checked")).toBeVisible();
-    // The old screen only revealed that the microphone was mandatory after the
-    // preflight had already run, as a disabled button in a different column.
-    expect(screen.getByText("Microphone ready")).toBeVisible();
-    expect(screen.getByText(/Required — the interview is spoken/)).toBeVisible();
-    expect(screen.getByRole("button", { name: /check this source/i })).toBeDisabled();
+    // One button, one meaning. It used to be a single control that renamed
+    // itself between "Review setup" and "Start interview" with nothing saying
+    // a check had to happen first.
+    const actions = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent?.trim());
+    expect(actions).toEqual(["Start interview"]);
+    expect(screen.getByRole("button", { name: /start interview/i })).toBeDisabled();
+    expect(screen.getByText(/choose a book chapter or a lecture in step 1/i)).toBeVisible();
   });
 
-  it("checks the source before it will start one", async () => {
+  it("reports the inspection it runs on its own", () => {
+    const { update } = panel({ checking: true });
+
+    expect(screen.getByText(/checking the evidence in this source/i)).toBeVisible();
+
+    update({ checking: false, preflight: PREFLIGHT });
+    expect(screen.getByText(/9 topics/)).toBeVisible();
+    expect(screen.getByText(/about 18–26 min/)).toBeVisible();
+    expect(screen.queryByText(/checking the evidence/i)).toBeNull();
+  });
+
+  it("lets the reader ask again when the inspection fails", async () => {
     const user = userEvent.setup();
-    const { props } = panel();
+    const { props } = panel({ checkError: "network is down" });
 
-    await user.click(screen.getByRole("button", { name: /check this source/i }));
-
-    expect(props.onCheck).toHaveBeenCalledOnce();
-    expect(props.onStart).not.toHaveBeenCalled();
+    expect(screen.getByText(/could not inspect this source/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+    expect(props.onRetryCheck).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: /start interview/i })).toBeDisabled();
   });
 
-  it("reports a setup that changed after the check instead of silently reverting", () => {
-    panel({ preflight: PREFLIGHT, stale: true, microphoneReady: true });
-
-    expect(screen.getByText(/your setup changed/i)).toBeVisible();
-    expect(screen.getByRole("button", { name: /re-check the source/i })).toBeEnabled();
-    // The stale estimate is withdrawn rather than left standing as fact.
-    expect(screen.queryByText(/18–26 min/)).toBeNull();
-  });
-
-  it("holds the start until the microphone is granted, and says so on the button", async () => {
+  it("holds the start until the microphone is granted", async () => {
     const user = userEvent.setup();
     const { props, update } = panel({ preflight: PREFLIGHT });
 
-    expect(
-      screen.getByRole("button", { name: /enable your microphone to start/i }),
-    ).toBeDisabled();
-    // The estimate is stated once, on the checklist line it belongs to.
-    expect(screen.getByText(/9 topics · about 18–26 min/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /start interview/i })).toBeDisabled();
+    expect(screen.getByText(/turn on your microphone above/i)).toBeVisible();
 
     update({ microphoneReady: true });
     await user.click(screen.getByRole("button", { name: /start interview/i }));
     expect(props.onStart).toHaveBeenCalledOnce();
   });
 
-  it("carries the microphone controls on the line that requires them", () => {
+  it("carries the microphone controls in the section that requires them", () => {
     panel({
       microphoneControl: <button type="button">Enable microphone</button>,
     });
 
     // Not a pointer to somewhere else on the page: the control the requirement
     // describes sits inside the requirement.
-    const requirement = screen.getByText("Microphone ready").closest("li");
-    expect(requirement).not.toBeNull();
+    const section = screen.getByText("Microphone").closest("div");
+    expect(section).not.toBeNull();
     expect(
-      within(requirement as HTMLElement).getByRole("button", {
+      within(section?.parentElement as HTMLElement).getByRole("button", {
         name: "Enable microphone",
       }),
     ).toBeVisible();
@@ -137,9 +139,7 @@ describe("the interview launch panel", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: /start interview/i })).toBeDisabled();
 
-    await user.click(
-      screen.getByRole("button", { name: /continue without the coding exercise/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /continue without it/i }));
     expect(props.onDropCodingExercise).toHaveBeenCalledOnce();
   });
 });

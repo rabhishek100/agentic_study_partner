@@ -168,13 +168,9 @@ export function InterviewSetup({
   const [codingExerciseRequested, setCodingExerciseRequested] = useState(false);
   const [tuning, setTuning] = useState(false);
   const [preview, setPreview] = useState<InterviewPreflight | null>(null);
-  /**
-   * The setup the preflight was run against. Changing a setting used to discard
-   * the preflight silently and revert the primary button to "Review setup" with
-   * nothing saying why, so the check is now compared rather than thrown away
-   * and a mismatch becomes a named state the launch panel reports.
-   */
+  /** The setup the last successful inspection was run against. */
   const [checkedSetup, setCheckedSetup] = useState("");
+  const [checkError, setCheckError] = useState("");
   const [microphoneAccess, setMicrophoneAccess] = useState(false);
   const [operation, setOperation] = useState<SetupOperation>("idle");
   const [error, setError] = useState("");
@@ -213,6 +209,7 @@ export function InterviewSetup({
   useEffect(() => {
     setPreview(null);
     setCheckedSetup("");
+    setCheckError("");
   }, [sourceKind, bookId, nodeId, videoId]);
 
   const payload = useMemo<InterviewSetupPayload | null>(() => {
@@ -242,21 +239,46 @@ export function InterviewSetup({
   ]);
 
   const setupKey = useMemo(() => (payload ? JSON.stringify(payload) : ""), [payload]);
-  const stale = Boolean(preview) && checkedSetup !== setupKey;
+  const checking = Boolean(payload) && checkedSetup !== setupKey && !checkError;
 
-  const check = useCallback(async () => {
-    if (!payload) return;
-    setOperation("reviewing_source");
-    setError("");
-    try {
-      setPreview(await runPreflight(payload));
-      setCheckedSetup(JSON.stringify(payload));
-    } catch (failure) {
-      setError((failure as Error).message || "Could not inspect this source.");
-    } finally {
-      setOperation("idle");
-    }
-  }, [payload, runPreflight]);
+  /*
+   * The source inspection runs itself.
+   *
+   * It was a button — "Check this source" — that the reader had to press before
+   * the start button would appear, which put a step in their head that exists
+   * for no reason: the preflight is a deterministic read (a topic inventory and
+   * a duration estimate, no model call), so nothing is spent by running it as
+   * soon as there is something to run it on. Making them ask for it bought a
+   * button with two meanings and a "your setup changed" state to explain when
+   * it flipped back.
+   *
+   * The debounce is what makes that affordable while someone is still clicking
+   * through levels and durations, and the flag closes over each run so a slow
+   * response cannot overwrite a newer one.
+   */
+  useEffect(() => {
+    if (!payload || checkError || checkedSetup === setupKey) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void runPreflight(payload)
+        .then((result) => {
+          if (cancelled) return;
+          setPreview(result);
+          setCheckedSetup(setupKey);
+        })
+        .catch((failure: Error) => {
+          if (cancelled) return;
+          setPreview(null);
+          setCheckError(failure.message || "Could not inspect this source.");
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [payload, setupKey, checkedSetup, checkError, runPreflight]);
+
+  const retryCheck = useCallback(() => setCheckError(""), []);
 
   const start = useCallback(async () => {
     if (!payload) return;
@@ -586,7 +608,8 @@ export function InterviewSetup({
               coding: codingExerciseRequested ? "Included" : "Not included",
             }}
             preflight={preview}
-            stale={stale}
+            checking={checking}
+            checkError={checkError}
             microphoneReady={microphoneAccess}
             microphoneControl={
               <MicrophoneSetup disabled={busy} onAccessChange={setMicrophoneAccess} />
@@ -596,7 +619,7 @@ export function InterviewSetup({
             )}
             operation={operation}
             error={error}
-            onCheck={() => void check()}
+            onRetryCheck={retryCheck}
             onStart={() => void start()}
             onDropCodingExercise={() => setCodingExerciseRequested(false)}
           />

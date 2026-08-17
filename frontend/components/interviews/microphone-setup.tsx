@@ -140,16 +140,18 @@ export function MicrophoneSetup({
   return (
     <fieldset className="@container/microphone grid gap-3">
       <legend className="sr-only">Microphone</legend>
-      <div className="grid gap-3 @sm/microphone:grid-cols-[1fr_auto] @sm/microphone:items-end">
-        <div className="space-y-2">
-          <Label htmlFor="interview-microphone">Input device</Label>
+      <div className="grid gap-2 @sm/microphone:grid-cols-[1fr_auto] @sm/microphone:items-end">
+        <div className="grid gap-2">
+          <Label htmlFor="interview-microphone" className="text-xs text-muted-foreground">
+            Input device
+          </Label>
           <Select
             value={microphones.selectedId ?? DEFAULT_DEVICE}
             onValueChange={choose}
             disabled={disabled || enabling || startingTest}
           >
-            <SelectTrigger id="interview-microphone">
-              <SelectValue />
+            <SelectTrigger id="interview-microphone" className="w-full min-w-0 overflow-hidden">
+              <SelectValue className="min-w-0 truncate" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={DEFAULT_DEVICE}>System default</SelectItem>
@@ -163,7 +165,8 @@ export function MicrophoneSetup({
         </div>
         <Button
           type="button"
-          variant={enabled ? "secondary" : "outline"}
+          variant={enabled ? "secondary" : "default"}
+          className="w-full @sm/microphone:w-auto"
           disabled={disabled || enabling || startingTest || enabled}
           onClick={() => void enable()}
         >
@@ -172,51 +175,62 @@ export function MicrophoneSetup({
         </Button>
       </div>
 
-      <div className="space-y-2" aria-live="polite">
-        <div
-          className="h-2 overflow-hidden rounded-full bg-muted"
-          role="meter"
-          aria-label="Microphone input level"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(level)}
-        >
+      <div className="grid gap-2" aria-live="polite">
+        {/*
+          The meter appears only while a test is running. An empty track sitting
+          permanently under the controls read as a broken progress bar — it has
+          nothing to report until there is input to report.
+        */}
+        {testing ? (
           <div
-            className={cn(
-              "h-full rounded-full transition-[width] duration-75",
-              detected ? "bg-positive" : "bg-primary",
-            )}
-            style={{ width: `${level}%` }}
-          />
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            {detected || enabled ? (
-              <CheckCircle2 className="size-4 shrink-0 text-positive" aria-hidden />
-            ) : (
-              <AudioLines className={cn("size-4 shrink-0", testing && "text-primary")} aria-hidden />
-            )}
-            <span>
-              {testing
-                ? detected
-                  ? `Input detected from ${selectedLabel}.`
-                  : `Speak normally to test ${selectedLabel}.`
-                : enabled
-                  ? "Microphone access is enabled. Testing the input is optional."
-                  : "Enable access for voice answers. The live input test is optional."}
-            </span>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={disabled || !enabled || enabling || startingTest}
-            onClick={() => void (testing ? stopTest() : startTest())}
+            className="h-2 overflow-hidden rounded-full bg-surface-hover"
+            role="meter"
+            aria-label="Microphone input level"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(level)}
           >
-            {startingTest ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : testing ? <Square aria-hidden /> : <AudioLines aria-hidden />}
-            {startingTest ? "Starting test…" : testing ? "Stop test" : "Test input (optional)"}
-          </Button>
-        </div>
+            <div
+              className={cn(
+                "h-full rounded-full transition-[width] duration-75",
+                detected ? "bg-positive" : "bg-action",
+              )}
+              style={{ width: `${level}%` }}
+            />
+          </div>
+        ) : null}
+        {/*
+          Stacked, not `justify-between`. In a 288px column the status text and
+          the test button could not share a line, so they wrapped into a ragged
+          two-row block with the button stranded mid-panel.
+        */}
+        <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+          {detected || enabled ? (
+            <CheckCircle2 className="mt-1 size-4 shrink-0 text-positive" aria-hidden />
+          ) : (
+            <AudioLines className={cn("mt-1 size-4 shrink-0", testing && "text-action")} aria-hidden />
+          )}
+          <span className="min-w-0">
+            {testing
+              ? detected
+                ? `Input detected from ${selectedLabel}.`
+                : `Speak normally to test ${selectedLabel}.`
+              : enabled
+                ? "Microphone access is enabled. Testing the input is optional."
+                : "Enable access for voice answers. The live input test is optional."}
+          </span>
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="justify-self-start"
+          disabled={disabled || !enabled || enabling || startingTest}
+          onClick={() => void (testing ? stopTest() : startTest())}
+        >
+          {startingTest ? <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" /> : testing ? <Square aria-hidden /> : <AudioLines aria-hidden />}
+          {startingTest ? "Starting test…" : testing ? "Stop test" : "Test input (optional)"}
+        </Button>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
     </fieldset>
