@@ -58,11 +58,12 @@ class VideoLibrarySummaryTests(unittest.TestCase):
         """A run still in flight must not post a frame from the version it
         replaces, and a lecture that has never published has nothing to post."""
         with connection(self.database_url) as database:
-            # `videos_ready_requires_current_version` makes the two an
-            # equivalence, so the readiness has to come back with the version.
+            # Readiness is tied to both the published version and `ready_at`,
+            # by two equivalences rather than implications, so a lecture that
+            # has un-published has to give up all three together.
             database.execute(
                 "update video.videos set current_ingestion_version_id = null, "
-                "readiness_status = 'processing' "
+                "readiness_status = 'processing', ready_at = null "
                 "where id = %s and owner_id = %s",
                 (self.video.video_id, self.owner),
             )
