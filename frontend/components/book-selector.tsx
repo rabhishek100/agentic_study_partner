@@ -1,7 +1,6 @@
 "use client";
 
-import { BookOpen, Check, ChevronsUpDown, Library, Pencil } from "lucide-react";
-import Link from "next/link";
+import { Check, ChevronsUpDown, Library, Pencil } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -234,29 +233,10 @@ export function BookSelector({
                       />
                     )}
                   </label>
-                  {/*
-                    The way into source-first study, next to the way into
-                    ask-first: a book is something to read as well as something
-                    to ask about, and the library is where that choice belongs.
-                    Outside the label for the same reason the rename button is
-                    — a link inside one would toggle the checkbox it is for.
-                  */}
-                  <Button
-                    asChild
-                    size="icon-xs"
-                    variant="ghost"
-                    className={cn(
-                      "absolute top-1 opacity-0 focus-visible:opacity-100 group-hover/book:opacity-100",
-                      onRename ? "right-12" : "right-6",
-                    )}
-                  >
-                    <Link
-                      href={`/read/${book.book_id}`}
-                      aria-label={`Read ${book.title}`}
-                    >
-                      <BookOpen aria-hidden />
-                    </Link>
-                  </Button>
+                  {/* The reading entry point lives in the rail, beside the
+                      library, rather than in here: this popover chooses what
+                      to search, and hiding navigation inside it is how the
+                      feature shipped unreachable. */}
                   {onRename ? (
                     /*
                       Outside the label on purpose: a button inside one toggles

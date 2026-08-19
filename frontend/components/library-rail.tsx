@@ -35,6 +35,7 @@ import {
   ContinueSessions,
   type ContinueEntry,
 } from "@/components/read/continue-sessions";
+import { ReadableSources } from "@/components/read/readable-sources";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BookSummary, RetrievalMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -117,6 +118,10 @@ export function LibraryRail({
         entries={continueEntries}
         heading="Continue reading"
       />
+
+      {/* Reading is a first-class way to use a book, so it is offered here
+          rather than inside the popover that chooses what to search. */}
+      {booksLoaded && <ReadableSources books={books} noun={documentType} />}
 
       <section aria-labelledby="library-heading" className="space-y-2">
         <SectionHeading id="library-heading">

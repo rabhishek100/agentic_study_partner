@@ -327,17 +327,14 @@ export function VideoCard({ video, onRetry, onDelete, now }: VideoCardProps) {
           lecture is something to watch as well as something to ask about, and
           the library is where that choice belongs.
         */}
-        <Button
-          asChild
-          size="icon-xs"
-          variant="ghost"
-          className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/card:opacity-100"
-        >
-          <Link
-            href={`/watch/${video.video_id}`}
-            aria-label={`Watch ${video.title}`}
-          >
+        {/* Visible rather than hover-revealed. The reading surface shipped
+            with its entry point hidden behind a hover on a row inside a
+            popover, and nobody found it; an icon that appears only under a
+            pointer is not an entry point on a touch screen at all. */}
+        <Button asChild size="sm" variant="outline">
+          <Link href={`/watch/${video.video_id}`}>
             <Play aria-hidden />
+            Watch
           </Link>
         </Button>
         <CardMenu
