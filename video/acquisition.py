@@ -71,6 +71,10 @@ class MediaMetadata:
     audio_codec: str | None
     format_name: str | None
     size_bytes: int
+    # The container's own `title` tag. Screen recorders, lecture capture
+    # systems, and anything exported from an editor write the real lecture
+    # name here, while the filename keeps whatever the download named it.
+    embedded_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -310,6 +314,13 @@ def probe_media(
         if isinstance(raw_format, str) and raw_format.strip()
         else None
     )
+    tags = format_data.get("tags")
+    raw_title = tags.get("title") if isinstance(tags, dict) else None
+    embedded_title = (
+        raw_title.strip()
+        if isinstance(raw_title, str) and raw_title.strip()
+        else None
+    )
 
     return MediaMetadata(
         duration_ms=max(1, round(duration_seconds * 1000)),
@@ -319,6 +330,7 @@ def probe_media(
         audio_codec=audio_codec,
         format_name=format_name,
         size_bytes=source.stat().st_size,
+        embedded_title=embedded_title,
     )
 
 
