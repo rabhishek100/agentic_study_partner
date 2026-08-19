@@ -225,13 +225,21 @@ def reading_session(
 ) -> dict[str, Any] | None:
     """This reader's reading session for one source, if they have started it."""
 
+    # Compared through the subscript rather than as a whole array, for two
+    # reasons. It is the exact expression `idx_reading_session_per_source` is
+    # built on, so the lookup uses the index that also enforces one session per
+    # source. And `bigint[] = <a Python list>` leaves the array's element type
+    # to the adapter, which is a comparison that either works or fails
+    # depending on how an integer was inferred — not something a query should
+    # rest on. A reading session has exactly one book by check constraint, so
+    # the subscript is the whole selection.
     return connection.execute(
         f"""
         select {CONVERSATION_COLUMNS}
         from conversations
-        where owner_id = %s and session_kind = 'read' and book_ids = %s
+        where owner_id = %s and session_kind = 'read' and book_ids[1] = %s
         """,
-        (parse_owner_id(owner_id), [int(book_id)]),
+        (parse_owner_id(owner_id), int(book_id)),
     ).fetchone()
 
 
