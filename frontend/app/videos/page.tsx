@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { LogOut, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
@@ -8,11 +8,13 @@ import { AuthGate } from "@/components/auth-gate";
 import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AddVideoDialog } from "@/components/video/add-video-dialog";
+import { ContinueBand } from "@/components/video/continue-band";
 import { ProcessingBand } from "@/components/video/processing-band";
 import { VideoCard } from "@/components/video/video-card";
 import { VideoTile } from "@/components/video/video-tile";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,8 +26,18 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
+import {
+  latestByVideo,
+  matchesQuery,
+  SEARCH_THRESHOLD,
+  sortByActivity,
+} from "@/lib/video-activity";
 import { isUsable, videoState } from "@/lib/video-state";
-import type { VideoListResponse, VideoSummary } from "@/lib/video-types";
+import type {
+  VideoConversationSummary,
+  VideoListResponse,
+  VideoSummary,
+} from "@/lib/video-types";
 import { cn } from "@/lib/utils";
 
 /** How often a processing library re-checks itself. */
@@ -50,7 +62,11 @@ const FILTERS: { key: Filter; label: string }[] = [
 export default function VideosPage() {
   const { session, sessionLoading } = useSession();
   const [videos, setVideos] = useState<VideoSummary[]>([]);
+  const [conversations, setConversations] = useState<VideoConversationSummary[]>(
+    [],
+  );
   const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
 
@@ -66,9 +82,28 @@ export default function VideosPage() {
     }
   }, []);
 
+  /*
+    Conversations load beside the library rather than with it. They decide an
+    ordering and a line of text; a library that cannot be listed is a broken
+    page, but a Continue band that cannot be listed is one absent shortcut, so
+    a failure here stays silent rather than raising an alarm over the lectures.
+  */
+  const loadActivity = useCallback(async () => {
+    try {
+      const payload = await apiFetch<{
+        conversations: VideoConversationSummary[];
+      }>("/video-conversations");
+      setConversations(payload.conversations);
+    } catch {
+      setConversations([]);
+    }
+  }, []);
+
   useEffect(() => {
-    if (session) load();
-  }, [session, load]);
+    if (!session) return;
+    load();
+    loadActivity();
+  }, [session, load, loadActivity]);
 
   const retry = useCallback(
     async (video: VideoSummary) => {
@@ -99,20 +134,34 @@ export default function VideosPage() {
     [load],
   );
 
+  const latest = useMemo(() => latestByVideo(conversations), [conversations]);
+
   const { library, processing, attention } = useMemo(() => {
     const buckets = {
       library: [] as VideoSummary[],
       processing: [] as VideoSummary[],
       attention: [] as VideoSummary[],
     };
-    for (const video of videos) {
+    for (const video of sortByActivity(videos, latest)) {
       const state = videoState(video);
       if (isUsable(state)) buckets.library.push(video);
       else if (state === "processing") buckets.processing.push(video);
       else buckets.attention.push(video);
     }
     return buckets;
-  }, [videos]);
+  }, [videos, latest]);
+
+  const searchable = videos.length >= SEARCH_THRESHOLD;
+  const matching = (group: VideoSummary[]) =>
+    searchable ? group.filter((video) => matchesQuery(video, query)) : group;
+  const shown = {
+    library: matching(library),
+    processing: matching(processing),
+    attention: matching(attention),
+  };
+  const nothingMatches =
+    searchable && query.trim().length > 0 &&
+    shown.library.length + shown.processing.length + shown.attention.length === 0;
 
   const counts: Record<Filter, number> = {
     all: videos.length,
@@ -186,6 +235,8 @@ export default function VideosPage() {
 
           <AddVideoDialog onAdded={load} />
 
+          <ContinueBand conversations={conversations} />
+
           {videos.length > 0 ? (
             <nav aria-label="Filter the library" className="flex flex-col gap-1">
               <p className="px-2 text-eyebrow font-semibold uppercase tracking-[0.1em] text-muted-foreground">
@@ -239,6 +290,23 @@ export default function VideosPage() {
             </Alert>
           ) : null}
 
+          {searchable ? (
+            <div className="relative max-w-sm">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                type="search"
+                aria-label="Search lectures by title"
+                placeholder="Search lectures…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="pl-9"
+              />
+            </div>
+          ) : null}
+
           {!loaded ? (
             <div
               className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
@@ -263,26 +331,29 @@ export default function VideosPage() {
             </div>
           ) : (
             <>
-              {shows("processing") ? <ProcessingBand videos={processing} /> : null}
+              {shows("processing") ? (
+                <ProcessingBand videos={shown.processing} />
+              ) : null}
 
-              {shows("library") && library.length > 0 ? (
+              {shows("library") && shown.library.length > 0 ? (
                 <section aria-labelledby="library-heading" className="flex flex-col gap-3">
                   <h2 id="library-heading" className="sr-only">
                     Ready to ask
                   </h2>
                   <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {library.map((video) => (
+                    {shown.library.map((video) => (
                       <VideoTile
                         key={video.video_id}
                         video={video}
                         onDelete={remove}
+                        lastAsked={latest.get(video.video_id)?.updated_at ?? null}
                       />
                     ))}
                   </ul>
                 </section>
               ) : null}
 
-              {shows("attention") && attention.length > 0 ? (
+              {shows("attention") && shown.attention.length > 0 ? (
                 <section aria-labelledby="attention-heading" className="flex flex-col gap-2">
                   <div>
                     <h2 id="attention-heading" className="text-sm font-medium">
@@ -293,7 +364,7 @@ export default function VideosPage() {
                     </p>
                   </div>
                   <ul className="flex flex-col gap-2">
-                    {attention.map((video) => (
+                    {shown.attention.map((video) => (
                       <VideoCard
                         key={video.video_id}
                         video={video}
@@ -307,7 +378,11 @@ export default function VideosPage() {
 
               {/* A filter that hides everything says so, rather than showing
                   the reader an empty canvas they have to diagnose. */}
-              {filter !== "all" && counts[filter] === 0 ? (
+              {nothingMatches ? (
+                <p className="text-sm text-muted-foreground">
+                  No lecture matches “{query.trim()}”. Search reads titles.
+                </p>
+              ) : filter !== "all" && counts[filter] === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Nothing here right now.
                 </p>

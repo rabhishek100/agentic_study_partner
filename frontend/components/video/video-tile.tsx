@@ -12,13 +12,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { formatSince } from "@/lib/video-activity";
 import { formatAdded, videoState } from "@/lib/video-state";
 import type { VideoSummary } from "@/lib/video-types";
 
 export interface VideoTileProps {
   video: VideoSummary;
   onDelete(video: VideoSummary): void;
-  /** Injected so the added-date is testable without freezing the clock. */
+  /**
+   * When this lecture was last asked something, if it ever was. It replaces
+   * the added-date rather than joining it: once a lecture is in use, when it
+   * arrived stops being the fact that places it.
+   */
+  lastAsked?: string | null;
+  /** Injected so the dates are testable without freezing the clock. */
   now?: Date;
 }
 
@@ -34,9 +41,10 @@ export interface VideoTileProps {
  * deliberately the simpler component: a tile that is only ever a link never
  * has to stop being one mid-interaction.
  */
-export function VideoTile({ video, onDelete, now }: VideoTileProps) {
+export function VideoTile({ video, onDelete, lastAsked, now }: VideoTileProps) {
   const [confirming, setConfirming] = useState(false);
   const added = formatAdded(video.created_at, now);
+  const asked = lastAsked ? formatSince(lastAsked, now) : "";
   const partial = videoState(video) === "partial";
 
   if (confirming) {
@@ -74,7 +82,7 @@ export function VideoTile({ video, onDelete, now }: VideoTileProps) {
           <span className="truncate text-xs text-muted-foreground">
             {[
               video.source_kind === "youtube" ? "YouTube" : "Uploaded",
-              added ? `added ${added}` : null,
+              asked ? `asked ${asked}` : added ? `added ${added}` : null,
             ]
               .filter(Boolean)
               .join(" · ")}
