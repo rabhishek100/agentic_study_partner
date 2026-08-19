@@ -43,6 +43,22 @@ describe("describeSelection", () => {
 });
 
 describe("BookSelector", () => {
+  it("offers a way to read a book, not only to search it", async () => {
+    // Source-first study needs an entrance. The library is where the choice
+    // between reading a book and asking about it belongs.
+    const user = userEvent.setup();
+    render(
+      <BookSelector books={LIBRARY} selected={[1]} onChange={vi.fn()} />,
+    );
+
+    await user.click(screen.getByLabelText("Choose which books to search"));
+
+    expect(screen.getByRole("link", { name: "Read ISLP" })).toHaveAttribute(
+      "href",
+      "/read/1",
+    );
+  });
+
   it("toggles a book out of the selection", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -56,7 +72,7 @@ describe("BookSelector", () => {
     );
 
     await user.click(screen.getByLabelText("Choose which books to search"));
-    await user.click(screen.getByLabelText("ISLP", { exact: false }));
+    await user.click(screen.getByLabelText(/^ISLP/));
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith([2, 3]);
   });
@@ -75,7 +91,7 @@ describe("BookSelector", () => {
 
     await user.click(screen.getByLabelText("Choose which books to search"));
     await user.click(
-      screen.getByLabelText("Designing ML Systems", { exact: false }),
+      screen.getByLabelText(/^Designing ML Systems/),
     );
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith([]);
