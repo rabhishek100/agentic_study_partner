@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, ChevronsUpDown, Library } from "lucide-react";
+import { Check, ChevronsUpDown, Library, Pencil } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -52,16 +53,77 @@ export interface BookSelectorProps {
   /** True once the conversation has turns that were answered under `selected`. */
   hasConversation: boolean;
   noun?: DocumentNoun;
+  /**
+   * Rename one document. Optional: where it is absent the list is a selector
+   * and nothing else, which is what the mobile drawer and the tests want.
+   */
+  onRename?: (bookId: number, title: string) => Promise<void>;
+}
+
+/**
+ * One row, mid-rename.
+ *
+ * A form rather than an input with handlers: Enter submits because that is
+ * what a form does, which also means the control keeps working for anyone
+ * driving it from the keyboard alone. Escape leaves without saving, because a
+ * rename abandoned halfway should not be a rename.
+ */
+function RenameRow({
+  title,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  title: string;
+  busy: boolean;
+  onSave: (title: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(title);
+  const unchanged = draft.trim() === title.trim();
+
+  return (
+    <form
+      className="flex items-center gap-2 px-2 py-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!draft.trim() || unchanged) return onCancel();
+        onSave(draft.trim());
+      }}
+    >
+      <Input
+        autoFocus
+        value={draft}
+        disabled={busy}
+        aria-label={`Rename ${title}`}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onCancel();
+          }
+        }}
+        className="h-7 text-sm"
+      />
+      <Button type="submit" size="xs" disabled={busy || !draft.trim()}>
+        Save
+      </Button>
+    </form>
+  );
 }
 
 export function BookSelector({
   books,
   selected,
   onChange,
+  onRename,
   hasConversation,
   noun = "book",
 }: BookSelectorProps) {
   const [open, setOpen] = useState(false);
+  /** Which row is being renamed, and whether its save is in flight. */
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
   const selectedSet = new Set(selected);
   const allSelected = books.length > 0 && selected.length === books.length;
 
@@ -115,8 +177,28 @@ export function BookSelector({
             {books.map((book) => {
               const isSelected = selectedSet.has(book.book_id);
               const inputId = `book-${book.book_id}`;
+              if (renaming === book.book_id && onRename) {
+                return (
+                  <li key={book.book_id}>
+                    <RenameRow
+                      title={book.title}
+                      busy={saving}
+                      onCancel={() => setRenaming(null)}
+                      onSave={async (title) => {
+                        setSaving(true);
+                        try {
+                          await onRename(book.book_id, title);
+                          setRenaming(null);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    />
+                  </li>
+                );
+              }
               return (
-                <li key={book.book_id}>
+                <li key={book.book_id} className="group/book relative">
                   <label
                     htmlFor={inputId}
                     className={cn(
@@ -151,6 +233,25 @@ export function BookSelector({
                       />
                     )}
                   </label>
+                  {onRename ? (
+                    /*
+                      Outside the label on purpose: a button inside one toggles
+                      the checkbox that label is for, so renaming would
+                      deselect the document being renamed.
+                    */
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={`Rename ${book.title}`}
+                      // Left of the selection tick rather than over it: hovering a row
+                      // to rename it should not hide whether it is selected.
+                      className="absolute right-6 top-1 opacity-0 focus-visible:opacity-100 group-hover/book:opacity-100"
+                      onClick={() => setRenaming(book.book_id)}
+                    >
+                      <Pencil aria-hidden />
+                    </Button>
+                  ) : null}
                 </li>
               );
             })}

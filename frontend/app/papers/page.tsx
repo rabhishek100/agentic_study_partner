@@ -97,6 +97,25 @@ export default function PapersPage() {
     }
   }, []);
 
+  /**
+   * Rename one paper.
+   *
+   * Titles are derived at ingestion — from the PDF's metadata, its first page,
+   * or its filename read as words — and a derivation is a guess. A saved web
+   * page keeps the site's chrome in its metadata title; this is how a reader
+   * fixes one without a database client.
+   */
+  const renameBook = useCallback(
+    async (bookId: number, title: string) => {
+      await apiFetch(`/books/${bookId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      });
+      await loadBooks();
+    },
+    [loadBooks],
+  );
+
   useEffect(() => {
     if (session) {
       loadBooks();
@@ -417,6 +436,7 @@ export default function PapersPage() {
           onRetrievalModeChange={setRetrievalMode}
           hasConversation={turns.length > 0}
           onBooksChanged={loadBooks}
+        onRenameBook={renameBook}
           documentType="paper"
           history={{
             conversations: history.conversations,
