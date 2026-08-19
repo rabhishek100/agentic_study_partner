@@ -63,9 +63,12 @@ from video.conversation_store import (
     create_conversation,
     delete_conversation,
     list_conversations,
+    list_watch_sessions,
     load_conversation,
     load_turns,
     rename_conversation,
+    set_source_position,
+    watch_session,
 )
 from video.embeddings import (
     OpenRouterRegionEmbedder,
@@ -178,6 +181,59 @@ class UpdateSideChatRequest(ContractModel):
     _tag_anchors = field_validator("anchors", mode="before")(_tagged_anchors)
 
 
+class WatchPosition(ContractModel):
+    """Where the viewer last was in a lecture."""
+
+    timestamp_ms: int = Field(ge=0)
+
+
+class WatchSession(ContractModel):
+    conversation_id: UUID
+    video_id: UUID
+    title: str
+    # Null until the viewer has moved the playhead — a lecture opened and left
+    # at the start has nothing to resume to that opening it would not do.
+    position: WatchPosition | None = None
+    question_count: int = 0
+    updated_at: Any
+
+
+class WatchSessionListResponse(ContractModel):
+    sessions: list[WatchSession]
+
+
+class OpenWatchSessionRequest(ContractModel):
+    video_id: UUID
+
+
+class UpdateWatchPositionRequest(ContractModel):
+    position: WatchPosition
+
+
+LectureAnchorRequest = Annotated[
+    MomentAnchorInput | StretchAnchorInput,
+    Field(discriminator="kind"),
+]
+
+
+class ResolveLectureAnchorRequest(ContractModel):
+    anchor: LectureAnchorRequest
+
+
+class ResolvedLectureAnchorResponse(ContractModel):
+    """What a moment or stretch was found to be, before anything is asked.
+
+    The lecture counterpart of the reading surface's preview, and it answers
+    the same question: is what the viewer marked something the answer can rest
+    on? A silent stretch, or one past the end of what was ingested, resolves to
+    nothing — which is worth knowing before committing a question to it.
+    """
+
+    matched: bool
+    label: str
+    unit_count: int
+
+
 class SideChatSummary(ContractModel):
     conversation_id: UUID
     parent_conversation_id: UUID
@@ -278,6 +334,178 @@ def _require_video(connection, video_id: UUID, owner_id: UUID) -> dict[str, Any]
     if video is None:
         raise VIDEO_NOT_FOUND
     return video
+
+
+WATCH_SESSION_NOT_FOUND = HTTPException(
+    status_code=404,
+    detail="watch session not found",
+)
+
+
+def _watch_session(record: dict[str, Any], *, question_count: int) -> WatchSession:
+    stored = record.get("source_position") or None
+    return WatchSession(
+        conversation_id=record["id"],
+        video_id=record["video_id"],
+        title=record["title"],
+        position=WatchPosition.model_validate(stored) if stored else None,
+        question_count=question_count,
+        updated_at=record["updated_at"],
+    )
+
+
+def _question_count(connection, conversation_id: UUID, owner_id: UUID) -> int:
+    return connection.execute(
+        """
+        select count(*) as question_count
+        from video.conversations
+        where owner_id = %s and parent_conversation_id = %s
+        """,
+        (owner_id, conversation_id),
+    ).fetchone()["question_count"]
+
+
+def _open_watch_session(
+    owner_id: UUID,
+    request: OpenWatchSessionRequest,
+) -> WatchSession:
+    """Open this viewer's session for a lecture, or resume the one they have."""
+
+    with database_connection() as connection:
+        video = _require_video(connection, request.video_id, owner_id)
+        existing = watch_session(
+            connection,
+            owner_id=owner_id,
+            video_id=request.video_id,
+        )
+        if existing is not None:
+            return _watch_session(
+                existing,
+                question_count=_question_count(connection, existing["id"], owner_id),
+            )
+        created = create_conversation(
+            connection,
+            owner_id=owner_id,
+            video_id=request.video_id,
+            # Named after the lecture rather than after a question: a watch
+            # session has no first question, and the questions are its marks.
+            title=video["title"],
+            prompt_snapshot=prompt_snapshot(),
+            session_kind="watch",
+        )
+    return _watch_session(created, question_count=0)
+
+
+@chat_router.post(
+    "/api/watch-sessions",
+    response_model=WatchSession,
+    status_code=201,
+)
+async def open_watch_session(
+    request: OpenWatchSessionRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> WatchSession:
+    """Start watching a lecture, or pick up where this viewer left off."""
+
+    return await run_in_threadpool(_open_watch_session, owner_id, request)
+
+
+@chat_router.get("/api/watch-sessions", response_model=WatchSessionListResponse)
+async def watch_sessions(
+    owner_id: UUID = Depends(current_owner),
+) -> WatchSessionListResponse:
+    """Lectures this viewer has started, most recently watched first."""
+
+    def load() -> list[WatchSession]:
+        with database_connection(readonly=True) as connection:
+            return [
+                _watch_session(row, question_count=row["question_count"])
+                for row in list_watch_sessions(connection, owner_id=owner_id)
+            ]
+
+    return WatchSessionListResponse(sessions=await run_in_threadpool(load))
+
+
+@chat_router.patch(
+    "/api/watch-sessions/{conversation_id}/position",
+    response_model=WatchSession,
+)
+async def update_watch_position(
+    conversation_id: UUID,
+    request: UpdateWatchPositionRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> WatchSession:
+    """Record where the viewer is, so the next visit opens there.
+
+    Does not touch `updated_at`: the playhead moves several times a second
+    while a lecture plays, and leaving one running is not using it.
+    """
+
+    def record() -> WatchSession:
+        with database_connection() as connection:
+            updated = set_source_position(
+                connection,
+                conversation_id,
+                owner_id=owner_id,
+                position=request.position.model_dump(mode="json"),
+            )
+            if updated is None:
+                raise WATCH_SESSION_NOT_FOUND
+            return _watch_session(
+                updated,
+                question_count=_question_count(connection, conversation_id, owner_id),
+            )
+
+    return await run_in_threadpool(record)
+
+
+def _resolve_lecture_anchor(
+    owner_id: UUID,
+    conversation_id: UUID,
+    request: ResolveLectureAnchorRequest,
+) -> ResolvedLectureAnchorResponse:
+    with database_connection(readonly=True) as connection:
+        record = load_conversation(connection, conversation_id, owner_id=owner_id)
+        if record is None or record["session_kind"] != "watch":
+            raise WATCH_SESSION_NOT_FOUND
+        if request.anchor.video_id != record["video_id"]:
+            raise HTTPException(
+                status_code=422,
+                detail="an anchor must name the lecture this session is watching",
+            )
+        anchor = parse_anchor(
+            {**request.anchor.model_dump(mode="json"), "anchor_id": "preview"}
+        )
+        (resolved,) = resolve_lecture_anchors(
+            connection,
+            [anchor],
+            owner_id=owner_id,
+            video_id=record["video_id"],
+        )
+    return ResolvedLectureAnchorResponse(
+        matched=resolved.matched,
+        label=resolved.label,
+        unit_count=len(resolved.evidence_ids),
+    )
+
+
+@chat_router.post(
+    "/api/watch-sessions/{conversation_id}/anchors/resolve",
+    response_model=ResolvedLectureAnchorResponse,
+)
+async def resolve_lecture_anchor(
+    conversation_id: UUID,
+    request: ResolveLectureAnchorRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ResolvedLectureAnchorResponse:
+    """Say what a moment or stretch resolves to, before a question is asked."""
+
+    return await run_in_threadpool(
+        _resolve_lecture_anchor,
+        owner_id,
+        conversation_id,
+        request,
+    )
 
 
 @chat_router.post("/api/videos/{video_id}/conversations", status_code=201)
