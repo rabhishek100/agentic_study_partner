@@ -99,6 +99,34 @@ This also happens to be the strongest interview story in the feature. The
 agentic workflow is not decorating a retrieval call — the routing decision is
 the product behaviour the reader can see.
 
+### What building it found
+
+Three corrections to the assumptions above, recorded because they changed the
+work rather than because they were anticipated.
+
+**The graph had no retry step.** `AGENTS.md` describes the workflow as
+plan → retrieve → check sufficiency → retry, and the compiled graph was
+plan → route → execute → record. The sufficiency check and the cycle back into
+retrieval are new in stage 1b, and the claim in `AGENTS.md` only became true
+with them.
+
+**Escalation already existed, in the wrong place.** `study/query.py` fell
+through to external QA twice — once when retrieval returned nothing, once when
+the model reported insufficient evidence — jumping straight from the open book
+to model knowledge, skipping the library, and recording the jump only as prose
+in `routing_reason`. The ladder does not add escalation so much as lift it out
+of the query layer into somewhere it can be gated, staged and recorded.
+`allow_external_fallback` already existed as a parameter and is how the graph
+takes ownership: under a policy it is always false, so escalation happens in
+exactly one place.
+
+**The verdict needed no new model call.** Grounded answering already abstains
+when its evidence does not support the question, and that behaviour is measured
+against the frozen gold set. Reusing the abstention as the retry signal means
+the ladder adds no judgement of its own — `study/grounding.py` is
+deterministic throughout, climbing is monotone, and each rung is tried at most
+once.
+
 ## Anchors
 
 Three gestures, deliberately different in cost and precision.
@@ -267,7 +295,9 @@ Each stage is a reviewable commit that leaves the application working.
 
 | Stage | Content | Done when |
 |---|---|---|
-| 1 — Anchors and rungs | Anchor union, resolution for pages, selections, moments and stretches, pinning, rung recorded, sufficiency-gated widening, tests | A side chat created with a page anchor answers from that page, cites it first, and a question the book does not cover records a widening with its reason |
+| 1a — Document anchors | Anchor union, resolution for pages, selections and sections, pinning, context assembly, API acceptance, tests | A side chat created with a page anchor answers from that page and cites it first; an unmatched selection is recorded as unresolved rather than guessed |
+| 1b — The ladder | Grounding rung and widenings on the turn, sufficiency node and retry cycle in the graph, the stay-in-source lock, tests | A question the open book does not cover records a widening with its reason, and the same turn without a policy takes exactly the path it took before |
+| 1c — Lecture anchors | Moment and stretch resolution against transcript units and frames, the same rungs on the lecture turn contract | A side chat anchored to a stretch of lecture answers from it and cites its timestamps |
 | 2 — Read shell | `/read/[bookId]`, document-first layout, ambient chip, composer, floating window layer wired in, position recorded | A reader opens a book, types a question with no selection, and gets an answer grounded in the page they are on |
 | 3 — Capture and marks | Selection popover, resolve-before-asking, persisted marks in the margin, reopening from a mark, multi-anchor windows | Highlighting a paragraph opens a window anchored to it, and the mark is still there on the next visit |
 | 4 — Watch | `/watch/[videoId]`, playhead reporting, moment and stretch anchors, transcript selection, frame context, scrubber marks | A question asked at 12:04 answers from that stretch of lecture and cites its timestamps |
