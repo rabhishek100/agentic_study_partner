@@ -13,7 +13,10 @@ import { cn } from "@/lib/utils";
 export function SectionNav({
   active,
 }: {
-  active: "books" | "papers" | "videos" | "decks" | "interviews";
+  // "prompts" names a screen that is reachable from the sections but is not
+  // one of them: nothing highlights, and the switcher still gets the reader
+  // back to a library in one click.
+  active: "books" | "papers" | "videos" | "decks" | "interviews" | "prompts";
 }) {
   const sections = [
     { key: "books" as const, href: "/", label: "Books", icon: BookOpen },

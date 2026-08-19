@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 
 from api.auth import current_owner
 from api.main import app
+from storage.postgres import rename_book
 from api.version import build_revision
 from study.contracts import ConversationState, TurnResult
 from study.prompts import DEFAULT_PROMPT_PROFILE
@@ -506,6 +507,97 @@ class ApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("event: error", body)
         self.assertIn("No indexed book is available", body)
+
+
+class RenameBookTests(unittest.IsolatedAsyncioTestCase):
+    """Naming a book or paper, now that the pipeline names them by guessing.
+
+    A derived title is a guess about a document nobody described: a saved web
+    page keeps the site's chrome, and a paper whose first page was never
+    captured keeps whatever its filename said. Before this there was no way to
+    correct one without a SQL client.
+    """
+
+    async def asyncSetUp(self):
+        self.client = AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        )
+        app.dependency_overrides[current_owner] = lambda: OWNER_ID
+
+    async def asyncTearDown(self):
+        app.dependency_overrides.clear()
+        await self.client.aclose()
+
+    @patch("api.main.rename_book")
+    async def test_a_reader_renames_their_own_paper(self, rename):
+        rename.return_value = {
+            "id": 575,
+            "title": "Kolmogorov Complexity and Algorithmic Randomness",
+            "author": None,
+            "document_type": "paper",
+        }
+        with patch("api.main.database_connection"):
+            response = await self.client.patch(
+                "/api/books/575",
+                json={"title": "Kolmogorov Complexity and Algorithmic Randomness"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "book_id": 575,
+                "title": "Kolmogorov Complexity and Algorithmic Randomness",
+                "document_type": "paper",
+            },
+        )
+        self.assertEqual(rename.call_args.kwargs["owner_id"], OWNER_ID)
+
+    @patch("api.main.rename_book", return_value=None)
+    async def test_another_accounts_book_is_not_found_rather_than_renamed(
+        self, rename
+    ):
+        """The owner predicate is in the statement, so a book belonging to
+        somebody else updates no rows and reads as missing."""
+        with patch("api.main.database_connection"):
+            response = await self.client.patch(
+                "/api/books/1", json={"title": "Anything"}
+            )
+
+        self.assertEqual(response.status_code, 404)
+
+    async def test_a_blank_title_is_refused_before_it_reaches_the_database(self):
+        for title in ("", "   " * 3):
+            with self.subTest(title=title):
+                with patch("api.main.rename_book") as rename:
+                    response = await self.client.patch(
+                        "/api/books/1", json={"title": title}
+                    )
+                self.assertIn(response.status_code, {400, 422})
+                rename.assert_not_called()
+
+
+class RenameBookStorageTests(unittest.TestCase):
+    def test_a_pasted_title_arrives_as_one_line(self):
+        connection = MagicMock()
+        connection.execute.return_value.fetchone.return_value = {
+            "id": 1,
+            "title": "Attention Is All You Need",
+            "author": None,
+            "document_type": "paper",
+        }
+
+        rename_book(
+            connection, 1, owner_id=OWNER_ID, title="  Attention Is\n All You Need "
+        )
+
+        parameters = connection.execute.call_args[0][1]
+        self.assertEqual(parameters[0], "Attention Is All You Need")
+        self.assertEqual(parameters[1], 1)
+
+    def test_a_title_of_only_whitespace_is_refused(self):
+        with self.assertRaises(ValueError):
+            rename_book(MagicMock(), 1, owner_id=OWNER_ID, title="   ")
 
 
 class BuildIdentityTests(unittest.TestCase):

@@ -8,6 +8,8 @@ cancellation, and crash recovery stay fast to exercise.
 import os
 import tempfile
 import unittest
+
+from study.titles import resolve_title
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -29,7 +31,6 @@ from ingestion.jobs import (
 from ingestion.pipeline import (
     CancellationRequested,
     PipelineDependencies,
-    _book_title,
     _paper_outline,
     evaluate_extraction,
     run_job,
@@ -858,19 +859,25 @@ if __name__ == "__main__":
 
 
 class BookTitleTests(unittest.TestCase):
-    """Choosing between the embedded title and the uploaded filename.
+    """Choosing between the embedded title, the content, and the filename.
 
     A PDF's metadata title is frequently a placeholder its author never
     changed. One deck in this corpus carries "TestDoc", which became the name
-    of a 550-slide course in the library.
+    of a 550-slide course in the library. The choice now lives in
+    `study.titles`, which the video pipeline shares; these cases pin the
+    behaviour the book pipeline depends on.
     """
 
     def test_a_placeholder_loses_to_the_filename(self) -> None:
         self.assertEqual(
-            _book_title("TestDoc", "PythonMastery (1).pdf"), "PythonMastery (1)"
+            resolve_title(embedded="TestDoc", filename="PythonMastery (1).pdf"),
+            # The `(1)` a second download adds is not part of the name.
+            "Python Mastery",
         )
         self.assertEqual(
-            _book_title("untitled", "Head First Design Patterns.pdf"),
+            resolve_title(
+                embedded="untitled", filename="Head First Design Patterns.pdf"
+            ),
             "Head First Design Patterns",
         )
 
@@ -878,17 +885,30 @@ class BookTitleTests(unittest.TestCase):
         """Which is the case the metadata is there for."""
 
         self.assertEqual(
-            _book_title("Designing Machine Learning Systems", "dmls.pdf"),
+            resolve_title(
+                embedded="Designing Machine Learning Systems", filename="dmls.pdf"
+            ),
             "Designing Machine Learning Systems",
         )
 
     def test_a_tool_export_name_is_not_a_title(self) -> None:
         self.assertEqual(
-            _book_title("Microsoft Word - ch3.docx", "Chapter Three.pdf"),
+            resolve_title(
+                embedded="Microsoft Word - ch3.docx", filename="Chapter Three.pdf"
+            ),
             "Chapter Three",
         )
 
     def test_a_missing_or_tiny_title_falls_back(self) -> None:
-        self.assertEqual(_book_title(None, "AI Engineering.pdf"), "AI Engineering")
-        self.assertEqual(_book_title("", "AI Engineering.pdf"), "AI Engineering")
-        self.assertEqual(_book_title("ab", "AI Engineering.pdf"), "AI Engineering")
+        self.assertEqual(
+            resolve_title(embedded=None, filename="AI Engineering.pdf"),
+            "AI Engineering",
+        )
+        self.assertEqual(
+            resolve_title(embedded="", filename="AI Engineering.pdf"),
+            "AI Engineering",
+        )
+        self.assertEqual(
+            resolve_title(embedded="ab", filename="AI Engineering.pdf"),
+            "AI Engineering",
+        )

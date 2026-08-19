@@ -4,7 +4,7 @@ import { ArrowDown } from "lucide-react";
 import { useLayoutEffect } from "react";
 
 import { Composer } from "@/components/conversation/composer";
-import { PromptSettings } from "@/components/conversation/prompt-settings";
+import { PromptSettingsLink } from "@/components/conversation/prompt-settings-link";
 import type { DocumentNoun } from "@/components/book-selector";
 import { TurnView } from "@/components/conversation/turn-view";
 import { Welcome } from "@/components/conversation/welcome";
@@ -185,7 +185,7 @@ export function ConversationView({
             responseDepth={responseDepth}
             onResponseDepthChange={onResponseDepthChange}
             settingsControl={
-              <PromptSettings
+              <PromptSettingsLink
                 conversationId={conversationId}
                 responseDepth={responseDepth}
               />

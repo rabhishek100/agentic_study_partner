@@ -10,6 +10,7 @@ from uuid import UUID
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from study.titles import looks_machine_generated
 from video.acquisition import Chapter, MediaMetadata
 from video.states import Stage
 
@@ -352,13 +353,34 @@ def publish_media_metadata(
                 "storage_key": row["source_storage_key"],
             }
         )
+        # Whether the discovered title may replace what the row holds.
+        #
+        # The rule used to be written in SQL and matched one string: the
+        # `YouTube video <id>` placeholder. An uploaded lecture therefore kept
+        # its filename as its name for good — `cme295-lecture1-h264.mp4` in the
+        # library — because no discovered title had ever existed for it and
+        # nothing would have replaced it if one had. What must be protected is
+        # not the placeholder but a name a reader chose, so that is what the
+        # condition tests now.
+        current = connection.execute(
+            """
+            select v.title, s.original_filename
+            from video.videos as v
+            join video.video_sources as s
+              on s.video_id = v.id and s.owner_id = v.owner_id and s.is_primary
+            where v.id = %s and v.owner_id = %s
+            """,
+            (row["video_id"], row["owner_id"]),
+        ).fetchone()
+        replaceable = current is not None and looks_machine_generated(
+            str(current["title"] or ""),
+            str(current["original_filename"] or ""),
+        )
         connection.execute(
             """
             update video.videos
             set duration_ms = %s, playback_json = %s,
-                title = case
-                    when %s::text is not null
-                     and title = 'YouTube video ' || %s::text
+                title = case when %s and %s::text is not null
                     then %s::text else title end,
                 description = coalesce(description, %s::text)
             where id = %s and owner_id = %s
@@ -366,8 +388,8 @@ def publish_media_metadata(
             (
                 media.duration_ms,
                 Jsonb(playback),
+                replaceable,
                 clean_title,
-                row["youtube_video_id"],
                 clean_title,
                 clean_description,
                 row["video_id"],

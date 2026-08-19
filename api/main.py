@@ -57,7 +57,7 @@ from storage.database import (
 from storage.database import (
     connection as database_connection,
 )
-from storage.postgres import list_books, ready_book
+from storage.postgres import list_books, ready_book, rename_book
 from storage.preferences import load_prompt_profile, save_prompt_profile
 from storage.suggested_questions import (
     get_cached_suggested_questions,
@@ -282,6 +282,39 @@ class BookSummary(ContractModel):
     embedding_count: int
     retrieval_complete: bool
     document_type: str = "book"
+
+
+class RenameBookRequest(ContractModel):
+    """A reader naming their own book or paper.
+
+    Bounded the way the column is: `books.title` refuses a blank, and a name
+    nobody could read in a list is not a name. Whitespace is collapsed by the
+    storage layer, so a pasted title with a line break in it still arrives as
+    one line.
+    """
+
+    title: str = Field(min_length=1, max_length=300)
+
+    @field_validator("title")
+    @classmethod
+    def collapse_and_require_words(cls, value: str) -> str:
+        """A title of nine spaces satisfies `min_length` and names nothing.
+
+        Collapsing here rather than only in the storage layer is what makes a
+        blank arrive as a 422 the client can show against the field, instead of
+        as a 500 from a constraint deeper in.
+        """
+
+        cleaned = " ".join(value.split())
+        if not cleaned:
+            raise ValueError("title cannot be blank")
+        return cleaned
+
+
+class RenamedBookResponse(ContractModel):
+    book_id: int
+    title: str
+    document_type: str
 
 
 class BookListResponse(ContractModel):
@@ -516,6 +549,40 @@ async def papers(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
             return summaries
 
     return BookListResponse(books=await run_in_threadpool(load))
+
+
+@app.patch("/api/books/{book_id}", response_model=RenamedBookResponse)
+async def rename_book_title(
+    book_id: int,
+    request: RenameBookRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> RenamedBookResponse:
+    """Rename one book or paper.
+
+    Titles are derived now — from the PDF's metadata, its first page, or its
+    filename read as words — and a derivation is a guess about a document
+    nobody described. A saved web page keeps the site's chrome in its metadata
+    title, and a paper whose first page was never captured keeps whatever its
+    filename said. This is how those get fixed without a SQL client.
+
+    One route for both kinds: papers are books with a `document_type`, share
+    the table, and there is nothing about renaming that differs between them.
+    """
+
+    def save() -> dict | None:
+        with database_connection() as connection:
+            return rename_book(
+                connection, book_id, owner_id=owner_id, title=request.title
+            )
+
+    row = await run_in_threadpool(save)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return RenamedBookResponse(
+        book_id=row["id"],
+        title=row["title"],
+        document_type=row.get("document_type") or "book",
+    )
 
 
 @app.get("/api/books/{book_id}/chapters", response_model=ChapterListResponse)

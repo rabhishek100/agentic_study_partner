@@ -22,6 +22,7 @@ from video.acquisition import (
     probe_media,
     verify_decodable,
 )
+from study.titles import resolve_title
 from video.jobs import (
     VideoIngestionJob,
     advance_stage,
@@ -196,7 +197,16 @@ def run_acquire_source(
             acquisition_version = UPLOAD_ACQUISITION_VERSION
             media_type = _upload_media_type(connection, job=job)
             info_path, captions = None, ()
-            title, description, chapters = None, None, ()
+            description, chapters = None, ()
+            # An uploaded lecture had no discovered title at all, so the row
+            # kept the filename it was created with — `cme295-lecture1-h264.mp4`
+            # in the library, forever. The container's own title tag is the
+            # authored name when a capture system wrote one; the filename,
+            # read as words, is the fallback.
+            title = resolve_title(
+                embedded=media.embedded_title,
+                filename=_upload_filename(connection, job=job) or "",
+            )
         else:
             raise RuntimeError("unsupported video source kind")
 
@@ -307,6 +317,19 @@ def _finish_if_cancelled(
         worker_id=worker_id,
         attempt_count=job.attempt_count,
     )
+
+
+def _upload_filename(connection: Connection, *, job: VideoIngestionJob) -> str | None:
+    """The name the reader's file arrived under, for deriving a title from."""
+
+    row = connection.execute(
+        """
+        select original_filename from video.video_sources
+        where video_id = %s and owner_id = %s and is_primary
+        """,
+        (job.video_id, job.owner_id),
+    ).fetchone()
+    return str(row["original_filename"]) if row and row["original_filename"] else None
 
 
 def _upload_media_type(connection: Connection, *, job: VideoIngestionJob) -> str:

@@ -28,6 +28,16 @@ export function useAuthenticatedImage(source: string): State {
     let cancelled = false;
     let objectUrl: string | null = null;
 
+    // An empty source is "nothing to load here", not a relative URL. Callers
+    // decide per render whether an image exists — a lecture may have no
+    // poster frame — and a hook cannot be called behind that condition, so
+    // the condition arrives as the argument instead. Fetching "" would
+    // request the current page and hand the element an HTML document.
+    if (!source) {
+      setState({ status: "failed", url: null });
+      return;
+    }
+
     (async () => {
       try {
         const token = await accessToken();
