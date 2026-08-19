@@ -12,9 +12,9 @@ import logging
 import os
 import queue
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
@@ -66,16 +66,23 @@ from storage.suggested_questions import (
 )
 from study.question_generator import generate_book_questions
 from study.analyze import ConversationDecisionError
+from study.anchors import resolve_document_anchors
 from study.contracts import (
     MAXIMUM_ANCHORS,
     MAXIMUM_QUOTE_CHARS,
+    Anchor,
     AnswerArchetype,
     ContractModel,
     ConversationState,
+    DocumentPageAnchor,
+    DocumentPassageAnchor,
+    DocumentSectionAnchor,
     PromptProfile,
     QuoteAnchor,
     ResponseDepth,
     TurnResult,
+    parse_anchor,
+    parse_anchors,
 )
 from study.conversation import execute_conversation_turn, new_conversation_state
 from study.dictation import (
@@ -84,7 +91,12 @@ from study.dictation import (
     audio_extension,
     transcribe_spoken_question,
 )
-from study.side_context import ParentTurn, build_side_context, readable_quote
+from study.side_context import (
+    AnchoredSource,
+    ParentTurn,
+    build_side_context,
+    readable_quote,
+)
 from study.prompts import (
     DEFAULT_PROMPT_PROFILE,
     LOCKED_GROUNDING_PROMPT,
@@ -188,7 +200,7 @@ class ConversationDetail(ContractModel):
     # Set when this conversation is a side chat, along with the passages it was
     # opened over. Resuming a side chat uses this endpoint like any other.
     parent_conversation_id: UUID | None = None
-    anchors: list[QuoteAnchor] = Field(default_factory=list)
+    anchors: list[Anchor] = Field(default_factory=list)
 
 
 class UpdateConversationRequest(ContractModel):
@@ -205,23 +217,72 @@ class SideChatAnchorInput(ContractModel):
     never share one.
     """
 
+    kind: Literal["answer_quote"] = "answer_quote"
     anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
     parent_turn_index: int = Field(ge=0)
     # Matches the stored contract; see the note on `QuoteAnchor.quoted_text`.
     quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
 
 
+# The source anchors differ from their stored contracts in exactly one field:
+# the id is the server's to assign, so it is optional on the way in. Subclassing
+# keeps the shape, the bounds and the `extra="forbid"` of the contract rather
+# than restating them here, where the two copies would drift.
+class PageAnchorInput(DocumentPageAnchor):
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class PassageAnchorInput(DocumentPassageAnchor):
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class SectionAnchorInput(DocumentSectionAnchor):
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+SideChatAnchorRequest = Annotated[
+    SideChatAnchorInput | PageAnchorInput | PassageAnchorInput | SectionAnchorInput,
+    Field(discriminator="kind"),
+]
+
+
+def _tagged_anchors(value: object) -> object:
+    """Give an untagged anchor the tag every stored one before this had.
+
+    A tagged union needs its discriminator present in the input, and the
+    interface that shipped before source anchors existed sends none. Defaulting
+    it here rather than making `kind` optional keeps the union tagged — an
+    untagged union would have to guess which member a malformed anchor meant.
+    """
+
+    if not isinstance(value, list):
+        return value
+    return [
+        {**item, "kind": "answer_quote"}
+        if isinstance(item, dict) and "kind" not in item
+        else item
+        for item in value
+    ]
+
+
 class CreateSideChatRequest(ContractModel):
-    anchors: list[SideChatAnchorInput] = Field(min_length=1, max_length=MAXIMUM_ANCHORS)
+    anchors: list[SideChatAnchorRequest] = Field(
+        min_length=1,
+        max_length=MAXIMUM_ANCHORS,
+    )
     title: str | None = Field(default=None, min_length=1, max_length=200)
+
+    _tag_anchors = field_validator("anchors", mode="before")(_tagged_anchors)
 
 
 class UpdateSideChatRequest(ContractModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
-    anchors: list[SideChatAnchorInput] | None = Field(
+    anchors: list[SideChatAnchorRequest] | None = Field(
         default=None,
         max_length=MAXIMUM_ANCHORS,
     )
+
+    _tag_anchors = field_validator("anchors", mode="before")(_tagged_anchors)
 
 
 class SideChatSummary(ContractModel):
@@ -230,7 +291,7 @@ class SideChatSummary(ContractModel):
     title: str
     book_ids: list[int]
     retrieval_mode: RetrievalMode
-    anchors: list[QuoteAnchor]
+    anchors: list[Anchor]
     turn_count: int
     created_at: datetime
     updated_at: datetime
@@ -819,43 +880,88 @@ SIDE_CHAT_NOT_FOUND = HTTPException(status_code=404, detail="side chat not found
 
 
 def _assigned_anchors(
-    requested: list[SideChatAnchorInput],
+    requested: list[SideChatAnchorRequest],
     *,
-    existing: list[QuoteAnchor],
+    existing: list[Anchor],
     turn_indexes: set[int],
-) -> list[QuoteAnchor]:
-    """Validate anchors against the parent's turns and give each a unique id.
+    book_ids: Sequence[int],
+) -> list[Anchor]:
+    """Validate anchors against what the parent actually has, and assign ids.
 
-    An anchor naming a turn the parent does not have is rejected rather than
-    dropped: it means the client and the server disagree about the
-    conversation, and silently answering with less context than the reader
-    highlighted is the wrong way to find that out.
+    Two different checks, because the two kinds of anchor point at different
+    things. A quote names a turn of the parent conversation; a document anchor
+    names a book. Either one naming something the parent does not have is
+    rejected rather than dropped: it means the client and the server disagree
+    about the conversation, and silently answering with less context than the
+    reader selected is the wrong way to find that out.
+
+    The book check is scope integrity rather than access control — the chunk
+    queries are owner-scoped either way — but a side chat's books are inherited
+    and frozen at creation, and an anchor is not a way around that.
     """
 
     known = {anchor.anchor_id for anchor in existing}
+    permitted = set(book_ids)
     used: set[str] = set()
-    anchors: list[QuoteAnchor] = []
+    anchors: list[Anchor] = []
     for item in requested:
-        if item.parent_turn_index not in turn_indexes:
+        if isinstance(item, SideChatAnchorInput):
+            if item.parent_turn_index not in turn_indexes:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"turn {item.parent_turn_index} is not part of the "
+                        "parent conversation"
+                    ),
+                )
+        elif item.book_id not in permitted:
             raise HTTPException(
                 status_code=422,
                 detail=(
-                    f"turn {item.parent_turn_index} is not part of the parent "
-                    "conversation"
+                    f"book {item.book_id} is not part of this conversation's "
+                    "selection"
                 ),
             )
         anchor_id = item.anchor_id
         if anchor_id is None or anchor_id not in known or anchor_id in used:
             anchor_id = uuid4().hex
         used.add(anchor_id)
-        anchors.append(
-            QuoteAnchor(
-                anchor_id=anchor_id,
-                parent_turn_index=item.parent_turn_index,
-                quoted_text=item.quoted_text.strip(),
-            )
-        )
+        stored = item.model_dump(mode="json")
+        stored["anchor_id"] = anchor_id
+        for field in ("quoted_text", "selected_text"):
+            if field in stored:
+                stored[field] = stored[field].strip()
+        # Through the union rather than the matching class: the input models
+        # are the stored contracts with one field widened, so validating the
+        # dump is what proves the widening is all that differs.
+        anchors.append(parse_anchor(stored))
     return anchors
+
+
+def _side_chat_title(anchors: Sequence[Anchor], anchored_turn: dict | None) -> str:
+    """Name a side chat after whatever the reader actually pointed at.
+
+    A selection can be nothing but a citation marker, which names a thread
+    badly, so an answer quote falls back to the question it came from. A source
+    anchor has no question behind it: the words the reader highlighted name it,
+    and a bare page anchor is named by the page.
+    """
+
+    first = anchors[0]
+    if isinstance(first, QuoteAnchor):
+        return (
+            readable_quote(first.quoted_text)
+            or (anchored_turn or {}).get("question")
+            or "Side chat"
+        )
+    selected = getattr(first, "selected_text", "")
+    if selected.strip():
+        return " ".join(selected.split())
+    if isinstance(first, DocumentPageAnchor):
+        return f"Page {first.page}"
+    if isinstance(first, DocumentSectionAnchor):
+        return "This section"
+    return "Side chat"
 
 
 def _side_chat_summary(record: dict, turn_count: int) -> SideChatSummary:
@@ -865,10 +971,7 @@ def _side_chat_summary(record: dict, turn_count: int) -> SideChatSummary:
         title=record["title"],
         book_ids=list(record["book_ids"]),
         retrieval_mode=record["retrieval_mode"],
-        anchors=[
-            QuoteAnchor.model_validate(anchor)
-            for anchor in record["anchors_json"] or []
-        ],
+        anchors=parse_anchors(record["anchors_json"]),
         turn_count=turn_count,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
@@ -879,7 +982,7 @@ def _seeded_side_chat_state(
     conversation_id: UUID,
     *,
     book_ids: list[int],
-    anchored_turn: dict,
+    anchored_turn: dict | None,
 ) -> ConversationState:
     """Open a side chat already knowing the answer it was opened over.
 
@@ -894,6 +997,11 @@ def _seeded_side_chat_state(
         book_ids=book_ids,
         conversation_id=str(conversation_id),
     )
+    if anchored_turn is None:
+        # Anchored to the source rather than to an answer: there is no previous
+        # answer, and `prior_answer_transform` correctly has nothing to work on
+        # until this side chat has produced one of its own.
+        return state
     result = TurnResult.model_validate(anchored_turn["result_json"])
     state.previous_answer = anchored_turn["answer"]
     state.previous_evidence = list(result.evidence)
@@ -950,15 +1058,15 @@ def _create_side_chat(
             request.anchors,
             existing=[],
             turn_indexes=set(turns),
+            book_ids=parent["book_ids"],
         )
-        anchored_turn = turns[anchors[0].parent_turn_index]
-        # A selection can be nothing but a citation marker, which names the
-        # thread badly; the question it came from is the better fallback.
-        title = (
-            request.title
-            or readable_quote(anchors[0].quoted_text)
-            or anchored_turn["question"]
-        )
+        quoted = [anchor for anchor in anchors if isinstance(anchor, QuoteAnchor)]
+        # Only a quote anchor has a turn to seed from. A side chat opened on a
+        # page of the source has no previous answer, and inventing one from the
+        # parent's last turn would seed it with an exchange the reader was not
+        # looking at.
+        anchored_turn = turns[quoted[0].parent_turn_index] if quoted else None
+        title = request.title or _side_chat_title(anchors, anchored_turn)
         created = create_conversation(
             connection,
             owner_id=owner_id,
@@ -986,6 +1094,46 @@ def _create_side_chat(
     return _side_chat_summary(created, turn_count=0)
 
 
+def _anchored_sources(
+    connection,
+    anchors: Sequence[Anchor],
+    *,
+    owner_id: UUID,
+) -> tuple[AnchoredSource, ...]:
+    """Resolve this side chat's source anchors into pinnable context.
+
+    The two-step shape is deliberate. `study.anchors` knows about books, pages
+    and chunks; `study.side_context` knows about budgets and priority and stays
+    surface-neutral so the lecture side can reuse it. This is the seam, and it
+    is the only place that has to know both.
+    """
+
+    documents = [
+        anchor
+        for anchor in anchors
+        if isinstance(
+            anchor,
+            (DocumentPageAnchor, DocumentPassageAnchor, DocumentSectionAnchor),
+        )
+    ]
+    if not documents:
+        return ()
+    return tuple(
+        AnchoredSource(
+            anchor_id=resolved.anchor_id,
+            label=resolved.label,
+            identities=resolved.chunk_ids,
+            selected_text=resolved.selected_text,
+            matched=resolved.matched,
+        )
+        for resolved in resolve_document_anchors(
+            connection,
+            documents,
+            owner_id=owner_id,
+        )
+    )
+
+
 def _run_side_turn(
     owner_id: UUID,
     side_chat_id: UUID,
@@ -999,10 +1147,7 @@ def _run_side_turn(
         record = load_conversation(connection, side_chat_id, owner_id=owner_id)
         if record is None or record["parent_conversation_id"] is None:
             raise SIDE_CHAT_NOT_FOUND
-        anchors = [
-            QuoteAnchor.model_validate(anchor)
-            for anchor in record["anchors_json"] or []
-        ]
+        anchors = parse_anchors(record["anchors_json"])
         parent_turns = [
             ParentTurn.from_result(
                 turn["turn_index"],
@@ -1016,6 +1161,11 @@ def _run_side_turn(
                 owner_id=owner_id,
             )
         ]
+        # Resolved on every turn rather than stored with the anchor. A page
+        # points at whatever the book's current chunks say is on it, so a
+        # re-ingest moves the pins with the book instead of leaving them
+        # pointing at chunks that no longer exist.
+        sources = _anchored_sources(connection, anchors, owner_id=owner_id)
 
     book_ids = list(record["book_ids"])
     _require_ready_books(owner_id, book_ids)
@@ -1028,7 +1178,11 @@ def _run_side_turn(
         token_callback=token_callback,
         prompt_profile=_stored_profile(record["prompt_profile_json"]),
         response_depth=request.response_depth,
-        side_context=build_side_context(anchors, parent_turns),
+        side_context=build_side_context(
+            [anchor for anchor in anchors if isinstance(anchor, QuoteAnchor)],
+            parent_turns,
+            sources=sources,
+        ),
     )
     updated = updated.model_copy(update={"conversation_id": str(side_chat_id)})
     turn_index = _persist_turn(owner_id, side_chat_id, question, result, updated)
@@ -1108,11 +1262,9 @@ async def update_side_chat(
                     anchor.model_dump(mode="json")
                     for anchor in _assigned_anchors(
                         request.anchors,
-                        existing=[
-                            QuoteAnchor.model_validate(anchor)
-                            for anchor in record["anchors_json"] or []
-                        ],
+                        existing=parse_anchors(record["anchors_json"]),
                         turn_indexes=turn_indexes,
+                        book_ids=record["book_ids"],
                     )
                 ]
             updated = update_conversation(

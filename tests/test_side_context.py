@@ -7,7 +7,11 @@ from study.contracts import CitationRef, EvidenceRef, QuoteAnchor
 from study.side_context import (
     ANCHORED_TURN_HEADING,
     EARLIER_HEADING,
+    LOCATION_LABEL,
     QUOTE_HEADING,
+    SOURCE_HEADING,
+    UNMATCHED_NOTE,
+    AnchoredSource,
     ParentTurn,
     build_side_context,
     readable_quote,
@@ -301,3 +305,95 @@ class BuildSideContextTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def source(
+    anchor_id: str = "s1",
+    label: str = "p. 108 · 4.3 Class imbalance",
+    identities: tuple[str, ...] = ("page-chunk",),
+    selected_text: str = "",
+    matched: bool = True,
+) -> AnchoredSource:
+    return AnchoredSource(
+        anchor_id=anchor_id,
+        label=label,
+        identities=identities,
+        selected_text=selected_text,
+        matched=matched,
+    )
+
+
+class SourceAnchorContextTests(unittest.TestCase):
+    """A source-first turn: the page is the subject, and it is citable."""
+
+    def test_the_page_is_named_even_with_nothing_selected(self):
+        # The ambient case. A question typed with no gesture still has to say
+        # where the reader was, or the answer describes the right passage in
+        # the wrong chapter.
+        context = build_side_context([], [], sources=[source()])
+        self.assertIn(SOURCE_HEADING, context.request_context)
+        self.assertIn(f"{LOCATION_LABEL} p. 108 · 4.3 Class imbalance", context.request_context)
+        self.assertEqual(context.pinned_chunk_ids, ("page-chunk",))
+
+    def test_a_selection_is_quoted_and_offered_to_the_analyser(self):
+        context = build_side_context(
+            [],
+            [],
+            sources=[source(selected_text="The measurement that hides this")],
+        )
+        self.assertIn('"The measurement that hides this"', context.request_context)
+        # The analyser rewrites "what does this mean?" against the selection,
+        # exactly as it does for an answer quote.
+        self.assertIn("The measurement that hides this", context.anchored_quotes)
+
+    def test_the_source_is_never_labelled_uncitable(self):
+        # The inversion this whole feature turns on: a quote is generated text
+        # and may not ground a claim; a page of the reader's own book may.
+        context = build_side_context(
+            [],
+            [],
+            sources=[source(selected_text="Accuracy scores the shortcut")],
+        )
+        self.assertNotIn(QUOTE_HEADING, context.request_context)
+        self.assertIn("cite them as normal", context.request_context)
+
+    def test_an_unmatched_selection_is_marked_and_recorded(self):
+        context = build_side_context(
+            [],
+            [],
+            sources=[
+                source(
+                    anchor_id="s9",
+                    selected_text="Figure 4.6 Label counts",
+                    matched=False,
+                )
+            ],
+        )
+        self.assertIn(UNMATCHED_NOTE, context.request_context)
+        self.assertEqual(context.report.unresolved_anchor_ids, ["s9"])
+        # The page it was made on still grounds the answer.
+        self.assertEqual(context.pinned_chunk_ids, ("page-chunk",))
+
+    def test_a_matched_selection_leaves_the_unresolved_list_empty(self):
+        context = build_side_context([], [], sources=[source()])
+        self.assertEqual(context.report.unresolved_anchor_ids, [])
+
+    def test_the_source_takes_the_lowest_markers(self):
+        # Pinned evidence enters the list in this order, so the passage the
+        # reader was looking at carries [S1] rather than whatever an older
+        # answer happened to cite.
+        context = build_side_context(
+            [anchor("Skew arises when features differ [S2].")],
+            [parent_turn()],
+            sources=[source(identities=("page-chunk",))],
+        )
+        self.assertEqual(context.pinned_chunk_ids[0], "page-chunk")
+        self.assertIn("chunk-two", context.pinned_chunk_ids)
+
+    def test_both_kinds_of_anchor_are_reported(self):
+        context = build_side_context(
+            [anchor("Skew arises [S1].", anchor_id="q1")],
+            [parent_turn()],
+            sources=[source(anchor_id="s1")],
+        )
+        self.assertEqual(context.report.anchor_ids, ["q1", "s1"])
