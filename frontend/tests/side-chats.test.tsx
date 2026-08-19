@@ -161,6 +161,61 @@ describe("useSideChats", () => {
     });
   });
 
+  it("anchors a question to the moment the lecture is at", async () => {
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("moment"));
+    await act(async () => {
+      await api().open({
+        kind: "lecture_moment",
+        videoId: "8b1f3c4e-0000-4000-8000-000000000001",
+        timestampMs: 724_000,
+        question: "Why divide by the square root?",
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [
+        {
+          kind: "lecture_moment",
+          video_id: "8b1f3c4e-0000-4000-8000-000000000001",
+          timestamp_ms: 724_000,
+        },
+      ],
+    });
+  });
+
+  it("anchors a question to a marked stretch when there is one", async () => {
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("stretch"));
+    await act(async () => {
+      await api().open({
+        kind: "lecture_stretch",
+        videoId: "8b1f3c4e-0000-4000-8000-000000000001",
+        startMs: 700_000,
+        endMs: 750_000,
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [
+        {
+          kind: "lecture_stretch",
+          video_id: "8b1f3c4e-0000-4000-8000-000000000001",
+          start_ms: 700_000,
+          end_ms: 750_000,
+        },
+      ],
+    });
+  });
+
   it("carries the question into the window it just opened", async () => {
     // The question was typed before the window existed. Losing it here would
     // make the reader retype it into a window that opened empty.

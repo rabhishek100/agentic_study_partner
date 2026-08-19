@@ -151,7 +151,33 @@ export interface DocumentPassageAnchor {
   selected_text: string;
 }
 
-export type SourceAnchor = DocumentPageAnchor | DocumentPassageAnchor;
+/**
+ * Where the viewer is in a lecture, as an instant.
+ *
+ * The server widens it into a window when it resolves — biased backwards,
+ * because a question asked at 12:04 is nearly always about what was just
+ * said. The client sends the instant, not the window: how far "here" reaches
+ * is a property of the material rather than of the click.
+ */
+export interface LectureMomentAnchor {
+  kind: "lecture_moment";
+  anchor_id: string;
+  video_id: string;
+  timestamp_ms: number;
+}
+
+/** A span of lecture the viewer marked deliberately. */
+export interface LectureStretchAnchor {
+  kind: "lecture_stretch";
+  anchor_id: string;
+  video_id: string;
+  start_ms: number;
+  end_ms: number;
+}
+
+export type DocumentAnchor = DocumentPageAnchor | DocumentPassageAnchor;
+export type LectureAnchor = LectureMomentAnchor | LectureStretchAnchor;
+export type SourceAnchor = DocumentAnchor | LectureAnchor;
 export type Anchor = QuoteAnchor | SourceAnchor;
 
 export function isQuoteAnchor(anchor: Anchor): anchor is QuoteAnchor {

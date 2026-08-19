@@ -47,8 +47,11 @@ export type OpenSideChatRequest = { question?: string; title?: string } & (
   | { kind?: "answer_quote"; parentTurnIndex: number; quotedText: string }
   | { kind: "document_page"; bookId: number; page: number }
   | { kind: "document_passage"; bookId: number; page: number; selectedText: string }
+  | { kind: "lecture_moment"; videoId: string; timestampMs: number }
+  | { kind: "lecture_stretch"; videoId: string; startMs: number; endMs: number }
   // No anchor at all: a question about the conversation's scope that names no
-  // passage. The reader asks one by dismissing the page chip before sending.
+  // passage. The reader asks one by dismissing the page or moment chip before
+  // sending.
   | { kind: "unanchored" }
 );
 
@@ -111,6 +114,21 @@ function anchorPayload(
       book_id: request.bookId,
       page: request.page,
       selected_text: request.selectedText,
+    };
+  }
+  if (request.kind === "lecture_moment") {
+    return {
+      kind: "lecture_moment",
+      video_id: request.videoId,
+      timestamp_ms: request.timestampMs,
+    };
+  }
+  if (request.kind === "lecture_stretch") {
+    return {
+      kind: "lecture_stretch",
+      video_id: request.videoId,
+      start_ms: request.startMs,
+      end_ms: request.endMs,
     };
   }
   return {

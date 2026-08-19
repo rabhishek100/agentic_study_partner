@@ -6,6 +6,7 @@ import {
   Info,
   Loader2,
   MoreHorizontal,
+  Play,
   RotateCcw,
   Trash2,
   Upload,
@@ -320,7 +321,25 @@ export function VideoCard({ video, onRetry, onDelete, now }: VideoCardProps) {
         {inner}
       </Link>
       {/* Outside the anchor: a menu nested in a link is not operable. */}
-      <div className="absolute right-3 top-3">
+      <div className="absolute right-3 top-3 flex items-center gap-1">
+        {/*
+          The way into source-first study, beside the way into ask-first. A
+          lecture is something to watch as well as something to ask about, and
+          the library is where that choice belongs.
+        */}
+        <Button
+          asChild
+          size="icon-xs"
+          variant="ghost"
+          className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/card:opacity-100"
+        >
+          <Link
+            href={`/watch/${video.video_id}`}
+            aria-label={`Watch ${video.title}`}
+          >
+            <Play aria-hidden />
+          </Link>
+        </Button>
         <CardMenu
           video={video}
           onRemove={() => setConfirming(true)}

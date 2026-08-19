@@ -9,6 +9,7 @@
  * window ends up titled "undefined".
  */
 
+import { timecode } from "@/lib/timecode";
 import type { Anchor } from "@/lib/types";
 
 /** Where the anchor points, in the terms the reader would use. */
@@ -17,6 +18,10 @@ export function anchorLabel(anchor: Anchor): string {
     case "document_page":
     case "document_passage":
       return `p. ${anchor.page}`;
+    case "lecture_moment":
+      return timecode(anchor.timestamp_ms);
+    case "lecture_stretch":
+      return `${timecode(anchor.start_ms)} – ${timecode(anchor.end_ms)}`;
     default:
       return "From an answer";
   }
@@ -31,10 +36,15 @@ export function anchorLabel(anchor: Anchor): string {
  */
 export function anchorText(anchor: Anchor): string | null {
   switch (anchor.kind) {
-    case "document_page":
-      return null;
     case "document_passage":
       return anchor.selected_text;
+    case "document_page":
+    case "lecture_moment":
+    case "lecture_stretch":
+      // A place, not a selection. The viewer marked time; the words are the
+      // transcript units the answer will cite, so there is nothing separate
+      // to quote and nothing that could fail to match.
+      return null;
     default:
       return anchor.quoted_text;
   }

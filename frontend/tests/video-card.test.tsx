@@ -79,7 +79,11 @@ describe("VideoCard", () => {
   it("opens a usable lecture and carries no status chip", () => {
     render(card());
 
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/videos/video-1");
+    // Two ways in now: the card itself opens the lecture's workspace, and the
+    // action beside it opens the lecture to watch.
+    expect(
+      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
+    ).toEqual(["/videos/video-1", "/watch/video-1"]);
     // Under a heading that already says "Ready to ask", a chip on every row
     // is noise that hides the one row saying something different.
     expect(screen.queryByText("Ready")).toBeNull();
@@ -98,7 +102,7 @@ describe("VideoCard", () => {
       screen.getByText("The transcript covers 94% of the lecture."),
     ).toBeInTheDocument();
     // Still a link: a partial lecture answers questions.
-    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(screen.getAllByRole("link").length).toBeGreaterThan(0);
   });
 
   it("does not link a failed lecture to a workspace with nothing to answer", () => {
@@ -219,7 +223,7 @@ describe("VideoCard", () => {
       }),
     );
 
-    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(screen.getAllByRole("link").length).toBeGreaterThan(0);
     expect(screen.getByText(/upload never finished/)).toBeInTheDocument();
   });
 });
