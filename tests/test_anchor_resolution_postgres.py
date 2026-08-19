@@ -14,11 +14,14 @@ from retrieval.models import ChunkingConfig
 from retrieval.postgres import rebuild
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
+from evals.source_first import evaluate_source_first
 from study.anchors import resolve_document_anchors
 from study.contracts import (
     DocumentPageAnchor,
     DocumentPassageAnchor,
     DocumentSectionAnchor,
+    TurnResult,
+    parse_anchor,
 )
 from tests.postgres import PostgresOwnerMixin
 
@@ -229,6 +232,103 @@ class AnchorResolutionPostgresTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertFalse(resolved.matched)
         self.assertEqual(resolved.chunk_ids, ())
+
+
+class SourceFirstEvaluationTests(AnchorResolutionPostgresTests):
+    """The evaluation slice's resolver, against a real book.
+
+    `test_source_first_evaluation.py` drives the scoring with stubs. This
+    drives the half that talks to the database — which is the half the
+    `--resolution-only` run measures, and the only measurement in the slice
+    that costs nothing to take.
+    """
+
+    def resolver(self):
+        def resolve(anchor: dict):
+            (resolved,) = resolve_document_anchors(
+                self.database,
+                [parse_anchor({**anchor, "anchor_id": "gold"})],
+                owner_id=self.owner_id,
+            )
+            return resolved.matched, resolved.chunk_ids
+
+        return resolve
+
+    def test_the_slice_measures_resolution_against_a_real_book(self):
+        cases = [
+            {
+                "id": "hit",
+                "question": "What does this mean?",
+                "anchor": {
+                    "kind": "document_passage",
+                    "book_id": self.book_id,
+                    "page": 2,
+                    "selected_text": "The measurement that hides this is accuracy",
+                },
+                "expect_selection_resolves": True,
+            },
+            {
+                "id": "miss",
+                "question": "What is this figure showing?",
+                "anchor": {
+                    "kind": "document_passage",
+                    "book_id": self.book_id,
+                    "page": 2,
+                    "selected_text": "Figure 4.6 Label counts before and after",
+                },
+                "expect_selection_resolves": False,
+            },
+        ]
+        resolve = self.resolver()
+
+        def answered(question, anchor, *, stay_in_source):
+            """A turn shaped the way the real pipeline shapes an anchored one.
+
+            The anchored passages are pinned, so they *are* the evidence and
+            they lead it. Stubbing an empty evidence list instead would make
+            this test pass while measuring nothing.
+            """
+
+            _, chunk_ids = resolve(anchor)
+            return TurnResult(
+                question=question,
+                answer="It scores the shortcut [S1].",
+                route="retrieval_qa",
+                history_dependency="independent",
+                outcome="answer",
+                evidence=[
+                    {
+                        "node_id": index,
+                        "pages": [2],
+                        "path": "4.3 Class imbalance",
+                        "chunk_id": chunk_id,
+                        "rank": index,
+                    }
+                    for index, chunk_id in enumerate(chunk_ids, start=1)
+                ],
+                grounding_rung="anchor",
+            )
+
+        summary = evaluate_source_first(
+            cases,
+            resolve=resolve,
+            run_turn=answered,
+        )
+
+        self.assertEqual(summary["cases"], 2)
+        self.assertEqual(summary["errors"], [])
+        # One of the two selections is real text and one is a drawn caption,
+        # which is the shape a real page has.
+        self.assertEqual(summary["selection_resolution_rate"], 0.5)
+        # Both cases still ground on the page, so the anchored passages reach
+        # the evidence either way — which is the designed fallback for a
+        # selection that could not be matched.
+        self.assertEqual(summary["anchor_recall"], 1.0)
+        self.assertEqual(summary["anchor_leads"], 1.0)
+        self.assertEqual(summary["blended"], [])
+        # Both agree with what the cases expected, so neither is a failure.
+        self.assertNotIn("hit", summary["failures"])
+        self.assertNotIn("miss", summary["failures"])
 
 
 if __name__ == "__main__":
