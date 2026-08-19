@@ -10,7 +10,8 @@
   "book": {
     "database_book_id": 1,
     "title": "Designing Machine Learning Systems",
-    "author": "Chip Huyen"
+    "author": "Chip Huyen",
+    "database_book_id_note": "Provenance only. A book id belongs to one database; the runner looks the title up in whatever database it is pointed at, or takes --book-id."
   },
   "judgment_unit": "anchored_turn",
   "measures": {
@@ -27,7 +28,6 @@
       "question": "Why is this sampling method used when the total is unknown?",
       "anchor": {
         "kind": "document_page",
-        "book_id": 1,
         "page": 106
       },
       "expect_rung": "anchor",
@@ -41,7 +41,6 @@
       "question": "What does this mean in practice?",
       "anchor": {
         "kind": "document_passage",
-        "book_id": 1,
         "page": 155,
         "selected_text": "data leakage"
       },
@@ -56,7 +55,6 @@
       "question": "How does this compare with the other ways of handling it?",
       "anchor": {
         "kind": "document_page",
-        "book_id": 1,
         "page": 126
       },
       "expect_rung": "open_source",
@@ -70,7 +68,6 @@
       "question": "What happens to this once the model is deployed?",
       "anchor": {
         "kind": "document_page",
-        "book_id": 1,
         "page": 262
       },
       "expect_rung": "open_source",
@@ -83,7 +80,6 @@
       "question": "Does scikit-learn's class_weight='balanced' do this for me?",
       "anchor": {
         "kind": "document_page",
-        "book_id": 1,
         "page": 126
       },
       "expect_rung": "model_knowledge",
@@ -97,7 +93,6 @@
       "question": "What did the 2024 EU AI Act change about this?",
       "anchor": {
         "kind": "document_page",
-        "book_id": 1,
         "page": 367
       },
       "expect_rung": "model_knowledge",
@@ -110,7 +105,6 @@
       "question": "Does scikit-learn's class_weight='balanced' do this for me?",
       "anchor": {
         "kind": "document_page",
-        "book_id": 1,
         "page": 126
       },
       "stay_in_source": true,
@@ -124,7 +118,6 @@
       "question": "What is this figure showing?",
       "anchor": {
         "kind": "document_passage",
-        "book_id": 1,
         "page": 127,
         "selected_text": "Figure 4-10. Handling class imbalance"
       },

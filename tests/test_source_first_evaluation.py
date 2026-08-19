@@ -246,12 +246,19 @@ class GoldSetTests(unittest.TestCase):
         self.assertFalse(self.gold["review_provenance"]["human_reviewed"])
 
     def test_the_anchors_are_the_shape_the_resolver_takes(self):
+        # The book id is supplied by the runner, not by the set: an id belongs
+        # to one database, and the same PDF ingested elsewhere gets another.
+        # A set that carried one resolved to nothing in a fresh database and
+        # reported it as a measurement.
         from study.contracts import parse_anchor
 
         for case in self.gold["cases"]:
             with self.subTest(case=case["id"]):
-                anchor = parse_anchor({**case["anchor"], "anchor_id": "gold"})
-                self.assertTrue(anchor.book_id > 0)
+                self.assertNotIn("book_id", case["anchor"])
+                anchor = parse_anchor(
+                    {**case["anchor"], "book_id": 1, "anchor_id": "gold"}
+                )
+                self.assertEqual(anchor.book_id, 1)
 
 
 if __name__ == "__main__":

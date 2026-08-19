@@ -42,6 +42,15 @@ def _arguments():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--owner-id", help="Owner UUID; defaults to DEFAULT_OWNER_ID")
     parser.add_argument(
+        "--book-id",
+        type=int,
+        help=(
+            "The book to anchor against. Defaults to looking the gold set's "
+            "title up in this database, because a book id is a property of one "
+            "database rather than of the judgments."
+        ),
+    )
+    parser.add_argument(
         "--library-book-id",
         type=int,
         action="append",
@@ -65,6 +74,30 @@ def _select(dataset, args):
     if missing:
         raise SystemExit(f"unknown case(s): {', '.join(sorted(missing))}")
     return chosen
+
+
+def _book_id(dataset: dict, override: int | None, owner_id: UUID) -> int:
+    """Which book in *this* database the gold set is about."""
+
+    if override is not None:
+        return override
+    title = dataset["book"]["title"]
+    with database_connection(readonly=True) as connection:
+        row = connection.execute(
+            """
+            select id from books
+            where owner_id = %s and title = %s and status = 'ready'
+            order by id desc
+            limit 1
+            """,
+            (owner_id, title),
+        ).fetchone()
+    if row is None:
+        raise SystemExit(
+            f"no ready book titled {title!r} for this owner. "
+            "Ingest it, or pass --book-id."
+        )
+    return int(row["id"])
 
 
 def _resolver(owner_id: UUID):
@@ -115,6 +148,14 @@ def main() -> None:
     dataset = json.loads(args.gold.read_text())
     cases = _select(dataset, args)
     owner_id = parse_owner_id(args.owner_id or environment_owner_id())
+    book_id = _book_id(dataset, args.book_id, owner_id)
+    # The gold set names its book by title and records an id only as
+    # provenance. Ingesting the same PDF into a different database gives it a
+    # different id, and a judgment that silently resolves to nothing is worse
+    # than one that refuses to run.
+    cases = [
+        {**case, "anchor": {**case["anchor"], "book_id": book_id}} for case in cases
+    ]
     resolve = _resolver(owner_id)
 
     if args.resolution_only:
