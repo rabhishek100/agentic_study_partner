@@ -40,8 +40,15 @@ fi
 built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "deploying ${service} at ${revision}"
-railway variable set --service "$service" "BUILD_REVISION=${revision}" >/dev/null
-railway variable set --service "$service" "BUILD_TIME=${built_at}" >/dev/null
+# `--skip-deploys` on both. Setting a service variable triggers a redeploy of
+# whatever is currently deployed, so recording the revision queued two builds of
+# the *old* source seconds before the real upload — and then the upload waited
+# behind them for a build slot. Every past deploy in `railway deployment list`
+# shows the same three entries, two of them REMOVED. On 2026-08-19, with
+# Railway's builders degraded, the two spurious builds wedged and the real
+# deployment failed without ever being assigned a build.
+railway variable set --skip-deploys --service "$service" "BUILD_REVISION=${revision}" >/dev/null
+railway variable set --skip-deploys --service "$service" "BUILD_TIME=${built_at}" >/dev/null
 
 case "$service" in
     web)
