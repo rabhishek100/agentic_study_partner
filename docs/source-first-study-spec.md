@@ -298,12 +298,35 @@ Each stage is a reviewable commit that leaves the application working.
 | 1a — Document anchors | Anchor union, resolution for pages, selections and sections, pinning, context assembly, API acceptance, tests | A side chat created with a page anchor answers from that page and cites it first; an unmatched selection is recorded as unresolved rather than guessed |
 | 1b — The ladder | Grounding rung and widenings on the turn, sufficiency node and retry cycle in the graph, the stay-in-source lock, tests | A question the open book does not cover records a widening with its reason, and the same turn without a policy takes exactly the path it took before |
 | 1c — Lecture anchors | Moment and stretch resolution against transcript units and frames, the same rungs on the lecture turn contract | A side chat anchored to a stretch of lecture answers from it and cites its timestamps |
-| 2 — Read shell | `/read/[bookId]`, document-first layout, ambient chip, composer, floating window layer wired in, position recorded | A reader opens a book, types a question with no selection, and gets an answer grounded in the page they are on |
+| 2a — Reading sessions | `session_kind` and `source_position` on `conversations`, open-or-resume, position | Opening a book twice resumes the session rather than accumulating one per visit |
+| 2b — Read shell | `/read/[bookId]`, document-first layout, ambient chip, composer, floating window layer wired in, position recorded | A reader opens a book, types a question with no selection, and gets an answer grounded in the page they are on |
 | 3 — Capture and marks | Selection popover, resolve-before-asking, persisted marks in the margin, reopening from a mark, multi-anchor windows | Highlighting a paragraph opens a window anchored to it, and the mark is still there on the next visit |
-| 4 — Watch | `/watch/[videoId]`, playhead reporting, moment and stretch anchors, transcript selection, frame context, scrubber marks | A question asked at 12:04 answers from that stretch of lecture and cites its timestamps |
+| 4a — The playhead | Reading the position out of both players, verified against a real embed | The chip carries a timestamp before anything is played, and stops asking once the embed answers |
+| 4b — Watch sessions | `session_kind` and `source_position` on `video.conversations`, open-or-resume, position, anchor resolution | Opening a lecture twice resumes the session with its marks, and a stretch resolves before a question is asked |
+| 4c — Watch surface | `/watch/[videoId]`, moment and stretch anchors, timeline marks, linked document in the right region | A question asked at 12:04 answers from that stretch of lecture and cites its timestamps |
 | 5 — Ladder made visible | Rung badges, the separated out-of-source block, the stay-in-source lock, widening reasons in the inspector | An escalated answer is unmistakable at a glance, and the inspector shows why it escalated |
 | 6 — Continuity | Continue-reading band in the library, session rail, session recap handing off to decks and interview questions | The library offers to resume a half-read book at its page, and a finished session can become a deck |
 | 7 — Evaluation | The source-first gold slice and its report | Anchor recall, rung correctness and the no-blend assertion are measured and reported |
+
+### Deferred out of stage 4
+
+**Transcript selection.** Stage 4 was specified to include selecting words in
+the transcript beside the player, and it does not. The client can reach a
+lecture's frames through the timeline endpoint but never its words: nothing
+serves the published transcript. Selecting text requires an endpoint that does
+not exist, and that is a piece of work in its own right rather than a corner of
+this one. Moment and stretch anchors cover the gesture the stage's acceptance
+test names; what is missing is the finer one.
+
+**What the playhead work found.** This was called the one genuinely unknown
+piece, and probing a real embed beat assuming twice over. A youtube-nocookie
+frame answers the `listening` handshake with `initialDelivery`, carrying
+`currentTime`, `duration` and `playerState` — so a position exists before
+anything is played, which is exactly what the ambient chip needs; accepting
+only `infoDelivery`, the obvious reading, would have left the chip empty until
+playback started. And a handshake sent to an already-initialised frame is
+answered only with `alreadyInitialized`, so repeating it forever — the obvious
+way to handle "the frame may not be ready yet" — produces nothing but noise.
 
 ## Non-goals
 
