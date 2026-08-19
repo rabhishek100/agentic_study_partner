@@ -58,8 +58,11 @@ class VideoLibrarySummaryTests(unittest.TestCase):
         """A run still in flight must not post a frame from the version it
         replaces, and a lecture that has never published has nothing to post."""
         with connection(self.database_url) as database:
+            # `videos_ready_requires_current_version` makes the two an
+            # equivalence, so the readiness has to come back with the version.
             database.execute(
-                "update video.videos set current_ingestion_version_id = null "
+                "update video.videos set current_ingestion_version_id = null, "
+                "readiness_status = 'processing' "
                 "where id = %s and owner_id = %s",
                 (self.video.video_id, self.owner),
             )
@@ -87,14 +90,22 @@ class VideoLibrarySummaryTests(unittest.TestCase):
                     "source": self.video.source_id,
                 },
             )
+            # A ready pdf has to name where its bytes are: the schema only
+            # lets storage stay empty while the deck is still being read.
             resource_id = database.execute(
                 """
                 insert into video.resources (
-                    owner_id, resource_kind, origin, status, title, page_count
-                ) values (%s, 'pdf', 'url', 'ready', 'Slides', 40)
+                    owner_id, resource_kind, origin, status, title,
+                    original_filename, storage_backend, storage_key,
+                    content_hash, size_bytes, media_type, page_count
+                ) values (
+                    %s, 'pdf', 'upload', 'ready', 'Slides',
+                    'slides.pdf', 'filesystem', %s,
+                    %s, 4096, 'application/pdf', 40
+                )
                 returning id
                 """,
-                (self.owner,),
+                (self.owner, f"{self.owner}/canonical/resources/slides.pdf", "c" * 64),
             ).fetchone()["id"]
             database.execute(
                 """
@@ -118,8 +129,11 @@ class VideoLibrarySummaryTests(unittest.TestCase):
             resource_id = database.execute(
                 """
                 insert into video.resources (
-                    owner_id, resource_kind, origin, status, title
-                ) values (%s, 'pdf', 'upload', 'processing', 'Slides')
+                    owner_id, resource_kind, origin, status, title,
+                    original_filename
+                ) values (
+                    %s, 'pdf', 'upload', 'processing', 'Slides', 'slides.pdf'
+                )
                 returning id
                 """,
                 (self.owner,),

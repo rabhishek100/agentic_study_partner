@@ -871,7 +871,8 @@ class BookTitleTests(unittest.TestCase):
     def test_a_placeholder_loses_to_the_filename(self) -> None:
         self.assertEqual(
             resolve_title(embedded="TestDoc", filename="PythonMastery (1).pdf"),
-            "Python Mastery (1)",
+            # The `(1)` a second download adds is not part of the name.
+            "Python Mastery",
         )
         self.assertEqual(
             resolve_title(
