@@ -85,6 +85,7 @@ from study.contracts import (
     parse_anchors,
 )
 from study.conversation import execute_conversation_turn, new_conversation_state
+from study.grounding import GroundingPolicy
 from study.dictation import (
     MAXIMUM_QUESTION_BYTES,
     DictationError,
@@ -1169,12 +1170,30 @@ def _run_side_turn(
 
     book_ids = list(record["book_ids"])
     _require_ready_books(owner_id, book_ids)
+    # A side chat anchored to a page of a book is a source-first turn: that
+    # book is what the reader has open, and the rest of the conversation's
+    # selection is what the ladder may widen to if the page does not answer.
+    # Anchored to an answer instead, there is no open source and the ladder
+    # stays out of the way.
+    anchored_books = {
+        anchor.book_id
+        for anchor in anchors
+        if isinstance(
+            anchor,
+            (DocumentPageAnchor, DocumentPassageAnchor, DocumentSectionAnchor),
+        )
+    }
     result, updated = execute_conversation_turn(
         question,
         _side_chat_state(record),
         owner_id=owner_id,
         retrieval_mode=record["retrieval_mode"],
         book_ids=book_ids,
+        grounding_policy=(
+            GroundingPolicy.for_source(anchored_books, library_book_ids=book_ids)
+            if anchored_books
+            else None
+        ),
         token_callback=token_callback,
         prompt_profile=_stored_profile(record["prompt_profile_json"]),
         response_depth=request.response_depth,

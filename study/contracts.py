@@ -32,6 +32,24 @@ AnswerArchetype = Literal[
 ]
 ResponseDepth = Literal["quick", "interview", "deep"]
 
+# Where an answer's evidence came from, as a ladder from the reader's own page
+# outward. Recorded on the turn so that "closest match" is an observable
+# property of a run rather than a claim about a prompt.
+#
+# The order is the escalation order, and the boundary that matters is between
+# `library` and `model_knowledge`: everything at or below `library` is grounded
+# in the reader's sources and cites them, everything above is not grounded at
+# all and must say so. An answer never mixes the two.
+GroundingRung = Literal[
+    "anchor",
+    "open_source",
+    "library",
+    "model_knowledge",
+    "web_search",
+]
+
+GROUNDED_RUNGS = frozenset({"anchor", "open_source", "library"})
+
 
 class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -382,6 +400,19 @@ class WebSourceRef(ContractModel):
     rank: int | None = None
 
 
+class WideningStep(ContractModel):
+    """One escalation, and what caused it.
+
+    Escalation is automatic, so the record of it is what keeps the behaviour
+    honest: every widening carries the verdict that provoked it, and both the
+    answer inspector and the trace show the ladder the turn actually climbed.
+    """
+
+    from_rung: GroundingRung
+    to_rung: GroundingRung
+    reason: str = Field(min_length=1, max_length=2_000)
+
+
 class TurnResult(ContractModel):
     question: str
     answer: str
@@ -405,3 +436,22 @@ class TurnResult(ContractModel):
     side_context: SideContextReport | None = None
     web_sources: list[WebSourceRef] = Field(default_factory=list)
     source_type: Literal["book_library", "model_knowledge", "web_search"] = "book_library"
+    # Which rung of the grounding ladder answered, and every widening it took
+    # to get there. Null on a turn recorded before the ladder existed, and on
+    # one that never ran under a grounding policy — the main chat's behaviour
+    # is deliberately unchanged.
+    grounding_rung: GroundingRung | None = None
+    widenings: list[WideningStep] = Field(default_factory=list)
+
+    @property
+    def is_grounded(self) -> bool:
+        """Whether this answer rests on the reader's own sources.
+
+        The one question the interface has to get right: a grounded answer
+        carries citations, an ungrounded one carries a notice instead, and
+        nothing may render as both.
+        """
+
+        if self.grounding_rung is not None:
+            return self.grounding_rung in GROUNDED_RUNGS
+        return self.source_type == "book_library"
