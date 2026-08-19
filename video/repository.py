@@ -813,7 +813,23 @@ VIDEO_SELECT = """
                      and running.video_id = v.id
                      and running.status = 'running'
                )
-           ) as deletable
+           ) as deletable,
+           poster.id as poster_frame_id,
+           (
+               select count(*) from video.chapters as chapter
+               where chapter.owner_id = v.owner_id and chapter.video_id = v.id
+           ) as chapter_count,
+           (
+               select count(*)
+               from video.video_resources as attachment
+               join video.resources as resource
+                 on resource.id = attachment.resource_id
+                and resource.owner_id = attachment.owner_id
+               where attachment.owner_id = v.owner_id
+                 and attachment.video_id = v.id
+                 and attachment.role = 'slides'
+                 and resource.status = 'ready'
+           ) as slide_count
     from video.videos as v
     join video.video_sources as s
       on s.video_id = v.id and s.owner_id = v.owner_id and s.is_primary
@@ -826,6 +842,23 @@ VIDEO_SELECT = """
         where owner_id = v.owner_id and video_id = v.id
         order by created_at desc, id desc limit 1
     ) as latest_job on true
+    -- The lecture's face, from frames the published version already stored.
+    --
+    -- Nearest the midpoint rather than first: the opening seconds of a lecture
+    -- are a title card, a black frame, or someone walking to the lectern, and
+    -- a library of those is a library of identical rectangles. Restricted to
+    -- the current version, so a lecture still processing has no poster rather
+    -- than a stale one from the run being replaced.
+    left join lateral (
+        select frame.id
+        from video.frames as frame
+        where frame.owner_id = v.owner_id
+          and frame.video_id = v.id
+          and frame.ingestion_version_id = v.current_ingestion_version_id
+        order by abs(frame.timestamp_ms - coalesce(v.duration_ms, 0) / 2),
+                 frame.timestamp_ms
+        limit 1
+    ) as poster on true
 """
 
 

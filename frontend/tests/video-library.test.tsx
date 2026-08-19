@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { FirstRun } from "@/components/video/first-run";
 import { ProcessingBand } from "@/components/video/processing-band";
 import { monogram } from "@/components/video/video-poster";
 import { VideoTile } from "@/components/video/video-tile";
@@ -52,6 +53,9 @@ function video(overrides: Partial<VideoSummary> = {}): VideoSummary {
     playback: { kind: "local", youtube_video_id: null, media_url: "/x.mp4" },
     latest_ingestion: job(),
     readiness_notes: [],
+    poster_frame_id: null,
+    chapter_count: 0,
+    slide_count: 0,
     deletable: true,
     created_at: "2026-08-05T10:00:00Z",
     updated_at: "2026-08-05T10:00:00Z",
@@ -201,5 +205,60 @@ describe("processing band", () => {
       "aria-valuenow",
       "58",
     );
+  });
+});
+
+describe("card signals", () => {
+  it("shows slides and chapters only when the lecture has them", () => {
+    render(
+      <ul>
+        <VideoTile
+          video={video({ slide_count: 1, chapter_count: 12 })}
+          onDelete={vi.fn()}
+          now={NOW}
+        />
+      </ul>,
+    );
+
+    expect(screen.getByText("Slides")).toBeInTheDocument();
+    expect(screen.getByText("12 chapters")).toBeInTheDocument();
+  });
+
+  it("says nothing rather than 'no slides' on a lecture without them", () => {
+    render(<ul><VideoTile video={video()} onDelete={vi.fn()} now={NOW} /></ul>);
+
+    expect(screen.queryByText(/slides/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/chapter/i)).not.toBeInTheDocument();
+  });
+
+  it("counts one chapter without pluralising it", () => {
+    render(
+      <ul>
+        <VideoTile
+          video={video({ chapter_count: 1 })}
+          onDelete={vi.fn()}
+          now={NOW}
+        />
+      </ul>,
+    );
+
+    expect(screen.getByText("1 chapter")).toBeInTheDocument();
+  });
+});
+
+describe("first run", () => {
+  it("names both ways in and what happens after, without promising a duration", () => {
+    render(<FirstRun onAdded={vi.fn()} />);
+
+    expect(screen.getByText("Paste a YouTube link")).toBeInTheDocument();
+    expect(screen.getByText("Upload a recording")).toBeInTheDocument();
+    expect(screen.getByText(/12 stages in all/)).toBeInTheDocument();
+    expect(screen.getByText(/you can\s+close the page/)).toBeInTheDocument();
+    expect(screen.queryByText(/\d+\s*(min|minutes|hours)/i)).not.toBeInTheDocument();
+  });
+
+  it("offers the same add dialog the rail does", () => {
+    render(<FirstRun onAdded={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /add lecture/i })).toBeInTheDocument();
   });
 });

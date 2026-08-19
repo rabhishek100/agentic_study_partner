@@ -9,6 +9,7 @@ import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AddVideoDialog } from "@/components/video/add-video-dialog";
 import { ContinueBand } from "@/components/video/continue-band";
+import { FirstRun } from "@/components/video/first-run";
 import { ProcessingBand } from "@/components/video/processing-band";
 import { VideoCard } from "@/components/video/video-card";
 import { VideoTile } from "@/components/video/video-tile";
@@ -317,18 +318,7 @@ export default function VideosPage() {
               <Skeleton className="aspect-video w-full rounded-lg" />
             </div>
           ) : videos.length === 0 ? (
-            <div className="flex flex-col items-start gap-3 rounded-lg border border-dashed border-border p-8">
-              <p className="font-medium">No lectures yet</p>
-              <p className="max-w-prose text-sm leading-6 text-muted-foreground">
-                Add a YouTube link or upload a recording. Processing runs in the
-                background — it reads the transcript, what was on screen, and any
-                slides you attach, and the lecture becomes askable when it
-                finishes.
-              </p>
-              <div className="w-56">
-                <AddVideoDialog onAdded={load} />
-              </div>
-            </div>
+            <FirstRun onAdded={load} />
           ) : (
             <>
               {shows("processing") ? (

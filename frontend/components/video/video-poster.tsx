@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useAuthenticatedImage } from "@/hooks/use-authenticated-image";
 import { formatTimestamp, type VideoSummary } from "@/lib/video-types";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +53,21 @@ export function VideoPoster({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const source = youtubePoster(video);
+  const youtube = youtubePoster(video);
+  /*
+    An uploaded lecture's poster is one of its own stored frames, served by an
+    endpoint that authenticates by bearer token — which an `<img src>` cannot
+    carry — so the bytes come through the same authenticated-image path the
+    workspace's timeline uses. The hook is called unconditionally and given an
+    empty source when there is nothing to fetch, because hooks cannot be
+    called behind a condition.
+  */
+  const frame = useAuthenticatedImage(
+    !youtube && video.poster_frame_id !== null
+      ? `/api/videos/${video.video_id}/frames/${video.poster_frame_id}/image`
+      : "",
+  );
+  const source = youtube ?? (frame.status === "ready" ? frame.url : null);
   const duration = video.duration_ms ? formatTimestamp(video.duration_ms) : null;
 
   return (

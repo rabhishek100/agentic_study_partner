@@ -1,6 +1,6 @@
 "use client";
 
-import { Info, MoreHorizontal, Trash2 } from "lucide-react";
+import { FileText, Info, List, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -87,6 +87,29 @@ export function VideoTile({ video, onDelete, lastAsked, now }: VideoTileProps) {
               .filter(Boolean)
               .join(" · ")}
           </span>
+          {/*
+            The two facts that predict whether a lecture will answer well.
+            Slides are what lets an answer cite the deck rather than paraphrase
+            the speech; chapters are what makes "review the second half" mean
+            something. Both are silent when absent — a row of "no slides" on
+            every card is a column of nothing.
+          */}
+          {video.slide_count > 0 || video.chapter_count > 0 ? (
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {video.slide_count > 0 ? (
+                <span className="flex items-center gap-1">
+                  <FileText aria-hidden className="size-3.5 shrink-0 text-action" />
+                  Slides
+                </span>
+              ) : null}
+              {video.chapter_count > 0 ? (
+                <span className="flex items-center gap-1">
+                  <List aria-hidden className="size-3.5 shrink-0" />
+                  {video.chapter_count} chapter{video.chapter_count === 1 ? "" : "s"}
+                </span>
+              ) : null}
+            </span>
+          ) : null}
           {partial ? (
             /*
               Measured, not a badge. "Partial" alone is a worry with no
