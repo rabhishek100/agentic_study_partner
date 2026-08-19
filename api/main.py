@@ -270,8 +270,13 @@ def _tagged_anchors(value: object) -> object:
 
 
 class CreateSideChatRequest(ContractModel):
+    # Zero anchors is a real request, not a malformed one: it means "ask this
+    # conversation's scope without naming a passage". The anchor editor has
+    # always allowed a reader to remove the last chip and keep the thread, and
+    # a reading session's composer offers the same thing before the first turn
+    # — a question about the book rather than about the page in front of them.
     anchors: list[SideChatAnchorRequest] = Field(
-        min_length=1,
+        default_factory=list,
         max_length=MAXIMUM_ANCHORS,
     )
     title: str | None = Field(default=None, min_length=1, max_length=200)
@@ -989,6 +994,10 @@ def _side_chat_title(anchors: Sequence[Anchor], anchored_turn: dict | None) -> s
     and a bare page anchor is named by the page.
     """
 
+    if not anchors:
+        # Named by its first question instead, which the caller passes as the
+        # title; this is only the fallback for a caller that passes neither.
+        return "New question"
     first = anchors[0]
     if isinstance(first, QuoteAnchor):
         return (

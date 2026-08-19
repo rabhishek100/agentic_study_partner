@@ -95,10 +95,97 @@ describe("useSideChats", () => {
       expect.objectContaining({ method: "POST" }),
     );
     const [, options] = apiFetch.mock.calls.at(-1)!;
+    // The kind is sent explicitly now that anchors can point at a source as
+    // well as at an answer. The server still defaults an untagged anchor to a
+    // quote, for anchors stored before the distinction existed — but a client
+    // written today should say which one it means rather than lean on that.
     expect(JSON.parse((options as RequestInit).body as string)).toEqual({
-      anchors: [{ parent_turn_index: 2, quoted_text: "the gap compounds" }],
+      anchors: [
+        {
+          kind: "answer_quote",
+          parent_turn_index: 2,
+          quoted_text: "the gap compounds",
+        },
+      ],
     });
     expect(screen.getByText("thread new")).toBeInTheDocument();
+  });
+
+  it("anchors a question to the page the reader is on", async () => {
+    // Source-first study: the reader typed under the document, and the anchor
+    // says where they were rather than quoting anything.
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("page"));
+
+    await act(async () => {
+      await api().open({
+        kind: "document_page",
+        bookId: 7,
+        page: 108,
+        question: "Why is accuracy the wrong measure here?",
+        title: "Why is accuracy the wrong measure here?",
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [{ kind: "document_page", book_id: 7, page: 108 }],
+      title: "Why is accuracy the wrong measure here?",
+    });
+  });
+
+  it("sends no anchor when the reader takes the page out", async () => {
+    // The chip *is* the anchor. Representing "no page" by anchoring to some
+    // other page would be a lie the reader could not see.
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("loose"));
+
+    await act(async () => {
+      await api().open({
+        kind: "unanchored",
+        question: "How does this compare to weighted sampling?",
+        title: "How does this compare to weighted sampling?",
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [],
+      title: "How does this compare to weighted sampling?",
+    });
+  });
+
+  it("carries the question into the window it just opened", async () => {
+    // The question was typed before the window existed. Losing it here would
+    // make the reader retype it into a window that opened empty.
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("pending"));
+
+    await act(async () => {
+      await api().open({
+        kind: "document_page",
+        bookId: 7,
+        page: 108,
+        question: "Why is accuracy the wrong measure here?",
+      });
+    });
+
+    expect(api().windows.at(-1)?.pendingQuestion).toBe(
+      "Why is accuracy the wrong measure here?",
+    );
+
+    await act(async () => api().clearPending("pending"));
+
+    expect(api().windows.at(-1)?.pendingQuestion).toBeUndefined();
   });
 
   it("anchors a whole answer without sending a request that must be rejected", async () => {

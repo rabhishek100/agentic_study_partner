@@ -158,8 +158,15 @@ export function PdfViewer({
   onPageChange: (page: number) => void;
   zoom: number;
   onZoomChange: (zoom: number) => void;
-  onMinimize: () => void;
-  onClose: () => void;
+  /**
+   * Both optional, because the pane is not always a panel. In a reading
+   * session the document *is* the page: there is nothing to minimize it to,
+   * and closing it would leave the reader looking at nothing. Omitting them
+   * removes the controls rather than leaving two buttons that cannot mean
+   * anything.
+   */
+  onMinimize?: () => void;
+  onClose?: () => void;
 }) {
   const [source, setSource] = useState<DocumentSource | null>(null);
   const [error, setError] = useState("");
@@ -314,22 +321,26 @@ export function PdfViewer({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{target.title}</p>
         </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Minimize the document"
-          onClick={onMinimize}
-        >
-          <Minimize2 aria-hidden />
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Close the document"
-          onClick={onClose}
-        >
-          <X aria-hidden />
-        </Button>
+        {onMinimize && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Minimize the document"
+            onClick={onMinimize}
+          >
+            <Minimize2 aria-hidden />
+          </Button>
+        )}
+        {onClose && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Close the document"
+            onClick={onClose}
+          >
+            <X aria-hidden />
+          </Button>
+        )}
       </header>
 
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">

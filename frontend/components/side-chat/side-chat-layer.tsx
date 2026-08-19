@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import { FLOATING_MEDIA_QUERY } from "@/lib/floating-window";
 import type { SideChatSurface, SideChatTurn } from "@/lib/side-chat";
-import type { QuoteAnchor } from "@/lib/types";
+import type { Anchor } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +44,7 @@ export interface SideChatLayerProps {
   onClose: (sideChatId: string) => void;
   onFocus: (sideChatId: string) => void;
   onSettled: (sideChatId: string, recorded: boolean) => void;
-  onAnchorsChange: (sideChatId: string, anchors: QuoteAnchor[]) => void;
+  onAnchorsChange: (sideChatId: string, anchors: Anchor[]) => void;
   surface: SideChatSurface;
   renderTurns: (state: {
     turns: SideChatTurn<unknown>[];
@@ -52,6 +52,8 @@ export interface SideChatLayerProps {
     isQueued: boolean;
   }) => React.ReactNode;
   resolveQuoteTurn: (text: string) => number | null;
+  /** Clears the question a window was opened with, once it has asked it. */
+  onPendingSent?: (sideChatId: string) => void;
   /** Reported here because a side chat that failed to open has no window. */
   error?: string;
   onDismissError?: () => void;
@@ -104,6 +106,7 @@ export function SideChatLayer({
   surface,
   renderTurns,
   resolveQuoteTurn,
+  onPendingSent,
   error,
   onDismissError,
 }: SideChatLayerProps) {
@@ -205,6 +208,7 @@ export function SideChatLayer({
                 surface={surface}
                 renderTurns={renderTurns}
                 resolveQuoteTurn={resolveQuoteTurn}
+                onPendingSent={() => onPendingSent?.(id)}
               />
             </div>
           );
@@ -232,6 +236,7 @@ export function SideChatLayer({
             surface={surface}
             renderTurns={renderTurns}
             resolveQuoteTurn={resolveQuoteTurn}
+            onPendingSent={() => onPendingSent?.(id)}
           />
         );
       })}

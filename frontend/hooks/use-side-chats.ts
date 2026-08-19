@@ -16,7 +16,7 @@ import {
   HEADER_INSET,
 } from "@/lib/floating-window";
 import type { SideChatSurface, SideChatThread } from "@/lib/side-chat";
-import type { QuoteAnchor } from "@/lib/types";
+import type { Anchor } from "@/lib/types";
 
 export interface SideChatWindow {
   sideChat: SideChatThread;
@@ -24,12 +24,33 @@ export interface SideChatWindow {
   minimized: boolean;
   /** An answer landed while this window was minimized. */
   unread: boolean;
+  /**
+   * A question to ask as soon as this window is ready, asked once.
+   *
+   * Source-first study types the question *before* the window exists: the
+   * reader is looking at a page, not at a thread, and the composer under the
+   * document is where they ask. Carrying it here rather than opening an empty
+   * window and expecting them to retype it is the whole difference between
+   * asking about the page and asking beside it.
+   */
+  pendingQuestion?: string;
 }
 
-export interface OpenSideChatRequest {
-  parentTurnIndex: number;
-  quotedText: string;
-}
+/**
+ * What to anchor a new side chat to.
+ *
+ * A quote names a turn of the parent conversation; a page names a place in the
+ * source. The server tells the two apart by `kind`, and defaults its absence to
+ * a quote, so the existing call sites need no change.
+ */
+export type OpenSideChatRequest = { question?: string; title?: string } & (
+  | { kind?: "answer_quote"; parentTurnIndex: number; quotedText: string }
+  | { kind: "document_page"; bookId: number; page: number }
+  | { kind: "document_passage"; bookId: number; page: number; selectedText: string }
+  // No anchor at all: a question about the conversation's scope that names no
+  // passage. The reader asks one by dismissing the page chip before sending.
+  | { kind: "unanchored" }
+);
 
 /** Mirrors `MAXIMUM_ANCHORS` on the server. */
 export const MAXIMUM_ANCHORS = 5;
@@ -64,6 +85,39 @@ export function clampQuote(text: string): string {
     ? clipped.slice(0, boundary)
     : clipped
   ).trimEnd()}…`;
+}
+
+/** The anchors a new side chat is created with — none, or exactly one. */
+function anchorPayloads(
+  request: OpenSideChatRequest,
+): Record<string, unknown>[] {
+  return request.kind === "unanchored" ? [] : [anchorPayload(request)];
+}
+
+/** One anchor in the shape the server stores it. */
+function anchorPayload(
+  request: Exclude<OpenSideChatRequest, { kind: "unanchored" }>,
+): Record<string, unknown> {
+  if (request.kind === "document_page") {
+    return {
+      kind: "document_page",
+      book_id: request.bookId,
+      page: request.page,
+    };
+  }
+  if (request.kind === "document_passage") {
+    return {
+      kind: "document_passage",
+      book_id: request.bookId,
+      page: request.page,
+      selected_text: request.selectedText,
+    };
+  }
+  return {
+    kind: "answer_quote",
+    parent_turn_index: request.parentTurnIndex,
+    quoted_text: clampQuote(request.quotedText),
+  };
 }
 
 interface StoredWindow {
@@ -228,7 +282,7 @@ export function useSideChats(
     });
   }, []);
 
-  const show = useCallback((sideChat: SideChatThread) => {
+  const show = useCallback((sideChat: SideChatThread, pendingQuestion?: string) => {
     setWindows((current) => {
       const existing = current.find(
         (entry) => entry.sideChat.conversation_id === sideChat.conversation_id,
@@ -239,7 +293,7 @@ export function useSideChats(
         // window onto the same thread.
         return [
           ...current.filter((entry) => entry !== existing),
-          { ...existing, sideChat, minimized: false, unread: false },
+          { ...existing, sideChat, minimized: false, unread: false, pendingQuestion },
         ];
       }
       return [
@@ -256,9 +310,27 @@ export function useSideChats(
           ),
           minimized: false,
           unread: false,
+          pendingQuestion,
         },
       ];
     });
+  }, []);
+
+  /**
+   * Forget a question once it has been asked.
+   *
+   * Sending is the window's job — it owns the stream — so the state that says
+   * "ask this" has to be cleared from outside it, or a re-render would ask
+   * again.
+   */
+  const clearPending = useCallback((sideChatId: string) => {
+    setWindows((current) =>
+      current.map((entry) =>
+        entry.sideChat.conversation_id === sideChatId
+          ? { ...entry, pendingQuestion: undefined }
+          : entry,
+      ),
+    );
   }, []);
 
   const open = useCallback(
@@ -272,17 +344,13 @@ export function useSideChats(
           {
             method: "POST",
             body: JSON.stringify({
-              anchors: [
-                {
-                  parent_turn_index: request.parentTurnIndex,
-                  quoted_text: clampQuote(request.quotedText),
-                },
-              ],
+              anchors: anchorPayloads(request),
+              ...(request.title ? { title: request.title } : {}),
             }),
           },
         );
         setAvailable((current) => [created, ...current]);
-        show(created);
+        show(created, request.question);
         return created;
       } catch (caught) {
         setError((caught as Error).message);
@@ -342,7 +410,7 @@ export function useSideChats(
    * disagree about it.
    */
   const setAnchors = useCallback(
-    async (sideChatId: string, anchors: QuoteAnchor[]) => {
+    async (sideChatId: string, anchors: Anchor[]) => {
       const previous = { available, windows };
       const apply = (chat: SideChatThread) =>
         chat.conversation_id === sideChatId ? { ...chat, anchors } : chat;
@@ -362,11 +430,20 @@ export function useSideChats(
           {
             method: "PATCH",
             body: JSON.stringify({
-              anchors: anchors.map((anchor) => ({
-                anchor_id: anchor.anchor_id,
-                parent_turn_index: anchor.parent_turn_index,
-                quoted_text: clampQuote(anchor.quoted_text),
-              })),
+              // Each anchor goes back in the shape it came in. A source
+              // anchor has no quote to clamp and no turn to name, so mapping
+              // every anchor through the quote shape would send nulls for
+              // both and be refused.
+              anchors: anchors.map((anchor) =>
+                anchor.kind === undefined || anchor.kind === "answer_quote"
+                  ? {
+                      kind: "answer_quote",
+                      anchor_id: anchor.anchor_id,
+                      parent_turn_index: anchor.parent_turn_index,
+                      quoted_text: clampQuote(anchor.quoted_text),
+                    }
+                  : { ...anchor },
+              ),
             }),
           },
         );
@@ -459,5 +536,6 @@ export function useSideChats(
     setAnchors,
     noteSettled,
     focus,
+    clearPending,
   };
 }

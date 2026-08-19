@@ -1,0 +1,49 @@
+/**
+ * How an anchor reads on screen.
+ *
+ * Two kinds of anchor point at two different things and are legible in
+ * different ways. A quote is text the reader highlighted in an answer, so its
+ * words *are* the label. A source anchor is a place — a page, a section — and a
+ * page anchor has no words at all: the reader made no selection, they were
+ * simply there. Rendering the second as though it were the first is how a
+ * window ends up titled "undefined".
+ */
+
+import type { Anchor } from "@/lib/types";
+
+/** Where the anchor points, in the terms the reader would use. */
+export function anchorLabel(anchor: Anchor): string {
+  switch (anchor.kind) {
+    case "document_page":
+    case "document_passage":
+      return `p. ${anchor.page}`;
+    default:
+      return "From an answer";
+  }
+}
+
+/**
+ * The words this anchor carries, or null when it carries none.
+ *
+ * Null is a real answer rather than an empty string: a page anchor has nothing
+ * to quote, and a chip that renders an empty blockquote for it looks like text
+ * that failed to load.
+ */
+export function anchorText(anchor: Anchor): string | null {
+  switch (anchor.kind) {
+    case "document_page":
+      return null;
+    case "document_passage":
+      return anchor.selected_text;
+    default:
+      return anchor.quoted_text;
+  }
+}
+
+/** Whether the reader can detach this anchor from its window. */
+export function isRemovable(anchor: Anchor): boolean {
+  // A source anchor is what the window is *about* — remove it and the thread
+  // is a question about a page it no longer names. A quote can be detached
+  // because a window can carry several and the reader curates them.
+  return anchor.kind === undefined || anchor.kind === "answer_quote";
+}

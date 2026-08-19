@@ -155,8 +155,12 @@ def _tagged_anchors(value: object) -> object:
 
 
 class CreateSideChatRequest(ContractModel):
+    # Zero anchors means "ask this lecture without naming a moment", which the
+    # anchor editor has always permitted after the fact. Kept symmetric with
+    # the book surface deliberately: the two request contracts differing on
+    # something neither of them cares about is how they drift.
     anchors: list[SideChatAnchorRequest] = Field(
-        min_length=1,
+        default_factory=list,
         max_length=MAXIMUM_ANCHORS,
     )
     title: str | None = Field(default=None, min_length=1, max_length=200)
@@ -622,6 +626,8 @@ def _side_chat_title(anchors: list[Anchor], anchored_turn: dict[str, Any] | None
     question behind it and is named by the moment itself.
     """
 
+    if not anchors:
+        return "New question"
     first = anchors[0]
     if isinstance(first, QuoteAnchor):
         return (

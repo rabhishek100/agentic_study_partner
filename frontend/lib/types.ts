@@ -121,9 +121,56 @@ export interface ConversationState {
 
 /** One passage a reader carried from a conversation into a side chat. */
 export interface QuoteAnchor {
+  /** Absent on anchors stored before source anchors existed. */
+  kind?: "answer_quote";
   anchor_id: string;
   parent_turn_index: number;
   quoted_text: string;
+}
+
+/**
+ * An anchor pointing at the source rather than at an answer.
+ *
+ * The distinction is not cosmetic: a quote is generated text and can never be
+ * cited, while a page of the reader's own book is matched back to canonical
+ * content and cited as normal. The server does that matching; the client only
+ * ever says where the reader was.
+ */
+export interface DocumentPageAnchor {
+  kind: "document_page";
+  anchor_id: string;
+  book_id: number;
+  page: number;
+}
+
+export interface DocumentPassageAnchor {
+  kind: "document_passage";
+  anchor_id: string;
+  book_id: number;
+  page: number;
+  selected_text: string;
+}
+
+export type SourceAnchor = DocumentPageAnchor | DocumentPassageAnchor;
+export type Anchor = QuoteAnchor | SourceAnchor;
+
+export function isQuoteAnchor(anchor: Anchor): anchor is QuoteAnchor {
+  return anchor.kind === undefined || anchor.kind === "answer_quote";
+}
+
+/** Where the reader last was in a source. */
+export interface SourcePosition {
+  page: number;
+}
+
+export interface ReadingSession {
+  conversation_id: string;
+  book_id: number;
+  title: string;
+  document_type: string;
+  position: SourcePosition | null;
+  question_count: number;
+  updated_at: string;
 }
 
 /** What a side turn was given, and what its token budget excluded. */
@@ -195,7 +242,7 @@ export interface SideChatSummary {
   title: string;
   book_ids: number[];
   retrieval_mode: RetrievalMode;
-  anchors: QuoteAnchor[];
+  anchors: Anchor[];
   turn_count: number;
   created_at: string;
   updated_at: string;
@@ -228,7 +275,7 @@ export interface ConversationDetail {
   turns: StoredTurn[];
   /** Set when this conversation is a side chat. */
   parent_conversation_id: string | null;
-  anchors: QuoteAnchor[];
+  anchors: Anchor[];
 }
 
 export interface BookSummary {

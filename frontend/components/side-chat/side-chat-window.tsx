@@ -9,7 +9,7 @@ import { useSideChat } from "@/hooks/use-side-chat";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import type { SideChatSurface, SideChatTurn } from "@/lib/side-chat";
-import type { QuoteAnchor, ResponseDepth } from "@/lib/types";
+import type { Anchor, ResponseDepth } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 
 export interface SideChatWindowProps {
@@ -21,7 +21,7 @@ export interface SideChatWindowProps {
   onFocus: () => void;
   /** `recorded` is false for a turn that failed or was stopped. */
   onSettled: (recorded: boolean) => void;
-  onAnchorsChange: (anchors: QuoteAnchor[]) => void;
+  onAnchorsChange: (anchors: Anchor[]) => void;
   surface: SideChatSurface;
   /**
    * How this surface draws its exchanges. A lecture answer seeks a player and
@@ -33,6 +33,11 @@ export interface SideChatWindowProps {
     isQueued: boolean;
   }) => React.ReactNode;
   resolveQuoteTurn: (text: string) => number | null;
+  /**
+   * Called once the window has asked the question it was opened with, so the
+   * state that says "ask this" can be cleared from outside it.
+   */
+  onPendingSent?: () => void;
   /** Renders inside a docked sheet instead of a floating window. */
   docked?: boolean;
 }
@@ -57,6 +62,7 @@ export function SideChatWindow({
   surface,
   renderTurns,
   resolveQuoteTurn,
+  onPendingSent,
   docked = false,
 }: SideChatWindowProps) {
   const { sideChat } = state;
@@ -86,6 +92,27 @@ export function SideChatWindow({
   useEffect(() => {
     if (!state.minimized) scrollToBottom("auto");
   }, [state.minimized, turns.length, scrollToBottom]);
+
+  /**
+   * Ask the question this window was opened with, once.
+   *
+   * Waits for the thread's history to load: `send` appends to `turns`, and
+   * sending into a list that is about to be replaced by the fetched history
+   * loses the turn from view while it streams. The ref guards against a second
+   * send if the effect re-runs before the clear lands.
+   */
+  const askedRef = useRef<string | null>(null);
+  const pending = state.pendingQuestion;
+  useEffect(() => {
+    if (!pending || isLoading) return;
+    if (askedRef.current === pending) return;
+    askedRef.current = pending;
+    void send(pending, responseDepth);
+    onPendingSent?.();
+    // `responseDepth` is read at the moment of asking; a later change to it
+    // must not re-ask the question.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, isLoading, send, onPendingSent]);
 
   const body = (
     // The window is its own typographic context: `side-chat-body` is the query
