@@ -557,6 +557,37 @@ def delete_book(
     )
 
 
+def rename_book(
+    connection: Connection,
+    book_id: int,
+    *,
+    owner_id: str | UUID,
+    title: str,
+) -> dict[str, Any] | None:
+    """Give one book or paper the name its reader chose.
+
+    Returns the updated row, or `None` when the id belongs to nobody or to
+    somebody else — the owner predicate is in the statement itself rather than
+    in a check before it, so a mistake cannot rename another account's book.
+
+    The title is the reader's, and nothing derives over it afterwards: the
+    backfill only replaces names that still look machine-generated, and a name
+    typed here does not.
+    """
+
+    clean = " ".join(title.split())
+    if not clean:
+        raise ValueError("title cannot be blank")
+    return connection.execute(
+        """
+        update books set title = %s
+        where id = %s and owner_id = %s
+        returning id, title, author, document_type
+        """,
+        (clean, book_id, parse_owner_id(owner_id)),
+    ).fetchone()
+
+
 def canonical_counts(
     connection: Connection,
     book_id: int,

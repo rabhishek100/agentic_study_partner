@@ -78,6 +78,8 @@ export interface LibraryRailProps {
   onRetrievalModeChange: (mode: RetrievalMode) => void;
   hasConversation: boolean;
   onBooksChanged: () => void;
+  /** Rename one document. Absent where the route does not offer renaming. */
+  onRenameBook?: (bookId: number, title: string) => Promise<void>;
   history: ConversationHistoryProps;
   documentType?: "book" | "paper";
 }
@@ -93,6 +95,7 @@ export function LibraryRail({
   onRetrievalModeChange,
   hasConversation,
   onBooksChanged,
+  onRenameBook,
   history,
   documentType = "book",
 }: LibraryRailProps) {
@@ -134,6 +137,7 @@ export function LibraryRail({
             books={books}
             selected={selectedBookIds}
             onChange={onSelectBooks}
+            onRename={onRenameBook}
             hasConversation={hasConversation}
           />
         ) : (

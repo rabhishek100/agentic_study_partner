@@ -342,6 +342,30 @@ export default function VideoWorkspace() {
     [resume, closeDocument],
   );
 
+  /**
+   * `?conversation=` — where the library's Continue shortcut lands.
+   *
+   * Opening the lecture and leaving the reader in an empty workspace beside a
+   * history panel is not continuing; it is asking them to remember, which is
+   * the thing the shortcut exists to remove. Read from `window.location` for
+   * the same reason as `?t=` above, and cleared once used so a refresh cannot
+   * re-resume over whatever they have done since.
+   */
+  const resumedFromLink = useRef(false);
+  useEffect(() => {
+    if (!session || !video || resumedFromLink.current) return;
+    const id = new URLSearchParams(window.location.search).get("conversation");
+    if (!id) return;
+    resumedFromLink.current = true;
+    void openConversation(id)
+      // A conversation deleted since the link was rendered leaves the reader
+      // in a new one, which is where they would have landed anyway.
+      .catch(() => undefined)
+      .finally(() =>
+        window.history.replaceState(null, "", window.location.pathname),
+      );
+  }, [session, video, openConversation]);
+
   if (sessionLoading) {
     return (
       <div className="grid h-dvh place-items-center p-6">

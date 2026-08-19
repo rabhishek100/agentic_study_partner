@@ -192,6 +192,15 @@ class VideoSummary(ContractModel):
     # Whether removal would succeed. Offering an action that 409s is worse
     # than not offering it, and the reason it cannot is worth saying once.
     deletable: bool = False
+    # A frame from the published version, near the middle of the lecture, for
+    # the library to show a face rather than a filename. Null until a version
+    # is published, and for a YouTube lecture, which has its own thumbnail.
+    poster_frame_id: int | None = None
+    # What a lecture will answer well with, cheaply enough for a list: the two
+    # facts otherwise only in the detail payload, which the library would need
+    # one request per lecture to learn.
+    chapter_count: int = 0
+    slide_count: int = 0
     created_at: datetime
     updated_at: datetime
     ready_at: datetime | None
@@ -409,6 +418,9 @@ def _summary(row) -> VideoSummary:
             ),
         ),
         latest_ingestion=latest,
+        poster_frame_id=row.get("poster_frame_id"),
+        chapter_count=int(row.get("chapter_count") or 0),
+        slide_count=int(row.get("slide_count") or 0),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         ready_at=row["ready_at"],

@@ -125,3 +125,94 @@ describe("BookSelector", () => {
     expect(screen.queryByText(/starts a new conversation/i)).toBeNull();
   });
 });
+
+describe("renaming a document", () => {
+  it("offers no rename control when the route does not support it", () => {
+    render(
+      <BookSelector
+        books={[book(1, "Fluent Python"), book(2, "Designing ML Systems")]}
+        selected={[1]}
+        onChange={vi.fn()}
+        hasConversation={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /^Rename/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("saves a new title without disturbing the selection", async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn().mockResolvedValue(undefined);
+    const onChange = vi.fn();
+    render(
+      <BookSelector
+        books={[book(1, "Fluent Python"), book(2, "Designing ML Systems")]}
+        selected={[1, 2]}
+        onChange={onChange}
+        onRename={onRename}
+        hasConversation={false}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Choose which books to search"));
+    await user.click(screen.getByRole("button", { name: "Rename Fluent Python" }));
+
+    const field = screen.getByRole("textbox", { name: "Rename Fluent Python" });
+    await user.clear(field);
+    await user.type(field, "Fluent Python, 2nd Edition{Enter}");
+
+    expect(onRename).toHaveBeenCalledWith(1, "Fluent Python, 2nd Edition");
+    // The pencil sits outside the label; clicking it must not toggle the
+    // checkbox that label is for.
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("abandons the edit on Escape", async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    render(
+      <BookSelector
+        books={[book(1, "Fluent Python"), book(2, "Designing ML Systems")]}
+        selected={[1]}
+        onChange={vi.fn()}
+        onRename={onRename}
+        hasConversation={false}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Choose which books to search"));
+    await user.click(screen.getByRole("button", { name: "Rename Fluent Python" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Rename Fluent Python" }),
+      "something else{Escape}",
+    );
+
+    expect(onRename).not.toHaveBeenCalled();
+    expect(screen.getByText("Fluent Python")).toBeInTheDocument();
+  });
+
+  it("treats an unchanged title as a cancel rather than a write", async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    render(
+      <BookSelector
+        books={[book(1, "Fluent Python"), book(2, "Designing ML Systems")]}
+        selected={[1]}
+        onChange={vi.fn()}
+        onRename={onRename}
+        hasConversation={false}
+      />,
+    );
+
+    await user.click(screen.getByLabelText("Choose which books to search"));
+    await user.click(screen.getByRole("button", { name: "Rename Fluent Python" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Rename Fluent Python" }),
+      "{Enter}",
+    );
+
+    expect(onRename).not.toHaveBeenCalled();
+  });
+});

@@ -65,6 +65,16 @@ export interface VideoSummary {
   latest_ingestion: VideoIngestion | null;
   /** Measured sentences for the quality gates a published version missed. */
   readiness_notes: string[];
+  /**
+   * A frame from the published version, near the middle of the lecture, for
+   * the library to show a face. Null until a version publishes, and for a
+   * YouTube lecture, which has a thumbnail of its own.
+   */
+  poster_frame_id: number | null;
+  /** What the lecture will answer well with, carried on the summary so the
+      library does not need a detail request per card. */
+  chapter_count: number;
+  slide_count: number;
   /** Whether removal would succeed; the server owns the constraint. */
   deletable: boolean;
   created_at: string;

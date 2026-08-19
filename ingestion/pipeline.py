@@ -17,6 +17,7 @@ from typing import Any
 from uuid import UUID
 
 from parsing.models import ParsedBook
+from study.titles import MINIMUM_TITLE_CHARACTERS, resolve_title
 from parsing.version import PARSER_VERSION
 from retrieval.models import ChunkingConfig
 from retrieval.postgres import rebuild as rebuild_chunks
@@ -1250,40 +1251,30 @@ def run_job(
     return JobOutcome(job=job, book_id=book_id)
 
 
-# Metadata titles are frequently a placeholder the author never changed.
-# One deck in this corpus carries "TestDoc", which would have been the name of
-# a 550-slide course in the library. The uploaded filename is a worse title in
-# principle and a better one in practice whenever the metadata reads like this.
-_PLACEHOLDER_TITLES = frozenset(
-    {
-        "testdoc",
-        "untitled",
-        "document",
-        "presentation",
-        "book",
-        "pdf",
-        "new document",
-        "microsoft word",
-    }
-)
-_FILENAME_TITLE = re.compile(r"\.(?:docx?|pptx?|indd|pages|pdf|tex)$", re.IGNORECASE)
-MINIMUM_TITLE_CHARACTERS = 4
+def _title_from_first_page(book: ParsedBook) -> str | None:
+    """The document's own name, taken from where a paper always states it.
 
+    A scientific paper is the case the metadata route cannot serve: the PDF is
+    generated from LaTeX and carries no `/Title`, or carries the arXiv id, so
+    the only place the paper's name exists is the first title block on page
+    one. Books rarely need this — they have real metadata — and it is consulted
+    after metadata for exactly that reason.
 
-def _book_title(metadata_title: str | None, filename: str) -> str:
-    """Choose the better of the embedded title and the uploaded filename."""
+    Restricted to page 1 and to `Title` blocks the parser already classified.
+    An author line, an abstract heading, or a running header is not a title,
+    and none of them are that category on that page.
+    """
 
-    stem = Path(filename).stem
-    candidate = (metadata_title or "").strip()
-    if len(candidate) < MINIMUM_TITLE_CHARACTERS:
-        return stem
-    folded = candidate.casefold()
-    if folded in _PLACEHOLDER_TITLES:
-        return stem
-    # "Microsoft Word - chapter3.docx" and friends: a tool's export name.
-    if _FILENAME_TITLE.search(candidate) or folded.startswith("microsoft word"):
-        return stem
-    return candidate
+    for section in book.sections:
+        for block in section.texts:
+            if block.page != 1 or block.category != "Title":
+                continue
+            candidate = " ".join(block.text.split())
+            # Long enough to be a name, short enough not to be a paragraph the
+            # parser mislabelled.
+            if MINIMUM_TITLE_CHARACTERS <= len(candidate) <= 250:
+                return candidate
+    return None
 
 
 def _persist_canonical(
@@ -1317,7 +1308,11 @@ def _persist_canonical(
             return int(existing["id"])
         delete_book(connection, existing["id"], owner_id=job.owner_id)
 
-    title = _book_title(report.metadata.get("title"), job.original_filename)
+    title = resolve_title(
+        embedded=report.metadata.get("title"),
+        from_content=_title_from_first_page(book),
+        filename=job.original_filename,
+    )
     author = report.metadata.get("author")
     try:
         return ingest_book(
