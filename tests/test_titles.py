@@ -12,7 +12,7 @@ from study.titles import (
 class ReadableTitleTests(unittest.TestCase):
     def test_a_lecture_filename_becomes_words(self) -> None:
         self.assertEqual(
-            readable_title("cme295-lecture1-h264.mp4"), "Cme295 Lecture 1"
+            readable_title("cme295-lecture1-h264.mp4"), "CME 295 Lecture 1"
         )
 
     def test_codec_and_resolution_noise_is_dropped(self) -> None:
@@ -35,6 +35,12 @@ class ReadableTitleTests(unittest.TestCase):
     def test_an_authors_capitalisation_survives(self) -> None:
         self.assertEqual(readable_title("CS231n_lecture4.mp4"), "CS231n Lecture 4")
 
+    def test_a_course_code_is_read_as_a_code_and_a_number(self) -> None:
+        self.assertEqual(
+            readable_title("cme295-lecture1-h264.mp4"), "CME 295 Lecture 1"
+        )
+        self.assertEqual(readable_title("ee364a_notes.pdf"), "EE364a Notes")
+
     def test_a_name_made_only_of_noise_keeps_its_words(self) -> None:
         """Better an ugly name than an empty one."""
         self.assertEqual(readable_title("1080p_final.mp4"), "1080p Final")
@@ -44,6 +50,29 @@ class ReadableTitleTests(unittest.TestCase):
         it is returned as it stands rather than rearranged into a different
         identifier."""
         self.assertEqual(readable_title("1706.03762v7.pdf"), "1706.03762v7")
+
+    def test_a_download_sites_domain_is_not_part_of_the_title(self) -> None:
+        """Real names from this library. The site, the ISBNs, and the
+        compress/pdf/free tail all describe the download, not the book."""
+        self.assertEqual(
+            readable_title(
+                "pdfcoffee.com_system-design-interview-an-insiders-guide-"
+                "volume-2-1736049119-9781736049112-compress-pdf-free"
+            ),
+            "System Design Interview an Insiders Guide Volume 2",
+        )
+
+    def test_a_second_download_marker_is_dropped_and_acronyms_restored(self) -> None:
+        self.assertEqual(
+            readable_title("dokumen.pub_generative-ai-system-design-interview-1 (1)"),
+            "Generative AI System Design Interview 1",
+        )
+
+    def test_a_dotted_name_does_not_lose_everything_after_its_first_dot(self) -> None:
+        """`Path.stem` cuts at the last dot, which left "pdfcoffee"."""
+        self.assertEqual(
+            readable_title("machine.learning.notes.pdf"), "Machine Learning Notes"
+        )
 
     def test_a_path_is_reduced_to_its_own_name(self) -> None:
         self.assertEqual(

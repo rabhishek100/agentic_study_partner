@@ -56,11 +56,47 @@ _FILENAME_NOISE = re.compile(
     | ^\d{3,4}p$                                  # 720p, 1080p
     | ^(?:x?264|x?265|h\.?26[45]|hevc|avc|aac|mp3|webm|mp4|mkv|mov)$
     | ^(?:hd|uhd|4k|8k|hq|sd)$
-    | ^(?:compressed|converted|output|final|draft|reencoded|remux|export|exported)$
+    | ^(?:compressed|compress|converted|output|final|draft|reencoded|remux|export|exported)$
     | ^(?:copy|dup|duplicate)$
+    | ^(?:pdf|epub|djvu|scan|scanned|ocr|free|full|complete|ebook)$
+    | ^\(\d+\)$                                  # the (1) a second download adds
+    | ^\d{10}$|^\d{13}$                           # ISBN-10, ISBN-13
     """,
     re.IGNORECASE | re.VERBOSE,
 )
+
+# Where a file came from, which is never what it is about. Book filenames from
+# the download sites arrive prefixed with the site's own domain:
+# `pdfcoffee.com_system-design-interview-...` names the host, not the book. The
+# prefix is removed before the name is split into words, because by then the
+# dot separating host from domain is gone and the two halves look like words.
+_LEADING_SITE = re.compile(
+    r"^(?:[\w-]+\.(?:com|net|org|pub|io|co|info|xyz|to|cc)|libgen|z-?lib"
+    r"|annas-archive|b-ok|sci-hub)[\s_\-–—.]+",
+    re.IGNORECASE,
+)
+
+# Only a real extension is an extension. `Path.stem` cuts at the last dot, which
+# turns `pdfcoffee.com_system-design-interview` into "pdfcoffee" — the one part
+# of that name carrying no information at all.
+_EXTENSION = re.compile(r"\.[A-Za-z0-9]{1,5}$")
+
+# Acronyms a filename lowercases and a reader expects to see shouting. Only
+# words that are unambiguously acronyms in this library's subject matter.
+_ACRONYMS = frozenset(
+    {
+        "ai", "ml", "nlp", "llm", "llms", "gpu", "cpu", "tpu", "api", "apis",
+        "sql", "http", "https", "rag", "cnn", "rnn", "lstm", "gan", "gans",
+        "vae", "mlp", "svm", "pca", "kkt", "ocr", "ci", "cd", "os", "io",
+    }
+)
+
+# A course code glued to its number: `cme295`, `cs231`, `ee364`. The letters are
+# an acronym a filename lowercased and the digits are the course; a reader says
+# them as two things. Bounded to 3-4 letters, and only when nothing follows the
+# digits, so `CS231n` — where the trailing letter makes the whole token the
+# course's name — is left as its author wrote it.
+_COURSE_CODE = re.compile(r"^([A-Za-z]{3,4})(\d+)$")
 
 # A word has to hold letters to be a word. A stem with none of them —
 # `1706.03762v7` — is an identifier, and there is nothing in it to extract.
@@ -97,6 +133,16 @@ def _capitalise(word: str) -> str:
 
     if not word:
         return word
+    # "generative ai system design" is a filename; "Generative AI System
+    # Design" is a title. A filename lowercases what an author capitalised.
+    if word.casefold() in _ACRONYMS:
+        return word.upper()
+    # `ee364a` is EE364a: the letters are a department code a filename
+    # lowercased, and the tail belongs to the course number. `CS231n` already
+    # reads this way and is unchanged by it.
+    code = re.fullmatch(r"([A-Za-z]{2,4})(\d+[A-Za-z]?)", word)
+    if code:
+        return code.group(1).upper() + code.group(2)
     # ML, LLM, GPU, CS231n — an author's capitalisation is information.
     if word.upper() == word and len(word) > 1:
         return word
@@ -113,9 +159,11 @@ def readable_title(filename: str) -> str:
     words are the only part of a filename that carries meaning.
     """
 
-    stem = Path(filename.replace("\\", "/").rsplit("/", 1)[-1]).stem.strip()
+    name = filename.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    stem = _EXTENSION.sub("", name).strip()
+    stem = _LEADING_SITE.sub("", stem).strip()
     if not stem:
-        return filename.strip()
+        return name
     # Nothing to extract from an identifier. Returned as it stands rather than
     # rearranged into a different-looking identifier.
     if not _HAS_WORDS.search(stem):
@@ -134,6 +182,10 @@ def readable_title(filename: str) -> str:
         # reader. A digit is split off only when what precedes it is long
         # enough to be a word itself: `lecture1` becomes "Lecture 1", while
         # `CS231n` and `cme295` are names and stay whole.
+        course = _COURSE_CODE.fullmatch(word)
+        if course:
+            expanded.extend([course.group(1).upper(), course.group(2)])
+            continue
         parts = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", word)
         parts = re.sub(r"(?<=[A-Za-z]{4})(?=\d)", " ", parts)
         expanded.extend(part for part in parts.split(" ") if part)
@@ -175,8 +227,8 @@ def looks_machine_generated(title: str, filename: str) -> bool:
     stored = title.strip()
     if not stored:
         return True
-    name = Path(filename.replace("\\", "/").rsplit("/", 1)[-1])
-    if stored in {filename.strip(), name.name, name.stem}:
+    name = filename.replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if stored in {filename.strip(), name, _EXTENSION.sub("", name)}:
         return True
     if stored.casefold() in PLACEHOLDER_TITLES:
         return True
