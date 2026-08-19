@@ -229,7 +229,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
         ) : (
           <Plus aria-hidden />
         )}
-        Add video
+        Add lecture
       </Button>
     </form>
   );
