@@ -132,3 +132,38 @@ describe("ContinueSessions", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe("anchoredMoment", () => {
+  it("finds the moment a lecture question names", async () => {
+    // Kept when the timeline gutter went: the region opens a thread, and the
+    // caller uses this to move the playhead with it.
+    const { anchoredMoment } = await import("@/lib/anchors");
+
+    expect(
+      anchoredMoment([
+        {
+          kind: "lecture_moment",
+          anchor_id: "m",
+          video_id: "v",
+          timestamp_ms: 724_000,
+        },
+      ]),
+    ).toBe(724_000);
+    expect(
+      anchoredMoment([
+        {
+          kind: "lecture_stretch",
+          anchor_id: "s",
+          video_id: "v",
+          start_ms: 700_000,
+          end_ms: 750_000,
+        },
+      ]),
+    ).toBe(700_000);
+    expect(
+      anchoredMoment([
+        { kind: "document_page", anchor_id: "p", book_id: 7, page: 108 },
+      ]),
+    ).toBeNull();
+  });
+});

@@ -1,13 +1,18 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, LogOut } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  LogOut,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
-import { MarginMarks, marksFor } from "@/components/read/margin-marks";
 import { PageComposer } from "@/components/read/page-composer";
 import { PageSelectionPopover } from "@/components/read/page-selection";
 import { SessionQuestions } from "@/components/read/session-questions";
@@ -81,12 +86,12 @@ export default function ReadPage() {
   const [stayInSource, setStayInSource] = useStayInSource(
     session?.conversation_id ?? null,
   );
-  const marks = useMemo(() => marksFor(sideChats.available), [sideChats.available]);
   const recap = useMemo(
     () => recapOf(sideChats.available.map((thread) => thread.anchors), chapters),
     [sideChats.available, chapters],
   );
   const [questionsOpen, setQuestionsOpen] = useState(true);
+  const [chromeHidden, setChromeHidden] = useState(false);
 
   useEffect(() => {
     if (!session || resumed) return;
@@ -194,11 +199,15 @@ export default function ReadPage() {
   return (
     <AppShell
       railMode="drawer-only"
+      hideHeader={chromeHidden}
       regions={[
         {
           key: "questions",
-          label: "Questions you asked in this session",
-          fixedWidth: 280,
+          // One column, not two. The margin gutter listed the same questions
+          // this does, so a reader saw their session twice and could not tell
+          // which one to use.
+          label: "Questions in this session",
+          fixedWidth: 380,
           node: (
             <SessionQuestions
               threads={sideChats.available}
@@ -207,6 +216,14 @@ export default function ReadPage() {
               hereLabel={`p. ${page}`}
               footer={
                 <div className="space-y-3">
+                  <PageComposer
+                    page={page}
+                    sectionTitle={currentChapter?.title ?? null}
+                    pageInContext={pageInContext}
+                    onPageInContextChange={setPageInContext}
+                    disabled={!session || sideChats.isOpening}
+                    onSubmit={ask}
+                  />
                   <SessionRecap recap={recap} bookId={bookId} />
                   <StayInSourceToggle
                     locked={stayInSource}
@@ -265,6 +282,14 @@ export default function ReadPage() {
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
               {sideChats.available.length}
             </span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Hide the top bar and read full height"
+            onClick={() => setChromeHidden(true)}
+          >
+            <Maximize2 aria-hidden />
           </Button>
           <SideChatMenu
           sideChats={sideChats.available}
@@ -338,7 +363,7 @@ export default function ReadPage() {
         />
       }
     >
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         {error && (
           <div className="p-4">
             <Alert variant="destructive">
@@ -348,13 +373,21 @@ export default function ReadPage() {
           </div>
         )}
 
+        {chromeHidden && (
+          // The only way back, so it is always present rather than revealed on
+          // hover: a reader who hid the frame on a touch screen would
+          // otherwise have no route out of it.
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="absolute right-3 top-3 z-sticky"
+            aria-label="Show the top bar"
+            onClick={() => setChromeHidden(false)}
+          >
+            <Minimize2 aria-hidden />
+          </Button>
+        )}
         <div className="flex min-h-0 flex-1">
-          <MarginMarks
-            marks={marks}
-            page={page}
-            onOpen={sideChats.show}
-            onGoToPage={changePage}
-          />
           <div ref={documentRef} className="min-h-0 min-w-0 flex-1">
             {isLoading || !target ? (
               <div className="grid h-full place-items-center p-6">
@@ -385,18 +418,6 @@ export default function ReadPage() {
           />
         </div>
 
-        <div className="shrink-0 border-t border-divider px-4 py-3">
-          <div className="mx-auto w-full max-w-3xl">
-            <PageComposer
-              page={page}
-              sectionTitle={currentChapter?.title ?? null}
-              pageInContext={pageInContext}
-              onPageInContextChange={setPageInContext}
-              disabled={!session || sideChats.isOpening}
-              onSubmit={ask}
-            />
-          </div>
-        </div>
       </div>
     </AppShell>
   );

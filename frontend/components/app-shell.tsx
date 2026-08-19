@@ -43,6 +43,15 @@ export interface AppShellProps {
   activeRegion?: string | null;
   /** Floating side-chat windows, positioned against the viewport. */
   overlay?: React.ReactNode;
+  /**
+   * Hides the masthead so the canvas gets the whole window.
+   *
+   * For reading, where the page is the point and 56px of chrome is 56px of
+   * page. The frame is otherwise fixed by design, so this is the one thing
+   * that removes it — and only ever at the reader's request, with a control
+   * left behind to bring it back.
+   */
+  hideHeader?: boolean;
 }
 
 
@@ -81,6 +90,7 @@ export function AppShell({
   regions,
   activeRegion = null,
   overlay,
+  hideHeader = false,
 }: AppShellProps) {
   const [railOpen, setRailOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useRailCollapsed();
@@ -111,7 +121,13 @@ export function AppShell({
       */}
       <header
         style={{ minHeight: HEADER_INSET }}
-        className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4"
+        className={cn(
+          "flex shrink-0 items-center gap-3 border-b border-border bg-background px-3 sm:px-4",
+          // `hidden` rather than unmounted: the floating layer measures this
+          // element to clamp its windows, and a header that vanishes from the
+          // tree takes that measurement with it.
+          hideHeader && "hidden",
+        )}
       >
         {rail && railMode === "responsive" ? (
           <Button

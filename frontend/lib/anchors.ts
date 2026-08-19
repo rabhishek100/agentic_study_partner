@@ -57,3 +57,19 @@ export function isRemovable(anchor: Anchor): boolean {
   // because a window can carry several and the reader curates them.
   return anchor.kind === undefined || anchor.kind === "answer_quote";
 }
+
+/**
+ * The moment in a lecture an anchored question names, or null.
+ *
+ * Kept when the timeline gutter went, because clicking a question about 12:04
+ * while the lecture sits at 40:00 shows an answer with no picture behind it.
+ * The list opens the thread; this is what lets the caller move the playhead
+ * with it.
+ */
+export function anchoredMoment(anchors: Anchor[]): number | null {
+  for (const anchor of anchors) {
+    if (anchor.kind === "lecture_moment") return anchor.timestamp_ms;
+    if (anchor.kind === "lecture_stretch") return anchor.start_ms;
+  }
+  return null;
+}

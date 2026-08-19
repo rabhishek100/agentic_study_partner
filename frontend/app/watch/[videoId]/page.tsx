@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertCircle, ArrowLeft, LogOut } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  LogOut,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -11,7 +17,6 @@ import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MomentComposer, type Stretch } from "@/components/watch/moment-composer";
-import { MomentMarks, momentMarksFor } from "@/components/watch/moment-marks";
 import { SessionQuestions } from "@/components/read/session-questions";
 import { VideoSideChatTurns } from "@/components/video/video-side-chat-turns";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
@@ -35,6 +40,7 @@ import { useSideChats } from "@/hooks/use-side-chats";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { apiFetch } from "@/lib/api";
 import { VIDEO_SIDE_CHATS } from "@/lib/side-chat";
+import { anchoredMoment } from "@/lib/anchors";
 import { timecode } from "@/lib/timecode";
 import type {
   VideoDetail,
@@ -77,11 +83,8 @@ export default function WatchPage() {
     session?.conversation_id ?? null,
     VIDEO_SIDE_CHATS,
   );
-  const marks = useMemo(
-    () => momentMarksFor(sideChats.available),
-    [sideChats.available],
-  );
-  const [questionsOpen, setQuestionsOpen] = useState(false);
+  const [questionsOpen, setQuestionsOpen] = useState(true);
+  const [chromeHidden, setChromeHidden] = useState(false);
 
   useEffect(() => {
     if (!authSession || !videoId) return;
@@ -210,17 +213,44 @@ export default function WatchPage() {
   return (
     <AppShell
       railMode="drawer-only"
+      hideHeader={chromeHidden}
       regions={[
         {
           key: "questions",
-          label: "Questions you asked in this session",
-          fixedWidth: 280,
+          // One column, as on the reading surface: the timeline gutter listed
+          // the same questions this does.
+          label: "Questions in this session",
+          fixedWidth: 380,
           node: (
             <SessionQuestions
               threads={sideChats.available}
               openIds={sideChats.openIds}
-              onOpen={sideChats.show}
+              onOpen={(thread) => {
+                // Seek with the question. An answer about 12:04 read while the
+                // lecture sits at 40:00 has no picture behind it.
+                const at = anchoredMoment(thread.anchors);
+                if (at !== null) {
+                  setAtMs(at);
+                  playerRef.current?.seekTo(at);
+                }
+                sideChats.show(thread);
+              }}
               hereLabel={timecode(atMs)}
+              footer={
+                <MomentComposer
+                  atMs={atMs}
+                  stretch={stretch}
+                  onMarkStretch={markStretch}
+                  onClearStretch={() => {
+                    setStretch(null);
+                    setStretchStart(null);
+                  }}
+                  momentInContext={momentInContext}
+                  onMomentInContextChange={setMomentInContext}
+                  disabled={!session || sideChats.isOpening}
+                  onSubmit={ask}
+                />
+              }
             />
           ),
         },
@@ -292,6 +322,14 @@ export default function WatchPage() {
               {sideChats.available.length}
             </span>
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Hide the top bar and watch full height"
+            onClick={() => setChromeHidden(true)}
+          >
+            <Maximize2 aria-hidden />
+          </Button>
           <SideChatMenu
           sideChats={sideChats.available}
           openIds={sideChats.openIds}
@@ -360,7 +398,18 @@ export default function WatchPage() {
         />
       }
     >
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {chromeHidden && (
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="absolute right-3 top-3 z-sticky"
+            aria-label="Show the top bar"
+            onClick={() => setChromeHidden(false)}
+          >
+            <Minimize2 aria-hidden />
+          </Button>
+        )}
         {error && (
           <div className="p-4">
             <Alert variant="destructive">
@@ -371,15 +420,6 @@ export default function WatchPage() {
         )}
 
         <div className="flex min-h-0 flex-1">
-          <MomentMarks
-            marks={marks}
-            atMs={atMs}
-            onOpen={sideChats.show}
-            onSeek={(milliseconds) => {
-              setAtMs(milliseconds);
-              playerRef.current?.seekTo(milliseconds);
-            }}
-          />
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
             {isLoading || !video ? (
               <div className="grid h-full place-items-center">
@@ -413,23 +453,6 @@ export default function WatchPage() {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-divider px-4 py-3">
-          <div className="mx-auto w-full max-w-4xl">
-            <MomentComposer
-              atMs={atMs}
-              stretch={stretch}
-              onMarkStretch={markStretch}
-              onClearStretch={() => {
-                setStretch(null);
-                setStretchStart(null);
-              }}
-              momentInContext={momentInContext}
-              onMomentInContextChange={setMomentInContext}
-              disabled={!session || sideChats.isOpening}
-              onSubmit={ask}
-            />
-          </div>
-        </div>
       </div>
     </AppShell>
   );
