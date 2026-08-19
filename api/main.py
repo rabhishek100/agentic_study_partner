@@ -43,10 +43,13 @@ from storage.conversations import (
     delete_conversation,
     derive_title,
     list_conversations,
+    list_reading_sessions,
     list_side_chats,
     load_conversation,
     load_turns,
+    reading_session,
     set_conversation_state,
+    set_source_position,
     update_conversation,
 )
 from storage.database import (
@@ -284,6 +287,44 @@ class UpdateSideChatRequest(ContractModel):
     )
 
     _tag_anchors = field_validator("anchors", mode="before")(_tagged_anchors)
+
+
+class SourcePosition(ContractModel):
+    """Where the reader last was in a source.
+
+    A page for a book. Kept as its own model rather than a bare integer
+    because the same field carries a lecture timestamp on the other surface,
+    and a shape that has to grow a second meaning later is worse than one that
+    was always a place.
+    """
+
+    page: int = Field(gt=0)
+
+
+class ReadingSession(ContractModel):
+    conversation_id: UUID
+    book_id: int
+    title: str
+    document_type: str
+    # Null until the reader has turned a page — a session opened and left on
+    # page one has nothing to resume to that opening it would not do anyway.
+    position: SourcePosition | None = None
+    # Anchored questions asked in this session. Counted rather than listed:
+    # they belong on the reading surface, not in a library card.
+    question_count: int = 0
+    updated_at: datetime
+
+
+class ReadingSessionListResponse(ContractModel):
+    sessions: list[ReadingSession]
+
+
+class OpenReadingSessionRequest(ContractModel):
+    book_id: int = Field(gt=0)
+
+
+class UpdatePositionRequest(ContractModel):
+    position: SourcePosition
 
 
 class SideChatSummary(ContractModel):
@@ -1200,6 +1241,165 @@ def _run_side_turn(
     updated = updated.model_copy(update={"conversation_id": str(side_chat_id)})
     turn_index = _persist_turn(owner_id, side_chat_id, question, result, updated)
     return ChatResponse(result=result, state=updated, turn_index=turn_index)
+
+
+READING_SESSION_NOT_FOUND = HTTPException(
+    status_code=404,
+    detail="reading session not found",
+)
+
+
+def _reading_session(record: dict, *, book: dict, question_count: int) -> ReadingSession:
+    stored = record.get("source_position") or None
+    return ReadingSession(
+        conversation_id=record["id"],
+        book_id=record["book_ids"][0],
+        title=book["title"],
+        document_type=book.get("document_type") or "book",
+        position=SourcePosition.model_validate(stored) if stored else None,
+        question_count=question_count,
+        updated_at=record["updated_at"],
+    )
+
+
+def _open_reading_session(
+    owner_id: UUID,
+    request: OpenReadingSessionRequest,
+) -> ReadingSession:
+    """Open the reader's session for a source, or resume the one they have.
+
+    Resuming rather than creating is the whole point: the questions a reader
+    asked in the margins of this book last week are side chats of this
+    session, and a second session would leave them behind while looking
+    identical. The unique index enforces it; this only has to prefer it.
+    """
+
+    with database_connection() as connection:
+        book = ready_book(connection, request.book_id, owner_id=owner_id)
+        if book is None:
+            raise BOOK_NOT_FOUND
+        existing = reading_session(
+            connection,
+            owner_id=owner_id,
+            book_id=request.book_id,
+        )
+        if existing is not None:
+            counted = connection.execute(
+                """
+                select count(*) as question_count
+                from conversations
+                where owner_id = %s and parent_conversation_id = %s
+                """,
+                (owner_id, existing["id"]),
+            ).fetchone()
+            return _reading_session(
+                existing,
+                book=book,
+                question_count=counted["question_count"],
+            )
+        created = create_conversation(
+            connection,
+            owner_id=owner_id,
+            book_ids=[request.book_id],
+            retrieval_mode="hybrid_rerank",
+            # Named after the source rather than after a question, because a
+            # reading session has no first question — the book is the subject,
+            # and the questions are its margins.
+            title=book["title"],
+            document_type=book.get("document_type"),
+            prompt_profile=load_prompt_profile(connection, owner_id=owner_id),
+            session_kind="read",
+        )
+    return _reading_session(created, book=book, question_count=0)
+
+
+@app.post("/api/reading-sessions", response_model=ReadingSession, status_code=201)
+async def open_reading_session(
+    request: OpenReadingSessionRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ReadingSession:
+    """Start reading a source, or pick up where this reader left off."""
+
+    return await run_in_threadpool(_open_reading_session, owner_id, request)
+
+
+@app.get("/api/reading-sessions", response_model=ReadingSessionListResponse)
+async def reading_sessions(
+    owner_id: UUID = Depends(current_owner),
+) -> ReadingSessionListResponse:
+    """Sources this reader has started, most recently read first."""
+
+    def load() -> list[ReadingSession]:
+        with database_connection(readonly=True) as connection:
+            sessions = []
+            for row in list_reading_sessions(connection, owner_id=owner_id):
+                book = ready_book(connection, row["book_ids"][0], owner_id=owner_id)
+                if book is None:
+                    # The book was deleted or is being re-ingested. Its session
+                    # survives with its questions intact; it just cannot be
+                    # offered as somewhere to continue right now.
+                    continue
+                sessions.append(
+                    _reading_session(
+                        row,
+                        book=book,
+                        question_count=row["question_count"],
+                    )
+                )
+            return sessions
+
+    return ReadingSessionListResponse(sessions=await run_in_threadpool(load))
+
+
+@app.patch(
+    "/api/reading-sessions/{conversation_id}/position",
+    response_model=ReadingSession,
+)
+async def update_reading_position(
+    conversation_id: UUID,
+    request: UpdatePositionRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ReadingSession:
+    """Record where the reader is, so the next visit opens there.
+
+    Fire-and-forget from the client's point of view, and deliberately does not
+    touch `updated_at`: turning a page is not using the session, and letting it
+    reorder history would put an idly scrolled book above the one being worked
+    in.
+    """
+
+    def record() -> ReadingSession:
+        with database_connection() as connection:
+            updated = set_source_position(
+                connection,
+                conversation_id,
+                owner_id=owner_id,
+                position=request.position.model_dump(mode="json"),
+            )
+            if updated is None:
+                raise READING_SESSION_NOT_FOUND
+            book = ready_book(
+                connection,
+                updated["book_ids"][0],
+                owner_id=owner_id,
+            )
+            if book is None:
+                raise BOOK_NOT_FOUND
+            counted = connection.execute(
+                """
+                select count(*) as question_count
+                from conversations
+                where owner_id = %s and parent_conversation_id = %s
+                """,
+                (owner_id, conversation_id),
+            ).fetchone()
+            return _reading_session(
+                updated,
+                book=book,
+                question_count=counted["question_count"],
+            )
+
+    return await run_in_threadpool(record)
 
 
 @app.post(

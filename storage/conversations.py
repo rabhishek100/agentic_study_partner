@@ -36,7 +36,8 @@ def derive_title(question: str) -> str:
 
 CONVERSATION_COLUMNS = """
     id, title, book_ids, document_type, retrieval_mode, prompt_profile_json, state_json,
-    parent_conversation_id, anchors_json, created_at, updated_at
+    parent_conversation_id, anchors_json, session_kind, source_position,
+    created_at, updated_at
 """
 
 
@@ -52,6 +53,7 @@ def create_conversation(
     parent_conversation_id: str | UUID | None = None,
     anchors: Sequence[dict[str, Any]] | None = None,
     state: dict[str, Any] | None = None,
+    session_kind: str | None = None,
 ) -> dict[str, Any]:
     """Create a conversation, or a side chat when a parent is named.
 
@@ -77,9 +79,9 @@ def create_conversation(
         f"""
         insert into conversations (
             owner_id, title, book_ids, document_type, retrieval_mode, prompt_profile_json,
-            parent_conversation_id, anchors_json, state_json
+            parent_conversation_id, anchors_json, state_json, session_kind
         )
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning {CONVERSATION_COLUMNS}
         """,
         (
@@ -92,6 +94,7 @@ def create_conversation(
             parent_conversation_id,
             Jsonb(list(anchors or ())),
             Jsonb(state or {}),
+            session_kind,
         ),
     ).fetchone()
 
@@ -135,9 +138,14 @@ def list_conversations(
     if limit <= 0:
         raise ValueError("limit must be positive")
 
+    # Reading sessions are roots too, but they are not threads: one would sit
+    # in the chat history named after a book, with none of its questions under
+    # it, because those are its side chats. The library's continue band lists
+    # them instead, through `list_reading_sessions`.
     where_clause = """
         where conversations.owner_id = %s
           and conversations.parent_conversation_id is null
+          and conversations.session_kind is null
     """
     params: list[Any] = [parse_owner_id(owner_id)]
     if document_type:
@@ -207,6 +215,89 @@ def list_side_chats(
         """,
         (parse_owner_id(owner_id), parent_conversation_id),
     ).fetchall()
+
+
+def reading_session(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    book_id: int,
+) -> dict[str, Any] | None:
+    """This reader's reading session for one source, if they have started it."""
+
+    return connection.execute(
+        f"""
+        select {CONVERSATION_COLUMNS}
+        from conversations
+        where owner_id = %s and session_kind = 'read' and book_ids = %s
+        """,
+        (parse_owner_id(owner_id), [int(book_id)]),
+    ).fetchone()
+
+
+def list_reading_sessions(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Sources this reader has started, most recently read first.
+
+    Counting the side chats rather than listing them: what the library's
+    continue band needs is "you asked five questions in this book", and the
+    questions themselves belong on the reading surface.
+    """
+
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    return connection.execute(
+        """
+        select
+            conversations.id,
+            conversations.title,
+            conversations.book_ids,
+            conversations.source_position,
+            conversations.updated_at,
+            (
+                select count(*)
+                from conversations as side
+                where side.parent_conversation_id = conversations.id
+                  and side.owner_id = conversations.owner_id
+            ) as question_count
+        from conversations
+        where conversations.owner_id = %s and conversations.session_kind = 'read'
+        order by conversations.updated_at desc
+        limit %s
+        """,
+        (parse_owner_id(owner_id), limit),
+    ).fetchall()
+
+
+def set_source_position(
+    connection: Connection,
+    conversation_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    position: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Record where the reader is, without disturbing anything else.
+
+    Deliberately does *not* touch `updated_at`. Position is written on every
+    page turn, and letting that reorder conversation history would put a book
+    the reader is idly scrolling above the one they are actually working in.
+    Recency in this application means "was used", and turning a page is not a
+    turn.
+    """
+
+    return connection.execute(
+        f"""
+        update conversations
+        set source_position = %s
+        where id = %s and owner_id = %s and session_kind = 'read'
+        returning {CONVERSATION_COLUMNS}
+        """,
+        (Jsonb(position), conversation_id, parse_owner_id(owner_id)),
+    ).fetchone()
 
 
 def load_turns(
