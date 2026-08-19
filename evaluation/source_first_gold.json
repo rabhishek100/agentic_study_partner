@@ -5,7 +5,7 @@
   "purpose": "Seed judgments for source-first study: whether an anchored question stays anchored, which rung of the grounding ladder answers it, and whether an ungrounded answer ever arrives wearing citations.",
   "review_provenance": {
     "human_reviewed": false,
-    "note": "Written from the page anchors already frozen in retrieval_gold_seed.json, which are audited, but the expected rungs here are the author's judgement and have not been reviewed. Treat the rung expectations as a proposal until someone who knows the library confirms that each library case really is absent from the open book and present elsewhere in it."
+    "note": "Written from the page anchors already frozen in retrieval_gold_seed.json, which are audited, but the expected rungs here are the author's judgement and have not been reviewed. Treat the rung expectations as a proposal until someone who knows the library confirms that each library case really is absent from the open book and present elsewhere in it. Three questions were rewritten after the first run: written with a bare \"this\" against a page anchor, they produced clarifications rather than answers, which measured the wording rather than the ladder."
   },
   "book": {
     "database_book_id": 1,
@@ -77,7 +77,7 @@
     {
       "id": "sf-005",
       "category": "outside_every_source",
-      "question": "Does scikit-learn's class_weight='balanced' do this for me?",
+      "question": "Does scikit-learn's class_weight='balanced' implement the inverse-frequency weighting this page describes?",
       "anchor": {
         "kind": "document_page",
         "page": 126
@@ -85,24 +85,26 @@
       "expect_rung": "model_knowledge",
       "expect_grounded": false,
       "expect_anchor_in_evidence": false,
-      "rationale": "The book describes the inverse-frequency rule and says nothing about any library's implementation of it. The ladder should climb, say so, and cite nothing."
+      "rationale": "The book describes the inverse-frequency rule and says nothing about any library's implementation of it. The ladder should climb, say so, and cite nothing.",
+      "rewritten_because": "The first run showed the router asking what \"this\" referred to rather than answering: the question was written as if a sentence were highlighted, but the anchor is a bare page and carries no quoted text for a pronoun to bind to. A page chip names a place, not a subject."
     },
     {
       "id": "sf-006",
       "category": "outside_every_source",
-      "question": "What did the 2024 EU AI Act change about this?",
+      "question": "What did the 2024 EU AI Act change about the responsibilities this page describes?",
       "anchor": {
         "kind": "document_page",
         "page": 367
       },
       "expect_rung": "model_knowledge",
       "expect_grounded": false,
-      "rationale": "Responsible AI is anchored here; a specific later regulation is outside anything ingested, and is the clearest case for the no-blend assertion."
+      "rationale": "Responsible AI is anchored here; a specific later regulation is outside anything ingested, and is the clearest case for the no-blend assertion.",
+      "rewritten_because": "The first run showed the router asking what \"this\" referred to rather than answering: the question was written as if a sentence were highlighted, but the anchor is a bare page and carries no quoted text for a pronoun to bind to. A page chip names a place, not a subject."
     },
     {
       "id": "sf-007",
       "category": "locked",
-      "question": "Does scikit-learn's class_weight='balanced' do this for me?",
+      "question": "Does scikit-learn's class_weight='balanced' implement the inverse-frequency weighting this page describes?",
       "anchor": {
         "kind": "document_page",
         "page": 126
@@ -110,7 +112,8 @@
       "stay_in_source": true,
       "expect_rung": "open_source",
       "expect_grounded": true,
-      "rationale": "The same question as sf-005 with the lock on. The ladder must stop and the turn must abstain rather than answer from outside the book \u2014 grounded, because it never left."
+      "rationale": "The same question as sf-005 with the lock on. The ladder must stop and the turn must abstain rather than answer from outside the book \u2014 grounded, because it never left.",
+      "rewritten_because": "The first run showed the router asking what \"this\" referred to rather than answering: the question was written as if a sentence were highlighted, but the anchor is a bare page and carries no quoted text for a pronoun to bind to. A page chip names a place, not a subject."
     },
     {
       "id": "sf-008",

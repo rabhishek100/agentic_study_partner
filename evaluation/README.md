@@ -39,6 +39,39 @@ uv run python -m scripts.evaluate_source_first --resolution-only --all
 uv run python -m scripts.evaluate_source_first --all --output evaluation/runs/source-first.json
 ```
 
+### What the first runs found
+
+Against *Designing Machine Learning Systems*, freshly ingested (389 pages, 343
+chunks):
+
+```
+anchor_recall              1.0
+anchor_leads               1.0
+selection_resolution_rate  0.875
+rung_accuracy              0.714   (5 of 7)
+blended                    []
+```
+
+The anchored passage reached the model and led its evidence in every case
+where retrieval ran. The one selection that did not resolve is the figure
+caption written to fail. The lock works, and `sf-005` / `sf-007` are the
+contrast pair that shows it: the same question about scikit-learn escalates to
+`model_knowledge` unlocked, and stays in the book locked.
+
+**The measurement has a hole, and running it is how that was found.** `sf-006`
+asks what the 2024 EU AI Act changed. The turn answered at `open_source` —
+grounded, cited — with specific claims about risk-based duties on providers
+and deployers. The book was published in 2022 and cannot contain them. So the
+answer is grounded in the sense the rung means, and unsupported in the sense
+that matters.
+
+`no_blend` does not catch this. It catches an answer that left the reader's
+sources *and wore citations anyway*, which is a different failure. An answer
+that stays at a grounded rung while asserting more than its evidence supports
+passes every check in this slice. Catching it needs claim-level entailment
+against the cited passages, which is a judge, not an assertion — and it is the
+next thing this slice should grow.
+
 **Not human-reviewed.** The page anchors come from `retrieval_gold_seed.json`,
 which is audited; the expected *rungs* are the author's judgement. In
 particular each "answerable from the library" case assumes the open book does

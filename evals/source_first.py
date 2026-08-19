@@ -97,7 +97,16 @@ def score_case(
 
     evidence = _evidence_ids(result)
     anchored = set(resolved)
-    if anchored:
+    # A turn that produced no evidence at all did not fail to retrieve the
+    # anchor — it never retrieved anything. That happens for two legitimate
+    # reasons: the ladder climbed past the reader's sources, and the router
+    # asked a clarifying question instead of answering. Scoring either as an
+    # anchor-recall failure measures the wrong thing, and it did on the first
+    # run: an escalation that worked perfectly was reported as a miss.
+    if anchored and not evidence:
+        checks["anchor_recall"] = None
+        checks["anchor_leads"] = None
+    elif anchored:
         found = anchored.intersection(evidence)
         checks["anchor_recall"] = len(found) / len(anchored)
         # The anchored passage is pinned, so it enters the evidence list first
@@ -132,6 +141,11 @@ def score_case(
     checks["blended"] = bool(markers) and not grounded
     if checks["blended"]:
         failures.append("ungrounded answer carries citation markers")
+
+    # Recorded so a run can tell an answer from a question back. A clarify is
+    # not a wrong answer; it is the absence of one, and it says the case was
+    # ambiguous rather than that the system was.
+    checks["outcome"] = result.outcome
 
     checks["widenings"] = [
         {"from": step.from_rung, "to": step.to_rung, "reason": step.reason}
