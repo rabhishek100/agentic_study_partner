@@ -40,6 +40,7 @@ from .contracts import (
     DocumentSectionAnchor,
 )
 from .scope import ScopeResolutionError, resolve_node
+from .side_context import AnchoredSource
 
 # The same ceiling `side_context` applies to pinned chunks, for the same
 # reason: a side turn's evidence set has to stay near a normal turn's size, or
@@ -121,6 +122,22 @@ class ResolvedAnchor:
     selected_text: str = ""
     matched: bool = True
     dropped: tuple[str, ...] = ()
+
+    def as_source(self) -> AnchoredSource:
+        """Hand this to the context assembler in the terms it works in.
+
+        The assembler is surface-neutral on purpose, so this is the one-way
+        door out of book vocabulary: chunk ids become identities, and the
+        lecture resolver produces the same struct out of evidence units.
+        """
+
+        return AnchoredSource(
+            anchor_id=self.anchor_id,
+            label=self.label,
+            identities=self.chunk_ids,
+            selected_text=self.selected_text,
+            matched=self.matched,
+        )
 
 
 def _page_rows(

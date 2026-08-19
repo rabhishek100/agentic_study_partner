@@ -16,13 +16,13 @@ from pathlib import Path
 import queue
 import threading
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
 import fitz
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
-from pydantic import Field
+from pydantic import Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
@@ -36,10 +36,18 @@ from study.question_generator import generate_video_questions
 from study.contracts import (
     MAXIMUM_ANCHORS,
     MAXIMUM_QUOTE_CHARS,
+    Anchor,
     ContractModel,
+    LectureAnchor,
+    LectureMomentAnchor,
+    LectureStretchAnchor,
     QuoteAnchor,
+    parse_anchor,
+    parse_anchors,
 )
+from study.grounding import settled_rung
 from study.side_context import build_side_context, readable_quote
+from video.anchors import resolve_lecture_anchors, timestamp
 from video.answers import VideoAnswerDependencies
 from video.contracts import VideoConversationState, VideoTurnResult
 from video.conversation import execute_video_turn, new_video_conversation_state
@@ -111,22 +119,59 @@ class ConversationSummary(ContractModel):
 class SideChatAnchorInput(ContractModel):
     """One passage a reader carried into a side chat over this lecture."""
 
+    kind: Literal["answer_quote"] = "answer_quote"
     anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
     parent_turn_index: int = Field(ge=0)
     quoted_text: str = Field(min_length=1, max_length=MAXIMUM_QUOTE_CHARS)
 
 
+# As on the book surface: the stored contract with the id widened, because the
+# server assigns ids it has not seen.
+class MomentAnchorInput(LectureMomentAnchor):
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class StretchAnchorInput(LectureStretchAnchor):
+    anchor_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+SideChatAnchorRequest = Annotated[
+    SideChatAnchorInput | MomentAnchorInput | StretchAnchorInput,
+    Field(discriminator="kind"),
+]
+
+
+def _tagged_anchors(value: object) -> object:
+    """Tag an anchor sent by an interface that predates source anchors."""
+
+    if not isinstance(value, list):
+        return value
+    return [
+        {**item, "kind": "answer_quote"}
+        if isinstance(item, dict) and "kind" not in item
+        else item
+        for item in value
+    ]
+
+
 class CreateSideChatRequest(ContractModel):
-    anchors: list[SideChatAnchorInput] = Field(min_length=1, max_length=MAXIMUM_ANCHORS)
+    anchors: list[SideChatAnchorRequest] = Field(
+        min_length=1,
+        max_length=MAXIMUM_ANCHORS,
+    )
     title: str | None = Field(default=None, min_length=1, max_length=200)
+
+    _tag_anchors = field_validator("anchors", mode="before")(_tagged_anchors)
 
 
 class UpdateSideChatRequest(ContractModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
-    anchors: list[SideChatAnchorInput] | None = Field(
+    anchors: list[SideChatAnchorRequest] | None = Field(
         default=None,
         max_length=MAXIMUM_ANCHORS,
     )
+
+    _tag_anchors = field_validator("anchors", mode="before")(_tagged_anchors)
 
 
 class SideChatSummary(ContractModel):
@@ -134,7 +179,7 @@ class SideChatSummary(ContractModel):
     parent_conversation_id: UUID
     video_id: UUID
     title: str
-    anchors: list[QuoteAnchor]
+    anchors: list[Anchor]
     turn_count: int
     created_at: Any
     updated_at: Any
@@ -466,6 +511,23 @@ def _run_turn(
             dependencies=_answer_dependencies(),
             token_callback=token_callback,
         )
+        if sources:
+            # Only meaningful for an anchored turn, and only ever `anchor` or
+            # `open_source`: this surface has nowhere above the lecture to go.
+            result = result.model_copy(
+                update={
+                    "grounding_rung": settled_rung(
+                        result,
+                        "open_source",
+                        pinned_ids=[
+                            identity
+                            for source in sources
+                            for identity in source.identities
+                        ],
+                        identity="evidence_id",
+                    )
+                }
+            )
         turn_index: int | None = None
         if result.ingestion_version_id:
             turn_index = append_turn(
@@ -494,36 +556,48 @@ SIDE_CHAT_NOT_FOUND = HTTPException(
 
 
 def _assigned_anchors(
-    requested: list[SideChatAnchorInput],
+    requested: list[SideChatAnchorRequest],
     *,
-    existing: list[QuoteAnchor],
+    existing: list[Anchor],
     turn_indexes: set[int],
-) -> list[QuoteAnchor]:
-    """Validate anchors against the parent's turns and give each a unique id."""
+    video_id: UUID,
+) -> list[Anchor]:
+    """Validate anchors against what this lecture actually has, and assign ids.
+
+    A quote names an answered turn of the parent; a lecture anchor names a
+    lecture, and it must be *this* one. A side chat inherits its recording and
+    cannot be pointed at another — an anchor is not a way around that, and
+    resolving one against the wrong recording would produce plausible evidence
+    for a different lesson.
+    """
 
     known = {anchor.anchor_id for anchor in existing}
     used: set[str] = set()
-    anchors: list[QuoteAnchor] = []
+    anchors: list[Anchor] = []
     for item in requested:
-        if item.parent_turn_index not in turn_indexes:
+        if isinstance(item, SideChatAnchorInput):
+            if item.parent_turn_index not in turn_indexes:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"turn {item.parent_turn_index} is not an answered turn "
+                        "of the parent conversation"
+                    ),
+                )
+        elif item.video_id != video_id:
             raise HTTPException(
                 status_code=422,
-                detail=(
-                    f"turn {item.parent_turn_index} is not an answered turn of "
-                    "the parent conversation"
-                ),
+                detail="an anchor must name the lecture this conversation is about",
             )
         anchor_id = item.anchor_id
         if anchor_id is None or anchor_id not in known or anchor_id in used:
             anchor_id = uuid4().hex
         used.add(anchor_id)
-        anchors.append(
-            QuoteAnchor(
-                anchor_id=anchor_id,
-                parent_turn_index=item.parent_turn_index,
-                quoted_text=item.quoted_text.strip(),
-            )
-        )
+        stored = item.model_dump(mode="json")
+        stored["anchor_id"] = anchor_id
+        if "quoted_text" in stored:
+            stored["quoted_text"] = stored["quoted_text"].strip()
+        anchors.append(parse_anchor(stored))
     return anchors
 
 
@@ -533,21 +607,38 @@ def _side_chat_summary(record: dict[str, Any], turn_count: int) -> SideChatSumma
         parent_conversation_id=record["parent_conversation_id"],
         video_id=record["video_id"],
         title=record["title"],
-        anchors=[
-            QuoteAnchor.model_validate(anchor)
-            for anchor in record["anchors_json"] or []
-        ],
+        anchors=parse_anchors(record["anchors_json"]),
         turn_count=turn_count,
         created_at=record["created_at"],
         updated_at=record["updated_at"],
     )
 
 
+def _side_chat_title(anchors: list[Anchor], anchored_turn: dict[str, Any] | None) -> str:
+    """Name a side chat after whatever the reader pointed at.
+
+    A quote can be nothing but a citation marker, which names a thread badly,
+    so it falls back to the question it came from. A lecture anchor has no
+    question behind it and is named by the moment itself.
+    """
+
+    first = anchors[0]
+    if isinstance(first, QuoteAnchor):
+        return (
+            readable_quote(first.quoted_text)
+            or (anchored_turn or {}).get("question")
+            or "Side chat"
+        )
+    if isinstance(first, LectureStretchAnchor):
+        return f"{timestamp(first.start_ms)} – {timestamp(first.end_ms)}"
+    return timestamp(first.timestamp_ms)
+
+
 def _seeded_side_chat_state(
     conversation_id: UUID,
     *,
     video_id: UUID,
-    anchored_turn: dict[str, Any],
+    anchored_turn: dict[str, Any] | None,
 ) -> VideoConversationState:
     """Open a side chat already knowing the answer it was opened over."""
 
@@ -555,6 +646,10 @@ def _seeded_side_chat_state(
         video_id=str(video_id),
         conversation_id=conversation_id,
     )
+    if anchored_turn is None:
+        # Anchored to the lecture rather than to an answer: there is no
+        # previous answer for `prior_answer_transform` to work on yet.
+        return state
     result = VideoTurnResult.model_validate(anchored_turn["result_json"])
     state.previous_answer = anchored_turn["answer"]
     state.previous_evidence = list(result.evidence)
@@ -697,20 +792,23 @@ def _create_side_chat(
             )
         turns = _answered_turns(connection, parent_conversation_id, owner_id)
         anchors = _assigned_anchors(
-            request.anchors, existing=[], turn_indexes=set(turns)
+            request.anchors,
+            existing=[],
+            turn_indexes=set(turns),
+            video_id=parent["video_id"],
         )
-        anchored_turn = turns[anchors[0].parent_turn_index]
+        quoted = [anchor for anchor in anchors if isinstance(anchor, QuoteAnchor)]
+        # Only a quote has a turn behind it. A side chat opened on a stretch of
+        # the lecture has no previous answer, and the parent's last one is not
+        # a substitute for the moment the reader marked.
+        anchored_turn = turns[quoted[0].parent_turn_index] if quoted else None
         created = create_conversation(
             connection,
             owner_id=owner_id,
             # The lecture is inherited: a side chat is about a passage of this
             # conversation, so it can only ever search the same recording.
             video_id=parent["video_id"],
-            title=(
-                request.title
-                or readable_quote(anchors[0].quoted_text)
-                or anchored_turn["question"]
-            ),
+            title=request.title or _side_chat_title(anchors, anchored_turn),
             retrieval_mode=parent["retrieval_mode"],
             prompt_snapshot=parent["prompt_snapshot_json"] or prompt_snapshot(),
             parent_conversation_id=parent_conversation_id,
@@ -742,10 +840,20 @@ def _run_side_turn(
         if record is None or record["parent_conversation_id"] is None:
             raise SIDE_CHAT_NOT_FOUND
         video = _require_video(connection, record["video_id"], owner_id)
-        anchors = [
-            QuoteAnchor.model_validate(anchor)
-            for anchor in record["anchors_json"] or []
-        ]
+        anchors = parse_anchors(record["anchors_json"])
+        # Resolved on every turn, against the version the lecture currently
+        # answers from. A re-ingest is a different cut with different unit
+        # ids, so a stored resolution would point the reader's timestamp at a
+        # recording that no longer exists.
+        sources = tuple(
+            resolved.as_source()
+            for resolved in resolve_lecture_anchors(
+                connection,
+                [anchor for anchor in anchors if isinstance(anchor, LectureAnchor)],
+                owner_id=owner_id,
+                video_id=record["video_id"],
+            )
+        )
         parent_rows = load_turns(
             connection, record["parent_conversation_id"], owner_id=owner_id
         )
@@ -767,7 +875,11 @@ def _run_side_turn(
             video_title=video["title"],
             dependencies=_answer_dependencies(),
             token_callback=token_callback,
-            side_context=build_side_context(anchors, video_parent_turns(parent_rows)),
+            side_context=build_side_context(
+                [anchor for anchor in anchors if isinstance(anchor, QuoteAnchor)],
+                video_parent_turns(parent_rows),
+                sources=sources,
+            ),
         )
         turn_index: int | None = None
         if result.ingestion_version_id:
@@ -851,10 +963,7 @@ async def update_video_side_chat(
             if request.anchors is not None:
                 anchors = _assigned_anchors(
                     request.anchors,
-                    existing=[
-                        QuoteAnchor.model_validate(anchor)
-                        for anchor in record["anchors_json"] or []
-                    ],
+                    existing=parse_anchors(record["anchors_json"]),
                     turn_indexes=set(
                         _answered_turns(
                             connection,
@@ -862,6 +971,7 @@ async def update_video_side_chat(
                             owner_id,
                         )
                     ),
+                    video_id=record["video_id"],
                 )
                 record = set_anchors(
                     connection,

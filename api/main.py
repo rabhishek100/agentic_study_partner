@@ -1120,13 +1120,7 @@ def _anchored_sources(
     if not documents:
         return ()
     return tuple(
-        AnchoredSource(
-            anchor_id=resolved.anchor_id,
-            label=resolved.label,
-            identities=resolved.chunk_ids,
-            selected_text=resolved.selected_text,
-            matched=resolved.matched,
-        )
+        resolved.as_source()
         for resolved in resolve_document_anchors(
             connection,
             documents,

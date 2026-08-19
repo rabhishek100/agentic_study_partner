@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # A side chat's context report has the same shape whichever surface it came
 # from: which anchors were used, what they pinned, and what the budget dropped.
-from study.contracts import SideContextReport
+from study.contracts import GroundingRung, SideContextReport
 
 
 VideoRoute = Literal[
@@ -179,6 +179,13 @@ class VideoTurnResult(ContractModel):
     # Present only on a side-chat turn. Optional so turns recorded before side
     # chats existed still load.
     side_context: SideContextReport | None = None
+    # Which rung of the grounding ladder answered. Set only on a turn anchored
+    # to a moment of the lecture, and only ever `anchor` or `open_source`:
+    # unlike the book surface, this one has no route out of the recording at
+    # all, so there is nothing above `open_source` to climb to and no widening
+    # to record. If lecture answers ever gain an external route, the rest of
+    # the ladder belongs here rather than a second mechanism.
+    grounding_rung: GroundingRung | None = None
 
 
 class VideoConversationState(ContractModel):

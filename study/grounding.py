@@ -109,10 +109,11 @@ def insufficiency(result: TurnResult) -> str | None:
 
 
 def settled_rung(
-    result: TurnResult,
+    result: object,
     attempted: GroundingRung,
     *,
     pinned_ids: Sequence[str] = (),
+    identity: str = "chunk_id",
 ) -> GroundingRung:
     """The rung an answer actually rests on, which can be lower than the pass.
 
@@ -120,21 +121,31 @@ def settled_rung(
     anchor was answered by the passage the reader was looking at, and saying so
     is the difference between "somewhere in this book" and "here". It is a
     property of the citations rather than a guess, so it costs nothing.
+
+    Surface-neutral for the same reason `study.side_context` is: a book turn
+    cites chunks and a lecture turn cites evidence units, and only the name of
+    the field holding that identity differs. A lecture result carries no
+    `source_type` because its surface has no way to leave the lecture — so the
+    grounded default is the honest reading of its absence.
     """
 
-    if result.source_type == "web_search":
+    from .side_context import ranked_identities
+
+    source_type = getattr(result, "source_type", "book_library")
+    if source_type == "web_search":
         return "web_search"
-    if result.source_type == "model_knowledge":
+    if source_type == "model_knowledge":
         return "model_knowledge"
-    if attempted == "open_source" and pinned_ids and result.citations:
+    citations = getattr(result, "citations", ()) or ()
+    if attempted == "open_source" and pinned_ids and citations:
         pinned = set(pinned_ids)
-        by_rank = {
-            reference.rank or position: reference.chunk_id
-            for position, reference in enumerate(result.evidence, start=1)
-        }
+        by_rank = ranked_identities(
+            getattr(result, "evidence", ()) or (),
+            identity=identity,
+        )
         cited = {
             by_rank.get(citation.evidence_rank)
-            for citation in result.citations
+            for citation in citations
             if citation.evidence_rank
         }
         cited.discard(None)

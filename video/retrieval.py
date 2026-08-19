@@ -77,6 +77,38 @@ class VideoEvidence:
         return self.modality in {"visual_frame", "visual_event"}
 
 
+def published_version_id(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+) -> UUID:
+    """The ingestion version a lecture currently answers from.
+
+    Extracted so that retrieval and anchor resolution cannot disagree about
+    which cut of the lecture is live. An evidence unit belongs to the version
+    that produced it, so resolving an anchor against a different one would
+    point the reader's timestamp at a different recording.
+    """
+
+    version = connection.execute(
+        """
+        select version.id
+        from video.videos as video
+        join video.ingestion_versions as version
+          on version.id = video.current_ingestion_version_id
+         and version.video_id = video.id and version.owner_id = video.owner_id
+        where video.id = %s and video.owner_id = %s
+          and video.readiness_status in ('ready', 'degraded')
+          and version.status in ('ready', 'degraded')
+        """,
+        (UUID(str(video_id)), parse_owner_id(owner_id)),
+    ).fetchone()
+    if version is None:
+        raise VideoNotReadyError("video has no published evidence")
+    return version["id"]
+
+
 def retrieve_video_evidence(
     connection: Connection,
     *,
@@ -112,22 +144,7 @@ def retrieve_video_evidence(
     if not 0 <= timeline_window_ms <= 10 * 60_000:
         raise ValueError("timeline window is outside the supported range")
 
-    version = connection.execute(
-        """
-        select version.id
-        from video.videos as video
-        join video.ingestion_versions as version
-          on version.id = video.current_ingestion_version_id
-         and version.video_id = video.id and version.owner_id = video.owner_id
-        where video.id = %s and video.owner_id = %s
-          and video.readiness_status in ('ready', 'degraded')
-          and version.status in ('ready', 'degraded')
-        """,
-        (video, owner),
-    ).fetchone()
-    if version is None:
-        raise VideoNotReadyError("video has no published evidence")
-    version_id = version["id"]
+    version_id = published_version_id(connection, owner_id=owner, video_id=video)
 
     # Four times the answer's size. Eight was measured and is worse: a longer
     # shortlist lets more weakly-matching frames into the fusion, and the
