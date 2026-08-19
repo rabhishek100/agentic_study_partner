@@ -85,6 +85,26 @@ npx supabase start
 npx supabase db reset
 ```
 
+### Without Docker
+
+`supabase start` needs Docker. Where that is not available, a plain Postgres
+builds the same schema:
+
+```bash
+brew install postgresql@17 pgvector
+scripts/local_postgres.sh start
+```
+
+It creates a cluster on the same port, applies
+[`supabase/local/supabase_shim.sql`](supabase/local/supabase_shim.sql) — the
+handful of Supabase objects the migrations refer to — and then every migration
+in order. `stop`, `status` and `reset` do what they say.
+
+What this gets you is the schema, which is what the storage, schema, and
+row-level-security tests talk to. What it does not get you is the Storage HTTP
+API or the auth service, so the ingestion-pipeline and worker tests still need
+the real thing: they upload PDFs to a bucket over HTTP. Everything else runs.
+
 The defaults in `.env.example` match the Supabase CLI database:
 
 ```text
@@ -520,7 +540,10 @@ npm run build
 ```
 
 GitHub Actions runs the Python and frontend checks on pushes to `main` and pull
-requests. Postgres integration tests require the local Supabase stack.
+requests. Postgres integration tests require a database: the local Supabase
+stack, or `scripts/local_postgres.sh` where Docker is unavailable. The
+ingestion-pipeline and worker tests additionally need Supabase's Storage API
+and so only run against the full stack.
 
 ## Docker
 

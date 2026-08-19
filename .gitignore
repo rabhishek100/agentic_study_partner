@@ -42,3 +42,4 @@ supabase/.temp/
 
 # Copied from pdfjs-dist at install time by scripts/copy-pdf-worker.mjs
 frontend/public/pdf.worker.min.mjs
+.local-postgres/

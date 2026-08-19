@@ -743,23 +743,6 @@ def _run_turn(
             dependencies=_answer_dependencies(),
             token_callback=token_callback,
         )
-        if sources:
-            # Only meaningful for an anchored turn, and only ever `anchor` or
-            # `open_source`: this surface has nowhere above the lecture to go.
-            result = result.model_copy(
-                update={
-                    "grounding_rung": settled_rung(
-                        result,
-                        "open_source",
-                        pinned_ids=[
-                            identity
-                            for source in sources
-                            for identity in source.identities
-                        ],
-                        identity="evidence_id",
-                    )
-                }
-            )
         turn_index: int | None = None
         if result.ingestion_version_id:
             turn_index = append_turn(
@@ -1115,6 +1098,23 @@ def _run_side_turn(
                 sources=sources,
             ),
         )
+        if sources:
+            # Only meaningful for an anchored turn, and only ever `anchor` or
+            # `open_source`: this surface has nowhere above the lecture to go.
+            result = result.model_copy(
+                update={
+                    "grounding_rung": settled_rung(
+                        result,
+                        "open_source",
+                        pinned_ids=[
+                            identity
+                            for source in sources
+                            for identity in source.identities
+                        ],
+                        identity="evidence_id",
+                    )
+                }
+            )
         turn_index: int | None = None
         if result.ingestion_version_id:
             turn_index = append_turn(
