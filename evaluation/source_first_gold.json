@@ -1,0 +1,136 @@
+{
+  "schema_version": "0.1.0",
+  "set_id": "source-first-seed-v0.1",
+  "created_on": "2026-08-20",
+  "purpose": "Seed judgments for source-first study: whether an anchored question stays anchored, which rung of the grounding ladder answers it, and whether an ungrounded answer ever arrives wearing citations.",
+  "review_provenance": {
+    "human_reviewed": false,
+    "note": "Written from the page anchors already frozen in retrieval_gold_seed.json, which are audited, but the expected rungs here are the author's judgement and have not been reviewed. Treat the rung expectations as a proposal until someone who knows the library confirms that each library case really is absent from the open book and present elsewhere in it."
+  },
+  "book": {
+    "database_book_id": 1,
+    "title": "Designing Machine Learning Systems",
+    "author": "Chip Huyen"
+  },
+  "judgment_unit": "anchored_turn",
+  "measures": {
+    "anchor_recall": "Resolved anchor units that reached the turn's evidence.",
+    "anchor_leads": "Whether the anchored passage carries the lowest marker.",
+    "rung_accuracy": "Recorded grounding rung against the expected one.",
+    "selection_resolution_rate": "Selections that matched canonical text.",
+    "no_blend": "Hard assertion: no ungrounded answer carries citation markers."
+  },
+  "cases": [
+    {
+      "id": "sf-001",
+      "category": "page_anchor_in_source",
+      "question": "Why is this sampling method used when the total is unknown?",
+      "anchor": {
+        "kind": "document_page",
+        "book_id": 1,
+        "page": 106
+      },
+      "expect_rung": "anchor",
+      "expect_grounded": true,
+      "expect_anchor_in_evidence": true,
+      "rationale": "The page defines reservoir sampling and the question asks about nothing else, so the anchored passage should both ground the answer and be the only thing it cites."
+    },
+    {
+      "id": "sf-002",
+      "category": "selection_in_source",
+      "question": "What does this mean in practice?",
+      "anchor": {
+        "kind": "document_passage",
+        "book_id": 1,
+        "page": 155,
+        "selected_text": "data leakage"
+      },
+      "expect_selection_resolves": true,
+      "expect_rung": "anchor",
+      "expect_grounded": true,
+      "rationale": "A short selection of an exact term on the page that defines it. Resolution should find it and the answer should not need to leave the section."
+    },
+    {
+      "id": "sf-003",
+      "category": "page_anchor_wider_in_source",
+      "question": "How does this compare with the other ways of handling it?",
+      "anchor": {
+        "kind": "document_page",
+        "book_id": 1,
+        "page": 126
+      },
+      "expect_rung": "open_source",
+      "expect_grounded": true,
+      "expect_anchor_in_evidence": true,
+      "rationale": "The page is one method among several the chapter covers, so a comparison must reach past the anchored passage while staying in the book \u2014 the difference between `anchor` and `open_source`."
+    },
+    {
+      "id": "sf-004",
+      "category": "page_anchor_wider_in_source",
+      "question": "What happens to this once the model is deployed?",
+      "anchor": {
+        "kind": "document_page",
+        "book_id": 1,
+        "page": 262
+      },
+      "expect_rung": "open_source",
+      "expect_grounded": true,
+      "rationale": "Distribution shift is anchored here but deployment is chapter seven, so the answer stays in the book and leaves the page."
+    },
+    {
+      "id": "sf-005",
+      "category": "outside_every_source",
+      "question": "Does scikit-learn's class_weight='balanced' do this for me?",
+      "anchor": {
+        "kind": "document_page",
+        "book_id": 1,
+        "page": 126
+      },
+      "expect_rung": "model_knowledge",
+      "expect_grounded": false,
+      "expect_anchor_in_evidence": false,
+      "rationale": "The book describes the inverse-frequency rule and says nothing about any library's implementation of it. The ladder should climb, say so, and cite nothing."
+    },
+    {
+      "id": "sf-006",
+      "category": "outside_every_source",
+      "question": "What did the 2024 EU AI Act change about this?",
+      "anchor": {
+        "kind": "document_page",
+        "book_id": 1,
+        "page": 367
+      },
+      "expect_rung": "model_knowledge",
+      "expect_grounded": false,
+      "rationale": "Responsible AI is anchored here; a specific later regulation is outside anything ingested, and is the clearest case for the no-blend assertion."
+    },
+    {
+      "id": "sf-007",
+      "category": "locked",
+      "question": "Does scikit-learn's class_weight='balanced' do this for me?",
+      "anchor": {
+        "kind": "document_page",
+        "book_id": 1,
+        "page": 126
+      },
+      "stay_in_source": true,
+      "expect_rung": "open_source",
+      "expect_grounded": true,
+      "rationale": "The same question as sf-005 with the lock on. The ladder must stop and the turn must abstain rather than answer from outside the book \u2014 grounded, because it never left."
+    },
+    {
+      "id": "sf-008",
+      "category": "unresolvable_selection",
+      "question": "What is this figure showing?",
+      "anchor": {
+        "kind": "document_passage",
+        "book_id": 1,
+        "page": 127,
+        "selected_text": "Figure 4-10. Handling class imbalance"
+      },
+      "expect_selection_resolves": false,
+      "expect_grounded": true,
+      "rationale": "A caption drawn into the figure has no text layer to match. The selection should fail to resolve, the page should still ground the answer, and the turn should record the miss."
+    }
+  ]
+}
