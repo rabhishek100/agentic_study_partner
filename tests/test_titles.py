@@ -74,6 +74,28 @@ class ReadableTitleTests(unittest.TestCase):
             readable_title("machine.learning.notes.pdf"), "Machine Learning Notes"
         )
 
+    def test_a_run_of_underscores_is_the_colon_a_filesystem_could_not_hold(
+        self,
+    ) -> None:
+        self.assertEqual(
+            readable_title(
+                "12_Dropout___A_Simple_Way_to_Prevent_Neural_Networks_from_Overfitting"
+            ),
+            "Dropout: A Simple Way to Prevent Neural Networks from Overfitting",
+        )
+
+    def test_a_collection_index_is_not_part_of_the_name(self) -> None:
+        self.assertEqual(
+            readable_title("26_Kolmogorov_Complexity_and_Algorithmic_Randomness"),
+            "Kolmogorov Complexity and Algorithmic Randomness",
+        )
+
+    def test_an_arxiv_id_prefix_is_dropped(self) -> None:
+        self.assertEqual(
+            readable_title("[1409.2329] Recurrent Neural Network Regularization"),
+            "Recurrent Neural Network Regularization",
+        )
+
     def test_a_path_is_reduced_to_its_own_name(self) -> None:
         self.assertEqual(
             readable_title("/Users/x/Downloads/quantum_notes.pdf"), "Quantum Notes"

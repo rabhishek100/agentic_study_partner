@@ -44,6 +44,24 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Storage names, which say where the bytes went and nothing about the document.
+_STORAGE_NAMES = frozenset({"original.pdf", "original", "source.pdf", "upload.pdf"})
+
+
+def _name_to_read(stored_title: str, filename: str) -> str:
+    """Which of the two columns actually holds the reader's filename.
+
+    An upload stores its bytes under a normalised name — 42 of the 46 documents
+    in this library have `source_filename` set to the literal `original.pdf` —
+    so the name the reader chose survives only in the title the pipeline
+    defaulted to. This is what the first version of the backfill got wrong: it
+    compared the title against `original.pdf`, never matched, and skipped every
+    row that needed it.
+    """
+
+    return stored_title if filename.strip().casefold() in _STORAGE_NAMES else filename
+
+
 def _rename_documents(connection, *, apply: bool) -> tuple[int, int]:
     """Books and papers, from the PDF metadata ingestion already stored."""
 
@@ -63,7 +81,10 @@ def _rename_documents(connection, *, apply: bool) -> tuple[int, int]:
         if not looks_machine_generated(stored, filename):
             continue
         considered += 1
-        derived = resolve_title(embedded=row["embedded_title"], filename=filename)
+        derived = resolve_title(
+            embedded=row["embedded_title"],
+            filename=_name_to_read(stored, filename),
+        )
         if derived == stored:
             continue
         kind = row["document_type"]
@@ -106,7 +127,10 @@ def _rename_lectures(connection, *, apply: bool) -> tuple[int, int]:
         if not looks_machine_generated(stored, filename):
             continue
         considered += 1
-        derived = resolve_title(embedded=row["embedded_title"], filename=filename)
+        derived = resolve_title(
+            embedded=row["embedded_title"],
+            filename=_name_to_read(stored, filename),
+        )
         if derived == stored:
             continue
         print(f"  lecture {row['id']}: {stored!r} -> {derived!r}")

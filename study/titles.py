@@ -98,6 +98,28 @@ _ACRONYMS = frozenset(
 # course's name — is left as its author wrote it.
 _COURSE_CODE = re.compile(r"^([A-Za-z]{3,4})(\d+)$")
 
+# A name that is shaped like a filename, whatever column it is sitting in.
+#
+# This is the case the first version of the backfill missed entirely. Uploads
+# store their bytes under a normalised name — 42 of the 46 documents in this
+# library have `source_filename` set to the literal `original.pdf` — so the
+# reader's filename survives only in the title the pipeline defaulted to. There
+# is nothing to compare against, and the shape of the name has to be the
+# evidence instead.
+_FILENAME_SHAPED = (
+    re.compile(r"_"),                       # 07_Neural_Turing_Machines
+    re.compile(r"^\d{1,3}[\s._-]"),          # 26 Kolmogorov..., an index prefix
+    re.compile(r"\(\d+\)\s*$"),              # PythonMastery (1)
+    re.compile(r"^\[[\d.v]+\]"),             # [1409.2329] Recurrent...
+    # PythonMastery, 2019BurkovTheHundred-page: no spaces, and more than one
+    # capital start inside it — a title would have used spaces.
+    re.compile(r"^\S+$"),
+)
+
+# An index a collection numbers its documents with, and the arXiv id a download
+# prefixes them with. Neither is part of what the document is called.
+_LEADING_INDEX = re.compile(r"^(?:\d{1,3}[\s._-]+|\[[\d.v]+\]\s*)")
+
 # A word has to hold letters to be a word. A stem with none of them —
 # `1706.03762v7` — is an identifier, and there is nothing in it to extract.
 _HAS_WORDS = re.compile(r"[A-Za-z]{3,}")
@@ -162,6 +184,11 @@ def readable_title(filename: str) -> str:
     name = filename.replace("\\", "/").rsplit("/", 1)[-1].strip()
     stem = _EXTENSION.sub("", name).strip()
     stem = _LEADING_SITE.sub("", stem).strip()
+    stem = _LEADING_INDEX.sub("", stem).strip()
+    # A run of underscores is where a colon was: a filesystem cannot hold one,
+    # so the downloader wrote `Dropout___A_Simple_Way`. Restoring it is what
+    # makes the subtitle read as a subtitle instead of as a run-on.
+    stem = re.sub(r"_{2,}", ": ", stem)
     if not stem:
         return name
     # Nothing to extract from an identifier. Returned as it stands rather than
@@ -188,16 +215,22 @@ def readable_title(filename: str) -> str:
             continue
         parts = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", word)
         parts = re.sub(r"(?<=[A-Za-z]{4})(?=\d)", " ", parts)
+        # `2019BurkovTheHundred-page` starts with the year it was published.
+        parts = re.sub(r"(?<=\d)(?=[A-Z])", " ", parts)
         expanded.extend(part for part in parts.split(" ") if part)
 
     cleaned = " ".join(_capitalise(word) for word in expanded).strip()
     if not cleaned:
         return stem
-    # Lowercase the small words, except the first, which always leads.
+    # Lowercase the small words, except the first, which always leads — and
+    # except the one after a colon, which leads the subtitle.
     words_out = cleaned.split(" ")
     for index in range(1, len(words_out)):
-        if words_out[index].casefold() in _LOWERCASE_WORDS:
-            words_out[index] = words_out[index].casefold()
+        if words_out[index].casefold() not in _LOWERCASE_WORDS:
+            continue
+        if words_out[index - 1].endswith(":"):
+            continue
+        words_out[index] = words_out[index].casefold()
     return " ".join(words_out)[:MAXIMUM_TITLE_CHARACTERS]
 
 
@@ -234,4 +267,11 @@ def looks_machine_generated(title: str, filename: str) -> bool:
         return True
     # `YouTube video dQw4w9WgXcQ`: the placeholder written at creation, left
     # behind when acquisition never reached the point of replacing it.
-    return bool(re.fullmatch(r"YouTube video [\w-]{6,}", stored))
+    if re.fullmatch(r"YouTube video [\w-]{6,}", stored):
+        return True
+    # A title that is a filename in everything but the column it sits in.
+    if any(shape.search(stored) for shape in _FILENAME_SHAPED):
+        # Except when cleaning it would change nothing: a one-word title like
+        # "Transformers" is shaped like a filename and is also just correct.
+        return readable_title(stored) != stored
+    return False
