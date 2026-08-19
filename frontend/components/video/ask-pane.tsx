@@ -108,13 +108,21 @@ export function AskPane({
         {liveStatus(turns)}
       </p>
 
+      {/*
+        With nothing asked yet there is nothing to scroll back to, so the empty
+        state fits itself to the pane instead of scrolling.
+      */}
       <div
         ref={viewportRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+        className={`min-h-0 flex-1 overscroll-contain [scrollbar-gutter:stable] ${
+          isEmpty ? "overflow-hidden" : "overflow-y-auto"
+        }`}
       >
         <div
           ref={contentRef}
-          className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6 sm:px-6"
+          className={`mx-auto flex w-full max-w-3xl flex-col px-4 sm:px-6 ${
+            isEmpty ? "h-full" : "gap-8 py-6"
+          }`}
         >
           {isEmpty ? (
             <VideoWelcome

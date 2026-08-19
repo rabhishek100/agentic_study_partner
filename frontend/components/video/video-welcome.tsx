@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useFittedCount } from "@/hooks/use-fitted-count";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api";
 import type { SuggestedQuestionsResponse } from "@/lib/types";
@@ -88,53 +89,68 @@ export function VideoWelcome({
   const activeQuestions =
     questions.length > 0 ? questions : videoStarters(chapters);
 
+  // The empty state does not scroll, so the starter list gives up its tail
+  // rather than pushing the pane past its bottom edge.
+  const { frameRef, contentRef, itemsRef, count } = useFittedCount(
+    activeQuestions.length
+  );
+
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      <h2 className="font-serif text-xl font-medium tracking-tight sm:text-2xl">
-        What would you like to understand?
-      </h2>
-      <p className="mt-2 max-w-md text-sm text-muted-foreground">
-        Ask about anything in this lecture — what was said, what was drawn, or
-        what a slide shows. Answers cite the moment they came from.
-      </p>
+    <div
+      ref={frameRef}
+      className="flex h-full min-h-0 flex-col overflow-hidden py-6 text-center [justify-content:safe_center]"
+    >
+      <div ref={contentRef} className="flex flex-col items-center">
+        <h2 className="font-serif text-xl font-medium tracking-tight sm:text-2xl">
+          What would you like to understand?
+        </h2>
+        <p className="mt-2 max-w-md text-sm text-muted-foreground">
+          Ask about anything in this lecture — what was said, what was drawn, or
+          what a slide shows. Answers cite the moment they came from.
+        </p>
 
-      <div className="mt-6 flex w-full max-w-md flex-col gap-2">
-        {videoId && (
-          <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Sparkles className="h-3.5 w-3.5 text-primary" /> Suggested Prompts
-            </span>
-            <button
-              type="button"
-              onClick={() => fetchQuestions(true)}
-              disabled={refreshing || loading}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              title="Refresh suggested questions"
-            >
-              <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
-              <span>Refresh</span>
-            </button>
+        {/* The items element stays mounted even when nothing fits: an unmounted
+            list has no size to measure a way back from once the pane grows. */}
+        <div
+          className={`flex w-full max-w-md flex-col gap-2 ${count > 0 ? "mt-6" : ""}`}
+        >
+          {videoId && count > 0 && (
+            <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5 text-primary" /> Suggested Prompts
+              </span>
+              <button
+                type="button"
+                onClick={() => fetchQuestions(true)}
+                disabled={refreshing || loading}
+                className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                title="Refresh suggested questions"
+              >
+                <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          )}
+
+          <div ref={itemsRef} className="flex flex-col gap-2">
+            {loading
+              ? Array.from({ length: Math.min(5, count) }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-md" />
+                ))
+              : activeQuestions.slice(0, count).map((starter) => (
+                  <Button
+                    key={starter}
+                    variant="outline"
+                    size="lg"
+                    className="h-auto justify-start whitespace-normal px-4 py-3 text-left font-normal"
+                    onClick={() => onAsk(starter)}
+                    disabled={!canAsk || refreshing}
+                  >
+                    {starter}
+                  </Button>
+                ))}
           </div>
-        )}
-
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-md" />
-          ))
-        ) : (
-          activeQuestions.map((starter) => (
-            <Button
-              key={starter}
-              variant="outline"
-              size="lg"
-              className="h-auto justify-start whitespace-normal px-4 py-3 text-left font-normal"
-              onClick={() => onAsk(starter)}
-              disabled={!canAsk || refreshing}
-            >
-              {starter}
-            </Button>
-          ))
-        )}
+        </div>
       </div>
     </div>
   );
