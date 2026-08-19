@@ -242,6 +242,12 @@ def set_source_position(
     Deliberately does not touch `updated_at`, exactly as the reading side does
     not: the playhead moves several times a second while a lecture plays, and
     recency here means "was used" rather than "was left running".
+
+    It takes more to be true here than on the book side. `video.conversations`
+    carries a trigger that stamps `updated_at` on every update, so this rests
+    on `video.set_conversation_updated_at` skipping the stamp when nothing but
+    the position changed — which is why that function exists and the shared
+    `video.set_updated_at` was left alone.
     """
 
     return connection.execute(

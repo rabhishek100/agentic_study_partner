@@ -12,6 +12,7 @@ import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MomentComposer, type Stretch } from "@/components/watch/moment-composer";
 import { MomentMarks, momentMarksFor } from "@/components/watch/moment-marks";
+import { SessionQuestions } from "@/components/read/session-questions";
 import { VideoSideChatTurns } from "@/components/video/video-side-chat-turns";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import {
@@ -80,6 +81,7 @@ export default function WatchPage() {
     () => momentMarksFor(sideChats.available),
     [sideChats.available],
   );
+  const [questionsOpen, setQuestionsOpen] = useState(false);
 
   useEffect(() => {
     if (!authSession || !videoId) return;
@@ -208,8 +210,21 @@ export default function WatchPage() {
   return (
     <AppShell
       railMode="drawer-only"
-      regions={
-        reading
+      regions={[
+        {
+          key: "questions",
+          label: "Questions you asked in this session",
+          fixedWidth: 280,
+          node: (
+            <SessionQuestions
+              threads={sideChats.available}
+              openIds={sideChats.openIds}
+              onOpen={sideChats.show}
+              hereLabel={timecode(atMs)}
+            />
+          ),
+        },
+        ...(reading
           ? [
               {
                 key: "document",
@@ -226,9 +241,11 @@ export default function WatchPage() {
                 ),
               },
             ]
-          : []
-      }
-      activeRegion={reading ? "document" : null}
+          : []),
+      ]}
+      // A cited slide takes the region when one is opened: the reader asked to
+      // see it, and the questions list is one click away either side of that.
+      activeRegion={reading ? "document" : questionsOpen ? "questions" : null}
       status={
         <span className="flex items-center gap-2">
           <span aria-hidden className="size-1.5 rounded-full bg-positive" />
@@ -263,12 +280,25 @@ export default function WatchPage() {
         </DropdownMenu>
       }
       sideChatControl={
-        <SideChatMenu
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-pressed={questionsOpen}
+            onClick={() => setQuestionsOpen(!questionsOpen)}
+          >
+            Questions
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {sideChats.available.length}
+            </span>
+          </Button>
+          <SideChatMenu
           sideChats={sideChats.available}
           openIds={sideChats.openIds}
           onOpen={sideChats.show}
           onDelete={sideChats.remove}
-        />
+          />
+        </>
       }
       rail={
         <nav aria-label="Chapters" className="flex h-full flex-col p-3">

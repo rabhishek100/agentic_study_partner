@@ -10,6 +10,8 @@ import { AuthGate } from "@/components/auth-gate";
 import { MarginMarks, marksFor } from "@/components/read/margin-marks";
 import { PageComposer } from "@/components/read/page-composer";
 import { PageSelectionPopover } from "@/components/read/page-selection";
+import { SessionQuestions } from "@/components/read/session-questions";
+import { SessionRecap, recapOf } from "@/components/read/session-recap";
 import { StayInSourceToggle } from "@/components/read/stay-in-source";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
@@ -80,6 +82,11 @@ export default function ReadPage() {
     session?.conversation_id ?? null,
   );
   const marks = useMemo(() => marksFor(sideChats.available), [sideChats.available]);
+  const recap = useMemo(
+    () => recapOf(sideChats.available.map((thread) => thread.anchors), chapters),
+    [sideChats.available, chapters],
+  );
+  const [questionsOpen, setQuestionsOpen] = useState(true);
 
   useEffect(() => {
     if (!session || resumed) return;
@@ -187,6 +194,32 @@ export default function ReadPage() {
   return (
     <AppShell
       railMode="drawer-only"
+      regions={[
+        {
+          key: "questions",
+          label: "Questions you asked in this session",
+          fixedWidth: 280,
+          node: (
+            <SessionQuestions
+              threads={sideChats.available}
+              openIds={sideChats.openIds}
+              onOpen={sideChats.show}
+              hereLabel={`p. ${page}`}
+              footer={
+                <div className="space-y-3">
+                  <SessionRecap recap={recap} bookId={bookId} />
+                  <StayInSourceToggle
+                    locked={stayInSource}
+                    onChange={setStayInSource}
+                    noun={session?.document_type === "paper" ? "paper" : "book"}
+                  />
+                </div>
+              }
+            />
+          ),
+        },
+      ]}
+      activeRegion={questionsOpen ? "questions" : null}
       status={
         <span className="flex items-center gap-2">
           <span aria-hidden className="size-1.5 rounded-full bg-positive" />
@@ -221,12 +254,25 @@ export default function ReadPage() {
         </DropdownMenu>
       }
       sideChatControl={
-        <SideChatMenu
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-pressed={questionsOpen}
+            onClick={() => setQuestionsOpen(!questionsOpen)}
+          >
+            Questions
+            <span className="font-mono text-xs tabular-nums text-muted-foreground">
+              {sideChats.available.length}
+            </span>
+          </Button>
+          <SideChatMenu
           sideChats={sideChats.available}
           openIds={sideChats.openIds}
           onOpen={sideChats.show}
           onDelete={sideChats.remove}
-        />
+          />
+        </>
       }
       rail={
         <nav aria-label="Contents" className="flex h-full flex-col p-3">
@@ -341,13 +387,6 @@ export default function ReadPage() {
 
         <div className="shrink-0 border-t border-divider px-4 py-3">
           <div className="mx-auto w-full max-w-3xl">
-            <div className="mb-2 flex justify-end">
-              <StayInSourceToggle
-                locked={stayInSource}
-                onChange={setStayInSource}
-                noun={session?.document_type === "paper" ? "paper" : "book"}
-              />
-            </div>
             <PageComposer
               page={page}
               sectionTitle={currentChapter?.title ?? null}

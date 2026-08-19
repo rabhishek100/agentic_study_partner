@@ -9,6 +9,10 @@ import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AddVideoDialog } from "@/components/video/add-video-dialog";
 import { ContinueBand } from "@/components/video/continue-band";
+import {
+  ContinueSessions,
+  sessionDetail,
+} from "@/components/read/continue-sessions";
 import { FirstRun } from "@/components/video/first-run";
 import { ProcessingBand } from "@/components/video/processing-band";
 import { VideoCard } from "@/components/video/video-card";
@@ -26,6 +30,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { signOut, useSession } from "@/hooks/use-session";
+import { useWatchSessions } from "@/hooks/use-source-sessions";
+import { timecode } from "@/lib/timecode";
 import { apiFetch } from "@/lib/api";
 import {
   latestByVideo,
@@ -62,6 +68,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 
 export default function VideosPage() {
   const { session, sessionLoading } = useSession();
+  const { sessions: watchSessions } = useWatchSessions(Boolean(session));
   const [videos, setVideos] = useState<VideoSummary[]>([]);
   const [conversations, setConversations] = useState<VideoConversationSummary[]>(
     [],
@@ -236,6 +243,21 @@ export default function VideosPage() {
 
           <AddVideoDialog onAdded={load} />
 
+          {/* Continuing a *lecture* comes before continuing a thread about
+              one: what a viewer wants back is the moment they stopped at and
+              the questions they left along it. */}
+          <ContinueSessions
+            heading="Continue watching"
+            entries={watchSessions.map((watch) => ({
+              key: watch.conversation_id,
+              href: `/watch/${watch.video_id}`,
+              title: watch.title,
+              detail: sessionDetail(
+                watch.position ? timecode(watch.position.timestamp_ms) : null,
+                watch.question_count,
+              ),
+            }))}
+          />
           <ContinueBand conversations={conversations} />
 
           {videos.length > 0 ? (

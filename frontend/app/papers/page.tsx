@@ -9,6 +9,7 @@ import { AuthGate } from "@/components/auth-gate";
 import { ConversationView } from "@/components/conversation/conversation-view";
 import { EvidencePanel } from "@/components/conversation/evidence-panel";
 import { LibraryRail } from "@/components/library-rail";
+import { sessionDetail } from "@/components/read/continue-sessions";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
@@ -27,6 +28,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChat } from "@/hooks/use-chat";
 import { useConversations } from "@/hooks/use-conversations";
+import { useReadingSessions } from "@/hooks/use-source-sessions";
 import { useSideChats } from "@/hooks/use-side-chats";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import { signOut, useSession } from "@/hooks/use-session";
@@ -43,6 +45,7 @@ import type {
 
 export default function PapersPage() {
   const { session, sessionLoading } = useSession();
+  const { sessions: readingSessions } = useReadingSessions(Boolean(session));
   const [books, setBooks] = useState<BookSummary[]>([]);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksError, setBooksError] = useState("");
@@ -426,6 +429,15 @@ export default function PapersPage() {
       activeRegion={activeRegion}
       rail={
         <LibraryRail
+          continueEntries={readingSessions.map((reading) => ({
+            key: reading.conversation_id,
+            href: `/read/${reading.book_id}`,
+            title: reading.title,
+            detail: sessionDetail(
+              reading.position ? `p. ${reading.position.page}` : null,
+              reading.question_count,
+            ),
+          }))}
           books={books}
           booksLoaded={booksLoaded}
           booksError={booksError}

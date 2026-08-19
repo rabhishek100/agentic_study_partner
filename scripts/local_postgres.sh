@@ -64,15 +64,29 @@ start() {
             -o "-p $PORT -k /tmp -c listen_addresses=127.0.0.1" start >/dev/null
         echo "started on port $PORT"
     fi
-    # Both are idempotent, so a start against an existing cluster brings it up
-    # to date with any migration added since.
+    # The shim is idempotent; the migrations are not, so applying them twice
+    # fails on the first `add column`. Which have run is therefore recorded, in
+    # the table and the shape Supabase itself uses, so `start` against an
+    # existing cluster applies only what is new.
     "${PSQL[@]}" -f "$ROOT/supabase/local/supabase_shim.sql"
-    local applied=0
+    "${PSQL[@]}" -c "create schema if not exists supabase_migrations" >/dev/null
+    "${PSQL[@]}" -c "create table if not exists supabase_migrations.schema_migrations (
+                         version text primary key,
+                         inserted_at timestamptz not null default now()
+                     )" >/dev/null
+    local applied=0 skipped=0 version
     for migration in "$ROOT"/supabase/migrations/*.sql; do
+        version="$(basename "$migration" .sql)"
+        version="${version%%_*}"
+        if [ -n "$("${PSQL[@]}" -tAc "select 1 from supabase_migrations.schema_migrations where version = '$version'")" ]; then
+            skipped=$((skipped + 1))
+            continue
+        fi
         "${PSQL[@]}" -f "$migration" >/dev/null
+        "${PSQL[@]}" -c "insert into supabase_migrations.schema_migrations (version) values ('$version')" >/dev/null
         applied=$((applied + 1))
     done
-    echo "applied $applied migrations"
+    echo "applied $applied migrations ($skipped already applied)"
     echo "DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:$PORT/postgres"
 }
 
