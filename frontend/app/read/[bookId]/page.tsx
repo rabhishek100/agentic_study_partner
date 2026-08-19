@@ -3,11 +3,13 @@
 import { AlertCircle, ArrowLeft, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
+import { MarginMarks, marksFor } from "@/components/read/margin-marks";
 import { PageComposer } from "@/components/read/page-composer";
+import { PageSelectionPopover } from "@/components/read/page-selection";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
@@ -71,6 +73,8 @@ export default function ReadPage() {
     session?.conversation_id ?? null,
     BOOK_SIDE_CHATS,
   );
+  const documentRef = useRef<HTMLDivElement | null>(null);
+  const marks = useMemo(() => marksFor(sideChats.available), [sideChats.available]);
 
   useEffect(() => {
     if (!session || resumed) return;
@@ -129,6 +133,24 @@ export default function ReadPage() {
       );
     },
     [bookId, page, pageInContext, session, sideChats],
+  );
+
+  const askAboutSelection = useCallback(
+    (selectedText: string, question?: string) => {
+      if (!session) return;
+      void sideChats.open({
+        kind: "document_passage",
+        bookId,
+        page,
+        selectedText,
+        question,
+        // Named by the passage when the reader has not said anything yet, and
+        // by their question when they have. Either way the window's title is
+        // the thing they can recognise it by in the margin.
+        title: question ?? selectedText,
+      });
+    },
+    [bookId, page, session, sideChats],
   );
 
   if (sessionLoading) {
@@ -272,26 +294,41 @@ export default function ReadPage() {
           </div>
         )}
 
-        <div className="min-h-0 flex-1">
-          {isLoading || !target ? (
-            <div className="grid h-full place-items-center p-6">
-              <div className="w-full max-w-lg space-y-3" aria-hidden>
-                <Skeleton className="h-6 w-1/2" />
-                <Skeleton className="h-[60vh] w-full rounded-lg" />
+        <div className="flex min-h-0 flex-1">
+          <MarginMarks
+            marks={marks}
+            page={page}
+            onOpen={sideChats.show}
+            onGoToPage={changePage}
+          />
+          <div ref={documentRef} className="min-h-0 min-w-0 flex-1">
+            {isLoading || !target ? (
+              <div className="grid h-full place-items-center p-6">
+                <div className="w-full max-w-lg space-y-3" aria-hidden>
+                  <Skeleton className="h-6 w-1/2" />
+                  <Skeleton className="h-[60vh] w-full rounded-lg" />
+                </div>
+                <span className="sr-only" role="status">
+                  Opening the book…
+                </span>
               </div>
-              <span className="sr-only" role="status">
-                Opening the book…
-              </span>
-            </div>
-          ) : (
-            <PdfViewer
-              target={target}
-              page={page}
-              onPageChange={changePage}
-              zoom={zoom}
-              onZoomChange={setZoom}
-            />
-          )}
+            ) : (
+              <PdfViewer
+                target={target}
+                page={page}
+                onPageChange={changePage}
+                zoom={zoom}
+                onZoomChange={setZoom}
+              />
+            )}
+          </div>
+          <PageSelectionPopover
+            container={documentRef}
+            sessionId={session?.conversation_id ?? null}
+            bookId={bookId}
+            page={page}
+            onAsk={askAboutSelection}
+          />
         </div>
 
         <div className="shrink-0 border-t border-divider px-4 py-3">

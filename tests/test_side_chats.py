@@ -295,14 +295,19 @@ class SideChatApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    async def test_at_least_one_anchor_is_required(self):
+    async def test_a_side_chat_may_be_opened_with_no_anchor(self):
+        # Anchorless means "ask this conversation's scope without naming a
+        # passage". The anchor editor has always allowed removing the last chip
+        # and keeping the thread; creation used to be the only place that
+        # disagreed, which made "answer without the page" impossible to express
+        # from a reading session's composer.
         with stubbed_side_chat_store():
             response = await self.client.post(
                 f"/api/conversations/{PARENT_ID}/side-chats",
-                json={"anchors": []},
+                json={"anchors": [], "title": "How does this compare?"},
             )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 201)
 
     async def test_updating_anchors_keeps_the_ids_of_chips_that_remain(self):
         row = conversation_row(SIDE_CHAT_ID, parent=PARENT_ID, anchors=[ANCHOR])
@@ -414,6 +419,101 @@ class SideChatApiTests(unittest.IsolatedAsyncioTestCase):
             json.loads(json.dumps(recorded["state"]))["conversation_id"],
             str(SIDE_CHAT_ID),
         )
+
+    async def test_a_page_anchored_turn_grounds_on_that_page(self):
+        # The stage-1 claim, through the API: a side chat anchored to a page
+        # pins that page's canonical passages ahead of retrieval, tells the
+        # model this is the source's own text rather than a previous answer,
+        # and runs under a policy whose first rung is the book being read.
+        from study.anchors import ResolvedAnchor
+
+        page_anchor = {
+            "kind": "document_page",
+            "anchor_id": "anchor-page",
+            "book_id": 1,
+            "page": 108,
+        }
+        row = conversation_row(SIDE_CHAT_ID, parent=PARENT_ID, anchors=[page_anchor])
+        answer = TurnResult(
+            question="Why is accuracy the wrong measure here?",
+            answer="Because it scores the shortcut [S1]",
+            route="retrieval_qa",
+            history_dependency="independent",
+            standalone_query="Why is accuracy the wrong measure here?",
+            outcome="answer",
+        )
+        turn = MagicMock(
+            return_value=(answer, ConversationState(conversation_id="made-up"))
+        )
+        resolve = MagicMock(
+            return_value=(
+                ResolvedAnchor(
+                    anchor_id="anchor-page",
+                    kind="document_page",
+                    chunk_ids=("page-chunk-a", "page-chunk-b"),
+                    label="p. 108 · 4.3 Class imbalance",
+                ),
+            )
+        )
+        with (
+            patch("api.main._require_ready_books"),
+            patch("api.main.execute_conversation_turn", turn),
+            patch("api.main.resolve_document_anchors", resolve),
+            stubbed_side_chat_store(
+                load_conversation=MagicMock(return_value=row),
+            ),
+        ):
+            response = await self.client.post(
+                f"/api/side-chats/{SIDE_CHAT_ID}/turns/stream",
+                json={"question": "Why is accuracy the wrong measure here?"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        call = turn.call_args
+        side_context = call.kwargs["side_context"]
+        self.assertEqual(
+            side_context.pinned_chunk_ids,
+            ("page-chunk-a", "page-chunk-b"),
+        )
+        # The inversion: a quote is labelled uncitable, a page of the reader's
+        # own book is not.
+        self.assertIn("cite them as normal", side_context.request_context)
+        self.assertNotIn("not source evidence", side_context.request_context)
+        self.assertIn("p. 108 · 4.3 Class imbalance", side_context.request_context)
+
+        policy = call.kwargs["grounding_policy"]
+        self.assertEqual(policy.source_book_ids, (1,))
+        self.assertEqual(policy.library_book_ids, (1, 2))
+
+    async def test_an_answer_anchored_turn_carries_no_grounding_policy(self):
+        # Without an open source there is no first rung, so the ladder stays
+        # out of the way and the turn takes the path it always took.
+        row = conversation_row(SIDE_CHAT_ID, parent=PARENT_ID, anchors=[ANCHOR])
+        turn = MagicMock(
+            return_value=(
+                TurnResult(
+                    question="What does that mean?",
+                    answer="It means this [S1]",
+                    route="retrieval_qa",
+                    history_dependency="dependent",
+                    outcome="answer",
+                ),
+                ConversationState(conversation_id="made-up"),
+            )
+        )
+        with (
+            patch("api.main._require_ready_books"),
+            patch("api.main.execute_conversation_turn", turn),
+            stubbed_side_chat_store(
+                load_conversation=MagicMock(return_value=row),
+            ),
+        ):
+            await self.client.post(
+                f"/api/side-chats/{SIDE_CHAT_ID}/turns/stream",
+                json={"question": "What does that mean?"},
+            )
+
+        self.assertIsNone(turn.call_args.kwargs["grounding_policy"])
 
     async def test_a_turn_reports_the_index_it_was_recorded_under(self):
         """The client cannot derive it, and a side chat anchors to it."""
@@ -744,6 +844,7 @@ class SideChatAnchorValidationTests(unittest.TestCase):
                 QuoteAnchor(anchor_id="mine", parent_turn_index=0, quoted_text="t")
             ],
             turn_indexes={0},
+            book_ids=[1, 2],
         )
 
         self.assertNotEqual(anchors[0].anchor_id, "not-mine")
@@ -765,6 +866,7 @@ class SideChatAnchorValidationTests(unittest.TestCase):
             ],
             existing=existing,
             turn_indexes={0},
+            book_ids=[1, 2],
         )
 
         self.assertEqual(anchors[0].anchor_id, "mine")
@@ -777,6 +879,7 @@ class SideChatAnchorValidationTests(unittest.TestCase):
             [SideChatAnchorInput(parent_turn_index=0, quoted_text="  spaced  ")],
             existing=[],
             turn_indexes={0},
+            book_ids=[1, 2],
         )
 
         self.assertEqual(anchors[0].quoted_text, "spaced")

@@ -332,6 +332,33 @@ class UpdatePositionRequest(ContractModel):
     position: SourcePosition
 
 
+DocumentAnchorRequest = Annotated[
+    PageAnchorInput | PassageAnchorInput | SectionAnchorInput,
+    Field(discriminator="kind"),
+]
+
+
+class ResolveAnchorRequest(ContractModel):
+    anchor: DocumentAnchorRequest
+
+
+class ResolvedAnchorResponse(ContractModel):
+    """What a selection was found to be, before anything is asked about it.
+
+    The popover shows this so the reader learns whether their highlight is
+    citable *before* they commit a question to it. A miss is a designed state,
+    not an error, and saying so up front is the difference between an answer
+    that quietly rests on the page and one the reader knows rests on the page.
+    """
+
+    matched: bool
+    # Where this lands, in the reader's terms: "p. 108 · 4.3 Class imbalance".
+    label: str
+    # How many canonical passages it names. Zero with `matched` false is a
+    # selection the page itself could not account for.
+    passage_count: int
+
+
 class SideChatSummary(ContractModel):
     conversation_id: UUID
     parent_conversation_id: UUID
@@ -1358,6 +1385,60 @@ async def reading_sessions(
             return sessions
 
     return ReadingSessionListResponse(sessions=await run_in_threadpool(load))
+
+
+def _resolve_anchor(
+    owner_id: UUID,
+    conversation_id: UUID,
+    request: ResolveAnchorRequest,
+) -> ResolvedAnchorResponse:
+    with database_connection(readonly=True) as connection:
+        record = load_conversation(connection, conversation_id, owner_id=owner_id)
+        if record is None or record["session_kind"] != "read":
+            raise READING_SESSION_NOT_FOUND
+        if request.anchor.book_id not in set(record["book_ids"]):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"book {request.anchor.book_id} is not what this session "
+                    "is reading"
+                ),
+            )
+        # Through the stored contract rather than the input model, so what the
+        # popover previews is resolved by exactly the code that will resolve
+        # the anchor when the question is asked.
+        anchor = parse_anchor(
+            {**request.anchor.model_dump(mode="json"), "anchor_id": "preview"}
+        )
+        (resolved,) = resolve_document_anchors(
+            connection,
+            [anchor],
+            owner_id=owner_id,
+        )
+    return ResolvedAnchorResponse(
+        matched=resolved.matched,
+        label=resolved.label,
+        passage_count=len(resolved.chunk_ids),
+    )
+
+
+@app.post(
+    "/api/reading-sessions/{conversation_id}/anchors/resolve",
+    response_model=ResolvedAnchorResponse,
+)
+async def resolve_anchor(
+    conversation_id: UUID,
+    request: ResolveAnchorRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> ResolvedAnchorResponse:
+    """Say what a selection resolves to, before a question is asked about it."""
+
+    return await run_in_threadpool(
+        _resolve_anchor,
+        owner_id,
+        conversation_id,
+        request,
+    )
 
 
 @app.patch(

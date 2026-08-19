@@ -48,7 +48,12 @@ describe("BookSelector", () => {
     // between reading a book and asking about it belongs.
     const user = userEvent.setup();
     render(
-      <BookSelector books={LIBRARY} selected={[1]} onChange={vi.fn()} />,
+      <BookSelector
+        books={LIBRARY}
+        selected={[1]}
+        onChange={vi.fn()}
+        hasConversation={false}
+      />,
     );
 
     await user.click(screen.getByLabelText("Choose which books to search"));
