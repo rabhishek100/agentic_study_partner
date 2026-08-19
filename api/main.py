@@ -386,6 +386,16 @@ class SideChatTurnRequest(ContractModel):
     # A side question is a clarification, and a long answer in a small window
     # scrolls badly. The reader can still ask for more depth per window.
     response_depth: ResponseDepth = "quick"
+    # The **stay in this source** lock, sent per turn rather than stored on the
+    # session. It is a reader's instruction about the question they are asking
+    # now — "answer from this book or tell me you cannot" — and the interface
+    # remembers their preference so they do not restate it. Storing it server
+    # side would make it a property of the session, which would then have to be
+    # reconciled with a reader who wants one question answered either way.
+    #
+    # Only meaningful on a turn that has an open source to stay in; a side chat
+    # anchored to an answer has no first rung, so there is nothing to lock.
+    stay_in_source: bool = False
 
 
 class PromptSettingsResponse(ContractModel):
@@ -1261,7 +1271,11 @@ def _run_side_turn(
         retrieval_mode=record["retrieval_mode"],
         book_ids=book_ids,
         grounding_policy=(
-            GroundingPolicy.for_source(anchored_books, library_book_ids=book_ids)
+            GroundingPolicy.for_source(
+                anchored_books,
+                library_book_ids=book_ids,
+                allow_model_knowledge=not request.stay_in_source,
+            )
             if anchored_books
             else None
         ),

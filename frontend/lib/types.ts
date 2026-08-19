@@ -230,6 +230,53 @@ export interface TurnResult {
   side_context: SideContextReport | null;
   web_sources?: WebSourceRef[];
   source_type?: "book_library" | "model_knowledge" | "web_search";
+  /** Which rung of the grounding ladder answered. Null when none applied. */
+  grounding_rung?: GroundingRung | null;
+  widenings?: WideningStep[];
+}
+
+/**
+ * Where an answer's evidence came from, as a ladder from the reader's own page
+ * outward.
+ *
+ * The boundary that matters is between `library` and `model_knowledge`:
+ * everything at or below `library` rests on the reader's sources and cites
+ * them, everything above rests on nothing they own and must say so.
+ */
+export type GroundingRung =
+  | "anchor"
+  | "open_source"
+  | "library"
+  | "model_knowledge"
+  | "web_search";
+
+export interface WideningStep {
+  from_rung: GroundingRung;
+  to_rung: GroundingRung;
+  reason: string;
+}
+
+const GROUNDED_RUNGS = new Set<GroundingRung>([
+  "anchor",
+  "open_source",
+  "library",
+]);
+
+/**
+ * Whether an answer rests on the reader's own sources.
+ *
+ * The one question the interface has to get right: a grounded answer carries
+ * citations, an ungrounded one carries a notice instead, and nothing may
+ * render as both. Mirrors `TurnResult.is_grounded` on the server, which is a
+ * property rather than a field and so does not cross the wire; the fallback
+ * for a turn recorded before the ladder existed is the same there.
+ */
+export function isGrounded(result: {
+  grounding_rung?: GroundingRung | null;
+  source_type?: "book_library" | "model_knowledge" | "web_search";
+}): boolean {
+  if (result.grounding_rung) return GROUNDED_RUNGS.has(result.grounding_rung);
+  return (result.source_type ?? "book_library") === "book_library";
 }
 
 export interface ChatResponse {

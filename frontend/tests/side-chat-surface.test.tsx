@@ -118,14 +118,20 @@ describe("the body a side turn sends", () => {
     return JSON.parse(String(streamCall?.[1]?.body));
   }
 
-  it("sends a depth for the book chat, which honours it", async () => {
+  it("sends a depth and the lock for the book chat, which honours both", async () => {
     expect(await sentBody(BOOK_SIDE_CHATS)).toEqual({
       question: "why does that matter?",
       response_depth: "quick",
+      // Sent on every turn rather than stored on the session: the lock is an
+      // instruction about the question being asked, and the server never has
+      // to guess what the current one is.
+      stay_in_source: false,
     });
   });
 
   it("sends only the question for the lecture chat, which forbids extras", async () => {
+    // Including the lock: that surface has no route out of the recording, so
+    // there is nothing for one to stop.
     expect(await sentBody(VIDEO_SIDE_CHATS)).toEqual({
       question: "why does that matter?",
     });

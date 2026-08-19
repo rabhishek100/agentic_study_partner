@@ -54,6 +54,8 @@ export interface SideChatLayerProps {
   resolveQuoteTurn: (text: string) => number | null;
   /** Clears the question a window was opened with, once it has asked it. */
   onPendingSent?: (sideChatId: string) => void;
+  /** The reader's standing instruction, applied to every window's turns. */
+  stayInSource?: boolean;
   /** Reported here because a side chat that failed to open has no window. */
   error?: string;
   onDismissError?: () => void;
@@ -107,6 +109,7 @@ export function SideChatLayer({
   renderTurns,
   resolveQuoteTurn,
   onPendingSent,
+  stayInSource = false,
   error,
   onDismissError,
 }: SideChatLayerProps) {
@@ -209,6 +212,7 @@ export function SideChatLayer({
                 renderTurns={renderTurns}
                 resolveQuoteTurn={resolveQuoteTurn}
                 onPendingSent={() => onPendingSent?.(id)}
+                stayInSource={stayInSource}
               />
             </div>
           );
@@ -237,6 +241,7 @@ export function SideChatLayer({
             renderTurns={renderTurns}
             resolveQuoteTurn={resolveQuoteTurn}
             onPendingSent={() => onPendingSent?.(id)}
+            stayInSource={stayInSource}
           />
         );
       })}

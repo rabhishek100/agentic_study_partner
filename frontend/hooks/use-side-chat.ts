@@ -59,6 +59,14 @@ export function describeFailure(body: string): string | null {
 export function useSideChat<TResult>(
   sideChatId: string,
   surface: SideChatSurface,
+  /**
+   * The **stay in this source** lock, sent with every turn this window asks.
+   *
+   * Read from a ref at send time rather than captured, so toggling it applies
+   * to the next question rather than to whichever render the composer was
+   * built in.
+   */
+  stayInSource = false,
 ) {
   const [turns, setTurns] = useState<SideChatTurn<TResult>[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -68,6 +76,8 @@ export function useSideChat<TResult>(
 
   const controllerRef = useRef<AbortController | null>(null);
   const stoppedByUserRef = useRef(false);
+  const stayInSourceRef = useRef(stayInSource);
+  stayInSourceRef.current = stayInSource;
 
   const patchTurn = useCallback(
     (id: string, patch: Partial<SideChatTurn<TResult>>) => {
@@ -176,8 +186,15 @@ export function useSideChat<TResult>(
             },
             body: JSON.stringify(
               surface.supportsDepth
-                ? { question: submitted, response_depth: responseDepth }
-                : { question: submitted },
+                ? {
+                    question: submitted,
+                    response_depth: responseDepth,
+                    stay_in_source: stayInSourceRef.current,
+                  }
+                : // The lecture surface has no route out of the recording, so
+                  // there is nothing there for a lock to stop, and its turn
+                  // contract forbids unknown fields.
+                  { question: submitted },
             ),
             signal: controller.signal,
           },

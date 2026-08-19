@@ -10,6 +10,7 @@ import { AuthGate } from "@/components/auth-gate";
 import { MarginMarks, marksFor } from "@/components/read/margin-marks";
 import { PageComposer } from "@/components/read/page-composer";
 import { PageSelectionPopover } from "@/components/read/page-selection";
+import { StayInSourceToggle } from "@/components/read/stay-in-source";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useReadingSession } from "@/hooks/use-reading-session";
+import { useStayInSource } from "@/hooks/use-stay-in-source";
 import { signOut, useSession } from "@/hooks/use-session";
 import { useSideChats } from "@/hooks/use-side-chats";
 import { apiFetch } from "@/lib/api";
@@ -74,6 +76,9 @@ export default function ReadPage() {
     BOOK_SIDE_CHATS,
   );
   const documentRef = useRef<HTMLDivElement | null>(null);
+  const [stayInSource, setStayInSource] = useStayInSource(
+    session?.conversation_id ?? null,
+  );
   const marks = useMemo(() => marksFor(sideChats.available), [sideChats.available]);
 
   useEffect(() => {
@@ -264,12 +269,15 @@ export default function ReadPage() {
           onFocus={sideChats.focus}
           onSettled={sideChats.noteSettled}
           onPendingSent={sideChats.clearPending}
+          stayInSource={stayInSource}
           surface={BOOK_SIDE_CHATS}
           renderTurns={({ turns: sideTurns, isLoading: loading, isQueued }) => (
             <SideChatTurns
               turns={sideTurns as ChatTurn[]}
               isLoading={loading}
               isQueued={isQueued}
+              stayInSource={stayInSource}
+              onStayInSource={() => setStayInSource(true)}
             />
           )}
           onAnchorsChange={(sideChatId, anchors) => {
@@ -333,6 +341,13 @@ export default function ReadPage() {
 
         <div className="shrink-0 border-t border-divider px-4 py-3">
           <div className="mx-auto w-full max-w-3xl">
+            <div className="mb-2 flex justify-end">
+              <StayInSourceToggle
+                locked={stayInSource}
+                onChange={setStayInSource}
+                noun={session?.document_type === "paper" ? "paper" : "book"}
+              />
+            </div>
             <PageComposer
               page={page}
               sectionTitle={currentChapter?.title ?? null}

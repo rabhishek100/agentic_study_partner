@@ -38,6 +38,8 @@ export interface SideChatWindowProps {
    * state that says "ask this" can be cleared from outside it.
    */
   onPendingSent?: () => void;
+  /** The reader's standing instruction to answer from this source or abstain. */
+  stayInSource?: boolean;
   /** Renders inside a docked sheet instead of a floating window. */
   docked?: boolean;
 }
@@ -63,11 +65,12 @@ export function SideChatWindow({
   renderTurns,
   resolveQuoteTurn,
   onPendingSent,
+  stayInSource = false,
   docked = false,
 }: SideChatWindowProps) {
   const { sideChat } = state;
   const { turns, isStreaming, isQueued, isLoading, send, stop } =
-    useSideChat<unknown>(sideChat.conversation_id, surface);
+    useSideChat<unknown>(sideChat.conversation_id, surface, stayInSource);
   const [responseDepth, setResponseDepth] = useState<ResponseDepth>("quick");
   const { viewportRef, contentRef, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,

@@ -485,6 +485,83 @@ class SideChatApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(policy.source_book_ids, (1,))
         self.assertEqual(policy.library_book_ids, (1, 2))
 
+    async def test_the_lock_stops_the_ladder_at_the_book(self):
+        # "Answer from this book or tell me you cannot." Sent per turn because
+        # it is an instruction about the question being asked, not a property
+        # of the session.
+        page_anchor = {
+            "kind": "document_page",
+            "anchor_id": "anchor-page",
+            "book_id": 1,
+            "page": 108,
+        }
+        row = conversation_row(SIDE_CHAT_ID, parent=PARENT_ID, anchors=[page_anchor])
+        turn = MagicMock(
+            return_value=(
+                TurnResult(
+                    question="Does sklearn do this?",
+                    answer="This book does not answer that.",
+                    route="retrieval_qa",
+                    history_dependency="independent",
+                    outcome="abstain",
+                ),
+                ConversationState(conversation_id="made-up"),
+            )
+        )
+        with (
+            patch("api.main._require_ready_books"),
+            patch("api.main.execute_conversation_turn", turn),
+            patch("api.main.resolve_document_anchors", MagicMock(return_value=())),
+            stubbed_side_chat_store(
+                load_conversation=MagicMock(return_value=row),
+            ),
+        ):
+            await self.client.post(
+                f"/api/side-chats/{SIDE_CHAT_ID}/turns/stream",
+                json={"question": "Does sklearn do this?", "stay_in_source": True},
+            )
+
+        policy = turn.call_args.kwargs["grounding_policy"]
+        self.assertFalse(policy.allow_model_knowledge)
+        self.assertIsNone(policy.next_rung("library"))
+
+    async def test_without_the_lock_the_ladder_may_leave_the_book(self):
+        page_anchor = {
+            "kind": "document_page",
+            "anchor_id": "anchor-page",
+            "book_id": 1,
+            "page": 108,
+        }
+        row = conversation_row(SIDE_CHAT_ID, parent=PARENT_ID, anchors=[page_anchor])
+        turn = MagicMock(
+            return_value=(
+                TurnResult(
+                    question="Does sklearn do this?",
+                    answer="Partly.",
+                    route="retrieval_qa",
+                    history_dependency="independent",
+                    outcome="answer",
+                ),
+                ConversationState(conversation_id="made-up"),
+            )
+        )
+        with (
+            patch("api.main._require_ready_books"),
+            patch("api.main.execute_conversation_turn", turn),
+            patch("api.main.resolve_document_anchors", MagicMock(return_value=())),
+            stubbed_side_chat_store(
+                load_conversation=MagicMock(return_value=row),
+            ),
+        ):
+            await self.client.post(
+                f"/api/side-chats/{SIDE_CHAT_ID}/turns/stream",
+                json={"question": "Does sklearn do this?"},
+            )
+
+        self.assertTrue(
+            turn.call_args.kwargs["grounding_policy"].allow_model_knowledge
+        )
+
     async def test_an_answer_anchored_turn_carries_no_grounding_policy(self):
         # Without an open source there is no first rung, so the ladder stays
         # out of the way and the turn takes the path it always took.

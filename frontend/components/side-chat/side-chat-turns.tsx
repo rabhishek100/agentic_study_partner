@@ -7,6 +7,10 @@ import { AnswerInspector } from "@/components/conversation/inspector";
 import { References } from "@/components/conversation/references";
 import { ThinkingIndicator } from "@/components/conversation/turn-view";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  OutOfSourceNotice,
+  RungBadge,
+} from "@/components/conversation/grounding";
 import { anchorLabel, anchorText } from "@/lib/anchors";
 import type { Anchor, ChatTurn, EvidenceRef } from "@/lib/types";
 
@@ -53,6 +57,10 @@ export interface SideChatTurnsProps {
   /** Sent, but waiting for one of the shared generation slots. */
   isQueued?: boolean;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  /** Offered on an ungrounded answer, so the reader can refuse the next one. */
+  onStayInSource?: () => void;
+  /** Whether the reader has already asked to stay in this source. */
+  stayInSource?: boolean;
 }
 
 /**
@@ -69,6 +77,8 @@ export function SideChatTurns({
   isLoading,
   isQueued = false,
   onOpenReference,
+  onStayInSource,
+  stayInSource = false,
 }: SideChatTurnsProps) {
   if (isLoading && turns.length === 0) {
     return (
@@ -110,6 +120,16 @@ export function SideChatTurns({
               <ThinkingIndicator label="Checking the book…" />
             ))}
 
+          {/* Above the answer, never beside it: an answer either carries
+              citations or carries this, and the reader should know which
+              before reading a word of it. */}
+          <OutOfSourceNotice
+            rung={turn.result?.grounding_rung}
+            widenings={turn.result?.widenings}
+            onStayInSource={onStayInSource}
+            locked={stayInSource}
+          />
+
           {turn.answer && (
             <Answer
               text={turn.answer}
@@ -117,6 +137,13 @@ export function SideChatTurns({
               citations={turn.result?.citations ?? []}
               figures={turn.result?.figures ?? []}
               onOpenReference={onOpenReference}
+            />
+          )}
+
+          {turn.result?.grounding_rung && (
+            <RungBadge
+              rung={turn.result.grounding_rung}
+              sourceType={turn.result.source_type}
             />
           )}
 
