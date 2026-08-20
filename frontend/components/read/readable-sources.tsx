@@ -3,6 +3,11 @@
 import { BookOpen } from "lucide-react";
 import Link from "next/link";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { BookSummary } from "@/lib/types";
 
 /**
@@ -38,25 +43,43 @@ export function ReadableSources({
       <ul className="flex flex-col gap-1">
         {readable.map((book) => (
           <li key={book.book_id}>
-            <Link
-              href={`/read/${book.book_id}`}
-              className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-surface-hover"
-            >
-              <BookOpen
-                aria-hidden
-                className="size-4 shrink-0 text-muted-foreground"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm leading-snug">
-                  {book.title}
-                </span>
-                {book.author && (
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {book.author}
+            {/*
+              A rail this narrow truncates most real titles, and the part it
+              cuts is often the part that tells two editions apart. The whole
+              title is a hover and a focus away rather than only readable by
+              opening the book.
+            */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href={`/read/${book.book_id}`}
+                  className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-surface-hover"
+                >
+                  <BookOpen
+                    aria-hidden
+                    className="size-4 shrink-0 text-muted-foreground"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm leading-snug">
+                      {book.title}
+                    </span>
+                    {book.author && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {book.author}
+                      </span>
+                    )}
                   </span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-80">
+                <p className="text-xs leading-snug">{book.title}</p>
+                {book.author && (
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    {book.author}
+                  </p>
                 )}
-              </span>
-            </Link>
+              </TooltipContent>
+            </Tooltip>
           </li>
         ))}
       </ul>
