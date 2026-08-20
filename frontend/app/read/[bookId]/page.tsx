@@ -215,7 +215,18 @@ export default function ReadPage() {
           // this does, so a reader saw their session twice and could not tell
           // which one to use.
           label: "Questions in this session",
-          fixedWidth: 380,
+          // Draggable rather than fixed: how much of the window a reader wants
+          // for the source and how much for the conversation is theirs to
+          // decide, and it changes with what they are doing. Its own key and
+          // range, because a chat column beside a page wants a quarter of the
+          // row where a document beside a conversation wants half.
+          resize: {
+            storageKey: "asp:read-questions-width",
+            defaultPercent: 28,
+            minPercent: 18,
+            maxPercent: 55,
+            label: "Resize the questions pane",
+          },
           node: (
             <SessionQuestions
               threads={sideChats.available}

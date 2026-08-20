@@ -22,11 +22,18 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { API_BASE, apiFetch } from "@/lib/api";
+import {
+  MAX_PDF_ZOOM,
+  MIN_PDF_ZOOM,
+  zoomStep,
+} from "./zoom";
 import { findExcerptRange } from "@/lib/pdf-match";
 import { accessToken } from "@/lib/supabase";
 import type { BookSourceResponse } from "@/lib/types";
 import { documentKey, type PdfDocument, type PdfTarget } from "./target";
 import { cn } from "@/lib/utils";
+
+export { MAX_PDF_ZOOM, MIN_PDF_ZOOM, PDF_ZOOM_STEP, zoomStep } from "./zoom";
 
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -34,10 +41,6 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 // Served from our own origin, copied at install time so its version always
 // matches pdfjs-dist. See scripts/copy-pdf-worker.mjs.
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-
-export const MIN_PDF_ZOOM = 0.5;
-export const MAX_PDF_ZOOM = 2;
-export const PDF_ZOOM_STEP = 0.25;
 
 /** What pdf.js is handed: a plain URL, or one with the headers to fetch it. */
 type DocumentSource = string | { url: string; httpHeaders: Record<string, string> };
@@ -400,7 +403,7 @@ export function PdfViewer({
             variant="ghost"
             aria-label="Zoom out"
             disabled={zoom <= MIN_PDF_ZOOM}
-            onClick={() => setZoomWithinLimits(zoom - PDF_ZOOM_STEP)}
+            onClick={() => setZoomWithinLimits(zoomStep(zoom, -1))}
           >
             <ZoomOut aria-hidden />
           </Button>
@@ -418,7 +421,7 @@ export function PdfViewer({
             variant="ghost"
             aria-label="Zoom in"
             disabled={zoom >= MAX_PDF_ZOOM}
-            onClick={() => setZoomWithinLimits(zoom + PDF_ZOOM_STEP)}
+            onClick={() => setZoomWithinLimits(zoomStep(zoom, 1))}
           >
             <ZoomIn aria-hidden />
           </Button>
