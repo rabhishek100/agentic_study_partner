@@ -90,6 +90,29 @@ export function clampQuote(text: string): string {
   ).trimEnd()}…`;
 }
 
+/**
+ * The longest title the server stores, mirroring `CreateSideChatRequest`.
+ *
+ * A window opened from a selection is named after that selection, and a reader
+ * who highlights a paragraph produces one far longer than this. Sending it
+ * anyway is a 422 that reads "Request failed" — which is what happened, and
+ * from the reader's side the highlight simply did nothing.
+ */
+export const MAXIMUM_TITLE_CHARS = 200;
+
+/** A title the server will accept, or nothing rather than something invalid. */
+export function clampTitle(title: string | undefined): string | undefined {
+  const trimmed = (title ?? "").trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length <= MAXIMUM_TITLE_CHARS) return trimmed;
+  const clipped = trimmed.slice(0, MAXIMUM_TITLE_CHARS - 1);
+  const boundary = clipped.lastIndexOf(" ");
+  return `${(boundary > MAXIMUM_TITLE_CHARS / 2
+    ? clipped.slice(0, boundary)
+    : clipped
+  ).trimEnd()}…`;
+}
+
 /** The anchors a new side chat is created with — none, or exactly one. */
 function anchorPayloads(
   request: OpenSideChatRequest,
@@ -363,7 +386,9 @@ export function useSideChats(
             method: "POST",
             body: JSON.stringify({
               anchors: anchorPayloads(request),
-              ...(request.title ? { title: request.title } : {}),
+              ...(clampTitle(request.title)
+                ? { title: clampTitle(request.title) }
+                : {}),
             }),
           },
         );
