@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  Crosshair,
   LogOut,
   Maximize2,
   Minimize2,
@@ -14,7 +15,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { PageComposer } from "@/components/read/page-composer";
-import { PageSelectionPopover } from "@/components/read/page-selection";
+import {
+  PageSelectionPopover,
+  type PageSelection,
+} from "@/components/read/page-selection";
+import { RegionSelect } from "@/components/read/region-select";
 import { SessionQuestions } from "@/components/read/session-questions";
 import { SessionRecap, recapOf } from "@/components/read/session-recap";
 import { StayInSourceToggle } from "@/components/read/stay-in-source";
@@ -92,6 +97,9 @@ export default function ReadPage() {
   );
   const [questionsOpen, setQuestionsOpen] = useState(true);
   const [chromeHidden, setChromeHidden] = useState(false);
+  const [regionArmed, setRegionArmed] = useState(false);
+  const [region, setRegion] = useState<PageSelection | null>(null);
+  const [regionNote, setRegionNote] = useState("");
 
   useEffect(() => {
     if (!session || resumed) return;
@@ -284,6 +292,22 @@ export default function ReadPage() {
             </span>
           </Button>
           <Button
+            variant={regionArmed ? "secondary" : "ghost"}
+            size="icon-sm"
+            aria-pressed={regionArmed}
+            aria-label={
+              regionArmed
+                ? "Stop selecting a region"
+                : "Select a region of the page to ask about"
+            }
+            onClick={() => {
+              setRegionArmed(!regionArmed);
+              setRegionNote("");
+            }}
+          >
+            <Crosshair aria-hidden />
+          </Button>
+          <Button
             variant="ghost"
             size="icon-sm"
             aria-label="Hide the top bar and read full height"
@@ -388,7 +412,23 @@ export default function ReadPage() {
           </Button>
         )}
         <div className="flex min-h-0 flex-1">
-          <div ref={documentRef} className="min-h-0 min-w-0 flex-1">
+          <div ref={documentRef} className="relative min-h-0 min-w-0 flex-1">
+            <RegionSelect
+              container={documentRef}
+              active={regionArmed}
+              onRegion={(selection) => {
+                setRegion(selection);
+                setRegionArmed(false);
+                setRegionNote("");
+              }}
+              onEmpty={() =>
+                setRegionNote(
+                  "Nothing selectable there. A figure is drawn rather than " +
+                    "written, so it carries no text to quote — ask about the " +
+                    "page instead.",
+                )
+              }
+            />
             {isLoading || !target ? (
               <div className="grid h-full place-items-center p-6">
                 <div className="w-full max-w-lg space-y-3" aria-hidden>
@@ -415,7 +455,17 @@ export default function ReadPage() {
             bookId={bookId}
             page={page}
             onAsk={askAboutSelection}
+            external={region}
+            onDismissExternal={() => setRegion(null)}
           />
+          {regionNote && (
+            <p
+              role="status"
+              className="absolute bottom-3 left-1/2 z-sticky max-w-md -translate-x-1/2 rounded-lg border border-border bg-popover px-3 py-2 text-xs text-muted-foreground shadow-lg"
+            >
+              {regionNote}
+            </p>
+          )}
         </div>
 
       </div>

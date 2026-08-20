@@ -171,6 +171,14 @@ export interface PageSelectionPopoverProps {
   page: number;
   /** `question` is absent for "ask about this", which opens an empty window. */
   onAsk: (selectedText: string, question?: string) => void;
+  /**
+   * A selection made by something other than dragging over text — today, the
+   * region tool. It takes precedence while it exists, so both ways of choosing
+   * a passage get the same actions and the same resolve preview rather than
+   * two popovers that drift.
+   */
+  external?: PageSelection | null;
+  onDismissExternal?: () => void;
 }
 
 const PRESETS = [
@@ -195,8 +203,15 @@ export function PageSelectionPopover({
   bookId,
   page,
   onAsk,
+  external = null,
+  onDismissExternal,
 }: PageSelectionPopoverProps) {
-  const { selected, dismiss } = usePageSelection(container);
+  const { selected: dragged, dismiss: dismissDrag } = usePageSelection(container);
+  const selected = external ?? dragged;
+  const dismiss = useCallback(() => {
+    dismissDrag();
+    onDismissExternal?.();
+  }, [dismissDrag, onDismissExternal]);
   const { resolution, isResolving } = useResolution(
     sessionId,
     bookId,

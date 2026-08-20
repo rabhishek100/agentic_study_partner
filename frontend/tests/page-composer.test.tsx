@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PageComposer } from "@/components/read/page-composer";
 
+vi.mock("@/lib/dictation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/dictation")>()),
+  canDictate: vi.fn(() => false),
+}));
+
 function Harness({ onSubmit }: { onSubmit: (question: string) => void }) {
   const [inContext, setInContext] = useState(true);
   return (
@@ -81,5 +86,20 @@ describe("the composer under the document", () => {
     await userEvent.type(screen.getByLabelText("Ask about this page"), "   {Enter}");
 
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("offers dictation where the browser supports it", async () => {
+    // Speaking a question was already available in the main chat; it should
+    // not stop being available because the question is about a page. The
+    // control hides itself where recording is unsupported, which is why this
+    // says so rather than asserting it is always there.
+    const { canDictate } = await import("@/lib/dictation");
+    vi.mocked(canDictate).mockReturnValue(true);
+
+    render(<Harness onSubmit={vi.fn()} />);
+
+    expect(
+      await screen.findByRole("button", { name: /Dictate a question/ }),
+    ).toBeInTheDocument();
   });
 });

@@ -3,8 +3,10 @@
 import { ArrowUp, Clock, Scissors, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { MicButton } from "@/components/dictation/mic-button";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { spliceTranscript } from "@/lib/dictation";
 import { timecode } from "@/lib/timecode";
 
 const MAX_TEXTAREA_HEIGHT_PX = 160;
@@ -59,6 +61,25 @@ export function MomentComposer({
       MAX_TEXTAREA_HEIGHT_PX,
     )}px`;
   }, [value]);
+
+  /**
+   * Put spoken words where the caret is and leave them there.
+   *
+   * Read from the textarea's own selection rather than tracked state, because
+   * clicking the mic moves focus away and the field keeps the selection it had
+   * when it lost it. The same arrangement the main composer uses.
+   */
+  function insertDictation(transcript: string) {
+    const textarea = textareaRef.current;
+    const start = textarea?.selectionStart ?? value.length;
+    const end = textarea?.selectionEnd ?? start;
+    const spliced = spliceTranscript(value, transcript, start, end);
+    setValue(spliced.value);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(spliced.caret, spliced.caret);
+    });
+  }
 
   function submit() {
     const question = value.trim();
@@ -142,7 +163,7 @@ export function MomentComposer({
             ? "Ask about this moment…"
             : "Ask anything about this lecture…"
         }
-        className="max-h-[160px] resize-none rounded-xl bg-card py-3 pl-4 pr-14 text-xs shadow-sm"
+        className="max-h-[160px] resize-none rounded-xl bg-card py-3 pl-4 pr-20 text-xs shadow-sm"
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
@@ -151,7 +172,13 @@ export function MomentComposer({
           }
         }}
       />
-      <div className="absolute bottom-2 right-2">
+      <div className="absolute bottom-2 right-2 flex items-center gap-1">
+        <MicButton
+          disabled={disabled}
+          size="icon-sm"
+          onTranscript={insertDictation}
+          label={`Dictate a question`}
+        />
         <Button
           type="submit"
           size="icon-sm"
