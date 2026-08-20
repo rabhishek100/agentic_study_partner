@@ -295,6 +295,10 @@ def execute_decision(
         pinned_chunk_ids=side_context.pinned_chunk_ids if side_context else (),
         request_context=side_context.request_context if side_context else "",
         allow_external_fallback=allow_external_fallback,
+        # A source-first turn is asked about a page the reader is looking at,
+        # and in a book of architecture diagrams that page's answer is often a
+        # picture. The main chat is unchanged.
+        send_figures=bool(side_context and side_context.sources_present),
     )
     updates = {
         "question": question,

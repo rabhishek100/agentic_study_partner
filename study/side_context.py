@@ -173,6 +173,10 @@ class SideContext:
     """The assembled context for one side turn."""
 
     request_context: str
+    # Whether this turn is anchored to the source itself rather than to a
+    # previous answer. Read by the query layer to decide whether the page's
+    # figures are worth sending to the model.
+    sources_present: bool = False
     # Handed to the turn analyser so a question like "what does this mean?"
     # can be rewritten into a standalone query about the quoted claim.
     anchored_quotes: tuple[str, ...] = ()
@@ -419,6 +423,7 @@ def build_side_context(
 
     return SideContext(
         request_context="\n\n".join(blocks),
+        sources_present=bool(sources),
         anchored_quotes=quotes,
         pinned_chunk_ids=tuple(pinned),
         report=SideContextReport(

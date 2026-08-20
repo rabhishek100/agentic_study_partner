@@ -26,7 +26,7 @@ from .contracts import (
     ScopeRef,
     TurnResult,
 )
-from .figures import select_figures
+from .figures import load_figure_images, select_figures
 from .prompts import (
     DEFAULT_PROMPT_PROFILE,
     build_answer_messages,
@@ -389,6 +389,11 @@ def _answer_retrieval_question(
     pinned_chunk_ids: Sequence[str] = (),
     request_context: str = "",
     allow_external_fallback: bool = True,
+    # Off by default. Sending pictures costs tokens on every turn that has one
+    # nearby, and the main chat's answers are measured against a frozen gold
+    # set; a source-first turn asks about a page the reader is looking at,
+    # which is where a diagram is the answer rather than an illustration.
+    send_figures: bool = False,
 ) -> TurnResult:
     """Answer one ordinary question from top-k retrieval evidence.
 
@@ -503,6 +508,43 @@ def _answer_retrieval_question(
         f"exactly with {INSUFFICIENT_EVIDENCE_MARKER} and briefly explain what "
         "evidence is missing. Do not answer from general knowledge."
     )
+    # A book like this answers half its questions in pictures, and until now the
+    # model never saw one: figures were selected *after* generation, for the
+    # interface to display. Asked to explain a diagram it was looking at, it
+    # replied asking to be shown the diagram.
+    figure_images: list[tuple[str, str]] = []
+    if send_figures:
+        # The same nodes and pages the answer will cite, built early. Only the
+        # fields `select_figures` reads are filled in: this list exists to
+        # choose pictures, not to be reported.
+        locating = [
+            EvidenceRef(
+                node_id=document.metadata.get("node_id", 0),
+                pages=list(
+                    range(
+                        document.metadata["start_page"],
+                        document.metadata["end_page"] + 1,
+                    )
+                ),
+                path=document.metadata["path"],
+                book_id=document.metadata.get("book_id"),
+                rank=rank,
+            )
+            for rank, document in enumerate(documents, start=1)
+        ]
+        with database_connection(database_url, readonly=True) as source:
+            pre_figures = select_figures(
+                source,
+                owner_id=owner,
+                evidence=locating,
+                citations=(),
+            )
+            figure_images = load_figure_images(
+                source,
+                owner_id=owner,
+                figures=pre_figures,
+            )
+
     reply = invoke_with_streaming(
         model,
         build_answer_messages(
@@ -513,6 +555,7 @@ def _answer_retrieval_question(
             depth=response_depth,
             request_context=request_context,
             additional_grounding=grounding,
+            figures=figure_images,
         ),
         token_callback=token_callback,
     )
@@ -639,6 +682,7 @@ def execute_query(
     pinned_chunk_ids: Sequence[str] = (),
     request_context: str = "",
     allow_external_fallback: bool = True,
+    send_figures: bool = False,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
@@ -689,6 +733,7 @@ def execute_query(
         pinned_chunk_ids=pinned_chunk_ids,
         request_context=request_context,
         allow_external_fallback=allow_external_fallback,
+        send_figures=send_figures,
     )
 
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Sequence
+from typing import Any
 
 from .contracts import AnswerArchetype, PromptProfile, ResponseDepth, Route
 
@@ -221,6 +223,21 @@ def template_for(
     return profile.concept_template
 
 
+# What the model is told about pictures it can actually see. Figures are the
+# book's own content, so they are evidence like any other passage — but they
+# have to be *named* the way passages are, or an answer that rests on one has
+# no way to say so.
+FIGURE_GROUNDING = (
+    "Some evidence is an image from the book, attached after the text and "
+    "labelled [F1], [F2] in the same order. Read them: a diagram is often the "
+    "whole answer in a book like this. Cite one exactly as you cite a passage, "
+    "by its label, and describe what it actually shows rather than what its "
+    "caption says it shows. If the images do not contain what the question "
+    "asks about, say so — do not ask the reader to supply the diagram, because "
+    "they are looking at it and have already given it to you."
+)
+
+
 def build_answer_messages(
     *,
     profile: PromptProfile,
@@ -230,8 +247,15 @@ def build_answer_messages(
     depth: ResponseDepth,
     request_context: str = "",
     additional_grounding: str = "",
-) -> list[tuple[str, str]]:
-    """Compile locked rules and editable behavior into two inspectable messages."""
+    figures: Sequence[tuple[str, str]] = (),
+) -> list[tuple[str, str]] | list[Any]:
+    """Compile locked rules and editable behavior into two inspectable messages.
+
+    Returns the same two messages as ever when there are no figures. With them
+    the human turn becomes a content list — text first, then each image as a
+    data URI — which is what a multimodal model takes and what the lecture
+    side's vision client already sends.
+    """
 
     system_parts = [
         LOCKED_GROUNDING_PROMPT,
@@ -241,6 +265,8 @@ def build_answer_messages(
     ]
     if additional_grounding.strip():
         system_parts.append("Task-specific grounding:\n" + additional_grounding.strip())
+    if figures:
+        system_parts.append("Figure grounding:\n" + FIGURE_GROUNDING)
     system = "\n\n".join(system_parts)
     human = profile.user_prompt_template.format(
         question=question,
@@ -249,7 +275,23 @@ def build_answer_messages(
         evidence=evidence,
         request_context=request_context.strip(),
     )
-    return [("system", system), ("human", human)]
+    if not figures:
+        return [("system", system), ("human", human)]
+
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    labelled = "\n".join(
+        f"[F{index}] figure from the book, attached below."
+        for index, _ in enumerate(figures, start=1)
+    )
+    content: list[dict[str, Any]] = [
+        {"type": "text", "text": f"{human}\n\nAttached figures:\n{labelled}"}
+    ]
+    content.extend(
+        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{payload}"}}
+        for mime, payload in figures
+    )
+    return [SystemMessage(content=system), HumanMessage(content=content)]
 
 
 def prompt_preview(
