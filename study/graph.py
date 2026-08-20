@@ -89,6 +89,9 @@ def plan_turn(
             owner_id=runtime.context.owner_id,
             model=runtime.context.analysis_model,
             anchored_quotes=side_context.anchored_quotes if side_context else (),
+            anchored_locations=(
+                side_context.anchored_locations if side_context else ()
+            ),
         )
     }
 

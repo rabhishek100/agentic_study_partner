@@ -141,3 +141,59 @@ class SideContextTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AnchoredLocationRoutingTests(unittest.TestCase):
+    """The reason "explain the diagram" came back as a question.
+
+    A bare page anchor carries no quoted text, so the analyser saw a three-word
+    message with no referent and asked which diagram was meant. The reader was
+    looking at it. Retrieval never ran, so the figures never went anywhere —
+    the vision path was correct and unreachable.
+    """
+
+    def test_a_page_anchor_tells_the_analyser_where_the_reader_is(self):
+        from study.side_context import AnchoredSource, build_side_context
+
+        context = build_side_context(
+            [],
+            [],
+            sources=[
+                AnchoredSource(
+                    anchor_id="s1",
+                    label="p. 21 · Chapter 1: Scale from zero to millions",
+                    identities=("chunk-one",),
+                )
+            ],
+        )
+
+        self.assertEqual(
+            context.anchored_locations,
+            ("p. 21 · Chapter 1: Scale from zero to millions",),
+        )
+
+    def test_the_payload_carries_the_place_only_when_there_is_one(self):
+        from study.analyze import _payload
+        from study.contracts import ConversationState
+
+        state = ConversationState(conversation_id="c1", book_ids=[523])
+        plain = _payload("explain the diagram", state, [])
+        anchored = _payload(
+            "explain the diagram", state, [], (), ("p. 21 · Chapter 1",)
+        )
+
+        # Absent rather than empty for an ordinary turn: the main chat's
+        # analyser payload is measured against a frozen routing gold set.
+        self.assertNotIn("anchored_locations", plain)
+        self.assertEqual(anchored["anchored_locations"], ["p. 21 · Chapter 1"])
+
+    def test_the_instruction_forbids_asking_which_page_is_meant(self):
+        from study.analyze import (
+            ANCHORED_LOCATION_INSTRUCTIONS,
+            SYSTEM_PROMPT,
+        )
+
+        self.assertIn("the diagram", ANCHORED_LOCATION_INSTRUCTIONS)
+        self.assertIn("Never clarify", ANCHORED_LOCATION_INSTRUCTIONS)
+        # Appended for anchored turns only, exactly as the quote block is.
+        self.assertNotIn(ANCHORED_LOCATION_INSTRUCTIONS, SYSTEM_PROMPT)

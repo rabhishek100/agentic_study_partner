@@ -177,6 +177,10 @@ class SideContext:
     # previous answer. Read by the query layer to decide whether the page's
     # figures are worth sending to the model.
     sources_present: bool = False
+    # Where the reader is, in their own terms: "p. 21 · Class imbalance".
+    # Handed to the analyser so that "explain the diagram" resolves against the
+    # page instead of being sent back as ambiguous.
+    anchored_locations: tuple[str, ...] = ()
     # Handed to the turn analyser so a question like "what does this mean?"
     # can be rewritten into a standalone query about the quoted claim.
     anchored_quotes: tuple[str, ...] = ()
@@ -424,6 +428,9 @@ def build_side_context(
     return SideContext(
         request_context="\n\n".join(blocks),
         sources_present=bool(sources),
+        anchored_locations=tuple(
+            source.label for source in sources if source.label.strip()
+        ),
         anchored_quotes=quotes,
         pinned_chunk_ids=tuple(pinned),
         report=SideContextReport(
