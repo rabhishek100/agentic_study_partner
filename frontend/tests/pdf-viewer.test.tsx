@@ -351,8 +351,11 @@ describe("PdfViewer", () => {
     document.body.appendChild(separator);
     fireEvent.keyDown(separator, { key: "ArrowLeft" });
 
+    // A *modal* dialog takes the keys. A non-modal one does not — see the
+    // test below, which is the case this used to get wrong.
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
     document.body.appendChild(dialog);
     fireEvent.keyDown(window, { key: "ArrowRight" });
 
@@ -361,6 +364,32 @@ describe("PdfViewer", () => {
     dialog.remove();
     fireEvent.keyDown(window, { key: "ArrowRight", metaKey: true });
     expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps turning pages while a side chat is open", async () => {
+    // Side chats are non-modal dialogs, and a minimized one stays mounted so
+    // its answer keeps streaming. Treating any dialog as a reason to stop
+    // meant asking one question disabled the arrow keys for the rest of the
+    // session — in the one mode built around reading with questions open.
+    const onPageChange = vi.fn();
+    render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        onPageChange={onPageChange}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    const sideChat = document.createElement("section");
+    sideChat.setAttribute("role", "dialog");
+    sideChat.setAttribute("aria-modal", "false");
+    document.body.appendChild(sideChat);
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+
+    expect(onPageChange).toHaveBeenCalled();
+    sideChat.remove();
   });
 
   it("respects the first and last page keyboard boundaries", async () => {

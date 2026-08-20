@@ -30,6 +30,7 @@ import {
 import { findExcerptRange } from "@/lib/pdf-match";
 import { accessToken } from "@/lib/supabase";
 import type { BookSourceResponse } from "@/lib/types";
+import { modalIsOpen, ownsArrowKeys } from "./keyboard";
 import { documentKey, type PdfDocument, type PdfTarget } from "./target";
 import { cn } from "@/lib/utils";
 
@@ -79,16 +80,6 @@ function PdfLoadingState({ label = "Loading document…" }: { label?: string }) 
       <Loader2 className="size-6 animate-spin" aria-hidden />
       <span>{label}</span>
     </div>
-  );
-}
-
-/** Elements whose own keyboard interaction must win over document shortcuts. */
-function ownsArrowKeys(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  return Boolean(
-    target.closest(
-      'input, textarea, select, [contenteditable="true"], [role="combobox"], [role="dialog"], [role="listbox"], [role="menu"], [role="separator"], [role="slider"], [role="spinbutton"], [role="tablist"]',
-    ),
   );
 }
 
@@ -297,7 +288,7 @@ export function PdfViewer({
         event.metaKey ||
         event.shiftKey ||
         ownsArrowKeys(event.target) ||
-        document.querySelector('[role="dialog"]')
+        modalIsOpen(document)
       ) {
         return;
       }
