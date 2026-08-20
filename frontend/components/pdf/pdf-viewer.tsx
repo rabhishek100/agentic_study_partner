@@ -146,6 +146,7 @@ export function PdfViewer({
   onZoomChange,
   onMinimize,
   onClose,
+  tools,
 }: {
   target: PdfTarget;
   page: number;
@@ -161,6 +162,15 @@ export function PdfViewer({
    */
   onMinimize?: () => void;
   onClose?: () => void;
+  /**
+   * Controls the surrounding frame would carry if it had one.
+   *
+   * A reader who hides the top bar to read full height takes the frame's
+   * controls with it, including the only way back. Rather than leaving a lone
+   * restore button floating over the page, the frame hands them here, where the
+   * document's own controls already are.
+   */
+  tools?: React.ReactNode;
 }) {
   const [source, setSource] = useState<DocumentSource | null>(null);
   const [error, setError] = useState("");
@@ -384,11 +394,21 @@ export function PdfViewer({
           </span>
         </div>
 
-        <div
-          role="group"
-          aria-label="Document zoom"
-          className="flex items-center gap-1"
-        >
+        <div className="flex items-center gap-1">
+          {tools && (
+            <>
+              {tools}
+              <span
+                aria-hidden
+                className="mx-1 h-4 w-px shrink-0 bg-divider"
+              />
+            </>
+          )}
+          <div
+            role="group"
+            aria-label="Document zoom"
+            className="flex items-center gap-1"
+          >
           <Button
             size="icon-sm"
             variant="ghost"
@@ -416,6 +436,7 @@ export function PdfViewer({
           >
             <ZoomIn aria-hidden />
           </Button>
+          </div>
         </div>
       </div>
 

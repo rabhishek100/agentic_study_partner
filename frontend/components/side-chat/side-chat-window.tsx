@@ -42,6 +42,14 @@ export interface SideChatWindowProps {
   stayInSource?: boolean;
   /** Renders inside a docked sheet instead of a floating window. */
   docked?: boolean;
+  /**
+   * Renders the floating window into the document body.
+   *
+   * Set by a surface that keeps every thread mounted in a panel it also hides:
+   * the component must stay where it is so its stream survives, and its window
+   * must not be hidden along with the panel. See `FloatingWindow`.
+   */
+  portal?: boolean;
 }
 
 /**
@@ -67,6 +75,7 @@ export function SideChatWindow({
   onPendingSent,
   stayInSource = false,
   docked = false,
+  portal = false,
 }: SideChatWindowProps) {
   const { sideChat } = state;
   const { turns, isStreaming, isQueued, isLoading, send, stop } =
@@ -171,6 +180,7 @@ export function SideChatWindow({
       zIndex={zIndex}
       hidden={state.minimized}
       isBusy={isStreaming}
+      portal={portal}
     >
       {body}
     </FloatingWindow>

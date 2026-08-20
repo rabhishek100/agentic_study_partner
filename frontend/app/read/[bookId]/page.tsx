@@ -24,9 +24,14 @@ import { SessionQuestions } from "@/components/read/session-questions";
 import { SessionRecap, recapOf } from "@/components/read/session-recap";
 import { StayInSourceToggle } from "@/components/read/stay-in-source";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
-import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
+import {
+  BASE_Z_INDEX,
+  SideChatError,
+  useFloatingCapable,
+} from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
 import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
+import { SideChatWindow } from "@/components/side-chat/side-chat-window";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -45,7 +50,7 @@ import { signOut, useSession } from "@/hooks/use-session";
 import { useSideChats } from "@/hooks/use-side-chats";
 import { apiFetch } from "@/lib/api";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
-import type { ChatTurn } from "@/lib/types";
+import type { ChatTurn, EvidenceRef } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface Chapter {
@@ -86,6 +91,10 @@ export default function ReadPage() {
   const sideChats = useSideChats(
     session?.conversation_id ?? null,
     BOOK_SIDE_CHATS,
+    // A thread's home here is its row in the questions panel. Floating is
+    // something the reader asks for, one thread at a time, when they want a
+    // second answer on screen beside the first.
+    { detachedByDefault: false },
   );
   const documentRef = useRef<HTMLDivElement | null>(null);
   const [stayInSource, setStayInSource] = useStayInSource(
@@ -100,6 +109,11 @@ export default function ReadPage() {
   const [regionArmed, setRegionArmed] = useState(false);
   const [region, setRegion] = useState<PageSelection | null>(null);
   const [regionNote, setRegionNote] = useState("");
+  // Which thread the panel is showing, or null while it shows the list. Held
+  // here rather than derived from the window stack, which reorders on focus.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [excerpt, setExcerpt] = useState<string | null>(null);
+  const canFloat = useFloatingCapable();
 
   useEffect(() => {
     if (!session || resumed) return;
@@ -140,30 +154,68 @@ export default function ReadPage() {
   );
 
   const target: PdfTarget | null = session
-    ? { document: { kind: "book", bookId }, title: session.title, page }
+    ? {
+        document: { kind: "book", bookId },
+        title: session.title,
+        page,
+        excerpt,
+      }
     : null;
 
+  const changePageFromReader = useCallback(
+    (next: number) => {
+      // Turning the page by hand leaves the previous citation's highlight
+      // behind, lighting a sentence the reader is no longer looking at.
+      setExcerpt(null);
+      changePage(next);
+    },
+    [changePage],
+  );
+
+  /**
+   * Follow a citation into the page it came from.
+   *
+   * Only into *this* book: an answer that escalated to the library cites a
+   * book this route is not showing, and turning to page 40 of the wrong volume
+   * is worse than doing nothing. Those references still open from the answer's
+   * own reference cards.
+   */
+  const openReference = useCallback(
+    (reference: EvidenceRef, referencePage?: number) => {
+      if (reference.book_id !== bookId) return;
+      const targetPage = referencePage ?? reference.pages[0];
+      if (!targetPage) return;
+      setExcerpt(reference.excerpt ?? null);
+      changePage(targetPage);
+    },
+    [bookId, changePage],
+  );
+
   const ask = useCallback(
-    (question: string) => {
+    async (question: string) => {
       if (!session) return;
       // The chip *is* the anchor. With it on, the question names the page and
       // the answer pins that page's passages first; with it off there is no
       // anchor at all and the question searches the book. Anchoring to some
       // other page to represent "no page" would be a lie the reader could not
       // see.
-      void sideChats.open(
+      const created = await sideChats.open(
         pageInContext
           ? { kind: "document_page", bookId, page, question, title: question }
           : { kind: "unanchored", question, title: question },
       );
+      // Show the thread that was just asked. The answer is the thing the
+      // reader is waiting for, so the panel goes to it rather than leaving
+      // them to find the new row.
+      if (created) setSelectedId(created.conversation_id);
     },
     [bookId, page, pageInContext, session, sideChats],
   );
 
   const askAboutSelection = useCallback(
-    (selectedText: string, question?: string) => {
+    async (selectedText: string, question?: string) => {
       if (!session) return;
-      void sideChats.open({
+      const created = await sideChats.open({
         kind: "document_passage",
         bookId,
         page,
@@ -174,8 +226,103 @@ export default function ReadPage() {
         // the thing they can recognise it by in the margin.
         title: question ?? selectedText,
       });
+      if (created) setSelectedId(created.conversation_id);
     },
     [bookId, page, session, sideChats],
+  );
+
+  const sourceNoun = session?.document_type === "paper" ? "paper" : "book";
+
+  /**
+   * Drawing a box on the page to ask about it.
+   *
+   * One element, rendered in the frame or in the document's toolbar depending
+   * on which of the two the reader has on screen — never in both, so there is
+   * one thing to press and one pressed state to read.
+   */
+  const regionTool = (
+    <Button
+      variant={regionArmed ? "secondary" : "ghost"}
+      size="icon-sm"
+      aria-pressed={regionArmed}
+      aria-label={
+        regionArmed
+          ? "Stop selecting a region"
+          : "Select a region of the page to ask about"
+      }
+      onClick={() => {
+        setRegionArmed(!regionArmed);
+        setRegionNote("");
+      }}
+    >
+      <Crosshair aria-hidden />
+    </Button>
+  );
+
+  /**
+   * Every thread this session has on screen, mounted, with one showing.
+   *
+   * All of them stay mounted whatever the panel is showing, because an answer
+   * is still arriving in most of them: unmounting a thread aborts its stream
+   * and drops its place in the shared generation queue, so going back to the
+   * list would throw away the answer the reader went back to wait for.
+   *
+   * A detached thread renders as a floating window from this same position,
+   * through a portal — the component must not move in the tree, or detaching
+   * mid-answer would remount it and abort exactly what the reader wanted to
+   * keep watching.
+   */
+  const threadDetail = (
+    <>
+      {sideChats.windows.map((entry, index) => {
+        const id = entry.sideChat.conversation_id;
+        const showing = !entry.detached && id === selectedId;
+        return (
+          <div
+            key={id}
+            hidden={!showing}
+            className={cn("min-h-0 flex-1 flex-col", showing ? "flex" : "hidden")}
+          >
+            <SideChatWindow
+              docked={!entry.detached}
+              portal
+              window={entry}
+              zIndex={BASE_Z_INDEX + index}
+              onRectChange={(rect) => sideChats.setRect(id, rect)}
+              // On this surface a window is a thread that stepped out, not a
+              // thread that is open. Putting it away returns it to the list,
+              // which is where it lives; nothing is lost and nothing is
+              // stranded in a dock.
+              onMinimize={() => sideChats.attach(id)}
+              onClose={() => sideChats.attach(id)}
+              onFocus={() => sideChats.focus(id)}
+              onSettled={(recorded) => sideChats.noteSettled(id, recorded)}
+              onAnchorsChange={(anchors) => {
+                void sideChats.setAnchors(id, anchors);
+              }}
+              surface={BOOK_SIDE_CHATS}
+              renderTurns={({ turns: sideTurns, isLoading: loading, isQueued }) => (
+                <SideChatTurns
+                  turns={sideTurns as ChatTurn[]}
+                  isLoading={loading}
+                  isQueued={isQueued}
+                  stayInSource={stayInSource}
+                  onStayInSource={() => setStayInSource(true)}
+                  onOpenReference={openReference}
+                />
+              )}
+              // Nothing in this session is quoted from an answer: every thread
+              // is anchored to the source. Pasting a passage has no turn to
+              // resolve against, and saying so is better than resolving it to
+              // turn zero.
+              resolveQuoteTurn={() => null}
+              onPendingSent={() => sideChats.clearPending(id)}
+              stayInSource={stayInSource}
+            />
+          </div>
+        );
+      })}
+    </>
   );
 
   if (sessionLoading) {
@@ -230,26 +377,47 @@ export default function ReadPage() {
           node: (
             <SessionQuestions
               threads={sideChats.available}
-              openIds={sideChats.openIds}
-              onOpen={sideChats.show}
+              detachedIds={sideChats.detachedIds}
+              selectedId={selectedId}
+              onOpen={(thread) => {
+                sideChats.show(thread);
+                // A thread already in a window of its own is raised where it
+                // is. Showing it in the panel as well would put one thread in
+                // two places, which is the thing this panel exists to stop.
+                if (sideChats.detachedIds.has(thread.conversation_id)) return;
+                setSelectedId(thread.conversation_id);
+              }}
+              onBack={() => setSelectedId(null)}
+              onDetach={
+                canFloat
+                  ? (thread) => {
+                      sideChats.detach(thread.conversation_id);
+                      setSelectedId(null);
+                    }
+                  : undefined
+              }
+              detail={threadDetail}
               hereLabel={`p. ${page}`}
-              footer={
-                <div className="space-y-3">
-                  <PageComposer
-                    page={page}
-                    sectionTitle={currentChapter?.title ?? null}
-                    pageInContext={pageInContext}
-                    onPageInContextChange={setPageInContext}
-                    disabled={!session || sideChats.isOpening}
-                    onSubmit={ask}
-                  />
+              lockLabel={stayInSource ? sourceNoun : null}
+              menu={
+                <>
                   <SessionRecap recap={recap} bookId={bookId} />
                   <StayInSourceToggle
                     locked={stayInSource}
                     onChange={setStayInSource}
-                    noun={session?.document_type === "paper" ? "paper" : "book"}
+                    noun={sourceNoun}
                   />
-                </div>
+                </>
+              }
+              footer={
+                <PageComposer
+                  page={page}
+                  sectionTitle={currentChapter?.title ?? null}
+                  pageInContext={pageInContext}
+                  onPageInContextChange={setPageInContext}
+                  disabled={!session || sideChats.isOpening}
+                  onSubmit={ask}
+                />
               }
             />
           ),
@@ -302,22 +470,7 @@ export default function ReadPage() {
               {sideChats.available.length}
             </span>
           </Button>
-          <Button
-            variant={regionArmed ? "secondary" : "ghost"}
-            size="icon-sm"
-            aria-pressed={regionArmed}
-            aria-label={
-              regionArmed
-                ? "Stop selecting a region"
-                : "Select a region of the page to ask about"
-            }
-            onClick={() => {
-              setRegionArmed(!regionArmed);
-              setRegionNote("");
-            }}
-          >
-            <Crosshair aria-hidden />
-          </Button>
+          {regionTool}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -367,35 +520,15 @@ export default function ReadPage() {
         </nav>
       }
       overlay={
-        <SideChatLayer
-          windows={sideChats.windows}
-          onRectChange={sideChats.setRect}
-          onMinimize={sideChats.setMinimized}
-          onClose={sideChats.close}
-          onFocus={sideChats.focus}
-          onSettled={sideChats.noteSettled}
-          onPendingSent={sideChats.clearPending}
-          stayInSource={stayInSource}
-          surface={BOOK_SIDE_CHATS}
-          renderTurns={({ turns: sideTurns, isLoading: loading, isQueued }) => (
-            <SideChatTurns
-              turns={sideTurns as ChatTurn[]}
-              isLoading={loading}
-              isQueued={isQueued}
-              stayInSource={stayInSource}
-              onStayInSource={() => setStayInSource(true)}
-            />
-          )}
-          onAnchorsChange={(sideChatId, anchors) => {
-            void sideChats.setAnchors(sideChatId, anchors);
-          }}
-          // Nothing in this session is quoted from an answer: every window is
-          // anchored to the source. Pasting a passage has no turn to resolve
-          // against, and saying so is better than resolving it to turn zero.
-          resolveQuoteTurn={() => null}
-          error={sideChats.error}
-          onDismissError={sideChats.dismissError}
-        />
+        // The threads themselves render in the questions panel, detached ones
+        // included — see `threadDetail`. What is left for the overlay is the
+        // failure that has no thread to attach itself to.
+        sideChats.error ? (
+          <SideChatError
+            error={sideChats.error}
+            onDismiss={sideChats.dismissError}
+          />
+        ) : null
       }
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
@@ -408,20 +541,6 @@ export default function ReadPage() {
           </div>
         )}
 
-        {chromeHidden && (
-          // The only way back, so it is always present rather than revealed on
-          // hover: a reader who hid the frame on a touch screen would
-          // otherwise have no route out of it.
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="absolute right-3 top-3 z-sticky"
-            aria-label="Show the top bar"
-            onClick={() => setChromeHidden(false)}
-          >
-            <Minimize2 aria-hidden />
-          </Button>
-        )}
         <div className="flex min-h-0 flex-1">
           <div ref={documentRef} className="relative min-h-0 min-w-0 flex-1">
             <RegionSelect
@@ -454,9 +573,28 @@ export default function ReadPage() {
               <PdfViewer
                 target={target}
                 page={page}
-                onPageChange={changePage}
+                onPageChange={changePageFromReader}
                 zoom={zoom}
                 onZoomChange={setZoom}
+                tools={
+                  chromeHidden ? (
+                    // Hiding the top bar hid the controls it carried, leaving
+                    // one restore button floating over the page and no way at
+                    // all to draw a region. The document's own toolbar takes
+                    // them for as long as the frame is away.
+                    <>
+                      {regionTool}
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Show the top bar"
+                        onClick={() => setChromeHidden(false)}
+                      >
+                        <Minimize2 aria-hidden />
+                      </Button>
+                    </>
+                  ) : null
+                }
               />
             )}
           </div>

@@ -25,6 +25,19 @@ export interface SideChatWindow {
   /** An answer landed while this window was minimized. */
   unread: boolean;
   /**
+   * Whether this thread floats over the page or sits in the surface that owns
+   * it.
+   *
+   * Ask-first surfaces have nowhere else to put a thread, so theirs are always
+   * detached. Source-first reading has a questions panel, and a thread lives
+   * there by default; detaching is the reader's explicit request for a second
+   * answer on screen beside the first. The flag rides on the window rather than
+   * on the surface because the two states are the same thread — the component
+   * stays mounted across the change, so an answer keeps streaming while it
+   * moves.
+   */
+  detached: boolean;
+  /**
    * A question to ask as soon as this window is ready, asked once.
    *
    * Source-first study types the question *before* the window exists: the
@@ -164,6 +177,7 @@ function anchorPayload(
 interface StoredWindow {
   id: string;
   minimized: boolean;
+  detached?: boolean;
 }
 
 function readOpen(parentId: string): StoredWindow[] {
@@ -178,6 +192,7 @@ function readOpen(parentId: string): StoredWindow[] {
             {
               id: (entry as StoredWindow).id,
               minimized: Boolean((entry as StoredWindow).minimized),
+              detached: (entry as StoredWindow).detached,
             },
           ]
         : [],
@@ -195,6 +210,7 @@ function writeOpen(parentId: string, windows: SideChatWindow[]): void {
         windows.map((entry) => ({
           id: entry.sideChat.conversation_id,
           minimized: entry.minimized,
+          detached: entry.detached,
         })),
       ),
     );
@@ -229,6 +245,16 @@ function viewportSize(): Viewport {
 export function useSideChats(
   parentConversationId: string | null,
   surface: SideChatSurface,
+  {
+    /**
+     * Where a newly shown thread goes.
+     *
+     * True on the ask-first surfaces, which have no panel to put a thread in.
+     * False on reading and watching, where the questions panel is the thread's
+     * home and floating is something the reader asks for.
+     */
+    detachedByDefault = true,
+  }: { detachedByDefault?: boolean } = {},
 ) {
   const [available, setAvailable] = useState<SideChatThread[]>([]);
   const [windows, setWindows] = useState<SideChatWindow[]>([]);
@@ -272,6 +298,7 @@ export function useSideChats(
               ),
               minimized: entry.minimized,
               unread: false,
+              detached: entry.detached ?? detachedByDefault,
             },
           ];
         });
@@ -323,7 +350,8 @@ export function useSideChats(
     });
   }, []);
 
-  const show = useCallback((sideChat: SideChatThread, pendingQuestion?: string) => {
+  const show = useCallback(
+    (sideChat: SideChatThread, pendingQuestion?: string) => {
     setWindows((current) => {
       const existing = current.find(
         (entry) => entry.sideChat.conversation_id === sideChat.conversation_id,
@@ -351,11 +379,14 @@ export function useSideChats(
           ),
           minimized: false,
           unread: false,
+          detached: detachedByDefault,
           pendingQuestion,
         },
       ];
-    });
-  }, []);
+      });
+    },
+    [detachedByDefault],
+  );
 
   /**
    * Forget a question once it has been asked.
@@ -443,6 +474,45 @@ export function useSideChats(
     );
     if (!minimized) focus(sideChatId);
   }, [focus]);
+
+  /**
+   * Pop a thread out of the surface that holds it, into a window of its own.
+   *
+   * The window it becomes is the same mounted component, so a detach in the
+   * middle of an answer does not interrupt it. Raised as well as detached,
+   * because a new window that opens behind the others is a window the reader
+   * has to go looking for.
+   */
+  const detach = useCallback(
+    (sideChatId: string) => {
+      setWindows((current) =>
+        current.map((entry) =>
+          entry.sideChat.conversation_id === sideChatId
+            ? { ...entry, detached: true, minimized: false, unread: false }
+            : entry,
+        ),
+      );
+      focus(sideChatId);
+    },
+    [focus],
+  );
+
+  /**
+   * Put a detached thread back where it came from.
+   *
+   * This is what closing and minimising a detached window mean on a surface
+   * that lists its threads: the thread is not going anywhere, so taking the
+   * window away returns it to the list rather than ending it.
+   */
+  const attach = useCallback((sideChatId: string) => {
+    setWindows((current) =>
+      current.map((entry) =>
+        entry.sideChat.conversation_id === sideChatId
+          ? { ...entry, detached: false, minimized: false, unread: false }
+          : entry,
+      ),
+    );
+  }, []);
 
   /**
    * Replace the passages a side chat is anchored to.
@@ -561,12 +631,23 @@ export function useSideChats(
     [windows],
   );
 
+  const detachedIds = useMemo(
+    () =>
+      new Set(
+        windows
+          .filter((entry) => entry.detached)
+          .map((entry) => entry.sideChat.conversation_id),
+      ),
+    [windows],
+  );
+
   const dismissError = useCallback(() => setError(""), []);
 
   return {
     available,
     windows,
     openIds,
+    detachedIds,
     error,
     dismissError,
     isOpening,
@@ -580,5 +661,7 @@ export function useSideChats(
     noteSettled,
     focus,
     clearPending,
+    detach,
+    attach,
   };
 }

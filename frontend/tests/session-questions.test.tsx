@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { SessionQuestions } from "@/components/read/session-questions";
+import {
+  SessionQuestions,
+  type SessionQuestionsProps,
+} from "@/components/read/session-questions";
 import { ContinueSessions, sessionDetail } from "@/components/read/continue-sessions";
 import type { SideChatThread } from "@/lib/side-chat";
 import type { Anchor } from "@/lib/types";
@@ -26,19 +29,35 @@ const ELSEWHERE = thread("b", "Is weak supervision worth it?", [
 ]);
 const LOOSE = thread("c", "How does this compare to sampling?", []);
 
+const QUOTED = thread("d", "What does durable mean here?", [
+  {
+    kind: "document_passage",
+    anchor_id: "d1",
+    book_id: 7,
+    page: 24,
+    selected_text: "a durable component, stored in memory",
+  },
+]);
+
+function panel(props: Partial<SessionQuestionsProps> = {}) {
+  return (
+    <SessionQuestions
+      threads={[HERE, ELSEWHERE]}
+      detachedIds={[]}
+      selectedId={null}
+      onOpen={vi.fn()}
+      onBack={vi.fn()}
+      {...props}
+    />
+  );
+}
+
 describe("SessionQuestions", () => {
-  it("keeps a session's questions findable after their windows are closed", () => {
+  it("keeps a session's questions findable after their threads are put away", () => {
     // Otherwise a long session quietly loses the thing it was accumulating:
     // conversation history is off this surface entirely.
     const onOpen = vi.fn();
-    render(
-      <SessionQuestions
-        threads={[HERE, ELSEWHERE]}
-        openIds={[]}
-        onOpen={onOpen}
-        hereLabel="p. 108"
-      />,
-    );
+    render(panel({ onOpen, hereLabel: "p. 108" }));
 
     fireEvent.click(
       screen.getByRole("button", { name: /Why is accuracy the wrong measure/ }),
@@ -48,14 +67,7 @@ describe("SessionQuestions", () => {
   });
 
   it("leads with where the reader is", () => {
-    render(
-      <SessionQuestions
-        threads={[ELSEWHERE, HERE]}
-        openIds={[]}
-        onOpen={vi.fn()}
-        hereLabel="p. 108"
-      />,
-    );
+    render(panel({ threads: [ELSEWHERE, HERE], hereLabel: "p. 108" }));
 
     expect(
       screen.getByRole("button", { name: /Why is accuracy the wrong measure/ }),
@@ -65,37 +77,115 @@ describe("SessionQuestions", () => {
     ).not.toHaveAttribute("aria-current");
   });
 
-  it("says which questions already have a window open", () => {
-    render(
-      <SessionQuestions
-        threads={[HERE, ELSEWHERE]}
-        openIds={["a"]}
-        onOpen={vi.fn()}
-      />,
-    );
+  it("leads a row's spoken name with the question, not its anchor", () => {
+    // Read in source order the row announced "p. 108 detached why is
+    // accuracy…", which buries the one thing that tells two rows apart.
+    render(panel({ detachedIds: ["a"] }));
 
-    expect(screen.getByText("open")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Why is accuracy the wrong measure?. Anchored to page 108. In a floating window",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("says which questions stepped out into a window of their own", () => {
+    render(panel({ detachedIds: ["a"] }));
+
+    expect(screen.getByText("Detached")).toBeInTheDocument();
   });
 
   it("names a question that anchors to nothing rather than leaving it blank", () => {
-    render(
-      <SessionQuestions threads={[LOOSE]} openIds={[]} onOpen={vi.fn()} />,
-    );
+    render(panel({ threads: [LOOSE] }));
 
     expect(screen.getByText("No anchor")).toBeInTheDocument();
   });
 
+  it("shows the words a selection anchored to, not just its page", () => {
+    render(panel({ threads: [QUOTED] }));
+
+    expect(
+      screen.getByText(/a durable component, stored in memory/),
+    ).toBeInTheDocument();
+  });
+
   it("explains itself before there is anything in it", () => {
-    render(
-      <SessionQuestions
-        threads={[]}
-        openIds={[]}
-        onOpen={vi.fn()}
-        hereLabel="p. 108"
-      />,
+    render(panel({ threads: [], hereLabel: "p. 108" }));
+
+    expect(
+      screen.getByText(/stay with the source between visits/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the opened thread in place of the list, and the list back again", () => {
+    const { rerender } = render(
+      panel({ detail: <p>the answer</p>, selectedId: null }),
     );
 
-    expect(screen.getByText(/stay with the source between visits/)).toBeInTheDocument();
+    // The thread is mounted from the start — a thread that unmounted when the
+    // list showed would abort the answer it is generating.
+    expect(screen.getByText("the answer")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Why is accuracy the wrong measure/ }),
+    ).toBeVisible();
+
+    rerender(panel({ detail: <p>the answer</p>, selectedId: "a" }));
+
+    expect(screen.getByText("the answer")).toBeVisible();
+    // Gone from the accessibility tree as well as from view: the list is
+    // hidden rather than merely covered, so Tab cannot wander into it.
+    expect(
+      screen.queryByRole("button", { name: /Why is accuracy the wrong measure/ }),
+    ).toBeNull();
+    // The row itself, not the thread header that now carries the same words.
+    expect(
+      screen.getByText("Is weak supervision worth it?"),
+    ).not.toBeVisible();
+  });
+
+  it("returns focus to the row that opened a thread", () => {
+    // The swap is a re-render inside one container, so nothing manages focus
+    // for us: hiding the view holding the focused element drops focus to the
+    // body, and the next Tab restarts at the top of the document.
+    const { rerender } = render(panel({ selectedId: "a" }));
+
+    rerender(panel({ selectedId: null }));
+
+    expect(
+      screen.getByRole("button", { name: /Why is accuracy the wrong measure/ }),
+    ).toHaveFocus();
+  });
+
+  it("offers a thread a window of its own, named by the question", () => {
+    const onDetach = vi.fn();
+    render(panel({ selectedId: "a", onDetach }));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: 'Open \u201cWhy is accuracy the wrong measure?\u201d in a floating window',
+      }),
+    );
+
+    expect(onDetach).toHaveBeenCalledWith(HERE);
+  });
+
+  it("offers no detaching where a window could not be placed", () => {
+    // Below the floating threshold there is no room for one, and the panel is
+    // the better home anyway.
+    render(panel({ selectedId: "a" }));
+
+    expect(
+      screen.queryByRole("button", { name: /in a floating window/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says on its own surface when the session is locked to its source", () => {
+    // The lock persists between visits and produces refusals that read like
+    // bad retrieval. The control may live in the menu; its engaged state may
+    // not.
+    render(panel({ lockLabel: "book" }));
+
+    expect(screen.getByText("book")).toBeInTheDocument();
   });
 });
 

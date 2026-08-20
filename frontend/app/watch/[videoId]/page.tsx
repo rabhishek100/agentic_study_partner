@@ -13,8 +13,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
-import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
+import {
+  BASE_Z_INDEX,
+  SideChatError,
+  useFloatingCapable,
+} from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
+import { SideChatWindow } from "@/components/side-chat/side-chat-window";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MomentComposer, type Stretch } from "@/components/watch/moment-composer";
 import { SessionQuestions } from "@/components/read/session-questions";
@@ -82,9 +87,33 @@ export default function WatchPage() {
   const sideChats = useSideChats(
     session?.conversation_id ?? null,
     VIDEO_SIDE_CHATS,
+    // As on the reading surface: a thread's home is its row in the panel, and
+    // floating is something the viewer asks for.
+    { detachedByDefault: false },
   );
   const [questionsOpen, setQuestionsOpen] = useState(true);
   const [chromeHidden, setChromeHidden] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const canFloat = useFloatingCapable();
+
+  /**
+   * A cited slide takes the right region — so the thread showing there steps
+   * out into a window of its own first.
+   *
+   * The region holds one mode at a time, and the answer and the evidence it
+   * cites must not be alternatives. Detaching keeps both on screen; the thread
+   * is the same mounted component either way, so nothing it is generating is
+   * interrupted. On a viewport too narrow to float there is nowhere to put it,
+   * and the slide simply takes the region.
+   */
+  useEffect(() => {
+    if (!reading || !selectedId) return;
+    if (canFloat) sideChats.detach(selectedId);
+    setSelectedId(null);
+    // `sideChats.detach` is stable; depending on the whole object would re-run
+    // this on every window change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reading, selectedId, canFloat]);
 
   useEffect(() => {
     if (!authSession || !videoId) return;
@@ -137,9 +166,9 @@ export default function WatchPage() {
   }, [atMs, stretchStart]);
 
   const ask = useCallback(
-    (question: string) => {
+    async (question: string) => {
       if (!session || !videoId) return;
-      void sideChats.open(
+      const created = await sideChats.open(
         !momentInContext
           ? { kind: "unanchored", question, title: question }
           : stretch
@@ -159,6 +188,7 @@ export default function WatchPage() {
                 title: question,
               },
       );
+      if (created) setSelectedId(created.conversation_id);
     },
     [atMs, momentInContext, session, sideChats, stretch, videoId],
   );
@@ -182,6 +212,63 @@ export default function WatchPage() {
       });
     },
     [video, videoId],
+  );
+
+  /**
+   * Every thread this session has on screen, mounted, with one showing.
+   *
+   * The reading surface's arrangement, for the same reason: unmounting a thread
+   * aborts the answer it is generating, and a detached thread has to stay in
+   * this same tree position — rendered through a portal — or detaching would
+   * remount it.
+   */
+  const threadDetail = (
+    <>
+      {sideChats.windows.map((entry, index) => {
+        const id = entry.sideChat.conversation_id;
+        const showing = !entry.detached && id === selectedId;
+        return (
+          <div
+            key={id}
+            hidden={!showing}
+            className={cn("min-h-0 flex-1 flex-col", showing ? "flex" : "hidden")}
+          >
+            <SideChatWindow
+              docked={!entry.detached}
+              portal
+              window={entry}
+              zIndex={BASE_Z_INDEX + index}
+              onRectChange={(rect) => sideChats.setRect(id, rect)}
+              onMinimize={() => sideChats.attach(id)}
+              onClose={() => sideChats.attach(id)}
+              onFocus={() => sideChats.focus(id)}
+              onSettled={(recorded) => sideChats.noteSettled(id, recorded)}
+              onAnchorsChange={(anchors) => {
+                void sideChats.setAnchors(id, anchors);
+              }}
+              surface={VIDEO_SIDE_CHATS}
+              renderTurns={({ turns: sideTurns, isLoading: loading, isQueued }) => (
+                <VideoSideChatTurns
+                  videoId={videoId ?? ""}
+                  turns={sideTurns as VideoTurn[]}
+                  isLoading={loading}
+                  isQueued={isQueued}
+                  onSeek={(milliseconds) =>
+                    playerRef.current?.seekTo(milliseconds)
+                  }
+                  onOpenDocument={openDocument}
+                />
+              )}
+              // Every thread here is anchored to the lecture rather than quoted
+              // from an answer, so a pasted passage has no turn to resolve
+              // against.
+              resolveQuoteTurn={() => null}
+              onPendingSent={() => sideChats.clearPending(id)}
+            />
+          </div>
+        );
+      })}
+    </>
   );
 
   if (sessionLoading) {
@@ -235,7 +322,8 @@ export default function WatchPage() {
           node: (
             <SessionQuestions
               threads={sideChats.available}
-              openIds={sideChats.openIds}
+              detachedIds={sideChats.detachedIds}
+              selectedId={selectedId}
               onOpen={(thread) => {
                 // Seek with the question. An answer about 12:04 read while the
                 // lecture sits at 40:00 has no picture behind it.
@@ -245,7 +333,19 @@ export default function WatchPage() {
                   playerRef.current?.seekTo(at);
                 }
                 sideChats.show(thread);
+                if (sideChats.detachedIds.has(thread.conversation_id)) return;
+                setSelectedId(thread.conversation_id);
               }}
+              onBack={() => setSelectedId(null)}
+              onDetach={
+                canFloat
+                  ? (thread) => {
+                      sideChats.detach(thread.conversation_id);
+                      setSelectedId(null);
+                    }
+                  : undefined
+              }
+              detail={threadDetail}
               hereLabel={timecode(atMs)}
               footer={
                 <MomentComposer
@@ -379,34 +479,14 @@ export default function WatchPage() {
         </nav>
       }
       overlay={
-        <SideChatLayer
-          windows={sideChats.windows}
-          onRectChange={sideChats.setRect}
-          onMinimize={sideChats.setMinimized}
-          onClose={sideChats.close}
-          onFocus={sideChats.focus}
-          onSettled={sideChats.noteSettled}
-          onPendingSent={sideChats.clearPending}
-          surface={VIDEO_SIDE_CHATS}
-          renderTurns={({ turns, isLoading: loading, isQueued }) => (
-            <VideoSideChatTurns
-              videoId={videoId ?? ""}
-              turns={turns as VideoTurn[]}
-              isLoading={loading}
-              isQueued={isQueued}
-              onSeek={(milliseconds) => playerRef.current?.seekTo(milliseconds)}
-              onOpenDocument={openDocument}
-            />
-          )}
-          onAnchorsChange={(sideChatId, anchors) => {
-            void sideChats.setAnchors(sideChatId, anchors);
-          }}
-          // Every window here is anchored to the lecture rather than quoted
-          // from an answer, so a pasted passage has no turn to resolve against.
-          resolveQuoteTurn={() => null}
-          error={sideChats.error}
-          onDismissError={sideChats.dismissError}
-        />
+        // The threads render in the questions panel; see `threadDetail`. What
+        // is left here is the failure that has no thread to attach itself to.
+        sideChats.error ? (
+          <SideChatError
+            error={sideChats.error}
+            onDismiss={sideChats.dismissError}
+          />
+        ) : null
       }
     >
       <div className="relative flex min-h-0 flex-1 flex-col">

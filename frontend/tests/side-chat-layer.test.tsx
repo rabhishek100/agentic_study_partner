@@ -46,6 +46,8 @@ function windowState(
     rect: { x: 10, y: 10, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT },
     minimized: false,
     unread: false,
+    // This layer's surfaces have nowhere to put a thread but a window.
+    detached: true,
     ...overrides,
   };
 }

@@ -14,7 +14,7 @@ import type { WindowRect } from "@/lib/floating-window";
 import { cn } from "@/lib/utils";
 
 /** Above the app chrome, below dialogs and the reading pane's own overlays. */
-const BASE_Z_INDEX = 30;
+export const BASE_Z_INDEX = 30;
 
 /**
  * Whether this viewport can carry floating windows at all.
@@ -61,7 +61,13 @@ export interface SideChatLayerProps {
   onDismissError?: () => void;
 }
 
-function SideChatError({
+/**
+ * A side chat that could not be opened at all.
+ *
+ * Exported because a surface that renders its own threads still has nowhere to
+ * put this: the failure is that there is no thread to attach it to.
+ */
+export function SideChatError({
   error,
   onDismiss,
 }: {

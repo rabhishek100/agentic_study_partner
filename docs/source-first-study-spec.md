@@ -61,7 +61,7 @@ conversation the thing that hangs off it.
 | Lecture ambient window | Lookback-biased: roughly the preceding 90 seconds and the following 30 | A question asked at 12:04 is nearly always about what was just said. A symmetric window spends half its budget on content the reader has not heard. |
 | Book ambient scope | The current page's canonical text plus its section title path | The page alone loses "where in the argument am I"; the whole chapter is a chapter summary's worth of tokens on every turn. The hierarchy already stores the path. |
 | Margin marks | Every anchor renders as a mark on the page edge or the scrubber | The accumulated artifact is the differentiator, and anchors are already persisted, so the mark is a rendering of existing state rather than a new object. |
-| Chat presence | Floating windows for anchored questions, plus a collapsible session rail listing them | Windows are the marginal-note gesture and already exist. The rail exists because a window closed thirty minutes ago is otherwise findable only from conversation history, off the surface. |
+| Chat presence | ~~Floating windows for anchored questions, plus a collapsible session rail listing them~~ **Revised: a questions panel holding both the list and the open thread, with floating as an opt-in.** See "The column came back", below. | Windows are the marginal-note gesture and already exist. The rail exists because a window closed thirty minutes ago is otherwise findable only from conversation history, off the surface. |
 | Routing | New `/read/[bookId]` and `/watch/[videoId]` routes | The layout inversion is real, and the two existing pages are already 553 and 691 lines. Separate routes are also linkable, so a citation can hand off into the reader at the page it cites. |
 | Reading position | Stored on the session conversation row | A new table for one integer per source is not worth a migration's blast radius, and the video schema boundary forbids one shared table across both domains anyway. |
 | Depth default | `quick` in anchored windows | Unchanged from side chats, for the same reasons: a clarification, in a small window, possibly three at once. |
@@ -119,6 +119,35 @@ of the query layer into somewhere it can be gated, staged and recorded.
 `allow_external_fallback` already existed as a parameter and is how the graph
 takes ownership: under a policy it is always false, so escalation happens in
 exactly one place.
+
+**The column came back, and the marks did not.** This document says the
+conversation column is gone, and the table above puts "a chat column beside a
+document" in the rejected half. It is back. Two things happened between the
+decision and the surface.
+
+The margin marks were deleted first, and by their own author: the gutter listed
+the same threads the session rail listed, and a reader had two indexes of the
+same questions with nothing to say which was authoritative. Deleting the gutter
+left the rail as the only index and pushed the composer into it, which is when
+the column arrived — not as a decision, as a consequence.
+
+The three-way duplication that followed is what forced the decision to be made
+properly. A thread was drawn as a row in the rail, as a floating window, and as
+a chip in a dock at the foot of the screen, and prod testing found it
+unreadable. The rule now is one home per thread — its row — with the opened
+thread replacing the list in the same column, and floating available on request
+for the case the windows were built for: two answers on screen at once.
+
+What that costs is real and is not being hidden. Several answers can still
+generate at once, but only one is watched at a time unless the reader detaches;
+the ambient composer under the document is now a composer at the foot of a
+panel; and the accumulated artifact this document calls the differentiator — a
+marked-up source — still does not exist. Citations now light the passage they
+cite in the page, which is a highlight for the answer being read, not a
+persisted mark. Restoring marks as *marks* — unlabelled ticks at anchor
+positions, no titles, no second list — is the open item, and it is the thing
+that would make this mode produce a source rather than a transcript in a
+narrower column.
 
 **The verdict needed no new model call.** Grounded answering already abstains
 when its evidence does not support the question, and that behaviour is measured
@@ -243,11 +272,26 @@ library can show "continue reading" against a source.
 
 ### Read
 
-The document holds the width. The library rail collapses to a strip, the
-section navigation becomes the document's own outline, and the conversation
-column is gone — replaced by margin marks down the page edge and floating
-windows over the page. The composer is a single bar under the document carrying
-the ambient chip; it opens a window rather than appending to a transcript.
+The document holds the width and the questions panel takes a draggable share of
+the row beside it — 18% to 55%, the reader's call. The library rail collapses to
+a strip and the section navigation becomes the document's own outline.
+
+The panel shows one of two things. The list: every question this session has
+asked, each row carrying its anchor on the left and, when the thread has stepped
+out into a window, that fact on the right. The thread: the same column, showing
+one question and its answer, with a back control to the list. The composer is
+pinned to the foot of whichever is showing and means what is showing — a new
+question from the list, a follow-up in a thread — and it carries the ambient
+chip, which is also the anchor toggle.
+
+Session-wide actions — the recap, the deck handoff, the **Stay in this source**
+lock — live behind a menu in the panel's header rather than stacked under the
+composer. The lock's *engaged* state is said on the panel's surface anyway: it
+persists between visits and its effect is a refusal, which a reader who cannot
+see it reads as bad retrieval.
+
+Hiding the top bar hands its controls to the document's own toolbar, so reading
+full height does not cost the region tool or the way back.
 
 ### Watch
 

@@ -7,7 +7,28 @@ import {
   recapOf,
   type Chapter,
 } from "@/components/read/session-recap";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import type { Anchor } from "@/lib/types";
+
+/**
+ * The recap and its handoff live in the session menu, off the path to asking a
+ * question — so this is where they are tested.
+ */
+function Menu({ children }: { children: React.ReactNode }) {
+  return (
+    <DropdownMenu defaultOpen>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost">Session actions</Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>{children}</DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 const apiFetch = vi.hoisted(() => vi.fn());
 const push = vi.hoisted(() => vi.fn());
@@ -75,30 +96,59 @@ describe("recapOf", () => {
 
 describe("SessionRecap", () => {
   it("says nothing when the session has no questions", () => {
-    const { container } = render(
-      <SessionRecap recap={recapOf([], CHAPTERS)} bookId={7} />,
+    render(
+      <Menu>
+        <SessionRecap recap={recapOf([], CHAPTERS)} bookId={7} />
+      </Menu>,
     );
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
   });
 
-  it("describes the session in the reader's terms", () => {
+  it("describes the session in the reader's terms", async () => {
     render(
-      <SessionRecap
-        recap={recapOf([[page(104)], [page(108)]], CHAPTERS)}
-        bookId={7}
-      />,
+      <Menu>
+        <SessionRecap
+          recap={recapOf([[page(104)], [page(108)]], CHAPTERS)}
+          bookId={7}
+        />
+      </Menu>,
     );
 
     expect(
-      screen.getByText(/2 questions across pp\. 104–108, mostly in 4\.3 Class imbalance/),
+      await screen.findByText(
+        /2 questions across pp\. 104–108, mostly in 4\.3 Class imbalance/,
+      ),
     ).toBeInTheDocument();
   });
 
-  it("names a single page as a page rather than a span", () => {
-    render(<SessionRecap recap={recapOf([[page(108)]], CHAPTERS)} bookId={7} />);
+  it("names a single page as a page rather than a span", async () => {
+    render(
+      <Menu>
+        <SessionRecap recap={recapOf([[page(108)]], CHAPTERS)} bookId={7} />
+      </Menu>,
+    );
 
-    expect(screen.getByText(/1 question across p\. 108/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/1 question across p\. 108/),
+    ).toBeInTheDocument();
+  });
+
+  it("names the section once, in the sentence rather than on the button", async () => {
+    // The label used to interpolate the chapter title and ran off its own
+    // edge. The section is named in the recap above the action, where a long
+    // title has a line to wrap onto.
+    render(
+      <Menu>
+        <SessionRecap recap={recapOf([[page(108)]], CHAPTERS)} bookId={7} />
+      </Menu>,
+    );
+
+    expect(
+      await screen.findByRole("menuitem", {
+        name: "Make a deck from that section",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("turns the session into a deck through the generator that exists", async () => {
@@ -106,14 +156,16 @@ describe("SessionRecap", () => {
     // second generator that knows about sessions.
     apiFetch.mockResolvedValueOnce({ job_id: "job-1" });
     render(
-      <SessionRecap
-        recap={recapOf([[page(108)], [page(112)]], CHAPTERS)}
-        bookId={7}
-      />,
+      <Menu>
+        <SessionRecap
+          recap={recapOf([[page(108)], [page(112)]], CHAPTERS)}
+          bookId={7}
+        />
+      </Menu>,
     );
 
     await userEvent.click(
-      screen.getByRole("button", { name: /Make a deck from 4\.3 Class imbalance/ }),
+      await screen.findByRole("menuitem", { name: /Make a deck/ }),
     );
 
     expect(apiFetch).toHaveBeenCalledWith("/decks", {
@@ -130,9 +182,15 @@ describe("SessionRecap", () => {
 
   it("stays on the page and says so when the deck cannot be queued", async () => {
     apiFetch.mockRejectedValueOnce(new Error("nope"));
-    render(<SessionRecap recap={recapOf([[page(108)]], CHAPTERS)} bookId={7} />);
+    render(
+      <Menu>
+        <SessionRecap recap={recapOf([[page(108)]], CHAPTERS)} bookId={7} />
+      </Menu>,
+    );
 
-    await userEvent.click(screen.getByRole("button", { name: /Make a deck/ }));
+    await userEvent.click(
+      await screen.findByRole("menuitem", { name: /Make a deck/ }),
+    );
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();

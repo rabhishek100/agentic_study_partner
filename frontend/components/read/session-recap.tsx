@@ -4,7 +4,10 @@ import { Layers, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import {
+  DropdownMenuItem,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { apiFetch } from "@/lib/api";
 import type { Anchor } from "@/lib/types";
 
@@ -77,6 +80,12 @@ export function recapOf(anchors: Anchor[][], chapters: Chapter[]): Recap {
  * spec names — and it is a call to the deck generator that already exists,
  * scoped by a chapter, rather than a second generator that knows about
  * sessions.
+ *
+ * It renders as part of the session menu rather than under the composer. Under
+ * the composer it was one of four things stacked between the reader and the
+ * field they type in, and its label — which interpolated a chapter title —
+ * ran off its own edge. The section is named once, in the sentence above the
+ * action, where a long title has a line to wrap onto.
  */
 export function SessionRecap({
   recap,
@@ -115,33 +124,40 @@ export function SessionRecap({
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs leading-snug text-muted-foreground">
-        {recap.questionCount === 1 ? "1 question" : `${recap.questionCount} questions`}{" "}
+    <>
+      <DropdownMenuLabel className="font-normal text-muted-foreground">
+        {recap.questionCount === 1
+          ? "1 question"
+          : `${recap.questionCount} questions`}{" "}
         across {span}
         {recap.busiest ? `, mostly in ${recap.busiest.title}` : ""}.
-      </p>
+      </DropdownMenuLabel>
       {recap.busiest && (
-        <Button
-          type="button"
-          size="sm"
-          className="w-full"
+        <DropdownMenuItem
           disabled={state === "queuing"}
-          onClick={makeDeck}
+          // Queuing is a request, not a navigation: closing the menu on the
+          // click would take its own failure message with it.
+          onSelect={(event) => {
+            event.preventDefault();
+            void makeDeck();
+          }}
         >
           {state === "queuing" ? (
             <Loader2 aria-hidden className="animate-spin" />
           ) : (
             <Layers aria-hidden />
           )}
-          Make a deck from {recap.busiest.title}
-        </Button>
+          Make a deck from that section
+        </DropdownMenuItem>
       )}
       {state === "failed" && (
-        <p role="alert" className="text-xs text-destructive">
+        <DropdownMenuLabel
+          role="alert"
+          className="font-normal text-destructive"
+        >
           The deck could not be queued. Try again from the Cards page.
-        </p>
+        </DropdownMenuLabel>
       )}
-    </div>
+    </>
   );
 }

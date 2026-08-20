@@ -313,6 +313,25 @@ describe("PdfViewer", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("carries the frame's controls when the frame has been hidden", async () => {
+    // Hiding the top bar hid the controls it held, leaving one restore button
+    // floating over the page and no way at all to draw a region.
+    render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        tools={<button type="button">Show the top bar</button>}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    expect(
+      screen.getByRole("button", { name: "Show the top bar" }),
+    ).toBeInTheDocument();
+    // Beside the document's own controls rather than instead of them.
+    expect(screen.getByRole("group", { name: "Document zoom" })).toBeInTheDocument();
+  });
+
   it("navigates pages with arrow keys while focus is elsewhere in the chat", async () => {
     const onPageChange = vi.fn();
     render(

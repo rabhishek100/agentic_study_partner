@@ -35,11 +35,13 @@ function summary(id: string, overrides: Partial<SideChatSummary> = {}): SideChat
 function Harness({
   parentId,
   onReady,
+  detachedByDefault = true,
 }: {
   parentId: string | null;
   onReady: (api: ReturnType<typeof useSideChats>) => void;
+  detachedByDefault?: boolean;
 }) {
-  const api = useSideChats(parentId, BOOK_SIDE_CHATS);
+  const api = useSideChats(parentId, BOOK_SIDE_CHATS, { detachedByDefault });
   onReady(api);
   return (
     <ul>
@@ -53,11 +55,12 @@ function Harness({
   );
 }
 
-function mount(parentId: string | null = "parent") {
+function mount(parentId: string | null = "parent", detachedByDefault = true) {
   let api!: ReturnType<typeof useSideChats>;
   render(
     <Harness
       parentId={parentId}
+      detachedByDefault={detachedByDefault}
       onReady={(value) => {
         api = value;
       }}
@@ -382,6 +385,51 @@ describe("useSideChats", () => {
     expect(apiFetch).toHaveBeenLastCalledWith("/conversations/a", {
       method: "DELETE",
     });
+  });
+
+  it("keeps a thread in the surface that lists it, until the reader says otherwise", async () => {
+    // Reading and watching have a questions panel; a thread's home is its row
+    // there, and floating is something the reader asks for.
+    apiFetch.mockResolvedValue({ side_chats: [summary("a")] });
+    const api = mount("parent", false);
+    await waitFor(() => expect(api().available).toHaveLength(1));
+
+    act(() => api().show(summary("a")));
+
+    expect(api().windows[0]?.detached).toBe(false);
+    expect(api().detachedIds.has("a")).toBe(false);
+  });
+
+  it("detaches and reattaches a thread without losing it", async () => {
+    // The same mounted thread either way: detaching mid-answer must not be a
+    // remount, and putting the window away returns the thread to the list
+    // rather than ending it.
+    apiFetch.mockResolvedValue({ side_chats: [summary("a")] });
+    const api = mount("parent", false);
+    await waitFor(() => expect(api().available).toHaveLength(1));
+    act(() => api().show(summary("a")));
+
+    act(() => api().detach("a"));
+    expect(api().detachedIds.has("a")).toBe(true);
+    expect(api().windows).toHaveLength(1);
+
+    act(() => api().attach("a"));
+    expect(api().detachedIds.has("a")).toBe(false);
+    expect(api().windows).toHaveLength(1);
+  });
+
+  it("remembers which threads had stepped out, across a remount", async () => {
+    apiFetch.mockResolvedValue({ side_chats: [summary("a"), summary("b")] });
+    const first = mount("parent", false);
+    await waitFor(() => expect(first().available).toHaveLength(2));
+    act(() => first().show(summary("a")));
+    act(() => first().show(summary("b")));
+    act(() => first().detach("b"));
+
+    const second = mount("parent", false);
+    await waitFor(() => expect(second().windows).toHaveLength(2));
+    expect(second().detachedIds.has("a")).toBe(false);
+    expect(second().detachedIds.has("b")).toBe(true);
   });
 
   it("showing an already-open thread raises it instead of opening a second window", async () => {

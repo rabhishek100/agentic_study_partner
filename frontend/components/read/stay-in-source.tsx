@@ -1,8 +1,6 @@
 "use client";
 
-import { Lock, LockOpen } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
+import { DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 
 /**
  * One control, one meaning: answer from this source or say you cannot.
@@ -11,6 +9,12 @@ import { Button } from "@/components/ui/button";
  * verification. This is the opt-out, and it is deliberately a single switch
  * rather than a per-rung setting — a reader either wants their own material or
  * does not, and the ladder between those two states is the system's business.
+ *
+ * It lives in the session menu, which is where the specification puts it and
+ * which keeps the composer's own edge clear. What may not live in a menu is the
+ * *engaged* state: the lock persists between visits and its effect is a refusal
+ * that looks like a bad answer, so the panel says so on its surface whenever it
+ * is on.
  */
 export function StayInSourceToggle({
   locked,
@@ -23,20 +27,21 @@ export function StayInSourceToggle({
   noun: string;
 }) {
   return (
-    <Button
-      type="button"
-      variant={locked ? "secondary" : "ghost"}
-      size="sm"
-      aria-pressed={locked}
-      title={
-        locked
-          ? `Questions this ${noun} does not answer will be refused rather than answered from elsewhere`
-          : `Questions this ${noun} does not answer may be answered from your library, then from general knowledge`
-      }
-      onClick={() => onChange(!locked)}
+    <DropdownMenuCheckboxItem
+      checked={locked}
+      // The menu stays open: this is a setting the reader may want to read the
+      // consequence of, and closing on the tick hides the sentence below it.
+      onSelect={(event) => event.preventDefault()}
+      onCheckedChange={onChange}
     >
-      {locked ? <Lock aria-hidden /> : <LockOpen aria-hidden />}
-      {locked ? `Staying in this ${noun}` : `Stay in this ${noun}`}
-    </Button>
+      <span className="flex flex-col gap-1">
+        <span>{locked ? `Staying in this ${noun}` : `Stay in this ${noun}`}</span>
+        <span className="text-xs text-muted-foreground">
+          {locked
+            ? `Questions this ${noun} does not answer are refused rather than answered from elsewhere`
+            : `Questions this ${noun} does not answer may be answered from your library, then from general knowledge`}
+        </span>
+      </span>
+    </DropdownMenuCheckboxItem>
   );
 }
