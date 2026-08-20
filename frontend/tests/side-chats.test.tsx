@@ -35,11 +35,13 @@ function summary(id: string, overrides: Partial<SideChatSummary> = {}): SideChat
 function Harness({
   parentId,
   onReady,
+  detachedByDefault = true,
 }: {
   parentId: string | null;
   onReady: (api: ReturnType<typeof useSideChats>) => void;
+  detachedByDefault?: boolean;
 }) {
-  const api = useSideChats(parentId, BOOK_SIDE_CHATS);
+  const api = useSideChats(parentId, BOOK_SIDE_CHATS, { detachedByDefault });
   onReady(api);
   return (
     <ul>
@@ -53,11 +55,12 @@ function Harness({
   );
 }
 
-function mount(parentId: string | null = "parent") {
+function mount(parentId: string | null = "parent", detachedByDefault = true) {
   let api!: ReturnType<typeof useSideChats>;
   render(
     <Harness
       parentId={parentId}
+      detachedByDefault={detachedByDefault}
       onReady={(value) => {
         api = value;
       }}
@@ -95,10 +98,152 @@ describe("useSideChats", () => {
       expect.objectContaining({ method: "POST" }),
     );
     const [, options] = apiFetch.mock.calls.at(-1)!;
+    // The kind is sent explicitly now that anchors can point at a source as
+    // well as at an answer. The server still defaults an untagged anchor to a
+    // quote, for anchors stored before the distinction existed — but a client
+    // written today should say which one it means rather than lean on that.
     expect(JSON.parse((options as RequestInit).body as string)).toEqual({
-      anchors: [{ parent_turn_index: 2, quoted_text: "the gap compounds" }],
+      anchors: [
+        {
+          kind: "answer_quote",
+          parent_turn_index: 2,
+          quoted_text: "the gap compounds",
+        },
+      ],
     });
     expect(screen.getByText("thread new")).toBeInTheDocument();
+  });
+
+  it("anchors a question to the page the reader is on", async () => {
+    // Source-first study: the reader typed under the document, and the anchor
+    // says where they were rather than quoting anything.
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("page"));
+
+    await act(async () => {
+      await api().open({
+        kind: "document_page",
+        bookId: 7,
+        page: 108,
+        question: "Why is accuracy the wrong measure here?",
+        title: "Why is accuracy the wrong measure here?",
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [{ kind: "document_page", book_id: 7, page: 108 }],
+      title: "Why is accuracy the wrong measure here?",
+    });
+  });
+
+  it("sends no anchor when the reader takes the page out", async () => {
+    // The chip *is* the anchor. Representing "no page" by anchoring to some
+    // other page would be a lie the reader could not see.
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("loose"));
+
+    await act(async () => {
+      await api().open({
+        kind: "unanchored",
+        question: "How does this compare to weighted sampling?",
+        title: "How does this compare to weighted sampling?",
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [],
+      title: "How does this compare to weighted sampling?",
+    });
+  });
+
+  it("anchors a question to the moment the lecture is at", async () => {
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("moment"));
+    await act(async () => {
+      await api().open({
+        kind: "lecture_moment",
+        videoId: "8b1f3c4e-0000-4000-8000-000000000001",
+        timestampMs: 724_000,
+        question: "Why divide by the square root?",
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [
+        {
+          kind: "lecture_moment",
+          video_id: "8b1f3c4e-0000-4000-8000-000000000001",
+          timestamp_ms: 724_000,
+        },
+      ],
+    });
+  });
+
+  it("anchors a question to a marked stretch when there is one", async () => {
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("stretch"));
+    await act(async () => {
+      await api().open({
+        kind: "lecture_stretch",
+        videoId: "8b1f3c4e-0000-4000-8000-000000000001",
+        startMs: 700_000,
+        endMs: 750_000,
+      });
+    });
+
+    const [, options] = apiFetch.mock.calls.at(-1)!;
+    expect(JSON.parse((options as RequestInit).body as string)).toEqual({
+      anchors: [
+        {
+          kind: "lecture_stretch",
+          video_id: "8b1f3c4e-0000-4000-8000-000000000001",
+          start_ms: 700_000,
+          end_ms: 750_000,
+        },
+      ],
+    });
+  });
+
+  it("carries the question into the window it just opened", async () => {
+    // The question was typed before the window existed. Losing it here would
+    // make the reader retype it into a window that opened empty.
+    apiFetch.mockResolvedValueOnce({ side_chats: [] });
+    const api = mount();
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+
+    apiFetch.mockResolvedValueOnce(summary("pending"));
+
+    await act(async () => {
+      await api().open({
+        kind: "document_page",
+        bookId: 7,
+        page: 108,
+        question: "Why is accuracy the wrong measure here?",
+      });
+    });
+
+    expect(api().windows.at(-1)?.pendingQuestion).toBe(
+      "Why is accuracy the wrong measure here?",
+    );
+
+    await act(async () => api().clearPending("pending"));
+
+    expect(api().windows.at(-1)?.pendingQuestion).toBeUndefined();
   });
 
   it("anchors a whole answer without sending a request that must be rejected", async () => {
@@ -240,6 +385,51 @@ describe("useSideChats", () => {
     expect(apiFetch).toHaveBeenLastCalledWith("/conversations/a", {
       method: "DELETE",
     });
+  });
+
+  it("keeps a thread in the surface that lists it, until the reader says otherwise", async () => {
+    // Reading and watching have a questions panel; a thread's home is its row
+    // there, and floating is something the reader asks for.
+    apiFetch.mockResolvedValue({ side_chats: [summary("a")] });
+    const api = mount("parent", false);
+    await waitFor(() => expect(api().available).toHaveLength(1));
+
+    act(() => api().show(summary("a")));
+
+    expect(api().windows[0]?.detached).toBe(false);
+    expect(api().detachedIds.has("a")).toBe(false);
+  });
+
+  it("detaches and reattaches a thread without losing it", async () => {
+    // The same mounted thread either way: detaching mid-answer must not be a
+    // remount, and putting the window away returns the thread to the list
+    // rather than ending it.
+    apiFetch.mockResolvedValue({ side_chats: [summary("a")] });
+    const api = mount("parent", false);
+    await waitFor(() => expect(api().available).toHaveLength(1));
+    act(() => api().show(summary("a")));
+
+    act(() => api().detach("a"));
+    expect(api().detachedIds.has("a")).toBe(true);
+    expect(api().windows).toHaveLength(1);
+
+    act(() => api().attach("a"));
+    expect(api().detachedIds.has("a")).toBe(false);
+    expect(api().windows).toHaveLength(1);
+  });
+
+  it("remembers which threads had stepped out, across a remount", async () => {
+    apiFetch.mockResolvedValue({ side_chats: [summary("a"), summary("b")] });
+    const first = mount("parent", false);
+    await waitFor(() => expect(first().available).toHaveLength(2));
+    act(() => first().show(summary("a")));
+    act(() => first().show(summary("b")));
+    act(() => first().detach("b"));
+
+    const second = mount("parent", false);
+    await waitFor(() => expect(second().windows).toHaveLength(2));
+    expect(second().detachedIds.has("a")).toBe(false);
+    expect(second().detachedIds.has("b")).toBe(true);
   });
 
   it("showing an already-open thread raises it instead of opening a second window", async () => {

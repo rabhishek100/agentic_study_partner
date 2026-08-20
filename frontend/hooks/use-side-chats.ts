@@ -16,7 +16,7 @@ import {
   HEADER_INSET,
 } from "@/lib/floating-window";
 import type { SideChatSurface, SideChatThread } from "@/lib/side-chat";
-import type { QuoteAnchor } from "@/lib/types";
+import type { Anchor } from "@/lib/types";
 
 export interface SideChatWindow {
   sideChat: SideChatThread;
@@ -24,12 +24,49 @@ export interface SideChatWindow {
   minimized: boolean;
   /** An answer landed while this window was minimized. */
   unread: boolean;
+  /**
+   * Whether this thread floats over the page or sits in the surface that owns
+   * it.
+   *
+   * Ask-first surfaces have nowhere else to put a thread, so theirs are always
+   * detached. Source-first reading has a questions panel, and a thread lives
+   * there by default; detaching is the reader's explicit request for a second
+   * answer on screen beside the first. The flag rides on the window rather than
+   * on the surface because the two states are the same thread — the component
+   * stays mounted across the change, so an answer keeps streaming while it
+   * moves.
+   */
+  detached: boolean;
+  /**
+   * A question to ask as soon as this window is ready, asked once.
+   *
+   * Source-first study types the question *before* the window exists: the
+   * reader is looking at a page, not at a thread, and the composer under the
+   * document is where they ask. Carrying it here rather than opening an empty
+   * window and expecting them to retype it is the whole difference between
+   * asking about the page and asking beside it.
+   */
+  pendingQuestion?: string;
 }
 
-export interface OpenSideChatRequest {
-  parentTurnIndex: number;
-  quotedText: string;
-}
+/**
+ * What to anchor a new side chat to.
+ *
+ * A quote names a turn of the parent conversation; a page names a place in the
+ * source. The server tells the two apart by `kind`, and defaults its absence to
+ * a quote, so the existing call sites need no change.
+ */
+export type OpenSideChatRequest = { question?: string; title?: string } & (
+  | { kind?: "answer_quote"; parentTurnIndex: number; quotedText: string }
+  | { kind: "document_page"; bookId: number; page: number }
+  | { kind: "document_passage"; bookId: number; page: number; selectedText: string }
+  | { kind: "lecture_moment"; videoId: string; timestampMs: number }
+  | { kind: "lecture_stretch"; videoId: string; startMs: number; endMs: number }
+  // No anchor at all: a question about the conversation's scope that names no
+  // passage. The reader asks one by dismissing the page or moment chip before
+  // sending.
+  | { kind: "unanchored" }
+);
 
 /** Mirrors `MAXIMUM_ANCHORS` on the server. */
 export const MAXIMUM_ANCHORS = 5;
@@ -66,9 +103,81 @@ export function clampQuote(text: string): string {
   ).trimEnd()}…`;
 }
 
+/**
+ * The longest title the server stores, mirroring `CreateSideChatRequest`.
+ *
+ * A window opened from a selection is named after that selection, and a reader
+ * who highlights a paragraph produces one far longer than this. Sending it
+ * anyway is a 422 that reads "Request failed" — which is what happened, and
+ * from the reader's side the highlight simply did nothing.
+ */
+export const MAXIMUM_TITLE_CHARS = 200;
+
+/** A title the server will accept, or nothing rather than something invalid. */
+export function clampTitle(title: string | undefined): string | undefined {
+  const trimmed = (title ?? "").trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length <= MAXIMUM_TITLE_CHARS) return trimmed;
+  const clipped = trimmed.slice(0, MAXIMUM_TITLE_CHARS - 1);
+  const boundary = clipped.lastIndexOf(" ");
+  return `${(boundary > MAXIMUM_TITLE_CHARS / 2
+    ? clipped.slice(0, boundary)
+    : clipped
+  ).trimEnd()}…`;
+}
+
+/** The anchors a new side chat is created with — none, or exactly one. */
+function anchorPayloads(
+  request: OpenSideChatRequest,
+): Record<string, unknown>[] {
+  return request.kind === "unanchored" ? [] : [anchorPayload(request)];
+}
+
+/** One anchor in the shape the server stores it. */
+function anchorPayload(
+  request: Exclude<OpenSideChatRequest, { kind: "unanchored" }>,
+): Record<string, unknown> {
+  if (request.kind === "document_page") {
+    return {
+      kind: "document_page",
+      book_id: request.bookId,
+      page: request.page,
+    };
+  }
+  if (request.kind === "document_passage") {
+    return {
+      kind: "document_passage",
+      book_id: request.bookId,
+      page: request.page,
+      selected_text: request.selectedText,
+    };
+  }
+  if (request.kind === "lecture_moment") {
+    return {
+      kind: "lecture_moment",
+      video_id: request.videoId,
+      timestamp_ms: request.timestampMs,
+    };
+  }
+  if (request.kind === "lecture_stretch") {
+    return {
+      kind: "lecture_stretch",
+      video_id: request.videoId,
+      start_ms: request.startMs,
+      end_ms: request.endMs,
+    };
+  }
+  return {
+    kind: "answer_quote",
+    parent_turn_index: request.parentTurnIndex,
+    quoted_text: clampQuote(request.quotedText),
+  };
+}
+
 interface StoredWindow {
   id: string;
   minimized: boolean;
+  detached?: boolean;
 }
 
 function readOpen(parentId: string): StoredWindow[] {
@@ -83,6 +192,7 @@ function readOpen(parentId: string): StoredWindow[] {
             {
               id: (entry as StoredWindow).id,
               minimized: Boolean((entry as StoredWindow).minimized),
+              detached: (entry as StoredWindow).detached,
             },
           ]
         : [],
@@ -100,6 +210,7 @@ function writeOpen(parentId: string, windows: SideChatWindow[]): void {
         windows.map((entry) => ({
           id: entry.sideChat.conversation_id,
           minimized: entry.minimized,
+          detached: entry.detached,
         })),
       ),
     );
@@ -134,6 +245,16 @@ function viewportSize(): Viewport {
 export function useSideChats(
   parentConversationId: string | null,
   surface: SideChatSurface,
+  {
+    /**
+     * Where a newly shown thread goes.
+     *
+     * True on the ask-first surfaces, which have no panel to put a thread in.
+     * False on reading and watching, where the questions panel is the thread's
+     * home and floating is something the reader asks for.
+     */
+    detachedByDefault = true,
+  }: { detachedByDefault?: boolean } = {},
 ) {
   const [available, setAvailable] = useState<SideChatThread[]>([]);
   const [windows, setWindows] = useState<SideChatWindow[]>([]);
@@ -177,6 +298,7 @@ export function useSideChats(
               ),
               minimized: entry.minimized,
               unread: false,
+              detached: entry.detached ?? detachedByDefault,
             },
           ];
         });
@@ -228,7 +350,8 @@ export function useSideChats(
     });
   }, []);
 
-  const show = useCallback((sideChat: SideChatThread) => {
+  const show = useCallback(
+    (sideChat: SideChatThread, pendingQuestion?: string) => {
     setWindows((current) => {
       const existing = current.find(
         (entry) => entry.sideChat.conversation_id === sideChat.conversation_id,
@@ -239,7 +362,7 @@ export function useSideChats(
         // window onto the same thread.
         return [
           ...current.filter((entry) => entry !== existing),
-          { ...existing, sideChat, minimized: false, unread: false },
+          { ...existing, sideChat, minimized: false, unread: false, pendingQuestion },
         ];
       }
       return [
@@ -256,9 +379,30 @@ export function useSideChats(
           ),
           minimized: false,
           unread: false,
+          detached: detachedByDefault,
+          pendingQuestion,
         },
       ];
-    });
+      });
+    },
+    [detachedByDefault],
+  );
+
+  /**
+   * Forget a question once it has been asked.
+   *
+   * Sending is the window's job — it owns the stream — so the state that says
+   * "ask this" has to be cleared from outside it, or a re-render would ask
+   * again.
+   */
+  const clearPending = useCallback((sideChatId: string) => {
+    setWindows((current) =>
+      current.map((entry) =>
+        entry.sideChat.conversation_id === sideChatId
+          ? { ...entry, pendingQuestion: undefined }
+          : entry,
+      ),
+    );
   }, []);
 
   const open = useCallback(
@@ -272,17 +416,15 @@ export function useSideChats(
           {
             method: "POST",
             body: JSON.stringify({
-              anchors: [
-                {
-                  parent_turn_index: request.parentTurnIndex,
-                  quoted_text: clampQuote(request.quotedText),
-                },
-              ],
+              anchors: anchorPayloads(request),
+              ...(clampTitle(request.title)
+                ? { title: clampTitle(request.title) }
+                : {}),
             }),
           },
         );
         setAvailable((current) => [created, ...current]);
-        show(created);
+        show(created, request.question);
         return created;
       } catch (caught) {
         setError((caught as Error).message);
@@ -334,6 +476,45 @@ export function useSideChats(
   }, [focus]);
 
   /**
+   * Pop a thread out of the surface that holds it, into a window of its own.
+   *
+   * The window it becomes is the same mounted component, so a detach in the
+   * middle of an answer does not interrupt it. Raised as well as detached,
+   * because a new window that opens behind the others is a window the reader
+   * has to go looking for.
+   */
+  const detach = useCallback(
+    (sideChatId: string) => {
+      setWindows((current) =>
+        current.map((entry) =>
+          entry.sideChat.conversation_id === sideChatId
+            ? { ...entry, detached: true, minimized: false, unread: false }
+            : entry,
+        ),
+      );
+      focus(sideChatId);
+    },
+    [focus],
+  );
+
+  /**
+   * Put a detached thread back where it came from.
+   *
+   * This is what closing and minimising a detached window mean on a surface
+   * that lists its threads: the thread is not going anywhere, so taking the
+   * window away returns it to the list rather than ending it.
+   */
+  const attach = useCallback((sideChatId: string) => {
+    setWindows((current) =>
+      current.map((entry) =>
+        entry.sideChat.conversation_id === sideChatId
+          ? { ...entry, detached: false, minimized: false, unread: false }
+          : entry,
+      ),
+    );
+  }, []);
+
+  /**
    * Replace the passages a side chat is anchored to.
    *
    * The whole set is sent, existing chips keeping their ids, because that is
@@ -342,7 +523,7 @@ export function useSideChats(
    * disagree about it.
    */
   const setAnchors = useCallback(
-    async (sideChatId: string, anchors: QuoteAnchor[]) => {
+    async (sideChatId: string, anchors: Anchor[]) => {
       const previous = { available, windows };
       const apply = (chat: SideChatThread) =>
         chat.conversation_id === sideChatId ? { ...chat, anchors } : chat;
@@ -362,11 +543,20 @@ export function useSideChats(
           {
             method: "PATCH",
             body: JSON.stringify({
-              anchors: anchors.map((anchor) => ({
-                anchor_id: anchor.anchor_id,
-                parent_turn_index: anchor.parent_turn_index,
-                quoted_text: clampQuote(anchor.quoted_text),
-              })),
+              // Each anchor goes back in the shape it came in. A source
+              // anchor has no quote to clamp and no turn to name, so mapping
+              // every anchor through the quote shape would send nulls for
+              // both and be refused.
+              anchors: anchors.map((anchor) =>
+                anchor.kind === undefined || anchor.kind === "answer_quote"
+                  ? {
+                      kind: "answer_quote",
+                      anchor_id: anchor.anchor_id,
+                      parent_turn_index: anchor.parent_turn_index,
+                      quoted_text: clampQuote(anchor.quoted_text),
+                    }
+                  : { ...anchor },
+              ),
             }),
           },
         );
@@ -441,12 +631,23 @@ export function useSideChats(
     [windows],
   );
 
+  const detachedIds = useMemo(
+    () =>
+      new Set(
+        windows
+          .filter((entry) => entry.detached)
+          .map((entry) => entry.sideChat.conversation_id),
+      ),
+    [windows],
+  );
+
   const dismissError = useCallback(() => setError(""), []);
 
   return {
     available,
     windows,
     openIds,
+    detachedIds,
     error,
     dismissError,
     isOpening,
@@ -459,5 +660,8 @@ export function useSideChats(
     setAnchors,
     noteSettled,
     focus,
+    clearPending,
+    detach,
+    attach,
   };
 }

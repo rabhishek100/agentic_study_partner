@@ -233,6 +233,10 @@ export function BookSelector({
                       />
                     )}
                   </label>
+                  {/* The reading entry point lives in the rail, beside the
+                      library, rather than in here: this popover chooses what
+                      to search, and hiding navigation inside it is how the
+                      feature shipped unreachable. */}
                   {onRename ? (
                     /*
                       Outside the label on purpose: a button inside one toggles

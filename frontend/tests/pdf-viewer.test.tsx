@@ -313,6 +313,25 @@ describe("PdfViewer", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("carries the frame's controls when the frame has been hidden", async () => {
+    // Hiding the top bar hid the controls it held, leaving one restore button
+    // floating over the page and no way at all to draw a region.
+    render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        tools={<button type="button">Show the top bar</button>}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    expect(
+      screen.getByRole("button", { name: "Show the top bar" }),
+    ).toBeInTheDocument();
+    // Beside the document's own controls rather than instead of them.
+    expect(screen.getByRole("group", { name: "Document zoom" })).toBeInTheDocument();
+  });
+
   it("navigates pages with arrow keys while focus is elsewhere in the chat", async () => {
     const onPageChange = vi.fn();
     render(
@@ -351,8 +370,11 @@ describe("PdfViewer", () => {
     document.body.appendChild(separator);
     fireEvent.keyDown(separator, { key: "ArrowLeft" });
 
+    // A *modal* dialog takes the keys. A non-modal one does not — see the
+    // test below, which is the case this used to get wrong.
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
     document.body.appendChild(dialog);
     fireEvent.keyDown(window, { key: "ArrowRight" });
 
@@ -361,6 +383,32 @@ describe("PdfViewer", () => {
     dialog.remove();
     fireEvent.keyDown(window, { key: "ArrowRight", metaKey: true });
     expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps turning pages while a side chat is open", async () => {
+    // Side chats are non-modal dialogs, and a minimized one stays mounted so
+    // its answer keeps streaming. Treating any dialog as a reason to stop
+    // meant asking one question disabled the arrow keys for the rest of the
+    // session — in the one mode built around reading with questions open.
+    const onPageChange = vi.fn();
+    render(
+      <PdfViewer
+        target={target}
+        {...viewerProps}
+        onPageChange={onPageChange}
+      />,
+    );
+    await screen.findByTestId("pdf-page");
+
+    const sideChat = document.createElement("section");
+    sideChat.setAttribute("role", "dialog");
+    sideChat.setAttribute("aria-modal", "false");
+    document.body.appendChild(sideChat);
+
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+
+    expect(onPageChange).toHaveBeenCalled();
+    sideChat.remove();
   });
 
   it("respects the first and last page keyboard boundaries", async () => {

@@ -190,3 +190,46 @@ def apply_limit(figures: list[FigureRef], limit: int) -> list[FigureRef]:
     ordered = sorted(enumerate(figures), key=rank_key)[:limit]
     kept = {position for position, _ in ordered}
     return [figure for position, figure in enumerate(figures) if position in kept]
+
+
+# Two is the cap, and it is about attention rather than bytes. A page with six
+# figures on it is a page whose figures are decoration; the ones worth sending
+# are the ones the cited evidence actually sits beside.
+DEFAULT_IMAGE_LIMIT = 2
+
+
+def load_figure_images(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    figures: Sequence[FigureRef],
+    limit: int = DEFAULT_IMAGE_LIMIT,
+) -> list[tuple[str, str]]:
+    """The bytes behind the first few figures, as (mime type, base64).
+
+    Stored base64 already, so this is a read rather than an encode. Returned in
+    the order given, because the labels the model is shown ([F1], [F2]) are
+    positional and an answer citing [F2] has to mean the second one.
+    """
+
+    wanted = list(figures)[:limit]
+    if not wanted:
+        return []
+    owner = parse_owner_id(owner_id)
+    rows = connection.execute(
+        """
+        select block_id, mime_type, base64_content
+        from image_blocks
+        where owner_id = %s and block_id = any(%s)
+        """,
+        (owner, [figure.block_id for figure in wanted]),
+    ).fetchall()
+    by_block = {row["block_id"]: row for row in rows}
+    images: list[tuple[str, str]] = []
+    for figure in wanted:
+        row = by_block.get(figure.block_id)
+        # A figure whose bytes are missing is skipped rather than sent as an
+        # empty image: the label positions would shift under the model.
+        if row and row["base64_content"]:
+            images.append((row["mime_type"], row["base64_content"]))
+    return images

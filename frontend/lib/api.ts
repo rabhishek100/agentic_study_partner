@@ -27,11 +27,36 @@ export async function errorDetail(response: Response): Promise<string> {
   const raw = await response.text();
   try {
     const parsed = JSON.parse(raw) as {
-      detail?: string | { message?: string };
+      detail?:
+        | string
+        | { message?: string }
+        | { loc?: unknown[]; msg?: string }[];
     };
     if (typeof parsed.detail === "string") return parsed.detail;
+    // A rejected request comes back as a list of field errors. Read as an
+    // object it rendered "Request failed (422)", which says only that
+    // something was wrong and never which field — the reader saw a highlight
+    // that silently did nothing.
+    if (Array.isArray(parsed.detail)) {
+      const fields = parsed.detail
+        .map((item) => {
+          const where = Array.isArray(item?.loc)
+            ? item.loc.filter((part) => part !== "body").join(".")
+            : "";
+          return where ? `${where}: ${item?.msg}` : String(item?.msg ?? "");
+        })
+        .filter(Boolean);
+      if (fields.length > 0) return fields.join("; ");
+    }
     // Ingestion errors carry {code, message}; the message is written for users.
-    if (parsed.detail?.message) return parsed.detail.message;
+    if (
+      parsed.detail &&
+      !Array.isArray(parsed.detail) &&
+      typeof parsed.detail === "object" &&
+      parsed.detail.message
+    ) {
+      return parsed.detail.message;
+    }
   } catch {
     // fall through to the generic message
   }

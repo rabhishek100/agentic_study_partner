@@ -1,4 +1,4 @@
-import type { SideContextReport } from "@/lib/types";
+import type { GroundingRung, SideContextReport } from "@/lib/types";
 
 /** Contracts served by the video API, mirrored for the Videos section. */
 
@@ -194,6 +194,12 @@ export interface VideoTurnResult {
   warnings: string[];
   /** Present only on a side-chat turn. */
   side_context: SideContextReport | null;
+  /**
+   * Which rung answered. Only ever `anchor` or `open_source` here: this
+   * surface has no route out of the lecture, so there is nothing above the
+   * recording to climb to and no widening to record.
+   */
+  grounding_rung?: GroundingRung | null;
 }
 
 export interface VideoAskResponse {

@@ -89,4 +89,39 @@ describe("SplitPane", () => {
     rerender(<SplitPane regions={[]} active={null}>{workspace}</SplitPane>);
     expect(screen.getByTestId("workspace")).toBe(original);
   });
+
+  it("gives a mode its own width, its own range and its own memory", async () => {
+    // A chat column beside a page wants a quarter of the row where a document
+    // beside a conversation wants half. One shared key and range gives
+    // whichever mode opened second the other one's width.
+    window.localStorage.setItem("asp:questions-width", "24");
+    render(
+      <SplitPane
+        active="questions"
+        regions={[
+          {
+            key: "questions",
+            label: "Questions",
+            node: <p>questions</p>,
+            resize: {
+              storageKey: "asp:questions-width",
+              defaultPercent: 28,
+              minPercent: 18,
+              maxPercent: 55,
+              label: "Resize the questions pane",
+            },
+          },
+        ]}
+      >
+        <p>document</p>
+      </SplitPane>,
+    );
+
+    const separator = await screen.findByRole("separator", {
+      name: "Resize the questions pane",
+    });
+    expect(separator).toHaveAttribute("aria-valuemin", "18");
+    expect(separator).toHaveAttribute("aria-valuemax", "55");
+    expect(separator).toHaveAttribute("aria-valuenow", "24");
+  });
 });

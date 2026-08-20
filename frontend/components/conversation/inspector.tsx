@@ -3,6 +3,10 @@
 import { ChevronDown, FlaskConical } from "lucide-react";
 import { useState } from "react";
 
+import {
+  RungBadge,
+  WideningTrail,
+} from "@/components/conversation/grounding";
 import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
@@ -92,6 +96,22 @@ export function AnswerInspector({ result }: { result: TurnResult }) {
           )}
           {result.routing_reason && (
             <Row term="Routing reason">{result.routing_reason}</Row>
+          )}
+          {result.grounding_rung && (
+            <Row term="Grounded in">
+              <RungBadge
+                rung={result.grounding_rung}
+                sourceType={result.source_type}
+              />
+            </Row>
+          )}
+          {/* The ladder as a sequence of decisions with the verdict that
+              provoked each, so "closest match" is readable rather than taken
+              on trust. */}
+          {result.widenings && result.widenings.length > 0 && (
+            <Row term="Widened">
+              <WideningTrail widenings={result.widenings} />
+            </Row>
           )}
           {result.prompt_profile_version && (
             <Row term="Prompt version">

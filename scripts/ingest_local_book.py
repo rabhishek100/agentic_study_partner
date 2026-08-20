@@ -21,6 +21,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from ingestion.config import load_limits
 from ingestion.errors import IngestionError
 from ingestion.jobs import claim_next_job, get_job, list_jobs
@@ -173,6 +175,12 @@ def _ensure_readable(
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Every other entry point that reaches the pipeline does this, and without
+    # it the whole run is configured by defaults. The database URL happened to
+    # match its fallback, so the first thing to actually notice was the
+    # embedder, three stages in, refusing a key that was sitting in `.env` all
+    # along.
+    load_dotenv()
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )

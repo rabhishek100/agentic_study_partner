@@ -121,9 +121,82 @@ export interface ConversationState {
 
 /** One passage a reader carried from a conversation into a side chat. */
 export interface QuoteAnchor {
+  /** Absent on anchors stored before source anchors existed. */
+  kind?: "answer_quote";
   anchor_id: string;
   parent_turn_index: number;
   quoted_text: string;
+}
+
+/**
+ * An anchor pointing at the source rather than at an answer.
+ *
+ * The distinction is not cosmetic: a quote is generated text and can never be
+ * cited, while a page of the reader's own book is matched back to canonical
+ * content and cited as normal. The server does that matching; the client only
+ * ever says where the reader was.
+ */
+export interface DocumentPageAnchor {
+  kind: "document_page";
+  anchor_id: string;
+  book_id: number;
+  page: number;
+}
+
+export interface DocumentPassageAnchor {
+  kind: "document_passage";
+  anchor_id: string;
+  book_id: number;
+  page: number;
+  selected_text: string;
+}
+
+/**
+ * Where the viewer is in a lecture, as an instant.
+ *
+ * The server widens it into a window when it resolves — biased backwards,
+ * because a question asked at 12:04 is nearly always about what was just
+ * said. The client sends the instant, not the window: how far "here" reaches
+ * is a property of the material rather than of the click.
+ */
+export interface LectureMomentAnchor {
+  kind: "lecture_moment";
+  anchor_id: string;
+  video_id: string;
+  timestamp_ms: number;
+}
+
+/** A span of lecture the viewer marked deliberately. */
+export interface LectureStretchAnchor {
+  kind: "lecture_stretch";
+  anchor_id: string;
+  video_id: string;
+  start_ms: number;
+  end_ms: number;
+}
+
+export type DocumentAnchor = DocumentPageAnchor | DocumentPassageAnchor;
+export type LectureAnchor = LectureMomentAnchor | LectureStretchAnchor;
+export type SourceAnchor = DocumentAnchor | LectureAnchor;
+export type Anchor = QuoteAnchor | SourceAnchor;
+
+export function isQuoteAnchor(anchor: Anchor): anchor is QuoteAnchor {
+  return anchor.kind === undefined || anchor.kind === "answer_quote";
+}
+
+/** Where the reader last was in a source. */
+export interface SourcePosition {
+  page: number;
+}
+
+export interface ReadingSession {
+  conversation_id: string;
+  book_id: number;
+  title: string;
+  document_type: string;
+  position: SourcePosition | null;
+  question_count: number;
+  updated_at: string;
 }
 
 /** What a side turn was given, and what its token budget excluded. */
@@ -157,6 +230,53 @@ export interface TurnResult {
   side_context: SideContextReport | null;
   web_sources?: WebSourceRef[];
   source_type?: "book_library" | "model_knowledge" | "web_search";
+  /** Which rung of the grounding ladder answered. Null when none applied. */
+  grounding_rung?: GroundingRung | null;
+  widenings?: WideningStep[];
+}
+
+/**
+ * Where an answer's evidence came from, as a ladder from the reader's own page
+ * outward.
+ *
+ * The boundary that matters is between `library` and `model_knowledge`:
+ * everything at or below `library` rests on the reader's sources and cites
+ * them, everything above rests on nothing they own and must say so.
+ */
+export type GroundingRung =
+  | "anchor"
+  | "open_source"
+  | "library"
+  | "model_knowledge"
+  | "web_search";
+
+export interface WideningStep {
+  from_rung: GroundingRung;
+  to_rung: GroundingRung;
+  reason: string;
+}
+
+const GROUNDED_RUNGS = new Set<GroundingRung>([
+  "anchor",
+  "open_source",
+  "library",
+]);
+
+/**
+ * Whether an answer rests on the reader's own sources.
+ *
+ * The one question the interface has to get right: a grounded answer carries
+ * citations, an ungrounded one carries a notice instead, and nothing may
+ * render as both. Mirrors `TurnResult.is_grounded` on the server, which is a
+ * property rather than a field and so does not cross the wire; the fallback
+ * for a turn recorded before the ladder existed is the same there.
+ */
+export function isGrounded(result: {
+  grounding_rung?: GroundingRung | null;
+  source_type?: "book_library" | "model_knowledge" | "web_search";
+}): boolean {
+  if (result.grounding_rung) return GROUNDED_RUNGS.has(result.grounding_rung);
+  return (result.source_type ?? "book_library") === "book_library";
 }
 
 export interface ChatResponse {
@@ -195,7 +315,7 @@ export interface SideChatSummary {
   title: string;
   book_ids: number[];
   retrieval_mode: RetrievalMode;
-  anchors: QuoteAnchor[];
+  anchors: Anchor[];
   turn_count: number;
   created_at: string;
   updated_at: string;
@@ -228,7 +348,7 @@ export interface ConversationDetail {
   turns: StoredTurn[];
   /** Set when this conversation is a side chat. */
   parent_conversation_id: string | null;
-  anchors: QuoteAnchor[];
+  anchors: Anchor[];
 }
 
 export interface BookSummary {

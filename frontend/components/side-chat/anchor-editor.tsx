@@ -11,11 +11,12 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { MAXIMUM_ANCHORS } from "@/hooks/use-side-chats";
-import type { QuoteAnchor } from "@/lib/types";
+import { anchorLabel, anchorText, isRemovable } from "@/lib/anchors";
+import type { Anchor } from "@/lib/types";
 
 export interface AnchorEditorProps {
-  anchors: QuoteAnchor[];
-  onChange: (anchors: QuoteAnchor[]) => void;
+  anchors: Anchor[];
+  onChange: (anchors: Anchor[]) => void;
   /**
    * Which recorded turn a pasted passage came from, or null when it came from
    * somewhere else entirely. Resolved against the parent conversation rather
@@ -59,6 +60,7 @@ export function AnchorEditor({
       {
         // The server assigns the real id; this one only has to be unique on
         // screen until it answers.
+        kind: "answer_quote" as const,
         anchor_id: `pending-${crypto.randomUUID()}`,
         parent_turn_index: turnIndex,
         quoted_text: text,
@@ -73,30 +75,45 @@ export function AnchorEditor({
     <div className="shrink-0 border-b border-border bg-surface px-3 py-2">
       {anchors.length > 0 && (
         <ul className="space-y-2">
-          {anchors.map((anchor) => (
-            <li key={anchor.anchor_id} className="group flex gap-2">
-              <Quote
-                aria-hidden
-                className="mt-[0.2em] size-[1em] shrink-0 text-muted-foreground"
-              />
-              <blockquote className="side-chat-ui line-clamp-3 flex-1 italic leading-snug text-muted-foreground">
-                {anchor.quoted_text}
-              </blockquote>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="size-5 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-                aria-label={`Remove the reference beginning "${anchor.quoted_text.slice(0, 40)}"`}
-                onClick={() =>
-                  onChange(
-                    anchors.filter((item) => item.anchor_id !== anchor.anchor_id),
-                  )
-                }
-              >
-                <X aria-hidden />
-              </Button>
-            </li>
-          ))}
+          {anchors.map((anchor) => {
+            const text = anchorText(anchor);
+            return (
+              <li key={anchor.anchor_id} className="group flex gap-2">
+                <Quote
+                  aria-hidden
+                  className="mt-[0.2em] size-[1em] shrink-0 text-muted-foreground"
+                />
+                {text ? (
+                  <blockquote className="side-chat-ui line-clamp-3 flex-1 italic leading-snug text-muted-foreground">
+                    {text}
+                  </blockquote>
+                ) : (
+                  <span className="side-chat-ui flex-1 leading-snug text-muted-foreground">
+                    {anchorLabel(anchor)}
+                  </span>
+                )}
+                {/* A source anchor is what the window is about; detaching it
+                    would leave a question about a page it no longer names. */}
+                {isRemovable(anchor) && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-5 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                    aria-label={`Remove the reference beginning "${(text ?? anchorLabel(anchor)).slice(0, 40)}"`}
+                    onClick={() =>
+                      onChange(
+                        anchors.filter(
+                          (item) => item.anchor_id !== anchor.anchor_id,
+                        ),
+                      )
+                    }
+                  >
+                    <X aria-hidden />
+                  </Button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 

@@ -8,6 +8,78 @@ that audit; references to it in frozen provenance describe how the judgments
 were produced, not a runtime dependency. Each dataset records its own review
 provenance; do not assume every artifact is human-verified.
 
+## Source-first slice
+
+`source_first_gold.json` is an 8-case seed for source-first study — reading a
+book with questions anchored to the page in front of you. It measures four
+things, and they are not the same kind of thing:
+
+| Measure | What it says |
+|---|---|
+| Anchor recall | Did the passage the reader was looking at reach the model? |
+| Anchor lead | Did it reach it *first*, carrying the lowest marker? |
+| Rung accuracy | Did the recorded rung agree with what the case expected? |
+| Selection resolution | Did a selection made on a rendered page match canonical text? |
+
+and asserts one thing rather than scoring it: **no answer that left the
+reader's sources may carry citation markers**. That is a defect, not a lower
+number, so the runner exits non-zero when it happens.
+
+The cases are written across the ladder on purpose — three answerable from the
+anchored page, two needing the rest of the book, two answerable from neither,
+and one whose selection cannot resolve at all. A set containing only questions
+the book answers would measure nothing about escalation, which is the
+behaviour most likely to be wrong.
+
+```bash
+# The deterministic half: no model, no cost.
+uv run python -m scripts.evaluate_source_first --resolution-only --all
+
+# The whole slice, which runs real turns and therefore spends real calls.
+uv run python -m scripts.evaluate_source_first --all --output evaluation/runs/source-first.json
+```
+
+### What the first runs found
+
+Against *Designing Machine Learning Systems*, freshly ingested (389 pages, 343
+chunks):
+
+```
+anchor_recall              1.0
+anchor_leads               1.0
+selection_resolution_rate  0.875
+rung_accuracy              0.714   (5 of 7)
+blended                    []
+```
+
+The anchored passage reached the model and led its evidence in every case
+where retrieval ran. The one selection that did not resolve is the figure
+caption written to fail. The lock works, and `sf-005` / `sf-007` are the
+contrast pair that shows it: the same question about scikit-learn escalates to
+`model_knowledge` unlocked, and stays in the book locked.
+
+**The measurement has a hole, and running it is how that was found.** `sf-006`
+asks what the 2024 EU AI Act changed. The turn answered at `open_source` —
+grounded, cited — with specific claims about risk-based duties on providers
+and deployers. The book was published in 2022 and cannot contain them. So the
+answer is grounded in the sense the rung means, and unsupported in the sense
+that matters.
+
+`no_blend` does not catch this. It catches an answer that left the reader's
+sources *and wore citations anyway*, which is a different failure. An answer
+that stays at a grounded rung while asserting more than its evidence supports
+passes every check in this slice. Catching it needs claim-level entailment
+against the cited passages, which is a judge, not an assertion — and it is the
+next thing this slice should grow.
+
+**Not human-reviewed.** The page anchors come from `retrieval_gold_seed.json`,
+which is audited; the expected *rungs* are the author's judgement. In
+particular each "answerable from the library" case assumes the open book does
+not cover the question and something else in the library does, and nobody has
+confirmed that against the library as it actually stands. The file says so in
+its own `review_provenance`, and `test_source_first_evaluation.py` asserts it
+keeps saying so.
+
 ## Interview-answer seed
 
 `interview_answer_seed.json` is a 30-case diagnostic set for the

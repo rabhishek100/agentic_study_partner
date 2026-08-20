@@ -31,6 +31,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  ContinueSessions,
+  type ContinueEntry,
+} from "@/components/read/continue-sessions";
+import { ReadableSources } from "@/components/read/readable-sources";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BookSummary, RetrievalMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -82,6 +87,8 @@ export interface LibraryRailProps {
   onRenameBook?: (bookId: number, title: string) => Promise<void>;
   history: ConversationHistoryProps;
   documentType?: "book" | "paper";
+  /** Sources this reader has started, offered before the library itself. */
+  continueEntries?: ContinueEntry[];
 }
 
 export function LibraryRail({
@@ -98,12 +105,24 @@ export function LibraryRail({
   onRenameBook,
   history,
   documentType = "book",
+  continueEntries = [],
 }: LibraryRailProps) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const hasBooks = books.length > 0;
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto overscroll-contain p-4 [scrollbar-gutter:stable]">
+      {/* Above the library itself: a reader who left mid-chapter wants that
+          back before they want a list of what they own. */}
+      <ContinueSessions
+        entries={continueEntries}
+        heading="Continue reading"
+      />
+
+      {/* Reading is a first-class way to use a book, so it is offered here
+          rather than inside the popover that chooses what to search. */}
+      {booksLoaded && <ReadableSources books={books} noun={documentType} />}
+
       <section aria-labelledby="library-heading" className="space-y-2">
         <SectionHeading id="library-heading">
           {documentType === "paper" ? "Your paper library" : "Your library"}

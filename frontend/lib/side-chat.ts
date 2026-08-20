@@ -8,14 +8,14 @@
  * boundary) how to draw a turn.
  */
 
-import type { QuoteAnchor } from "@/lib/types";
+import type { Anchor } from "@/lib/types";
 
 /** The fields the window chrome and the thread list need from any side chat. */
 export interface SideChatThread {
   conversation_id: string;
   parent_conversation_id: string;
   title: string;
-  anchors: QuoteAnchor[];
+  anchors: Anchor[];
   turn_count: number;
   created_at: string;
   updated_at: string;

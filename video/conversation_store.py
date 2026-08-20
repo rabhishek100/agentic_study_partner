@@ -56,7 +56,7 @@ def derive_title(question: str) -> str:
 CONVERSATION_COLUMNS = """
     id, video_id, title, retrieval_mode, retrieval_config_json,
     prompt_snapshot_json, state_json, parent_conversation_id, anchors_json,
-    created_at, updated_at
+    session_kind, source_position, created_at, updated_at
 """
 
 
@@ -72,6 +72,7 @@ def create_conversation(
     parent_conversation_id: str | UUID | None = None,
     anchors: Sequence[dict[str, Any]] | None = None,
     state: dict[str, Any] | None = None,
+    session_kind: str | None = None,
 ) -> dict[str, Any]:
     """Create a lecture conversation, or a side chat when a parent is named.
 
@@ -87,9 +88,9 @@ def create_conversation(
         insert into video.conversations (
             owner_id, video_id, title, retrieval_mode, retrieval_config_json,
             prompt_snapshot_json, state_json, parent_conversation_id,
-            anchors_json
+            anchors_json, session_kind
         )
-        select %s, %s, %s, %s, %s, %s, %s, %s, %s
+        select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         where exists (
             select 1 from video.videos
             where id = %s and owner_id = %s
@@ -106,6 +107,7 @@ def create_conversation(
             Jsonb(state or {}),
             UUID(str(parent_conversation_id)) if parent_conversation_id else None,
             Jsonb(list(anchors or ())),
+            session_kind,
             video,
             owner,
         ),
@@ -165,12 +167,98 @@ def list_conversations(
          and turn.owner_id = conversation.owner_id
         where conversation.owner_id = %s {predicate}
           and conversation.parent_conversation_id is null
+          -- A watch session is a root too, but it is not a thread: it would
+          -- sit in the history named after a lecture with none of its
+          -- questions under it, because those are its side chats.
+          and conversation.session_kind is null
         group by conversation.id, video.title
         order by conversation.updated_at desc, conversation.id
         limit %s
         """,
         parameters,
     ).fetchall()
+
+
+def watch_session(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    video_id: str | UUID,
+) -> dict[str, Any] | None:
+    """This viewer's watch session for one lecture, if they have started it."""
+
+    return connection.execute(
+        f"""
+        select {CONVERSATION_COLUMNS}
+        from video.conversations
+        where owner_id = %s and video_id = %s and session_kind = 'watch'
+        """,
+        (parse_owner_id(owner_id), UUID(str(video_id))),
+    ).fetchone()
+
+
+def list_watch_sessions(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Lectures this viewer has started, most recently watched first."""
+
+    if limit <= 0:
+        raise ValueError("limit must be positive")
+    return connection.execute(
+        """
+        select
+            conversations.id,
+            conversations.video_id,
+            conversations.title,
+            conversations.source_position,
+            conversations.updated_at,
+            (
+                select count(*)
+                from video.conversations as side
+                where side.parent_conversation_id = conversations.id
+                  and side.owner_id = conversations.owner_id
+            ) as question_count
+        from video.conversations as conversations
+        where conversations.owner_id = %s and conversations.session_kind = 'watch'
+        order by conversations.updated_at desc
+        limit %s
+        """,
+        (parse_owner_id(owner_id), limit),
+    ).fetchall()
+
+
+def set_source_position(
+    connection: Connection,
+    conversation_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    position: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Record where the viewer is, without disturbing anything else.
+
+    Deliberately does not touch `updated_at`, exactly as the reading side does
+    not: the playhead moves several times a second while a lecture plays, and
+    recency here means "was used" rather than "was left running".
+
+    It takes more to be true here than on the book side. `video.conversations`
+    carries a trigger that stamps `updated_at` on every update, so this rests
+    on `video.set_conversation_updated_at` skipping the stamp when nothing but
+    the position changed — which is why that function exists and the shared
+    `video.set_updated_at` was left alone.
+    """
+
+    return connection.execute(
+        f"""
+        update video.conversations
+        set source_position = %s
+        where id = %s and owner_id = %s and session_kind = 'watch'
+        returning {CONVERSATION_COLUMNS}
+        """,
+        (Jsonb(position), UUID(str(conversation_id)), parse_owner_id(owner_id)),
+    ).fetchone()
 
 
 def load_turns(

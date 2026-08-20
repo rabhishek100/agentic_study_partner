@@ -22,11 +22,19 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { API_BASE, apiFetch } from "@/lib/api";
+import {
+  MAX_PDF_ZOOM,
+  MIN_PDF_ZOOM,
+  zoomStep,
+} from "./zoom";
 import { findExcerptRange } from "@/lib/pdf-match";
 import { accessToken } from "@/lib/supabase";
 import type { BookSourceResponse } from "@/lib/types";
+import { modalIsOpen, ownsArrowKeys } from "./keyboard";
 import { documentKey, type PdfDocument, type PdfTarget } from "./target";
 import { cn } from "@/lib/utils";
+
+export { MAX_PDF_ZOOM, MIN_PDF_ZOOM, PDF_ZOOM_STEP, zoomStep } from "./zoom";
 
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -34,10 +42,6 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 // Served from our own origin, copied at install time so its version always
 // matches pdfjs-dist. See scripts/copy-pdf-worker.mjs.
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-
-export const MIN_PDF_ZOOM = 0.5;
-export const MAX_PDF_ZOOM = 2;
-export const PDF_ZOOM_STEP = 0.25;
 
 /** What pdf.js is handed: a plain URL, or one with the headers to fetch it. */
 type DocumentSource = string | { url: string; httpHeaders: Record<string, string> };
@@ -76,16 +80,6 @@ function PdfLoadingState({ label = "Loading document…" }: { label?: string }) 
       <Loader2 className="size-6 animate-spin" aria-hidden />
       <span>{label}</span>
     </div>
-  );
-}
-
-/** Elements whose own keyboard interaction must win over document shortcuts. */
-function ownsArrowKeys(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  return Boolean(
-    target.closest(
-      'input, textarea, select, [contenteditable="true"], [role="combobox"], [role="dialog"], [role="listbox"], [role="menu"], [role="separator"], [role="slider"], [role="spinbutton"], [role="tablist"]',
-    ),
   );
 }
 
@@ -152,14 +146,31 @@ export function PdfViewer({
   onZoomChange,
   onMinimize,
   onClose,
+  tools,
 }: {
   target: PdfTarget;
   page: number;
   onPageChange: (page: number) => void;
   zoom: number;
   onZoomChange: (zoom: number) => void;
-  onMinimize: () => void;
-  onClose: () => void;
+  /**
+   * Both optional, because the pane is not always a panel. In a reading
+   * session the document *is* the page: there is nothing to minimize it to,
+   * and closing it would leave the reader looking at nothing. Omitting them
+   * removes the controls rather than leaving two buttons that cannot mean
+   * anything.
+   */
+  onMinimize?: () => void;
+  onClose?: () => void;
+  /**
+   * Controls the surrounding frame would carry if it had one.
+   *
+   * A reader who hides the top bar to read full height takes the frame's
+   * controls with it, including the only way back. Rather than leaving a lone
+   * restore button floating over the page, the frame hands them here, where the
+   * document's own controls already are.
+   */
+  tools?: React.ReactNode;
 }) {
   const [source, setSource] = useState<DocumentSource | null>(null);
   const [error, setError] = useState("");
@@ -287,7 +298,7 @@ export function PdfViewer({
         event.metaKey ||
         event.shiftKey ||
         ownsArrowKeys(event.target) ||
-        document.querySelector('[role="dialog"]')
+        modalIsOpen(document)
       ) {
         return;
       }
@@ -314,22 +325,26 @@ export function PdfViewer({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{target.title}</p>
         </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Minimize the document"
-          onClick={onMinimize}
-        >
-          <Minimize2 aria-hidden />
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Close the document"
-          onClick={onClose}
-        >
-          <X aria-hidden />
-        </Button>
+        {onMinimize && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Minimize the document"
+            onClick={onMinimize}
+          >
+            <Minimize2 aria-hidden />
+          </Button>
+        )}
+        {onClose && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Close the document"
+            onClick={onClose}
+          >
+            <X aria-hidden />
+          </Button>
+        )}
       </header>
 
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2">
@@ -379,17 +394,27 @@ export function PdfViewer({
           </span>
         </div>
 
-        <div
-          role="group"
-          aria-label="Document zoom"
-          className="flex items-center gap-1"
-        >
+        <div className="flex items-center gap-1">
+          {tools && (
+            <>
+              {tools}
+              <span
+                aria-hidden
+                className="mx-1 h-4 w-px shrink-0 bg-divider"
+              />
+            </>
+          )}
+          <div
+            role="group"
+            aria-label="Document zoom"
+            className="flex items-center gap-1"
+          >
           <Button
             size="icon-sm"
             variant="ghost"
             aria-label="Zoom out"
             disabled={zoom <= MIN_PDF_ZOOM}
-            onClick={() => setZoomWithinLimits(zoom - PDF_ZOOM_STEP)}
+            onClick={() => setZoomWithinLimits(zoomStep(zoom, -1))}
           >
             <ZoomOut aria-hidden />
           </Button>
@@ -407,10 +432,11 @@ export function PdfViewer({
             variant="ghost"
             aria-label="Zoom in"
             disabled={zoom >= MAX_PDF_ZOOM}
-            onClick={() => setZoomWithinLimits(zoom + PDF_ZOOM_STEP)}
+            onClick={() => setZoomWithinLimits(zoomStep(zoom, 1))}
           >
             <ZoomIn aria-hidden />
           </Button>
+          </div>
         </div>
       </div>
 

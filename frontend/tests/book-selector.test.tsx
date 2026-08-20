@@ -56,7 +56,7 @@ describe("BookSelector", () => {
     );
 
     await user.click(screen.getByLabelText("Choose which books to search"));
-    await user.click(screen.getByLabelText("ISLP", { exact: false }));
+    await user.click(screen.getByLabelText(/^ISLP/));
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith([2, 3]);
   });
@@ -75,7 +75,7 @@ describe("BookSelector", () => {
 
     await user.click(screen.getByLabelText("Choose which books to search"));
     await user.click(
-      screen.getByLabelText("Designing ML Systems", { exact: false }),
+      screen.getByLabelText(/^Designing ML Systems/),
     );
 
     expect(onChange).toHaveBeenCalledExactlyOnceWith([]);

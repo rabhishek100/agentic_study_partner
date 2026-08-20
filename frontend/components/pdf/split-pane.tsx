@@ -18,6 +18,24 @@ export interface RightRegionMode {
    * a stable width; a document wants a share of the row the reader can drag.
    */
   fixedWidth?: number;
+  /**
+   * The draggable range for this mode, when it has one.
+   *
+   * Per mode, not per pane: the design system says as much, and the reason is
+   * concrete. A document beside a conversation wants half the row; a
+   * conversation beside a document wants a quarter of it, and a shared
+   * default gives whichever mode opens second the other one's width. Its own
+   * storage key for the same reason — one key means dragging the reading
+   * column also moves the transcript.
+   */
+  resize?: {
+    storageKey: string;
+    defaultPercent: number;
+    minPercent: number;
+    maxPercent: number;
+    /** What the divider is called, when "the document pane" is wrong. */
+    label?: string;
+  };
 }
 
 /**
@@ -48,14 +66,15 @@ export function SplitPane({
 }) {
   const activeRegion = regions.find((region) => region.key === active) ?? null;
   const resizable = Boolean(activeRegion) && !activeRegion?.fixedWidth;
+  const range = activeRegion?.resize;
 
   const { percent, containerRef, separatorProps } = useResizablePane({
-    storageKey: STORAGE_KEY,
+    storageKey: range?.storageKey ?? STORAGE_KEY,
     edge: "right",
-    label: "Resize the document pane",
-    defaultPercent: DEFAULT_PERCENT,
-    minPercent: MIN_PERCENT,
-    maxPercent: MAX_PERCENT,
+    label: range?.label ?? "Resize the document pane",
+    defaultPercent: range?.defaultPercent ?? DEFAULT_PERCENT,
+    minPercent: range?.minPercent ?? MIN_PERCENT,
+    maxPercent: range?.maxPercent ?? MAX_PERCENT,
     enabled: resizable,
   });
 

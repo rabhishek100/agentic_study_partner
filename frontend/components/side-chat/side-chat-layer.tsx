@@ -9,12 +9,12 @@ import { Button } from "@/components/ui/button";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import { FLOATING_MEDIA_QUERY } from "@/lib/floating-window";
 import type { SideChatSurface, SideChatTurn } from "@/lib/side-chat";
-import type { QuoteAnchor } from "@/lib/types";
+import type { Anchor } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 import { cn } from "@/lib/utils";
 
 /** Above the app chrome, below dialogs and the reading pane's own overlays. */
-const BASE_Z_INDEX = 30;
+export const BASE_Z_INDEX = 30;
 
 /**
  * Whether this viewport can carry floating windows at all.
@@ -44,7 +44,7 @@ export interface SideChatLayerProps {
   onClose: (sideChatId: string) => void;
   onFocus: (sideChatId: string) => void;
   onSettled: (sideChatId: string, recorded: boolean) => void;
-  onAnchorsChange: (sideChatId: string, anchors: QuoteAnchor[]) => void;
+  onAnchorsChange: (sideChatId: string, anchors: Anchor[]) => void;
   surface: SideChatSurface;
   renderTurns: (state: {
     turns: SideChatTurn<unknown>[];
@@ -52,12 +52,22 @@ export interface SideChatLayerProps {
     isQueued: boolean;
   }) => React.ReactNode;
   resolveQuoteTurn: (text: string) => number | null;
+  /** Clears the question a window was opened with, once it has asked it. */
+  onPendingSent?: (sideChatId: string) => void;
+  /** The reader's standing instruction, applied to every window's turns. */
+  stayInSource?: boolean;
   /** Reported here because a side chat that failed to open has no window. */
   error?: string;
   onDismissError?: () => void;
 }
 
-function SideChatError({
+/**
+ * A side chat that could not be opened at all.
+ *
+ * Exported because a surface that renders its own threads still has nowhere to
+ * put this: the failure is that there is no thread to attach it to.
+ */
+export function SideChatError({
   error,
   onDismiss,
 }: {
@@ -104,6 +114,8 @@ export function SideChatLayer({
   surface,
   renderTurns,
   resolveQuoteTurn,
+  onPendingSent,
+  stayInSource = false,
   error,
   onDismissError,
 }: SideChatLayerProps) {
@@ -205,6 +217,8 @@ export function SideChatLayer({
                 surface={surface}
                 renderTurns={renderTurns}
                 resolveQuoteTurn={resolveQuoteTurn}
+                onPendingSent={() => onPendingSent?.(id)}
+                stayInSource={stayInSource}
               />
             </div>
           );
@@ -232,6 +246,8 @@ export function SideChatLayer({
             surface={surface}
             renderTurns={renderTurns}
             resolveQuoteTurn={resolveQuoteTurn}
+            onPendingSent={() => onPendingSent?.(id)}
+            stayInSource={stayInSource}
           />
         );
       })}

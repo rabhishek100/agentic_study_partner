@@ -26,6 +26,7 @@ from .prompts import (
     resolve_answer_archetype,
     resolve_response_depth,
 )
+from .grounding import GroundingPolicy
 from .query import ChatModel, execute_query, openrouter_model
 from .side_context import SideContext
 from .streaming import TokenCallback, invoke_with_streaming
@@ -203,6 +204,11 @@ def execute_decision(
     response_depth: ResponseDepth = "interview",
     turn_book_ids: Sequence[int] | None = None,
     side_context: SideContext | None = None,
+    # False hands escalation to the caller. The query layer falls through to
+    # external QA on its own when retrieval comes up empty, which is right for
+    # a turn with nothing above it and wrong for one climbing a ladder: it
+    # would skip the library rung and leave the jump unrecorded.
+    allow_external_fallback: bool = True,
 ) -> TurnResult:
     profile = prompt_profile or DEFAULT_PROMPT_PROFILE
     resolved_depth = resolve_response_depth(question, response_depth)
@@ -288,6 +294,11 @@ def execute_decision(
         answer_archetype=resolve_answer_archetype(question, decision.route),
         pinned_chunk_ids=side_context.pinned_chunk_ids if side_context else (),
         request_context=side_context.request_context if side_context else "",
+        allow_external_fallback=allow_external_fallback,
+        # A source-first turn is asked about a page the reader is looking at,
+        # and in a book of architecture diagrams that page's answer is often a
+        # picture. The main chat is unchanged.
+        send_figures=bool(side_context and side_context.sources_present),
     )
     updates = {
         "question": question,
@@ -363,6 +374,7 @@ def execute_conversation_turn(
     prompt_profile: PromptProfile | None = None,
     response_depth: ResponseDepth = "interview",
     side_context: SideContext | None = None,
+    grounding_policy: GroundingPolicy | None = None,
 ) -> tuple[TurnResult, ConversationState]:
     load_dotenv()
     # `book_id` remains for the CLI and evaluation entry points, which study
@@ -389,6 +401,21 @@ def execute_conversation_turn(
                 # actually resolved to, so the inclusion decision is
                 # reviewable after the fact rather than only in the answer.
                 "side_chat": side_context is not None,
+                # The ladder shows up in the trace as the rung a turn started
+                # on and what it was allowed to climb to, so a widening in the
+                # recorded turn can be read against the policy that permitted
+                # it.
+                "grounding_policy": (
+                    {
+                        "source_book_ids": list(grounding_policy.source_book_ids),
+                        "library_book_ids": list(grounding_policy.library_book_ids),
+                        "allow_model_knowledge": (
+                            grounding_policy.allow_model_knowledge
+                        ),
+                    }
+                    if grounding_policy
+                    else None
+                ),
                 **(
                     {
                         "side_chat_anchor_ids": list(
@@ -421,6 +448,7 @@ def execute_conversation_turn(
                 else None
             ),
             side_context=side_context,
+            grounding_policy=grounding_policy,
         ),
     )
     return output["result"], output["conversation"]

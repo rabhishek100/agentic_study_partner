@@ -51,6 +51,28 @@ describe("FloatingWindow", () => {
     expect(dialog).toHaveAttribute("aria-modal", "false");
   });
 
+  it("can render outside the panel that owns it", () => {
+    // A surface that keeps every thread mounted in a panel it also hides needs
+    // the component to stay where it is — so its answer keeps streaming — while
+    // its window lives somewhere `display: none` cannot reach.
+    const { container } = render(
+      <div hidden style={{ display: "none" }}>
+        <FloatingWindow
+          title="the gap compounds"
+          rect={RECT}
+          zIndex={30}
+          portal
+          {...handlers()}
+        >
+          <p>window body</p>
+        </FloatingWindow>
+      </div>,
+    );
+
+    expect(screen.getByText("window body")).toBeVisible();
+    expect(container.querySelector("[role='dialog']")).toBeNull();
+  });
+
   it("moves with the arrow keys", () => {
     const props = renderWindow();
 

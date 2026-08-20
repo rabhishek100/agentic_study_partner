@@ -62,6 +62,23 @@ QUOTE_HEADING = (
 ANCHORED_TURN_HEADING = "The exchange those passages came from:"
 EARLIER_HEADING = "Earlier in the main conversation:"
 
+# The mirror image of `QUOTE_HEADING`, and the reason both exist. A quote is a
+# previous answer and may never ground a claim; a source passage is the
+# reader's own material, already matched to canonical chunks that are in the
+# evidence list below it. Telling the model to treat the two the same way
+# would either forbid citing the book or license citing the assistant.
+SOURCE_HEADING = (
+    "Where the reader is in the source they are reading, and what they have "
+    "selected there. This is the source's own text. The canonical passages it "
+    "was matched to are in the evidence list, so cite them as normal."
+)
+LOCATION_LABEL = "Reading:"
+UNMATCHED_NOTE = (
+    "could not be matched to the parsed text of the source — treat it as the "
+    "reader's transcription, and rest the answer on the evidence for the page "
+    "rather than on these words"
+)
+
 
 def ranked_identities(
     evidence: Iterable[object],
@@ -82,6 +99,29 @@ def ranked_identities(
             continue
         ranked.setdefault(getattr(reference, "rank", None) or position, str(value))
     return ranked
+
+
+@dataclass(frozen=True)
+class AnchoredSource:
+    """One resolved source anchor, in the terms this assembler works in.
+
+    Deliberately not `study.anchors.ResolvedAnchor`: that one knows about
+    books, chunks and Postgres, and this module stays surface-neutral so the
+    lecture side can build the same struct out of video evidence units. Each
+    surface resolves its own anchors and hands the result over in this shape —
+    the same arrangement `ranked_identities` already gives quote anchors.
+
+    `matched` is about the selection, not the anchor. An unmatched selection
+    still carries its page's identities, because grounding where the reader is
+    beats grounding nowhere; what it must never do is imply the selected words
+    were found in the book.
+    """
+
+    anchor_id: str
+    label: str
+    identities: tuple[str, ...] = ()
+    selected_text: str = ""
+    matched: bool = True
 
 
 @dataclass(frozen=True)
@@ -133,6 +173,14 @@ class SideContext:
     """The assembled context for one side turn."""
 
     request_context: str
+    # Whether this turn is anchored to the source itself rather than to a
+    # previous answer. Read by the query layer to decide whether the page's
+    # figures are worth sending to the model.
+    sources_present: bool = False
+    # Where the reader is, in their own terms: "p. 21 · Class imbalance".
+    # Handed to the analyser so that "explain the diagram" resolves against the
+    # page instead of being sent back as ambiguous.
+    anchored_locations: tuple[str, ...] = ()
     # Handed to the turn analyser so a question like "what does this mean?"
     # can be rewritten into a standalone query about the quoted claim.
     anchored_quotes: tuple[str, ...] = ()
@@ -194,6 +242,25 @@ def resolve_pins(anchor: QuoteAnchor, turn: ParentTurn) -> tuple[str, ...]:
     return tuple(ranked[rank] for rank in ordered)
 
 
+def _source_block(sources: Sequence[AnchoredSource]) -> str:
+    """Where the reader is, then what they selected there.
+
+    The location line is emitted for every source anchor, including ones with
+    a selection: "which page is this sentence on" is context the model
+    otherwise has to infer from the evidence, and inferring it is how an answer
+    ends up describing the right passage in the wrong chapter.
+    """
+
+    lines = [SOURCE_HEADING]
+    for source in sources:
+        lines.append(f"{LOCATION_LABEL} {source.label}")
+    selections = [source for source in sources if source.selected_text.strip()]
+    for position, source in enumerate(selections, start=1):
+        note = "" if source.matched else f" [{UNMATCHED_NOTE}]"
+        lines.append(f'{position}. "{_collapse(source.selected_text)}"{note}')
+    return "\n".join(lines)
+
+
 def _quote_block(anchors: Sequence[QuoteAnchor]) -> str:
     lines = [QUOTE_HEADING]
     for position, anchor in enumerate(anchors, start=1):
@@ -240,6 +307,7 @@ def build_side_context(
     anchors: Sequence[QuoteAnchor],
     parent_turns: Iterable[ParentTurn],
     *,
+    sources: Sequence[AnchoredSource] = (),
     token_budget: int = DEFAULT_TOKEN_BUDGET,
     recent_turns: int = DEFAULT_RECENT_TURNS,
     max_pinned_chunks: int = MAX_PINNED_CHUNKS,
@@ -252,6 +320,13 @@ def build_side_context(
     selection is larger than the whole budget it is truncated and the
     truncation is recorded. Surrounding context is dropped from the bottom of
     the ladder up: earlier turns first, then the anchored exchange.
+
+    `sources` carries resolved source anchors — where the reader is in the book
+    or lecture, and what they selected there. They rank above quote anchors for
+    the same reason quote anchors rank above everything else: in a source-first
+    session the page *is* the question's subject. Their identities are pinned
+    ahead of any a quote resolves to, so the passage the reader was looking at
+    takes the lowest `[S…]` markers.
     """
 
     if token_budget < 0:
@@ -262,6 +337,13 @@ def build_side_context(
 
     anchored_indexes: list[int] = []
     pinned: list[str] = []
+    unresolved: list[str] = []
+    for source in sources:
+        if not source.matched:
+            unresolved.append(source.anchor_id)
+        for identity in source.identities:
+            if identity not in pinned:
+                pinned.append(identity)
     for anchor in anchors:
         turn = turns.get(anchor.parent_turn_index)
         if turn is None:
@@ -284,8 +366,28 @@ def build_side_context(
         pinned = pinned[:max_pinned_chunks]
 
     quotes = tuple(_collapse(anchor.quoted_text) for anchor in anchors)
+    quotes += tuple(
+        _collapse(source.selected_text)
+        for source in sources
+        if source.selected_text.strip()
+    )
     blocks: list[str] = []
     used = 0
+
+    if sources:
+        source_block = _source_block(sources)
+        source_tokens = len(encoding.encode(source_block))
+        if source_tokens > token_budget:
+            # The block is written locations first, selections after, so a
+            # truncation takes words off the end of the longest selection and
+            # leaves the reader's position in the source intact. Losing "which
+            # page is this" would be worse than losing the tail of a long
+            # highlight.
+            source_block = _truncate_to_tokens(source_block, token_budget, encoding)
+            source_tokens = len(encoding.encode(source_block))
+            dropped.append("the reader's selection was truncated to fit the budget")
+        blocks.append(source_block)
+        used += source_tokens
 
     if anchors:
         quote_block = _quote_block(anchors)
@@ -325,11 +427,17 @@ def build_side_context(
 
     return SideContext(
         request_context="\n\n".join(blocks),
+        sources_present=bool(sources),
+        anchored_locations=tuple(
+            source.label for source in sources if source.label.strip()
+        ),
         anchored_quotes=quotes,
         pinned_chunk_ids=tuple(pinned),
         report=SideContextReport(
-            anchor_ids=[anchor.anchor_id for anchor in anchors],
+            anchor_ids=[anchor.anchor_id for anchor in anchors]
+            + [source.anchor_id for source in sources],
             pinned_chunk_ids=list(pinned),
+            unresolved_anchor_ids=unresolved,
             token_count=used,
             token_budget=token_budget,
             dropped=dropped,

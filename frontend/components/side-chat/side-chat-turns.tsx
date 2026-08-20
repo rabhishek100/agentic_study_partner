@@ -7,7 +7,12 @@ import { AnswerInspector } from "@/components/conversation/inspector";
 import { References } from "@/components/conversation/references";
 import { ThinkingIndicator } from "@/components/conversation/turn-view";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import type { ChatTurn, EvidenceRef, QuoteAnchor } from "@/lib/types";
+import {
+  OutOfSourceNotice,
+  RungBadge,
+} from "@/components/conversation/grounding";
+import { anchorLabel, anchorText } from "@/lib/anchors";
+import type { Anchor, ChatTurn, EvidenceRef } from "@/lib/types";
 
 /**
  * The passages this side chat is anchored to.
@@ -16,21 +21,32 @@ import type { ChatTurn, EvidenceRef, QuoteAnchor } from "@/lib/types";
  * because it is the thing the whole thread is about — and because it is the
  * reader's own evidence that the window is asking about what they highlighted.
  */
-export function AnchorChips({ anchors }: { anchors: QuoteAnchor[] }) {
+export function AnchorChips({ anchors }: { anchors: Anchor[] }) {
   if (anchors.length === 0) return null;
   return (
     <ul className="shrink-0 space-y-2 border-b border-border bg-surface px-3 py-2">
-      {anchors.map((anchor) => (
-        <li key={anchor.anchor_id} className="flex gap-2">
-          <Quote
-            aria-hidden
-            className="mt-[0.2em] size-[1em] shrink-0 text-muted-foreground"
-          />
-          <blockquote className="side-chat-ui line-clamp-3 italic leading-snug text-muted-foreground">
-            {anchor.quoted_text}
-          </blockquote>
-        </li>
-      ))}
+      {anchors.map((anchor) => {
+        const text = anchorText(anchor);
+        return (
+          <li key={anchor.anchor_id} className="flex gap-2">
+            <Quote
+              aria-hidden
+              className="mt-[0.2em] size-[1em] shrink-0 text-muted-foreground"
+            />
+            {text ? (
+              <blockquote className="side-chat-ui line-clamp-3 italic leading-snug text-muted-foreground">
+                {text}
+              </blockquote>
+            ) : (
+              // A page anchor carries no selection: the reader made none, they
+              // were simply there. Naming the place is the whole chip.
+              <span className="side-chat-ui leading-snug text-muted-foreground">
+                {anchorLabel(anchor)}
+              </span>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -41,6 +57,10 @@ export interface SideChatTurnsProps {
   /** Sent, but waiting for one of the shared generation slots. */
   isQueued?: boolean;
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  /** Offered on an ungrounded answer, so the reader can refuse the next one. */
+  onStayInSource?: () => void;
+  /** Whether the reader has already asked to stay in this source. */
+  stayInSource?: boolean;
 }
 
 /**
@@ -57,6 +77,8 @@ export function SideChatTurns({
   isLoading,
   isQueued = false,
   onOpenReference,
+  onStayInSource,
+  stayInSource = false,
 }: SideChatTurnsProps) {
   if (isLoading && turns.length === 0) {
     return (
@@ -98,6 +120,16 @@ export function SideChatTurns({
               <ThinkingIndicator label="Checking the book…" />
             ))}
 
+          {/* Above the answer, never beside it: an answer either carries
+              citations or carries this, and the reader should know which
+              before reading a word of it. */}
+          <OutOfSourceNotice
+            rung={turn.result?.grounding_rung}
+            widenings={turn.result?.widenings}
+            onStayInSource={onStayInSource}
+            locked={stayInSource}
+          />
+
           {turn.answer && (
             <Answer
               text={turn.answer}
@@ -105,6 +137,13 @@ export function SideChatTurns({
               citations={turn.result?.citations ?? []}
               figures={turn.result?.figures ?? []}
               onOpenReference={onOpenReference}
+            />
+          )}
+
+          {turn.result?.grounding_rung && (
+            <RungBadge
+              rung={turn.result.grounding_rung}
+              sourceType={turn.result.source_type}
             />
           )}
 

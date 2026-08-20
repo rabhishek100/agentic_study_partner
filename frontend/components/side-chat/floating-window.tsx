@@ -1,7 +1,8 @@
 "use client";
 
 import { GripVertical, Minus, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,15 @@ export interface FloatingWindowProps {
   /** Rendered but not shown, so a streaming answer survives minimizing. */
   hidden?: boolean;
   isBusy?: boolean;
+  /**
+   * Render into the document body rather than in place.
+   *
+   * For a window whose React parent is a panel that hides itself: `position:
+   * fixed` escapes an ancestor's overflow, but nothing escapes an ancestor's
+   * `display: none`. A portal keeps the component mounted where it is — so its
+   * answer keeps streaming — while its markup lives somewhere that can be seen.
+   */
+  portal?: boolean;
   children: React.ReactNode;
 }
 
@@ -68,9 +78,15 @@ export function FloatingWindow({
   zIndex,
   hidden = false,
   isBusy = false,
+  portal = false,
   children,
 }: FloatingWindowProps) {
   const titleId = useId();
+  // There is no document to portal into until the client has it, and rendering
+  // different markup on the first client pass than the server sent is a
+  // hydration error. So the first pass renders in place and the effect moves it.
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => setPortalReady(true), []);
   // A drag is a stream of moves against the rectangle the pointer went down
   // on; reading it from props mid-drag would lag a frame behind the pointer.
   const dragRef = useRef<{
@@ -171,7 +187,7 @@ export function FloatingWindow({
     [onRectChange, rect],
   );
 
-  return (
+  const window_ = (
     <section
       role="dialog"
       aria-modal={false}
@@ -259,4 +275,8 @@ export function FloatingWindow({
       </button>
     </section>
   );
+
+  return portal && portalReady
+    ? createPortal(window_, document.body)
+    : window_;
 }

@@ -9,7 +9,7 @@ import { useSideChat } from "@/hooks/use-side-chat";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
 import type { SideChatWindow as SideChatWindowState } from "@/hooks/use-side-chats";
 import type { SideChatSurface, SideChatTurn } from "@/lib/side-chat";
-import type { QuoteAnchor, ResponseDepth } from "@/lib/types";
+import type { Anchor, ResponseDepth } from "@/lib/types";
 import type { WindowRect } from "@/lib/floating-window";
 
 export interface SideChatWindowProps {
@@ -21,7 +21,7 @@ export interface SideChatWindowProps {
   onFocus: () => void;
   /** `recorded` is false for a turn that failed or was stopped. */
   onSettled: (recorded: boolean) => void;
-  onAnchorsChange: (anchors: QuoteAnchor[]) => void;
+  onAnchorsChange: (anchors: Anchor[]) => void;
   surface: SideChatSurface;
   /**
    * How this surface draws its exchanges. A lecture answer seeks a player and
@@ -33,8 +33,23 @@ export interface SideChatWindowProps {
     isQueued: boolean;
   }) => React.ReactNode;
   resolveQuoteTurn: (text: string) => number | null;
+  /**
+   * Called once the window has asked the question it was opened with, so the
+   * state that says "ask this" can be cleared from outside it.
+   */
+  onPendingSent?: () => void;
+  /** The reader's standing instruction to answer from this source or abstain. */
+  stayInSource?: boolean;
   /** Renders inside a docked sheet instead of a floating window. */
   docked?: boolean;
+  /**
+   * Renders the floating window into the document body.
+   *
+   * Set by a surface that keeps every thread mounted in a panel it also hides:
+   * the component must stay where it is so its stream survives, and its window
+   * must not be hidden along with the panel. See `FloatingWindow`.
+   */
+  portal?: boolean;
 }
 
 /**
@@ -57,11 +72,14 @@ export function SideChatWindow({
   surface,
   renderTurns,
   resolveQuoteTurn,
+  onPendingSent,
+  stayInSource = false,
   docked = false,
+  portal = false,
 }: SideChatWindowProps) {
   const { sideChat } = state;
   const { turns, isStreaming, isQueued, isLoading, send, stop } =
-    useSideChat<unknown>(sideChat.conversation_id, surface);
+    useSideChat<unknown>(sideChat.conversation_id, surface, stayInSource);
   const [responseDepth, setResponseDepth] = useState<ResponseDepth>("quick");
   const { viewportRef, contentRef, scrollToBottom } = useScrollAnchor<
     HTMLDivElement,
@@ -86,6 +104,27 @@ export function SideChatWindow({
   useEffect(() => {
     if (!state.minimized) scrollToBottom("auto");
   }, [state.minimized, turns.length, scrollToBottom]);
+
+  /**
+   * Ask the question this window was opened with, once.
+   *
+   * Waits for the thread's history to load: `send` appends to `turns`, and
+   * sending into a list that is about to be replaced by the fetched history
+   * loses the turn from view while it streams. The ref guards against a second
+   * send if the effect re-runs before the clear lands.
+   */
+  const askedRef = useRef<string | null>(null);
+  const pending = state.pendingQuestion;
+  useEffect(() => {
+    if (!pending || isLoading) return;
+    if (askedRef.current === pending) return;
+    askedRef.current = pending;
+    void send(pending, responseDepth);
+    onPendingSent?.();
+    // `responseDepth` is read at the moment of asking; a later change to it
+    // must not re-ask the question.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, isLoading, send, onPendingSent]);
 
   const body = (
     // The window is its own typographic context: `side-chat-body` is the query
@@ -141,6 +180,7 @@ export function SideChatWindow({
       zIndex={zIndex}
       hidden={state.minimized}
       isBusy={isStreaming}
+      portal={portal}
     >
       {body}
     </FloatingWindow>
