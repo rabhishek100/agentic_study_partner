@@ -49,6 +49,7 @@ import {
   coveragePercent,
   jobIsLive,
 } from "@/lib/deck-types";
+import type { DeckReminderPreferences } from "@/lib/notification-types";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import type { ChatTurn } from "@/lib/types";
 
@@ -109,6 +110,9 @@ export default function DecksPage() {
   const [jobs, setJobs] = useState<DeckJob[]>([]);
   const [queue, setQueue] = useState<ReviewQueue | null>(null);
   const [sources, setSources] = useState<DeckSourcePreference[]>([]);
+  const [reminderPreferences, setReminderPreferences] =
+    useState<DeckReminderPreferences | null>(null);
+  const [reminderLoadError, setReminderLoadError] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -136,9 +140,25 @@ export default function DecksPage() {
     }
   }, []);
 
+  const loadReminderPreferences = useCallback(async () => {
+    try {
+      const result = await apiFetch<DeckReminderPreferences>(
+        "/decks/reminder-preferences",
+      );
+      setReminderPreferences(result);
+      setReminderLoadError("");
+    } catch (caught) {
+      setReminderLoadError(
+        (caught as Error).message || "Could not load reminder settings.",
+      );
+    }
+  }, []);
+
   useEffect(() => {
-    if (session) void load();
-  }, [session, load]);
+    if (!session) return;
+    void load();
+    void loadReminderPreferences();
+  }, [session, load, loadReminderPreferences]);
 
   const working = useMemo(() => jobs.filter(jobIsLive), [jobs]);
   const recentlyFailed = useMemo(
@@ -220,6 +240,42 @@ export default function DecksPage() {
       }
     },
     [load],
+  );
+
+  const saveReminderPreferences = useCallback(
+    async (preferences: DeckReminderPreferences) => {
+      try {
+        const saved = await apiFetch<DeckReminderPreferences>(
+          "/decks/reminder-preferences",
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              enabled: preferences.enabled,
+              reminder_time: preferences.reminder_time,
+              timezone: preferences.timezone,
+            }),
+          },
+        );
+        setReminderPreferences(saved);
+        setReminderLoadError("");
+        setError("");
+        try {
+          setQueue(await apiFetch<ReviewQueue>("/decks/queue"));
+        } catch (caught) {
+          setError(
+            (caught as Error).message ||
+              "Reminder saved, but Today could not be refreshed.",
+          );
+        }
+        return saved;
+      } catch (caught) {
+        setError(
+          (caught as Error).message || "Could not save your daily reminder.",
+        );
+        throw caught;
+      }
+    },
+    [],
   );
 
   const retryJob = useCallback(async (failed: DeckJob) => {
@@ -448,6 +504,10 @@ export default function DecksPage() {
                   reviewedToday={queue?.reviewed_today ?? 0}
                   onSave={savePreferences}
                   onActivate={activateAutomaticSet}
+                  reminderPreferences={reminderPreferences}
+                  reminderLoadError={reminderLoadError}
+                  onRetryReminder={loadReminderPreferences}
+                  onSaveReminder={saveReminderPreferences}
                 />
               </div>
             </header>

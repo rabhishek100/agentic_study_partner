@@ -1,5 +1,6 @@
 """The worker loop: claiming, failure recording, cleanup, and shutdown."""
 
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -56,6 +57,83 @@ class WorkerTests(PipelineFixture):
 
     def test_an_idle_worker_reports_that_it_did_nothing(self):
         self.assertFalse(self.worker.run_once())
+
+    def test_daily_reminder_reconciliation_uses_each_requested_pass(self):
+        with patch(
+            "worker.main.reconcile_due_review_reminders", return_value=2
+        ) as reconcile:
+            self.worker.run_review_reminder_reconciliation()
+            self.worker.run_review_reminder_reconciliation()
+
+        self.assertEqual(reconcile.call_count, 2)
+
+    def test_reminder_failure_is_contained_by_the_reminder_loop(self):
+        with patch(
+            "worker.main.reconcile_due_review_reminders",
+            side_effect=RuntimeError("database unavailable"),
+        ):
+            with self.assertLogs("study_partner.worker", level="ERROR") as logs:
+                self.worker.run_review_reminder_reconciliation()
+
+        self.assertTrue(
+            any(
+                "daily card reminder reconciliation failed" in output
+                for output in logs.output
+            )
+        )
+
+    def test_reminder_loop_runs_while_a_queue_job_is_blocked(self):
+        job_started = threading.Event()
+        release_job = threading.Event()
+        reminder_ran = threading.Event()
+        videos = FakeVideoWorker([object()])
+
+        def block_video_job(job):
+            job_started.set()
+            release_job.wait(timeout=5)
+            videos.processed.append(job)
+
+        videos.process = block_video_job
+        worker = Worker(
+            worker_id="combined-worker",
+            limits=LIMITS,
+            database_url=self.database_url,
+            dependencies=PipelineDependencies(
+                embedder_factory=DeterministicEmbedder
+            ),
+            temporary_root=self.directory / "combined-work",
+            video_worker=videos,
+        )
+
+        def reconcile_after_job_starts(connection):
+            if job_started.wait(timeout=2):
+                reminder_ran.set()
+            return 0
+
+        run_thread = threading.Thread(target=worker.run)
+        with (
+            patch.object(worker, "recover_abandoned_jobs", return_value=0),
+            patch.object(
+                worker.deck_worker, "recover_abandoned_jobs", return_value=0
+            ),
+            patch.object(worker, "run_retention_pass"),
+            patch.object(worker, "run_cards_reconciliation"),
+            patch.object(worker, "claim", return_value=None),
+            patch(
+                "worker.main.reconcile_due_review_reminders",
+                side_effect=reconcile_after_job_starts,
+            ),
+        ):
+            run_thread.start()
+            try:
+                self.assertTrue(job_started.wait(timeout=2))
+                self.assertTrue(reminder_ran.wait(timeout=2))
+            finally:
+                worker.request_stop()
+                release_job.set()
+                run_thread.join(timeout=5)
+
+        self.assertFalse(run_thread.is_alive())
 
     def test_existing_worker_process_can_service_the_independent_video_queue(self):
         video_job = object()

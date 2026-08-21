@@ -1,8 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CardsSettings } from "@/components/decks/cards-settings";
 import type { DeckSourcePreference } from "@/lib/deck-types";
+import {
+  BROWSER_ALERT_ENABLED_AT_KEY,
+  type DeckReminderPreferences,
+} from "@/lib/notification-types";
 
 const sources: DeckSourcePreference[] = [
   {
@@ -49,6 +53,12 @@ function renderSettings(
     source: sources[0],
     jobs_queued: 2,
   }),
+  reminderPreferences: DeckReminderPreferences = {
+    enabled: false,
+    reminder_time: "09:00",
+    timezone: "UTC",
+  },
+  onSaveReminder = vi.fn().mockImplementation(async (preferences) => preferences),
 ) {
   render(
     <CardsSettings
@@ -57,11 +67,20 @@ function renderSettings(
       reviewedToday={4}
       onSave={onSave}
       onActivate={onActivate}
+      reminderPreferences={reminderPreferences}
+      reminderLoadError=""
+      onRetryReminder={vi.fn().mockResolvedValue(undefined)}
+      onSaveReminder={onSaveReminder}
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: "Cards settings" }));
   return onSave;
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("Cards source settings", () => {
   it("groups books, papers, and lectures and shows paper automation", () => {
@@ -121,6 +140,122 @@ describe("Cards source settings", () => {
         (source: DeckSourcePreference) => source.source_id === "12",
       )?.cards_enabled,
     ).toBe(false);
+  });
+
+  it("saves a daily reminder separately in the browser timezone", async () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
+      timeZone: "Asia/Kolkata",
+    } as Intl.ResolvedDateTimeFormatOptions);
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onSaveReminder = vi
+      .fn()
+      .mockImplementation(async (preferences) => preferences);
+    renderSettings(
+      onSave,
+      undefined,
+      { enabled: false, reminder_time: "09:00", timezone: "UTC" },
+      onSaveReminder,
+    );
+
+    expect(screen.getByText("Timezone: Asia/Kolkata")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Remind me to review today’s cards/,
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Reminder time"), {
+      target: { value: "18:30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save reminder" }));
+
+    await waitFor(() =>
+      expect(onSaveReminder).toHaveBeenCalledWith({
+        enabled: true,
+        reminder_time: "18:30",
+        timezone: "Asia/Kolkata",
+      }),
+    );
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("requests browser permission only from the explicit enable button", async () => {
+    const requestPermission = vi.fn().mockResolvedValue("granted");
+    vi.stubGlobal("Notification", {
+      permission: "default",
+      requestPermission,
+    });
+    renderSettings();
+
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/work only while Mugensei is open/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Enable on this browser" }),
+    );
+
+    await waitFor(() => expect(requestPermission).toHaveBeenCalledOnce());
+    expect(window.localStorage.getItem(BROWSER_ALERT_ENABLED_AT_KEY)).not.toBeNull();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Browser alerts enabled while Mugensei is open",
+    );
+  });
+
+  it("announces a rejected browser permission request", async () => {
+    const requestPermission = vi
+      .fn()
+      .mockRejectedValue(new Error("Permission prompt failed"));
+    vi.stubGlobal("Notification", {
+      permission: "default",
+      requestPermission,
+    });
+    renderSettings();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Enable on this browser" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Permission prompt failed",
+    );
+    expect(window.localStorage.getItem(BROWSER_ALERT_ENABLED_AT_KEY)).toBeNull();
+  });
+
+  it("lets a traveler switch a saved reminder to this device timezone", async () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
+      timeZone: "Asia/Kolkata",
+    } as Intl.ResolvedDateTimeFormatOptions);
+    const onSaveReminder = vi
+      .fn()
+      .mockImplementation(async (preferences) => preferences);
+    renderSettings(
+      undefined,
+      undefined,
+      {
+        enabled: true,
+        reminder_time: "09:00",
+        timezone: "America/New_York",
+      },
+      onSaveReminder,
+    );
+
+    expect(screen.getByText("Timezone: America/New_York")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Use this device timezone" }),
+    );
+    expect(screen.getByText("Timezone: Asia/Kolkata")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Save reminder to apply this timezone",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save reminder" }));
+    await waitFor(() =>
+      expect(onSaveReminder).toHaveBeenCalledWith({
+        enabled: true,
+        reminder_time: "09:00",
+        timezone: "Asia/Kolkata",
+      }),
+    );
   });
 
   it("requires exact-count confirmation before activating legacy sets", async () => {

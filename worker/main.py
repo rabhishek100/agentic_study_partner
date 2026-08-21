@@ -48,6 +48,7 @@ from ingestion.pipeline import (
     run_job,
 )
 from ingestion.states import Status, is_terminal
+from notifications.reminders import reconcile_due_review_reminders
 from storage.database import close_pools
 from storage.database import connection as database_connection
 from video.cleanup import run_video_cleanup
@@ -59,6 +60,7 @@ TEMPORARY_DIRECTORY_NAME = "study-partner-ingestion"
 # Renew well inside the lease so one slow renewal does not lose the job.
 LEASE_RENEWAL_FRACTION = 3
 CARDS_RECONCILE_INTERVAL_SECONDS = 30
+REVIEW_REMINDER_RECONCILE_INTERVAL_SECONDS = 60
 
 
 class JsonFormatter(logging.Formatter):
@@ -418,6 +420,28 @@ class Worker:
         except Exception:
             logger.exception("automatic deck reconciliation failed")
 
+    def run_review_reminder_reconciliation(self) -> None:
+        """Create durable daily reminders without coupling them to a request."""
+
+        try:
+            with database_connection(self.database_url) as connection:
+                created = reconcile_due_review_reminders(connection)
+            if created:
+                logger.info(
+                    "daily card reminders created",
+                    extra={"notifications": created},
+                )
+        except Exception:
+            logger.exception("daily card reminder reconciliation failed")
+
+    def _run_review_reminder_loop(self) -> None:
+        """Reconcile on its own clock, independent of long queue jobs."""
+
+        while not self.stopping:
+            self.run_review_reminder_reconciliation()
+            if self._stopping.wait(REVIEW_REMINDER_RECONCILE_INTERVAL_SECONDS):
+                return
+
     def run_once(self) -> bool:
         """Claim and run at most one job. True when work was done.
 
@@ -458,14 +482,26 @@ class Worker:
                 "build_time": build_time(),
             },
         )
-        while not self.stopping:
-            try:
-                worked = self.run_once()
-            except Exception:
-                logger.exception("worker loop error")
-                worked = False
-            if not worked and not self.stopping:
-                self._stopping.wait(self.limits.poll_seconds)
+        reminder_thread = threading.Thread(
+            target=self._run_review_reminder_loop,
+            name="daily-card-reminders",
+            daemon=True,
+        )
+        reminder_thread.start()
+        try:
+            while not self.stopping:
+                try:
+                    worked = self.run_once()
+                except Exception:
+                    logger.exception("worker loop error")
+                    worked = False
+                if not worked and not self.stopping:
+                    self._stopping.wait(self.limits.poll_seconds)
+        finally:
+            self._stopping.set()
+            reminder_thread.join(timeout=5)
+            if reminder_thread.is_alive():
+                logger.error("daily card reminder loop did not stop promptly")
         logger.info("worker stopped", extra={"job_id": None})
 
 

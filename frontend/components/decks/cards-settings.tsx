@@ -1,6 +1,13 @@
 "use client";
 
-import { BookOpen, FileText, Loader2, Settings2, Video } from "lucide-react";
+import {
+  BellRing,
+  BookOpen,
+  FileText,
+  Loader2,
+  Settings2,
+  Video,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +26,13 @@ import type {
   DeckPreferences,
   DeckSourcePreference,
 } from "@/lib/deck-types";
+import {
+  browserNotificationState,
+  rememberBrowserAlertsEnabled,
+  requestBrowserNotificationPermission,
+  type BrowserNotificationState,
+  type DeckReminderPreferences,
+} from "@/lib/notification-types";
 
 type SourceGroup = {
   key: "books" | "papers" | "videos";
@@ -75,12 +89,29 @@ function activationConfirmation(source: DeckSourcePreference): string {
   } set now.`;
 }
 
+function effectiveReminderTimezone(
+  preferences: DeckReminderPreferences,
+): string {
+  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return !preferences.enabled && preferences.timezone === "UTC"
+    ? detectedTimezone || "UTC"
+    : preferences.timezone;
+}
+
+function deviceTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
 export function CardsSettings({
   preferences,
   sources,
   reviewedToday,
   onSave,
   onActivate,
+  reminderPreferences,
+  reminderLoadError,
+  onRetryReminder,
+  onSaveReminder,
 }: {
   preferences: DeckPreferences | null;
   sources: DeckSourcePreference[];
@@ -93,6 +124,12 @@ export function CardsSettings({
     source: DeckSourcePreference,
     expectedMissingSetCount: number,
   ) => Promise<AutomaticSetActivationResponse>;
+  reminderPreferences: DeckReminderPreferences | null;
+  reminderLoadError: string;
+  onRetryReminder: () => Promise<void>;
+  onSaveReminder: (
+    preferences: DeckReminderPreferences,
+  ) => Promise<DeckReminderPreferences>;
 }) {
   const [open, setOpen] = useState(false);
   const [newPerDay, setNewPerDay] = useState(10);
@@ -108,12 +145,32 @@ export function CardsSettings({
   const [activating, setActivating] = useState<string | null>(null);
   const [activationError, setActivationError] = useState("");
   const [activationStatus, setActivationStatus] = useState("");
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderTime, setReminderTime] = useState("09:00");
+  const [reminderTimezone, setReminderTimezone] = useState("UTC");
+  const [savingReminder, setSavingReminder] = useState(false);
+  const [reminderError, setReminderError] = useState("");
+  const [reminderStatus, setReminderStatus] = useState("");
+  const [browserState, setBrowserState] =
+    useState<BrowserNotificationState>("default");
+  const [requestingBrowser, setRequestingBrowser] = useState(false);
 
   useEffect(() => {
     if (!preferences) return;
     setNewPerDay(preferences.new_cards_per_day);
     setReviewCeiling(preferences.max_reviews_per_day);
   }, [preferences]);
+
+  useEffect(() => {
+    if (!reminderPreferences) return;
+    setReminderEnabled(reminderPreferences.enabled);
+    setReminderTime(reminderPreferences.reminder_time);
+    setReminderTimezone(effectiveReminderTimezone(reminderPreferences));
+  }, [reminderPreferences]);
+
+  useEffect(() => {
+    setBrowserState(browserNotificationState());
+  }, []);
 
   useEffect(() => {
     if (open) return;
@@ -216,6 +273,65 @@ export function CardsSettings({
     }
   }
 
+  async function saveReminder() {
+    if (!reminderPreferences) return;
+    setSavingReminder(true);
+    setReminderError("");
+    setReminderStatus("");
+    try {
+      const saved = await onSaveReminder({
+        enabled: reminderEnabled,
+        reminder_time: reminderTime,
+        timezone: reminderTimezone,
+      });
+      setReminderEnabled(saved.enabled);
+      setReminderTime(saved.reminder_time);
+      setReminderTimezone(saved.timezone);
+      setReminderStatus(
+        saved.enabled
+          ? `Daily reminder saved for ${saved.reminder_time} ${saved.timezone}.`
+          : "Daily review reminder turned off.",
+      );
+    } catch (caught) {
+      setReminderError(
+        (caught as Error).message || "Could not save your daily reminder.",
+      );
+    } finally {
+      setSavingReminder(false);
+    }
+  }
+
+  async function enableBrowserAlerts() {
+    setRequestingBrowser(true);
+    setReminderError("");
+    setReminderStatus("");
+    try {
+      const permission = await requestBrowserNotificationPermission();
+      setBrowserState(permission);
+      if (permission === "granted") {
+        rememberBrowserAlertsEnabled();
+        setReminderStatus(
+          "Browser alerts enabled while Mugensei is open in this browser.",
+        );
+      } else if (permission === "denied") {
+        setReminderError(
+          "Browser alerts are blocked. Allow notifications for this site in your browser settings.",
+        );
+      } else if (permission === "unsupported") {
+        setReminderError(
+          "This browser does not support page notifications. Your in-app reminders still appear in Notifications.",
+        );
+      }
+    } catch (caught) {
+      setReminderError(
+        (caught as Error).message ||
+          "Could not request browser notification permission.",
+      );
+    } finally {
+      setRequestingBrowser(false);
+    }
+  }
+
   return (
     <Dialog
       open={open}
@@ -225,6 +341,16 @@ export function CardsSettings({
           setActivationCandidate(null);
           setActivationError("");
           setActivationStatus("");
+          setReminderError("");
+          setReminderStatus("");
+          setBrowserState(browserNotificationState());
+          if (reminderPreferences) {
+            setReminderEnabled(reminderPreferences.enabled);
+            setReminderTime(reminderPreferences.reminder_time);
+            setReminderTimezone(
+              effectiveReminderTimezone(reminderPreferences),
+            );
+          }
           setSourceSelections(
             Object.fromEntries(
               sources.map((source) => [
@@ -284,6 +410,148 @@ export function CardsSettings({
                 today.
               </p>
             </div>
+          </fieldset>
+
+          <fieldset className="space-y-3 border-t border-border pt-4">
+            <legend className="flex items-center gap-2 text-sm font-medium">
+              <BellRing aria-hidden className="size-4 text-primary" />
+              Daily review reminder
+            </legend>
+            {reminderLoadError ? (
+              <div className="rounded-md border border-destructive bg-destructive-wash p-3">
+                <p role="alert" className="text-xs text-destructive">
+                  {reminderLoadError}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => void onRetryReminder()}
+                >
+                  Try reminder settings again
+                </Button>
+              </div>
+            ) : null}
+            <label
+              htmlFor="daily-review-reminder-enabled"
+              className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3"
+            >
+              <Checkbox
+                id="daily-review-reminder-enabled"
+                checked={reminderEnabled}
+                disabled={!reminderPreferences || savingReminder}
+                onCheckedChange={(checked) =>
+                  setReminderEnabled(checked === true)
+                }
+                className="mt-1"
+              />
+              <span>
+                <span className="block text-sm font-medium">
+                  Remind me to review today’s cards
+                </span>
+                <span className="block text-xs leading-5 text-muted-foreground">
+                  Saved reminders always appear in the notification center.
+                </span>
+              </span>
+            </label>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="daily-reminder-time">Reminder time</Label>
+                <Input
+                  id="daily-reminder-time"
+                  type="time"
+                  value={reminderTime}
+                  disabled={
+                    !reminderPreferences || !reminderEnabled || savingReminder
+                  }
+                  onChange={(event) => setReminderTime(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Timezone: {reminderTimezone}
+                </p>
+                {deviceTimezone() !== reminderTimezone ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={savingReminder}
+                    onClick={() => {
+                      const timezone = deviceTimezone();
+                      setReminderTimezone(timezone);
+                      setReminderStatus(
+                        `Using ${timezone}. Save reminder to apply this timezone.`,
+                      );
+                      setReminderError("");
+                    }}
+                  >
+                    Use this device timezone
+                  </Button>
+                ) : null}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!reminderPreferences || savingReminder}
+                onClick={() => void saveReminder()}
+              >
+                {savingReminder ? (
+                  <Loader2
+                    aria-hidden
+                    className="animate-spin motion-reduce:animate-none"
+                  />
+                ) : null}
+                Save reminder
+              </Button>
+            </div>
+            <div className="rounded-md bg-muted p-3">
+              <p className="text-xs leading-5 text-muted-foreground">
+                Browser alerts are optional and work only while Mugensei is
+                open. The in-app notification center keeps your reminder until
+                you read or dismiss it.
+              </p>
+              {browserState === "granted" ? (
+                <p className="mt-2 text-xs font-medium text-positive">
+                  Browser alerts enabled on this browser
+                </p>
+              ) : browserState === "unsupported" ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  This browser does not support page notifications.
+                </p>
+              ) : browserState === "denied" ? (
+                <p className="mt-2 text-xs text-destructive">
+                  Browser alerts are blocked. Allow notifications for this
+                  site in your browser settings.
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  disabled={requestingBrowser}
+                  onClick={() => void enableBrowserAlerts()}
+                >
+                  {requestingBrowser ? (
+                    <Loader2
+                      aria-hidden
+                      className="animate-spin motion-reduce:animate-none"
+                    />
+                  ) : null}
+                  Enable on this browser
+                </Button>
+              )}
+            </div>
+            {reminderStatus ? (
+              <p role="status" aria-live="polite" className="text-sm text-positive">
+                {reminderStatus}
+              </p>
+            ) : null}
+            {reminderError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {reminderError}
+              </p>
+            ) : null}
           </fieldset>
 
           <fieldset className="space-y-4 border-t border-border pt-4">

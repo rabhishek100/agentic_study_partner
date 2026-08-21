@@ -1,9 +1,17 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/app-shell";
 import { HEADER_INSET } from "@/lib/floating-window";
+
+vi.mock("@/components/notifications/notification-center", () => ({
+  NotificationCenter: () => (
+    <button type="button" aria-label="Notifications">
+      Notifications
+    </button>
+  ),
+}));
 
 function shell(aside?: React.ReactNode, documentControl?: React.ReactNode) {
   return render(
@@ -125,6 +133,14 @@ describe("AppShell", () => {
 
     expect(
       screen.getByRole("button", { name: "Restore document" }),
+    ).toBeVisible();
+  });
+
+  it("keeps notifications in the shared app header", () => {
+    shell();
+
+    expect(
+      screen.getByRole("button", { name: "Notifications" }),
     ).toBeVisible();
   });
 });

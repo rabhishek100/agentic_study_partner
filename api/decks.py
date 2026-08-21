@@ -41,6 +41,7 @@ from decks.progress import estimate
 from decks.scheduler import build_queue
 from decks.store import DeckNotFoundError
 from decks.topics import book_scope_key, paper_scope_key, video_scope_key
+from notifications import store as notification_store
 from storage.conversations import append_turn, create_conversation, derive_title
 from storage.database import connection as database_connection
 from storage.postgres import ready_book
@@ -326,7 +327,14 @@ async def review_queue(
             preferences = store.get_preferences(connection, owner_id=owner_id)
             due = store.due_cards(connection, owner_id=owner_id, deck_id=deck_id)
             fresh = store.new_cards(connection, owner_id=owner_id, deck_id=deck_id)
-            reviewed, introduced = store.counts_today(connection, owner_id=owner_id)
+            reminder_preferences = notification_store.get_reminder_preferences(
+                connection, owner_id=owner_id
+            )
+            reviewed, introduced = store.counts_today(
+                connection,
+                owner_id=owner_id,
+                timezone_name=reminder_preferences.timezone,
+            )
             return ReviewQueue(
                 cards=build_queue(
                     due=due,
