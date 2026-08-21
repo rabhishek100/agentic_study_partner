@@ -75,7 +75,7 @@ STRUCTURED_EXAMPLE_TOPIC = re.compile(
     r"(?:worked\s+)?example\b.*|[^:]*\bexample)\s*$",
     re.IGNORECASE,
 )
-SUBPART = re.compile(r"(?<!\w)\(([a-z]|[ivx]{1,4}|\d{1,2})\)", re.IGNORECASE)
+SUBPART = re.compile(r"(?<!\w)\(([a-z]|[ivx]{1,4}|\d{1,2})\)")
 INSUFFICIENT_ANSWER = re.compile(
     r"\b(?:insufficient evidence|evidence is insufficient|not enough evidence|"
     r"cannot (?:answer|determine)|"

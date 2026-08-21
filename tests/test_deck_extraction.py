@@ -14,6 +14,7 @@ from decks.extraction import (
     ExtractedQuestion,
     ExtractedQuestionList,
     RAGAnswerOutput,
+    _subparts,
     _visual_page_text,
     answer_evidence,
     evidence_batches,
@@ -68,6 +69,14 @@ def sample_inventory(topic: Topic | None = None) -> ScopeInventory:
 
 
 class DeckExtractionUnitTests(unittest.TestCase):
+    def test_math_covariate_is_not_treated_as_a_roman_subpart(self) -> None:
+        question = (
+            "(a) Create two groups using the covariate (X). "
+            "(b) Compare their survival curves."
+        )
+
+        self.assertEqual(_subparts(question), ("(a)", "(b)"))
+
     def test_visual_page_text_excludes_outside_margin_callouts(self) -> None:
         document = fitz.open()
         page = document.new_page(width=500, height=700)
