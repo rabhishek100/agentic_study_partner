@@ -36,6 +36,7 @@ DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
 # as repetition.
 DEFAULT_MINIMUM_CARDS = 1
 DEFAULT_MAXIMUM_CARDS = 4
+DEFAULT_MAXIMUM_CARDS_PER_SET = 15
 REPAIR_ATTEMPTS = 1
 
 
@@ -56,6 +57,7 @@ class DeckGenerationError(RuntimeError):
 class GenerationConfig:
     minimum_cards_per_topic: int = DEFAULT_MINIMUM_CARDS
     maximum_cards_per_topic: int = DEFAULT_MAXIMUM_CARDS
+    maximum_cards_per_set: int = DEFAULT_MAXIMUM_CARDS_PER_SET
     batch_tokens: int = GENERATION_BATCH_TOKENS
     repair: bool = True
 
@@ -214,7 +216,13 @@ def generate_deck(
             )
         covered = {card.topic_key for card in kept}
 
-    ordered = _ordered(kept, inventory.topics)
+    curated = _curated(kept, inventory.topics, settings.maximum_cards_per_set)
+    curated_fronts = {card.front for card in curated}
+    for discarded in kept:
+        if discarded.front not in curated_fronts:
+            tally.remove_for_curation(discarded)
+    covered = {card.topic_key for card in curated}
+    ordered = _ordered(curated, inventory.topics)
     return GeneratedDeck(
         inventory=inventory,
         cards=ordered,
@@ -227,6 +235,52 @@ def generate_deck(
         model_name=model_name(),
         prompt_version=prompt_version(),
     )
+
+
+def _curated(
+    cards: list[DeckCard], topics: tuple[Topic, ...], limit: int
+) -> list[DeckCard]:
+    """Keep a high-signal set while preserving topic breadth when possible."""
+
+    if limit < 1:
+        return []
+    if len(cards) <= limit:
+        return list(cards)
+
+    position = {topic.key: topic.ordinal for topic in topics}
+    required = {topic.key for topic in topics if topic.required}
+    ranked = sorted(
+        cards,
+        key=lambda card: (
+            -card.interview_priority,
+            position.get(card.topic_key, len(topics)),
+            card.front,
+        ),
+    )
+
+    # First reserve the strongest card for as many required topics as fit.
+    representatives: dict[str, DeckCard] = {}
+    for card in ranked:
+        if card.topic_key in required and card.topic_key not in representatives:
+            representatives[card.topic_key] = card
+    selected = sorted(
+        representatives.values(),
+        key=lambda card: (
+            -card.interview_priority,
+            position.get(card.topic_key, len(topics)),
+            card.front,
+        ),
+    )[:limit]
+    selected_fronts = {card.front for card in selected}
+
+    # Use remaining capacity for the strongest complementary questions.
+    for card in ranked:
+        if len(selected) >= limit:
+            break
+        if card.front not in selected_fronts:
+            selected.append(card)
+            selected_fronts.add(card.front)
+    return selected
 
 
 def _run_batch(

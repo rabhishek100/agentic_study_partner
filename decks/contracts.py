@@ -215,6 +215,7 @@ class DeckMetrics(ContractModel):
     cards_dropped_out_of_scope: int = Field(default=0, ge=0)
     cards_dropped_duplicate: int = Field(default=0, ge=0)
     cards_dropped_malformed: int = Field(default=0, ge=0)
+    cards_curated_out: int = Field(default=0, ge=0)
     cards_with_interview_angle: int = Field(default=0, ge=0)
     card_type_counts: dict[str, int] = Field(default_factory=dict)
     priority_counts: dict[str, int] = Field(default_factory=dict)

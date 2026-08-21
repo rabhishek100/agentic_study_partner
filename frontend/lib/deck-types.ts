@@ -85,6 +85,7 @@ export interface DeckMetrics {
   cards_dropped_out_of_scope: number;
   cards_dropped_duplicate: number;
   cards_dropped_malformed: number;
+  cards_curated_out: number;
   cards_with_interview_angle: number;
   card_type_counts: Record<string, number>;
   priority_counts: Record<string, number>;

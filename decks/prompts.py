@@ -105,6 +105,11 @@ Write {minimum}–{maximum} cards per required topic. A short topic may need onl
 one; a dense one may use the full allowance. Cover what a reader must be able
 to recall and explain, not every sentence present.
 
+The final chapter or lecture set is curated to at most 15 cards. Prefer a
+small number of high-signal questions over several variations of the same
+idea; the target is 10–15 distinct cards across the complete scope when the
+evidence supports that many.
+
 Vary the card type by what the material is. A chapter that defines several
 terms which are easy to confuse should produce some `mcq` cards; one that
 describes a pipeline or an architecture should produce a `system_design` card

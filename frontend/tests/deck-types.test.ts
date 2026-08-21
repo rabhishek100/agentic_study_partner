@@ -22,6 +22,7 @@ const metrics = (overrides: Partial<DeckMetrics> = {}): DeckMetrics => ({
   cards_dropped_out_of_scope: 0,
   cards_dropped_duplicate: 0,
   cards_dropped_malformed: 0,
+  cards_curated_out: 0,
   cards_with_interview_angle: 0,
   card_type_counts: {},
   priority_counts: {},

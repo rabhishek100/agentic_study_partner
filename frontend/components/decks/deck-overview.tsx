@@ -283,6 +283,11 @@ export function DeckOverview({
                   <p className="mt-1 font-medium tabular-nums">
                     {deck.metrics.cards_kept}
                   </p>
+                  {deck.metrics.cards_curated_out > 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {deck.metrics.cards_curated_out} lower-signal candidates omitted
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Dropped as ungrounded</p>

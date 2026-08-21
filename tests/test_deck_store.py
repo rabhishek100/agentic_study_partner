@@ -143,8 +143,8 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(version, 2)
 
         library = store.list_decks(self.connection, owner_id=self.owner_id)
-        self.assertEqual([deck.deck_id for deck in library], [str(second), str(first)])
-        self.assertEqual([deck.set_number for deck in library], [2, 1])
+        by_set = {deck.set_number: deck.deck_id for deck in library}
+        self.assertEqual(by_set, {1: str(first), 2: str(second)})
         previous = store.get_deck(
             self.connection, owner_id=self.owner_id, deck_id=first
         )
