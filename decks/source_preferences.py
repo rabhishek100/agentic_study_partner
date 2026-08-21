@@ -86,7 +86,7 @@ def save_source(
             update public.books
             set cards_enabled = %s,
                 cards_automation_eligible_at = case
-                    when %s and status = 'ready'
+                    when %s and status = 'ready' and document_type = 'book'
                     then coalesce(cards_automation_eligible_at, now())
                     else cards_automation_eligible_at
                 end

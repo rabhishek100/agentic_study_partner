@@ -190,6 +190,43 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
             source_preferences.reconcile_missing_initial_sets(self.connection), 0
         )
 
+    def test_paper_toggle_controls_today_without_enabling_automation(self):
+        paper_id = ingest_book(
+            self.connection,
+            sample_book(),
+            owner_id=self.owner_id,
+            title="Sample Paper",
+            author=None,
+            file_hash="c" * 64,
+            page_count=5,
+            parser_version="test-v1",
+            document_type="paper",
+        )
+        for enabled in (False, True):
+            source_preferences.save_source(
+                self.connection,
+                owner_id=self.owner_id,
+                source_kind="book",
+                source_id=paper_id,
+                cards_enabled=enabled,
+            )
+
+        row = self.connection.execute(
+            """
+            select cards_enabled, cards_automation_eligible_at
+            from public.books where id = %s and owner_id = %s
+            """,
+            (paper_id, self.owner_id),
+        ).fetchone()
+        self.assertTrue(row["cards_enabled"])
+        self.assertIsNone(row["cards_automation_eligible_at"])
+        self.assertEqual(
+            source_preferences.enqueue_initial_for_book(
+                self.connection, owner_id=self.owner_id, book_id=paper_id
+            ),
+            [],
+        )
+
     def test_source_updates_are_owner_scoped(self):
         foreign_owner = uuid4()
 
