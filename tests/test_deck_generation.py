@@ -337,6 +337,20 @@ class GenerateDeckTests(unittest.TestCase):
         self.assertEqual(deck.metrics.topics_covered, 1)
         self.assertEqual(deck.metrics.uncovered_topic_labels, [second.label])
 
+    def test_a_new_set_rejects_and_warns_about_previous_card_fronts(self) -> None:
+        model = ScriptedModel(TopicCards(cards=[qa_card()]))
+        deck = generate_deck(
+            inventory(topic(0)),
+            model=model,
+            config=GenerationConfig(repair=False),
+            previous_fronts=("What is BACKPRESSURE?!",),
+        )
+
+        self.assertEqual(deck.cards, ())
+        self.assertEqual(deck.metrics.cards_dropped_duplicate, 1)
+        self.assertIn("Do not repeat or lightly rephrase", model.calls[0][1][1])
+        self.assertIn("What is BACKPRESSURE?!", model.calls[0][1][1])
+
     def test_an_optional_topic_never_fails_coverage(self) -> None:
         first = topic(0, node_id=10)
         thin = topic(1, node_id=20, pages=(9,), required=False, evidence="short")

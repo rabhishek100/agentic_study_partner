@@ -24,6 +24,7 @@ from .validate import (
     DROP_OUT_OF_SCOPE,
     ValidationTally,
     build_metrics,
+    normalized_front,
     validate_card,
 )
 
@@ -149,6 +150,7 @@ def generate_deck(
     model: CardModel | None = None,
     config: GenerationConfig | None = None,
     progress: ProgressCallback | None = None,
+    previous_fronts: tuple[str, ...] = (),
 ) -> GeneratedDeck:
     """Write, validate, repair, and measure one deck."""
 
@@ -158,7 +160,9 @@ def generate_deck(
         raise DeckGenerationError("this scope has no content to make cards from")
 
     tally = ValidationTally()
-    seen_fronts: set[str] = set()
+    seen_fronts = {
+        key for front in previous_fronts if (key := normalized_front(front))
+    }
     kept: list[DeckCard] = []
     completed = 0
     total = len(inventory.topics)
@@ -174,6 +178,7 @@ def generate_deck(
                 settings=settings,
                 tally=tally,
                 seen_fronts=seen_fronts,
+                previous_fronts=previous_fronts,
             )
         )
         completed += len(batch)
@@ -203,6 +208,7 @@ def generate_deck(
                     settings=settings,
                     tally=tally,
                     seen_fronts=seen_fronts,
+                    previous_fronts=previous_fronts,
                     repair=True,
                 )
             )
@@ -231,6 +237,7 @@ def _run_batch(
     settings: GenerationConfig,
     tally: ValidationTally,
     seen_fronts: set[str],
+    previous_fronts: tuple[str, ...],
     repair: bool = False,
 ) -> list[DeckCard]:
     """One generation call, fully validated. A failed call costs its batch."""
@@ -241,6 +248,7 @@ def _run_batch(
         minimum_cards=settings.minimum_cards_per_topic,
         maximum_cards=settings.maximum_cards_per_topic,
         repair=repair,
+        previous_fronts=previous_fronts,
     )
     try:
         response = client.invoke(messages)

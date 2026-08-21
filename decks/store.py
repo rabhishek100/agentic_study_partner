@@ -129,6 +129,26 @@ def store_deck(
     covered = {card.topic_key for card in generated.cards}
 
     with connection.transaction():
+        deck_identity = connection.execute(
+            """
+            select scope_key, generation_mode
+            from public.decks
+            where id = %s and owner_id = %s
+            for update
+            """,
+            (deck_id, owner),
+        ).fetchone()
+        if deck_identity is None:
+            raise DeckNotFoundError(f"no deck {deck_id}")
+
+        # The job queue already permits only one live generation per scope.
+        # This transaction lock also protects callers outside the worker, so
+        # two successful publications can never claim the same visible set.
+        connection.execute(
+            "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (f"{owner}:{deck_identity['scope_key']}",),
+        )
+
         connection.execute(
             "delete from public.deck_topics where deck_id = %s and owner_id = %s",
             (deck_id, owner),
@@ -197,21 +217,30 @@ def store_deck(
                 (row["id"], owner, deck_id),
             )
 
-        # Retire earlier versions *before* publishing this one. Only one
-        # version of a scope may be readable at a time and a partial unique
-        # index enforces it, so publishing first would collide with the very
-        # row this statement is about to stand down.
-        connection.execute(
-            """
-            update public.decks
-            set status = 'failed', updated_at = now()
-            where owner_id = %s
-              and scope_key = (select scope_key from public.decks where id = %s)
-              and id <> %s
-              and status in ('ready', 'partial')
-            """,
-            (owner, deck_id, deck_id),
-        )
+        if deck_identity["generation_mode"] == "book_extracted":
+            # Printed questions are canonical source material, not a stream of
+            # newly authored sets. Regeneration replaces that derived view.
+            connection.execute(
+                """
+                update public.decks
+                set status = 'failed', updated_at = now()
+                where owner_id = %s and scope_key = %s and id <> %s
+                  and status in ('ready', 'partial')
+                """,
+                (owner, deck_identity["scope_key"], deck_id),
+            )
+            set_number = 1
+        else:
+            row = connection.execute(
+                """
+                select coalesce(max(set_number), 0) + 1 as next_set
+                from public.decks
+                where owner_id = %s and scope_key = %s
+                  and status in ('ready', 'partial')
+                """,
+                (owner, deck_identity["scope_key"]),
+            ).fetchone()
+            set_number = row["next_set"]
 
         connection.execute(
             """
@@ -220,6 +249,7 @@ def store_deck(
                 generation_model = %s,
                 prompt_version = %s,
                 ingestion_version_id = %s,
+                set_number = %s,
                 topic_count = %s,
                 card_count = %s,
                 metrics_json = %s,
@@ -231,6 +261,7 @@ def store_deck(
                 generated.model_name,
                 generated.prompt_version,
                 UUID(str(ingestion_version_id)) if ingestion_version_id else None,
+                set_number,
                 len(topics),
                 len(generated.cards),
                 _json(metrics.model_dump(mode="json")),
@@ -260,6 +291,7 @@ def _summary(row: Any) -> DeckSummary:
         generation_mode=row.get("generation_mode", "topic_generated"),
         scope_key=row["scope_key"],
         version=row["version"],
+        set_number=row.get("set_number") or 1,
         title=row["title"],
         source_title=row["source_title"],
         status=row["status"],
@@ -298,6 +330,37 @@ def list_decks(
         (parse_owner_id(owner_id),),
     ).fetchall()
     return [_summary(row) for row in rows]
+
+
+def generated_fronts(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    scope_key: str,
+    limit: int = 100,
+) -> tuple[str, ...]:
+    """Questions already published for an AI-generated scope.
+
+    These are supplied to the next generation and also used by deterministic
+    validation, so a provider cannot silently rephrase punctuation and return
+    the same question as a new set.
+    """
+
+    rows = connection.execute(
+        """
+        select card.front
+        from public.deck_cards as card
+        join public.decks as deck
+          on deck.id = card.deck_id and deck.owner_id = card.owner_id
+        where deck.owner_id = %s and deck.scope_key = %s
+          and deck.generation_mode = 'topic_generated'
+          and deck.status in ('ready', 'partial')
+        order by deck.set_number desc, card.card_index
+        limit %s
+        """,
+        (parse_owner_id(owner_id), scope_key, limit),
+    ).fetchall()
+    return tuple(row["front"] for row in rows)
 
 
 def get_deck(

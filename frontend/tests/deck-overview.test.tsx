@@ -94,6 +94,7 @@ const detail: DeckDetailResponse = {
     generation_mode: "book_extracted",
     scope_key: "book:1:node:2:mode:book_extracted",
     version: 1,
+    set_number: 1,
     title: "2 Statistical Learning",
     source_title: "ISLP",
     status: "ready",
@@ -121,11 +122,11 @@ function renderOverview(
     dueNow: 2,
     reviewableCardIds: ["card-1", "card-2"],
     filter: "all" as DeckFilter,
-    regenerating: false,
+    generatingSet: false,
     onFilterChange: vi.fn(),
     onStartReview: vi.fn(),
     onStudyCard: vi.fn(),
-    onRegenerate: vi.fn(),
+    onGenerateSet: vi.fn(),
     onReset: vi.fn(),
     onOpenSource: vi.fn(),
     ...overrides,
@@ -198,5 +199,30 @@ describe("deck question navigator", () => {
     );
 
     expect(screen.getByRole("button", { name: "Not due today" })).toBeDisabled();
+  });
+});
+
+describe("numbered generated set actions", () => {
+  it("offers the next set without replacing the current one", async () => {
+    const onGenerateSet = vi.fn();
+    renderOverview({
+      detail: {
+        ...detail,
+        deck: {
+          ...detail.deck,
+          generation_mode: "topic_generated",
+          set_number: 2,
+        },
+      },
+      onGenerateSet,
+    });
+
+    expect(screen.getByText("Set 2")).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Deck options" }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByText("Create Set 3"));
+    expect(onGenerateSet).toHaveBeenCalledOnce();
   });
 });

@@ -244,6 +244,7 @@ class DeckSummary(ContractModel):
     generation_mode: GenerationMode = "topic_generated"
     scope_key: str
     version: int
+    set_number: int = Field(default=1, ge=1)
     title: str
     source_title: str
     status: DeckStatus

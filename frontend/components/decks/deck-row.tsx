@@ -123,6 +123,11 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
           <span className="min-w-0">
             <span className="block truncate font-serif text-sm font-medium">
               {deck.title}
+              {!extracted ? (
+                <span className="ml-2 font-sans text-xs font-normal text-muted-foreground">
+                  Set {deck.set_number}
+                </span>
+              ) : null}
             </span>
             <span className="mt-1 block truncate text-xs text-muted-foreground sm:hidden">
               {deck.source_title}

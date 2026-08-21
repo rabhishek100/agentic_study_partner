@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Loader2,
   MoreVertical,
+  Plus,
   RefreshCw,
   RotateCcw,
   Timer,
@@ -72,11 +73,11 @@ export function DeckOverview({
   dueNow,
   reviewableCardIds,
   filter,
-  regenerating,
+  generatingSet,
   onFilterChange,
   onStartReview,
   onStudyCard,
-  onRegenerate,
+  onGenerateSet,
   onReset,
   onOpenSource,
 }: {
@@ -85,11 +86,11 @@ export function DeckOverview({
   /** Cards returned by today's review queue, not every card in the deck. */
   reviewableCardIds: string[];
   filter: DeckFilter;
-  regenerating: boolean;
+  generatingSet: boolean;
   onFilterChange: (filter: DeckFilter) => void;
   onStartReview: () => void;
   onStudyCard: (card: QueueCard) => void;
-  onRegenerate: () => void;
+  onGenerateSet: () => void;
   onReset: () => void;
   onOpenSource: (item: QueueCard, citation: DeckCitation) => void;
 }) {
@@ -168,6 +169,11 @@ export function DeckOverview({
               <h1 className="truncate font-serif text-lg font-medium sm:text-xl">
                 {deck.title}
               </h1>
+              {!sourceQuestions ? (
+                <span className="rounded-full border border-border px-2 py-1 text-xs leading-none text-muted-foreground">
+                  Set {deck.set_number}
+                </span>
+              ) : null}
               <span className="hidden truncate text-sm text-muted-foreground lg:inline">
                 {deck.source_title}
               </span>
@@ -201,19 +207,25 @@ export function DeckOverview({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Deck options</DropdownMenuLabel>
-              {sourceQuestions ? (
-                <DropdownMenuItem
-                  disabled={regenerating}
-                  onSelect={onRegenerate}
-                >
-                  {regenerating ? (
-                    <Loader2 aria-hidden className="animate-spin" />
-                  ) : (
-                    <RefreshCw aria-hidden />
-                  )}
-                  {regenerating ? "Starting regeneration…" : "Regenerate from book"}
-                </DropdownMenuItem>
-              ) : null}
+              <DropdownMenuItem
+                disabled={generatingSet}
+                onSelect={onGenerateSet}
+              >
+                {generatingSet ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : sourceQuestions ? (
+                  <RefreshCw aria-hidden />
+                ) : (
+                  <Plus aria-hidden />
+                )}
+                {generatingSet
+                  ? sourceQuestions
+                    ? "Starting regeneration…"
+                    : "Starting next set…"
+                  : sourceQuestions
+                    ? "Regenerate from book"
+                    : `Create Set ${deck.set_number + 1}`}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"

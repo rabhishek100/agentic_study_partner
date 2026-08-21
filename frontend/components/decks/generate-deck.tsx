@@ -131,7 +131,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
         <DialogDescription>
           {mode === "book" && generationMode === "book_extracted"
             ? "Use questions already printed in a chapter. Printed solutions are preserved; missing answers are grounded in the chapter."
-            : "One deck covers one chapter or lecture. Each generated card cites the page or moment it came from."}
+            : "Each numbered set covers one chapter or lecture. New sets keep earlier cards and avoid repeating their questions."}
         </DialogDescription>
 
         <div className="space-y-4 pt-2">

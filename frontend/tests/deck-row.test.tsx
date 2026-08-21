@@ -31,6 +31,7 @@ const extractedDeck: DeckSummary = {
   generation_mode: "book_extracted",
   scope_key: "book:1:node:2:mode:book_extracted",
   version: 1,
+  set_number: 1,
   title: "Chapter 2",
   source_title: "ISLP",
   status: "ready",
@@ -136,5 +137,22 @@ describe("book-extracted deck presentation", () => {
     expect(retry).toHaveBeenCalledWith(failedJob);
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(dismiss).toHaveBeenCalledWith(failedJob);
+  });
+});
+
+describe("numbered generated sets", () => {
+  it("shows the successful set number in the deck row", () => {
+    render(
+      <TooltipProvider>
+        <DeckRow
+          deck={{
+            ...extractedDeck,
+            generation_mode: "topic_generated",
+            set_number: 2,
+          }}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Set 2")).toBeTruthy();
   });
 });

@@ -135,6 +135,15 @@ def run_deck_job(
         node_id=job.node_id,
         video_id=job.video_id,
     )
+    previous_fronts = (
+        store.generated_fronts(
+            connection,
+            owner_id=job.owner_id,
+            scope_key=job.scope_key,
+        )
+        if job.generation_mode == "topic_generated"
+        else ()
+    )
 
     deck_id, version = store.create_deck(
         connection,
@@ -190,7 +199,11 @@ def run_deck_job(
             )
         else:
             generated = generate_deck(
-                inventory, model=model, config=config, progress=progress
+                inventory,
+                model=model,
+                config=config,
+                progress=progress,
+                previous_fronts=previous_fronts,
             )
     except Exception:
         # Every attempt creates a version before making a provider call.  Do

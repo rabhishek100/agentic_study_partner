@@ -72,16 +72,23 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
         self.database_context.__exit__(None, None, None)
         self.tearDownPostgresOwner()
 
-    def _store(self, *, fronts: tuple[str, ...] = ("What is an invariant?",)):
+    def _store(
+        self,
+        *,
+        fronts: tuple[str, ...] = ("What is an invariant?",),
+        generation_mode: str = "topic_generated",
+        scope_key: str | None = None,
+    ):
         deck_id, version = store.create_deck(
             self.connection,
             owner_id=self.owner_id,
             source_kind="book",
-            scope_key=self.scope_key,
+            scope_key=scope_key or self.scope_key,
             title=self.scope.display_path,
             source_title=self.scope.book_title,
             book_id=self.book_id,
             node_id=self.node_id,
+            generation_mode=generation_mode,
         )
         topics = (topic("node:a", ordinal=0, node_id=self.node_id),)
         cards = tuple(
@@ -119,6 +126,7 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
             self.connection, owner_id=self.owner_id, deck_id=deck_id
         )
         self.assertEqual(summary.status, "ready")
+        self.assertEqual(summary.set_number, 1)
         self.assertEqual(summary.card_count, 1)
         self.assertEqual(summary.metrics.topics_covered, 1)
         self.assertEqual(summary.new_count, 1)
@@ -129,19 +137,77 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(cards[0].review.state, "new")
         self.assertEqual(cards[0].card.citations[0].page, 1)
 
-    def test_regenerating_supersedes_the_previous_version(self) -> None:
+    def test_another_generation_publishes_a_cumulative_numbered_set(self) -> None:
         first, _ = self._store()
         second, version = self._store(fronts=("What is a lapse?",))
         self.assertEqual(version, 2)
 
         library = store.list_decks(self.connection, owner_id=self.owner_id)
-        self.assertEqual([deck.deck_id for deck in library], [str(second)])
-        # The superseded version keeps its rows, so its review history — and
-        # the foreign keys pointing at its cards — survive.
-        superseded = store.get_deck(
+        self.assertEqual([deck.deck_id for deck in library], [str(second), str(first)])
+        self.assertEqual([deck.set_number for deck in library], [2, 1])
+        previous = store.get_deck(
             self.connection, owner_id=self.owner_id, deck_id=first
         )
-        self.assertEqual(superseded.status, "failed")
+        self.assertEqual(previous.status, "ready")
+        self.assertEqual(len(store.new_cards(self.connection, owner_id=self.owner_id)), 2)
+
+    def test_a_failed_attempt_does_not_consume_a_set_number(self) -> None:
+        failed, version = store.create_deck(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=self.scope_key,
+            title=self.scope.display_path,
+            source_title=self.scope.book_title,
+            book_id=self.book_id,
+            node_id=self.node_id,
+        )
+        self.assertEqual(version, 1)
+        store.fail_deck(self.connection, owner_id=self.owner_id, deck_id=failed)
+
+        published, version = self._store()
+        self.assertEqual(version, 2)
+        self.assertEqual(
+            store.get_deck(
+                self.connection, owner_id=self.owner_id, deck_id=published
+            ).set_number,
+            1,
+        )
+
+    def test_extracted_questions_remain_one_replaceable_deck(self) -> None:
+        extracted_scope = book_scope_key(
+            self.book_id, self.node_id, generation_mode="book_extracted"
+        )
+        first, _ = self._store(
+            generation_mode="book_extracted", scope_key=extracted_scope
+        )
+        second, _ = self._store(
+            fronts=("What does the exercise ask?",),
+            generation_mode="book_extracted",
+            scope_key=extracted_scope,
+        )
+
+        self.assertEqual(
+            store.get_deck(
+                self.connection, owner_id=self.owner_id, deck_id=first
+            ).status,
+            "failed",
+        )
+        replacement = store.get_deck(
+            self.connection, owner_id=self.owner_id, deck_id=second
+        )
+        self.assertEqual(replacement.set_number, 1)
+
+    def test_previous_generated_fronts_are_available_to_the_next_set(self) -> None:
+        self._store(fronts=("First question?", "Second question?"))
+        self.assertEqual(
+            store.generated_fronts(
+                self.connection,
+                owner_id=self.owner_id,
+                scope_key=self.scope_key,
+            ),
+            ("First question?", "Second question?"),
+        )
 
     def test_grading_moves_the_card_and_records_the_event(self) -> None:
         deck_id, _ = self._store()

@@ -98,6 +98,7 @@ export interface DeckSummary {
   generation_mode?: GenerationMode;
   scope_key: string;
   version: number;
+  set_number: number;
   title: string;
   source_title: string;
   status: DeckStatus;
