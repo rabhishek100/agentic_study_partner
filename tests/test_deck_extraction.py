@@ -22,6 +22,7 @@ from decks.extraction import (
     extract_and_generate_deck,
     numbered_question_candidates,
     question_section_topics,
+    structured_example_topics,
 )
 from decks.generate import DeckGenerationError, GeneratedDeck
 from decks.topics import ScopeInventory, Topic, book_scope_key
@@ -486,6 +487,33 @@ class DeckExtractionUnitTests(unittest.TestCase):
         self.assertEqual(worked_card.source_label, "Example: Brain Cancer Data")
         self.assertEqual(worked_card.answer_source, "printed_in_book")
 
+    def test_example_heading_is_found_when_parser_attaches_it_to_previous_node(
+        self,
+    ) -> None:
+        preceding = sample_topic(
+            key="proportional-hazards",
+            evidence_text=(
+                "[N60:P30]\n11.5.3 Example: Brain Cancer Data\n"
+                "The authors fit a survival model and interpret its coefficients."
+            ),
+        )
+        empty_outline_node = Topic(
+            key="brain-example",
+            ordinal=1,
+            label="Survival :: Example: Brain Cancer Data",
+            required=True,
+            evidence_text="[N61:P30]\n",
+            allowed_markers=frozenset({"[N61:P30]"}),
+            node_id=61,
+            start_page=30,
+            end_page=30,
+        )
+
+        self.assertEqual(
+            structured_example_topics((preceding, empty_outline_node)),
+            (preceding,),
+        )
+
     def test_unworked_example_and_problem_narrative_are_not_candidates(self) -> None:
         unworked = sample_topic(
             key="example",
@@ -604,6 +632,32 @@ class DeckExtractionUnitTests(unittest.TestCase):
             [citation.marker for citation in generated.cards[0].citations],
             ["[N42:P1]", "[N42:P2]"],
         )
+
+    @patch("decks.extraction._rag_answer_model")
+    @patch("decks.extraction._question_extraction_model")
+    def test_model_cannot_label_a_synthesized_exercise_as_book_solution(
+        self, extractor_builder, answer_builder
+    ) -> None:
+        extractor_builder.return_value.invoke.return_value = ExtractedQuestionList(
+            questions=[
+                ExtractedQuestion(
+                    question="Sketch the supplied survival function.",
+                    citation_marker="[N42:P1]",
+                )
+            ]
+        )
+        answer_builder.return_value.invoke.return_value = RAGAnswerOutput(
+            answer="Draw a right-continuous step function.",
+            say_it_aloud="Draw the step function.",
+            citation_markers=["[N42:P1]"],
+            answer_source="printed_in_book",
+        )
+
+        generated = extract_and_generate_deck(
+            sample_inventory(), connection=MagicMock(), owner_id="owner"
+        )
+
+        self.assertEqual(generated.cards[0].answer_source, "rag_generated")
 
     @patch("decks.extraction._question_extraction_model")
     def test_no_questions_is_a_successful_empty_source_deck(self, builder) -> None:

@@ -75,6 +75,9 @@ STRUCTURED_EXAMPLE_TOPIC = re.compile(
     r"(?:worked\s+)?example\b.*|[^:]*\bexample)\s*$",
     re.IGNORECASE,
 )
+STRUCTURED_EXAMPLE_EVIDENCE = re.compile(
+    r"(?im)^(?:\d+(?:\.\d+)+\s+)?(?:worked\s+)?example:\s+\S"
+)
 SUBPART = re.compile(r"(?<!\w)\(([a-z]|[ivx]{1,4}|\d{1,2})\)")
 INSUFFICIENT_ANSWER = re.compile(
     r"\b(?:insufficient evidence|evidence is insufficient|not enough evidence|"
@@ -315,10 +318,23 @@ def question_section_topics(topics: Iterable[Topic]) -> tuple[Topic, ...]:
 
 
 def structured_example_topics(topics: Iterable[Topic]) -> tuple[Topic, ...]:
-    """Structurally labelled example nodes worth bounded model segmentation."""
+    """High-signal example scopes, including parser-misaligned headings.
+
+    Some PDFs expose a TOC node for an example but attach its blocks to the
+    preceding subsection. Looking at both the node label and canonical block
+    text keeps that parser boundary error from silently hiding the example.
+    Empty outline nodes are excluded; their heading is discovered in the
+    neighboring topic that actually owns the content.
+    """
 
     return tuple(
-        topic for topic in topics if STRUCTURED_EXAMPLE_TOPIC.search(topic.label)
+        topic
+        for topic in topics
+        if len(MARKER_ONLY_LINE.sub("", topic.evidence_text).strip()) >= 80
+        and (
+            STRUCTURED_EXAMPLE_TOPIC.search(topic.label)
+            or STRUCTURED_EXAMPLE_EVIDENCE.search(topic.evidence_text)
+        )
     )
 
 
@@ -949,55 +965,71 @@ def extract_and_generate_deck(
     )
     if example_topics:
         example_extractor = _question_extraction_model()
-        example_batches = evidence_batches(example_topics)
-        for batch_index, evidence in enumerate(example_batches, start=1):
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "This excerpt comes from a structurally labelled worked-example "
-                        "section. Extract one atomic worked example only when the author "
-                        "provides both a concrete setup/task and its worked reasoning or "
-                        "solution. Copy the setup into question and the authored walkthrough "
-                        "into printed_answer. Set item_kind to worked_example, placement to "
-                        "inline, and copy separate exact page markers into "
-                        "question_citation_markers and answer_citation_markers. Do not turn "
-                        "a bare illustrative anecdote into a worked example. Preserve tables, "
-                        "code, equations, and every labelled step without truncation."
-                    ),
-                },
-                {"role": "user", "content": f"Example excerpt:\n\n{evidence}"},
-            ]
-            try:
-                result: ExtractedQuestionList = example_extractor.invoke(messages)
-            except Exception as exc:
-                logger.exception(
-                    "worked-example extraction batch failed",
-                    extra={"scope_key": inventory.scope_key, "batch": batch_index},
-                )
-                raise DeckGenerationError(
-                    "worked-example extraction failed in batch "
-                    f"{batch_index} of {len(example_batches)}: {exc}"
-                ) from exc
-            supplied_markers = _markers(evidence)
-            for item in result.questions:
-                emitted_markers = {
-                    item.citation_marker.strip(),
-                    *(marker.strip() for marker in item.question_citation_markers),
-                    *(marker.strip() for marker in item.answer_citation_markers),
-                }
-                if not emitted_markers <= supplied_markers:
-                    raise DeckGenerationError(
-                        "worked-example extraction returned an out-of-scope citation"
+        for example_index, example_topic in enumerate(example_topics, start=1):
+            topic_items: list[ExtractedQuestion] = []
+            example_batches = evidence_batches((example_topic,))
+            for batch_index, evidence in enumerate(example_batches, start=1):
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "This excerpt contains an explicitly headed worked example. "
+                            "Extract the named example as one complete review item. A named "
+                            "dataset or case analysis with author-run code, calculations, "
+                            "results, or interpretation counts as a worked example even when "
+                            "the book does not phrase its setup as a question or print a "
+                            "'Solution' label. In that case, formulate a faithful review "
+                            "question from the named analysis goal without adding facts, and "
+                            "copy the author's complete code/reasoning/findings into "
+                            "printed_answer. Set item_kind to worked_example and placement to "
+                            "inline. Copy separate exact page markers into "
+                            "question_citation_markers and answer_citation_markers. Ignore "
+                            "bare illustrative anecdotes. Preserve tables, code, equations, "
+                            "and every labelled step without truncation."
+                        ),
+                    },
+                    {"role": "user", "content": f"Example excerpt:\n\n{evidence}"},
+                ]
+                try:
+                    result: ExtractedQuestionList = example_extractor.invoke(messages)
+                except Exception as exc:
+                    logger.exception(
+                        "worked-example extraction batch failed",
+                        extra={
+                            "scope_key": inventory.scope_key,
+                            "example": example_index,
+                            "batch": batch_index,
+                        },
                     )
-                if not item.printed_answer or not item.answer_citation_markers:
-                    continue
-                item.item_kind = "worked_example"
-                item.placement = "inline"
-                item.discovery_method = "model_fallback"
-                if item.source_label is None:
-                    item.source_label = f"Worked example {batch_index}"
-                extracted_questions.append(item)
+                    raise DeckGenerationError(
+                        "worked-example extraction failed for "
+                        f"{example_topic.label}: {exc}"
+                    ) from exc
+                supplied_markers = _markers(evidence)
+                for item in result.questions:
+                    emitted_markers = {
+                        item.citation_marker.strip(),
+                        *(marker.strip() for marker in item.question_citation_markers),
+                        *(marker.strip() for marker in item.answer_citation_markers),
+                    }
+                    if not emitted_markers <= supplied_markers:
+                        raise DeckGenerationError(
+                            "worked-example extraction returned an out-of-scope citation"
+                        )
+                    if not item.printed_answer or not item.answer_citation_markers:
+                        continue
+                    item.item_kind = "worked_example"
+                    item.placement = "inline"
+                    item.discovery_method = "model_fallback"
+                    if item.source_label is None:
+                        item.source_label = example_topic.label.split("::")[-1].strip()
+                    topic_items.append(item)
+            if not topic_items:
+                raise DeckGenerationError(
+                    "the structurally labelled worked example produced no complete card: "
+                    f"{example_topic.label}"
+                )
+            extracted_questions.extend(topic_items)
 
     # The legacy model fallback remains only for chapters with no explicit,
     # high-signal source item. One detected category never suppresses another:
@@ -1251,9 +1283,13 @@ def extract_and_generate_deck(
                     rag_output.say_it_aloud.strip(), citation_aliases
                 ),
             )
+            has_explicit_printed_solution = bool(
+                re.search(r"(?im)^\s*(?:solution|answer)\b", evidence)
+            )
             answer_source = (
                 "printed_in_book"
                 if rag_output.answer_source == "printed_in_book"
+                and has_explicit_printed_solution
                 else "rag_generated"
             )
             answer_citations = _valid_citations(
