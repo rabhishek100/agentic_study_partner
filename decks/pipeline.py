@@ -44,6 +44,10 @@ from .topics import (
 logger = logging.getLogger("study_partner.decks")
 
 
+class DeckCancellationRequested(RuntimeError):
+    """The owner paused a source while its automatic deck was running."""
+
+
 class DeckSourceError(RuntimeError):
     """The requested scope cannot produce a deck."""
 
@@ -159,6 +163,11 @@ def run_deck_job(
     whole deck lands, in one transaction, inside `store_deck`.
     """
 
+    def ensure_not_cancelled() -> None:
+        if jobs.cancellation_requested(connection, job_id=job.id):
+            raise DeckCancellationRequested("deck generation was cancelled")
+
+    ensure_not_cancelled()
     jobs.record_progress(connection, job_id=job.id, stage="inventory")
     inventory, version_id = load_inventory(
         connection,
@@ -211,6 +220,7 @@ def run_deck_job(
     )
 
     def progress(done: int, total: int) -> None:
+        ensure_not_cancelled()
         jobs.record_progress(
             connection,
             job_id=job.id,
@@ -251,6 +261,7 @@ def run_deck_job(
             "no card survived validation for this scope; nothing was stored"
         )
 
+    ensure_not_cancelled()
     jobs.record_progress(connection, job_id=job.id, stage="storing")
     store.store_deck(
         connection,

@@ -14,7 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { DeckPreferences, DeckSourcePreference } from "@/lib/deck-types";
+import type {
+  AutomaticSetActivationResponse,
+  DeckPreferences,
+  DeckSourcePreference,
+} from "@/lib/deck-types";
 
 type SourceGroup = {
   key: "books" | "papers" | "videos";
@@ -27,11 +31,48 @@ type SourceGroup = {
 function sourceStatus(source: DeckSourcePreference): string {
   if (!source.cards_enabled) return "Paused · Saved decks remain available";
   if (source.automatic_cards_queued) return "Automatic Set 1 queued";
+  if (
+    source.automatic_cards_activated &&
+    source.missing_automatic_set_count === 0
+  ) {
+    return "Automatic Set 1 active";
+  }
+  if (source.can_activate_automatic_cards) {
+    return `${missingScopeLabel(source)} ready to create`;
+  }
   if (["ready", "degraded"].includes(source.status)) {
-    return "Included in Today";
+    return source.missing_automatic_set_count === 0
+      ? "Included in Today · Set 1 already exists"
+      : "Included in Today";
   }
   if (source.status === "failed") return "Source processing failed";
   return "Processing · Cards will start when ready";
+}
+
+function missingScopeLabel(source: DeckSourcePreference): string {
+  const count = source.missing_automatic_set_count;
+  if (source.document_type === "book") {
+    return `${count} missing chapter set${count === 1 ? "" : "s"}`;
+  }
+  return `Automatic Set 1`;
+}
+
+function activationButtonLabel(source: DeckSourcePreference): string {
+  return source.document_type === "book"
+    ? `Create ${source.missing_automatic_set_count} missing set${
+        source.missing_automatic_set_count === 1 ? "" : "s"
+      }`
+    : "Create automatic Set 1";
+}
+
+function activationConfirmation(source: DeckSourcePreference): string {
+  const count = source.missing_automatic_set_count;
+  if (source.document_type === "book") {
+    return `This queues ${count} chapter set${count === 1 ? "" : "s"} now.`;
+  }
+  return `This queues one complete ${
+    source.document_type === "paper" ? "paper" : "lecture"
+  } set now.`;
 }
 
 export function CardsSettings({
@@ -39,6 +80,7 @@ export function CardsSettings({
   sources,
   reviewedToday,
   onSave,
+  onActivate,
 }: {
   preferences: DeckPreferences | null;
   sources: DeckSourcePreference[];
@@ -47,6 +89,10 @@ export function CardsSettings({
     preferences: DeckPreferences,
     sources: DeckSourcePreference[],
   ) => Promise<void>;
+  onActivate: (
+    source: DeckSourcePreference,
+    expectedMissingSetCount: number,
+  ) => Promise<AutomaticSetActivationResponse>;
 }) {
   const [open, setOpen] = useState(false);
   const [newPerDay, setNewPerDay] = useState(10);
@@ -56,6 +102,12 @@ export function CardsSettings({
   >({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [activationCandidate, setActivationCandidate] = useState<string | null>(
+    null,
+  );
+  const [activating, setActivating] = useState<string | null>(null);
+  const [activationError, setActivationError] = useState("");
+  const [activationStatus, setActivationStatus] = useState("");
 
   useEffect(() => {
     if (!preferences) return;
@@ -136,12 +188,43 @@ export function CardsSettings({
     }
   }
 
+  async function activate(source: DeckSourcePreference) {
+    const key = `${source.source_kind}:${source.source_id}`;
+    setActivating(key);
+    setActivationError("");
+    setActivationStatus("");
+    try {
+      const result = await onActivate(
+        source,
+        source.missing_automatic_set_count,
+      );
+      setActivationCandidate(null);
+      setActivationStatus(
+        result.jobs_queued === 0
+          ? `Automatic Set 1 is already active for ${source.title}.`
+          : result.jobs_queued === 1
+          ? `Automatic Set 1 queued for ${source.title}.`
+          : `${result.jobs_queued} automatic sets queued for ${source.title}.`,
+      );
+    } catch (caught) {
+      setActivationError(
+        (caught as Error).message ||
+          "Could not activate automatic cards. Nothing new was queued.",
+      );
+    } finally {
+      setActivating(null);
+    }
+  }
+
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
         if (nextOpen) {
           setSaveError("");
+          setActivationCandidate(null);
+          setActivationError("");
+          setActivationStatus("");
           setSourceSelections(
             Object.fromEntries(
               sources.map((source) => [
@@ -244,44 +327,114 @@ export function CardsSettings({
                         {group.sources.map((source) => {
                           const key = `${source.source_kind}:${source.source_id}`;
                           const inputId = `cards-source-${source.source_kind}-${source.source_id}`;
+                          const selected =
+                            sourceSelections[key] ?? source.cards_enabled;
+                          const canActivate =
+                            selected &&
+                            source.cards_enabled &&
+                            source.can_activate_automatic_cards;
+                          const confirming = activationCandidate === key;
+                          const activationBusy = activating === key;
                           return (
                             <li
                               key={key}
                               className="border-b border-border last:border-b-0"
                             >
-                              <label
-                                htmlFor={inputId}
-                                className="flex cursor-pointer items-start gap-3 px-3 py-3 hover:bg-muted"
-                              >
-                                <Checkbox
-                                  id={inputId}
-                                  checked={
-                                    sourceSelections[key] ??
-                                    source.cards_enabled
-                                  }
-                                  disabled={saving}
-                                  onCheckedChange={(checked) =>
-                                    setSourceSelections((current) => ({
-                                      ...current,
-                                      [key]: checked === true,
-                                    }))
-                                  }
-                                  className="mt-1"
-                                />
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-sm font-medium">
-                                    {source.title}
+                              <div className="flex items-start gap-2">
+                                <label
+                                  htmlFor={inputId}
+                                  className="flex min-w-0 flex-1 cursor-pointer items-start gap-3 px-3 py-3 hover:bg-muted"
+                                >
+                                  <Checkbox
+                                    id={inputId}
+                                    checked={selected}
+                                    disabled={saving || activationBusy}
+                                    onCheckedChange={(checked) => {
+                                      if (checked !== true && confirming) {
+                                        setActivationCandidate(null);
+                                        setActivationError("");
+                                      }
+                                      setSourceSelections((current) => ({
+                                        ...current,
+                                        [key]: checked === true,
+                                      }));
+                                    }}
+                                    className="mt-1"
+                                  />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium">
+                                      {source.title}
+                                    </span>
+                                    <span className="block text-xs leading-5 text-muted-foreground">
+                                      {sourceStatus({
+                                        ...source,
+                                        cards_enabled: selected,
+                                      })}
+                                    </span>
                                   </span>
-                                  <span className="block text-xs leading-5 text-muted-foreground">
-                                    {sourceStatus({
-                                      ...source,
-                                      cards_enabled:
-                                        sourceSelections[key] ??
-                                        source.cards_enabled,
-                                    })}
-                                  </span>
-                                </span>
-                              </label>
+                                </label>
+                                {canActivate && !confirming ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="mr-3 mt-2 shrink-0"
+                                    disabled={saving || activating !== null}
+                                    onClick={() => {
+                                      setActivationCandidate(key);
+                                      setActivationError("");
+                                      setActivationStatus("");
+                                    }}
+                                  >
+                                    {activationButtonLabel(source)}
+                                  </Button>
+                                ) : null}
+                              </div>
+                              {confirming ? (
+                                <div className="mx-3 mb-3 rounded-md border border-warning bg-warning-wash p-3">
+                                  <p className="text-xs leading-5">
+                                    {activationConfirmation(source)} Existing
+                                    decks and review history stay unchanged.
+                                    Pausing cancels queued work and stops running
+                                    work at the next safe boundary.
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      disabled={activationBusy}
+                                      onClick={() => {
+                                        setActivationCandidate(null);
+                                        setActivationError("");
+                                      }}
+                                    >
+                                      Cancel activation
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={activationBusy}
+                                      onClick={() => void activate(source)}
+                                    >
+                                      {activationBusy ? (
+                                        <Loader2
+                                          aria-hidden
+                                          className="animate-spin motion-reduce:animate-none"
+                                        />
+                                      ) : null}
+                                      {source.document_type === "book"
+                                        ? `Create ${source.missing_automatic_set_count} set${
+                                            source.missing_automatic_set_count ===
+                                            1
+                                              ? ""
+                                              : "s"
+                                          }`
+                                        : "Create Set 1"}
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : null}
                             </li>
                           );
                         })}
@@ -292,6 +445,16 @@ export function CardsSettings({
               </div>
             )}
           </fieldset>
+          {activationStatus ? (
+            <p role="status" aria-live="polite" className="text-sm text-positive">
+              {activationStatus}
+            </p>
+          ) : null}
+          {activationError ? (
+            <p role="alert" className="text-sm text-destructive">
+              {activationError}
+            </p>
+          ) : null}
           {saveError ? (
             <p role="alert" className="text-sm text-destructive">
               {saveError}

@@ -10,6 +10,12 @@ export type DeckStatus = "generating" | "ready" | "partial" | "failed";
 export type ReviewStateName = "new" | "learning" | "review" | "relearning";
 export type GenerationMode = "topic_generated" | "book_extracted";
 export type AnswerSource = "printed_in_book" | "rag_generated";
+export type SourceItemKind = "exercise" | "worked_example";
+export type SourceItemPlacement = "inline" | "end_of_chapter";
+export type SourceDiscoveryMethod =
+  | "numbered_section"
+  | "explicit_label"
+  | "model_fallback";
 
 /** Anki's four. 1 is a failure; 4 means it was instant. */
 export type Rating = 1 | 2 | 3 | 4;
@@ -69,6 +75,20 @@ export interface DeckCard {
   /** Model knowledge, labelled as such. Never counted as grounded. */
   interview_angle: string | null;
   answer_source?: AnswerSource | null;
+  source_item_key?: string | null;
+  source_item_kind?: SourceItemKind | null;
+  source_item_placement?: SourceItemPlacement | null;
+  source_label?: string | null;
+  source_discovery_method?: SourceDiscoveryMethod | null;
+  question_citations?: DeckCitation[];
+  answer_citations?: DeckCitation[];
+}
+
+export interface UncoveredSourceItem {
+  key: string;
+  label: string;
+  kind: string;
+  placement: string;
 }
 
 export interface DeckMetrics {
@@ -79,6 +99,11 @@ export interface DeckMetrics {
   source_questions_total: number;
   source_questions_covered: number;
   uncovered_question_labels: string[];
+  source_items_total: number;
+  source_items_covered: number;
+  source_item_kind_counts: Record<string, number>;
+  source_item_placement_counts: Record<string, number>;
+  uncovered_source_items: UncoveredSourceItem[];
   cards_generated: number;
   cards_kept: number;
   cards_dropped_uncited: number;
@@ -160,10 +185,18 @@ export interface DeckSourcePreference {
   status: string;
   cards_enabled: boolean;
   automatic_cards_queued: boolean;
+  automatic_cards_activated: boolean;
+  missing_automatic_set_count: number;
+  can_activate_automatic_cards: boolean;
 }
 
 export interface DeckSourcePreferences {
   sources: DeckSourcePreference[];
+}
+
+export interface AutomaticSetActivationResponse {
+  source: DeckSourcePreference;
+  jobs_queued: number;
 }
 
 export type GenerateDeckRequest =
@@ -367,6 +400,11 @@ export function describeInterval(days: number): string {
 }
 
 export function coveragePercent(metrics: DeckMetrics): number {
+  if (metrics.source_items_total) {
+    return Math.round(
+      (metrics.source_items_covered / metrics.source_items_total) * 100,
+    );
+  }
   if (metrics.source_questions_total) {
     return Math.round(
       (metrics.source_questions_covered / metrics.source_questions_total) * 100,

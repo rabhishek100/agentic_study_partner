@@ -10,7 +10,7 @@ from storage.database import connection as database_connection
 
 from . import jobs
 from .generate import DeckGenerationError
-from .pipeline import DeckSourceError, run_deck_job
+from .pipeline import DeckCancellationRequested, DeckSourceError, run_deck_job
 
 logger = logging.getLogger("study_partner.deck_worker")
 
@@ -115,6 +115,10 @@ class DeckWorker:
             ):
                 with database_connection(self.database_url) as connection:
                     run_deck_job(connection, job=job)
+        except DeckCancellationRequested:
+            logger.info("deck job cancelled at a safe boundary", extra=context)
+            with database_connection(self.database_url) as connection:
+                jobs.finish_cancellation(connection, job_id=job.id)
         except BaseException as error:  # every attempt must converge
             self._record_failure(job, error, context)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):

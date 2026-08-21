@@ -38,6 +38,20 @@ describe("manual paper deck generation", () => {
     });
   });
 
+  it("offers exercises and worked examples as one source-authored mode", async () => {
+    const user = userEvent.setup();
+    render(<GenerateDeck onQueued={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "New deck" }));
+
+    expect(
+      screen.getByRole("button", { name: /Exercises & worked examples/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Preserve source-authored questions and solutions"),
+    ).toBeInTheDocument();
+  });
+
   it("submits one complete paper without a chapter node", async () => {
     const user = userEvent.setup();
     const onQueued = vi.fn();

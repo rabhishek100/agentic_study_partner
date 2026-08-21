@@ -478,3 +478,25 @@ def request_cancellation(
         """,
         (UUID(str(job_id)), parse_owner_id(owner_id)),
     )
+
+
+def cancellation_requested(connection: Connection, *, job_id: str | UUID) -> bool:
+    row = connection.execute(
+        "select cancellation_requested from public.deck_jobs where id = %s",
+        (UUID(str(job_id)),),
+    ).fetchone()
+    return bool(row and row["cancellation_requested"])
+
+
+def finish_cancellation(connection: Connection, *, job_id: str | UUID) -> None:
+    """Converge a running cancellation without recording a false failure."""
+
+    connection.execute(
+        """
+        update public.deck_jobs
+        set status = 'cancelled', stage = 'pending',
+            worker_id = null, lease_expires_at = null, updated_at = now()
+        where id = %s and status in ('queued', 'running', 'cancelled')
+        """,
+        (UUID(str(job_id)),),
+    )

@@ -18,6 +18,11 @@ const metrics = (overrides: Partial<DeckMetrics> = {}): DeckMetrics => ({
   source_questions_total: 0,
   source_questions_covered: 0,
   uncovered_question_labels: [],
+  source_items_total: 0,
+  source_items_covered: 0,
+  source_item_kind_counts: {},
+  source_item_placement_counts: {},
+  uncovered_source_items: [],
   cards_generated: 0,
   cards_kept: 0,
   cards_dropped_uncited: 0,
@@ -71,6 +76,19 @@ describe("coveragePercent", () => {
 
   it("treats a scope with nothing required as covered", () => {
     expect(coveragePercent(metrics())).toBe(100);
+  });
+
+  it("uses unified source-item coverage for exercises and worked examples", () => {
+    expect(
+      coveragePercent(
+        metrics({
+          source_questions_total: 10,
+          source_questions_covered: 10,
+          source_items_total: 5,
+          source_items_covered: 4,
+        }),
+      ),
+    ).toBe(80);
   });
 });
 

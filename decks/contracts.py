@@ -21,6 +21,11 @@ DeckStatus = Literal["generating", "ready", "partial", "failed"]
 ReviewStateName = Literal["new", "learning", "review", "relearning"]
 GenerationMode = Literal["topic_generated", "book_extracted"]
 AnswerSource = Literal["printed_in_book", "rag_generated"]
+SourceItemKind = Literal["exercise", "worked_example"]
+SourceItemPlacement = Literal["inline", "end_of_chapter"]
+SourceDiscoveryMethod = Literal[
+    "numbered_section", "explicit_label", "model_fallback"
+]
 
 # Anki's four, and for the same reason: three buttons cannot separate "I had to
 # think" from "that was instant", and that difference is most of the signal a
@@ -188,6 +193,33 @@ class DeckCard(ContractModel):
     difficulty: Difficulty = "intermediate"
     interview_angle: str | None = None
     answer_source: AnswerSource | None = None
+    source_item_key: str | None = None
+    source_item_kind: SourceItemKind | None = None
+    source_item_placement: SourceItemPlacement | None = None
+    source_label: str | None = None
+    source_discovery_method: SourceDiscoveryMethod | None = None
+    question_citations: list[DeckCitation] = Field(default_factory=list)
+    answer_citations: list[DeckCitation] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def source_item_provenance_is_complete(self) -> DeckCard:
+        metadata = (
+            self.source_item_key,
+            self.source_item_kind,
+            self.source_item_placement,
+            self.source_label,
+            self.source_discovery_method,
+        )
+        if any(metadata) and not all(metadata):
+            raise ValueError("source-authored card metadata must be complete")
+        if self.source_item_key and not self.question_citations:
+            raise ValueError("a source-authored card needs question citations")
+        if self.source_item_kind == "worked_example":
+            if self.answer_source != "printed_in_book" or not self.answer_citations:
+                raise ValueError(
+                    "a worked example needs a separately cited printed solution"
+                )
+        return self
 
 
 class DeckMetrics(ContractModel):
@@ -209,6 +241,11 @@ class DeckMetrics(ContractModel):
     source_questions_total: int = Field(default=0, ge=0)
     source_questions_covered: int = Field(default=0, ge=0)
     uncovered_question_labels: list[str] = Field(default_factory=list)
+    source_items_total: int = Field(default=0, ge=0)
+    source_items_covered: int = Field(default=0, ge=0)
+    source_item_kind_counts: dict[str, int] = Field(default_factory=dict)
+    source_item_placement_counts: dict[str, int] = Field(default_factory=dict)
+    uncovered_source_items: list[dict[str, str]] = Field(default_factory=list)
     cards_generated: int = Field(default=0, ge=0)
     cards_kept: int = Field(default=0, ge=0)
     cards_dropped_uncited: int = Field(default=0, ge=0)
@@ -224,6 +261,8 @@ class DeckMetrics(ContractModel):
 
     @property
     def coverage_ratio(self) -> float:
+        if self.source_items_total:
+            return self.source_items_covered / self.source_items_total
         if self.source_questions_total:
             return self.source_questions_covered / self.source_questions_total
         if not self.topics_required:
@@ -232,6 +271,8 @@ class DeckMetrics(ContractModel):
 
     @property
     def complete(self) -> bool:
+        if self.source_items_total:
+            return self.source_items_covered >= self.source_items_total
         if self.source_questions_total:
             return self.source_questions_covered >= self.source_questions_total
         return self.topics_covered >= self.topics_required
@@ -311,6 +352,9 @@ class DeckSourcePreference(ContractModel):
     status: str
     cards_enabled: bool = True
     automatic_cards_queued: bool = False
+    automatic_cards_activated: bool = False
+    missing_automatic_set_count: int = Field(default=0, ge=0)
+    can_activate_automatic_cards: bool = False
 
 
 class DeckSourcePreferences(ContractModel):
@@ -319,6 +363,15 @@ class DeckSourcePreferences(ContractModel):
 
 class DeckSourcePreferenceUpdate(ContractModel):
     cards_enabled: bool
+
+
+class DeckSourceActivationRequest(ContractModel):
+    expected_missing_set_count: int = Field(ge=1)
+
+
+class DeckSourceActivationResponse(ContractModel):
+    source: DeckSourcePreference
+    jobs_queued: int = Field(ge=0)
 
 
 class DeckSourcePreferenceSelection(DeckSourcePreferenceUpdate):

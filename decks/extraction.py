@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from hashlib import sha256
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -43,7 +44,7 @@ from .validate import (
 
 logger = logging.getLogger("study_partner.decks.extraction")
 
-EXTRACTION_PROMPT_VERSION = "v4_canonical_answer_citations"
+EXTRACTION_PROMPT_VERSION = "v5_additive_source_items"
 ANSWER_EVIDENCE_TOKENS = GENERATION_BATCH_TOKENS
 SEGMENT_OVERLAP_TOKENS = 160
 MARKER_LINE = re.compile(r"(?m)(?=^\[N\d+:P\d+\]\s*$)")
@@ -51,13 +52,33 @@ MARKER_AT_START = re.compile(r"^\[N\d+:P\d+\]")
 MARKER_ONLY_LINE = re.compile(r"(?m)^[ \t]*\[N\d+:P\d+\][ \t]*\n?")
 NUMBERED_QUESTION = re.compile(r"(?m)^[ \t]*(?P<number>\d{1,3})[.)][ \t]+(?=\S)")
 QUESTION_SECTION = re.compile(
-    r"\b(?:exercises?|problems?|review questions?|study questions?|"
-    r"self[- ]assessment|check your understanding)\b",
+    r"(?:^|::)\s*(?:\d+(?:\.\d+)*\s+)?(?:exercises?|problems?|"
+    r"review questions?|study questions?|practice|self[- ]assessment|"
+    r"check your understanding)\s*(?=::|$)",
+    re.IGNORECASE,
+)
+EXPLICIT_ITEM = re.compile(
+    r"(?im)^[ \t]*(?P<label>"
+    r"(?:exercise|problem|question|practice|checkpoint)"
+    r"(?:\s+\d+(?:\.\d+)*)?|"
+    r"check your understanding|try it|your turn|"
+    r"worked example(?:\s+\d+(?:\.\d+)*)?|"
+    r"example\s+\d+(?:\.\d+)*"
+    r")[.:)]?[ \t]+(?=\S)"
+)
+SOLUTION_LABEL = re.compile(
+    r"(?im)^[ \t]*(?:solution|answer)(?:\s+\d+(?:\.\d+)*)?[.:)]?"
+    r"[ \t]*(?=\S)"
+)
+STRUCTURED_EXAMPLE_TOPIC = re.compile(
+    r"(?:^|::)\s*(?:\d+(?:\.\d+)*\s+)?(?:"
+    r"(?:worked\s+)?example\b.*|[^:]*\bexample)\s*$",
     re.IGNORECASE,
 )
 SUBPART = re.compile(r"(?<!\w)\(([a-z]|[ivx]{1,4}|\d{1,2})\)", re.IGNORECASE)
 INSUFFICIENT_ANSWER = re.compile(
-    r"\b(?:insufficient evidence|not enough evidence|cannot (?:answer|determine)|"
+    r"\b(?:insufficient evidence|evidence is insufficient|not enough evidence|"
+    r"cannot (?:answer|determine)|"
     r"does not (?:include|provide|contain)|unable to (?:answer|determine))\b",
     re.IGNORECASE,
 )
@@ -117,7 +138,7 @@ class ExtractedQuestion(BaseModel):
     )
     printed_answer: str | None = Field(
         default=None,
-        max_length=4_000,
+        max_length=12_000,
         description=(
             "The answer or solution printed in the supplied excerpt, or null when the "
             "excerpt does not contain one. Never answer from model knowledge here."
@@ -142,6 +163,12 @@ class ExtractedQuestion(BaseModel):
         max_length=200,
         description="Stable source label such as Exercise 7, when one is printed.",
     )
+    source_item_key: str | None = Field(default=None, max_length=100)
+    item_kind: Literal["exercise", "worked_example"] = "exercise"
+    placement: Literal["inline", "end_of_chapter"] = "inline"
+    discovery_method: Literal[
+        "numbered_section", "explicit_label", "model_fallback"
+    ] = "model_fallback"
 
 
 class ExtractedQuestionList(BaseModel):
@@ -285,6 +312,14 @@ def question_section_topics(topics: Iterable[Topic]) -> tuple[Topic, ...]:
     """
 
     return tuple(topic for topic in topics if QUESTION_SECTION.search(topic.label))
+
+
+def structured_example_topics(topics: Iterable[Topic]) -> tuple[Topic, ...]:
+    """Structurally labelled example nodes worth bounded model segmentation."""
+
+    return tuple(
+        topic for topic in topics if STRUCTURED_EXAMPLE_TOPIC.search(topic.label)
+    )
 
 
 def _visual_page_text(page: fitz.Page) -> str:
@@ -461,6 +496,153 @@ def _clean_source_question(text: str) -> str:
     return cleaned.strip()
 
 
+def _ordered_span_markers(text: str, *, preceding: str | None = None) -> list[str]:
+    markers = [preceding] if preceding else []
+    markers.extend(re.findall(r"\[N\d+:P\d+\]", text))
+    return list(dict.fromkeys(marker for marker in markers if marker))
+
+
+def _stable_source_item_key(item: ExtractedQuestion) -> str:
+    """Content identity independent of repeated display labels."""
+
+    normalized = normalized_front(item.question)
+    digest = sha256(
+        f"{item.item_kind}|{item.citation_marker}|{normalized}".encode()
+    ).hexdigest()[:24]
+    return f"{item.item_kind}:{digest}"
+
+
+def _source_items(
+    items: Iterable[ExtractedQuestion],
+) -> tuple[ExtractedQuestion, ...]:
+    """Assign stable keys and collapse exact cross-window duplicates."""
+
+    unique: dict[str, ExtractedQuestion] = {}
+    for index, item in enumerate(items, start=1):
+        label = item.source_label or (
+            f"Worked example {index}"
+            if item.item_kind == "worked_example"
+            else f"Question {index}"
+        )
+        with_identity = item.model_copy(
+            update={
+                "source_label": label,
+                "source_item_key": item.source_item_key
+                or _stable_source_item_key(item),
+            }
+        )
+        assert with_identity.source_item_key is not None
+        existing = unique.get(with_identity.source_item_key)
+        if existing is None:
+            unique[with_identity.source_item_key] = with_identity
+            continue
+        unique[with_identity.source_item_key] = existing.model_copy(
+            update={
+                "question_citation_markers": list(
+                    dict.fromkeys(
+                        [
+                            *existing.question_citation_markers,
+                            *with_identity.question_citation_markers,
+                        ]
+                    )
+                ),
+                "answer_citation_markers": list(
+                    dict.fromkeys(
+                        [
+                            *existing.answer_citation_markers,
+                            *with_identity.answer_citation_markers,
+                        ]
+                    )
+                ),
+            }
+        )
+    return tuple(unique.values())
+
+
+def explicitly_labeled_candidates(
+    topics: Iterable[Topic],
+) -> tuple[ExtractedQuestion, ...]:
+    """Find high-signal inline exercises and worked examples additively.
+
+    Bare prose such as "for example" is intentionally excluded. A worked
+    example is only classified when its bounded source span contains an
+    explicit printed Solution or Answer.
+    """
+
+    items: list[ExtractedQuestion] = []
+    for topic in topics:
+        evidence = topic.evidence_text
+        matches = list(EXPLICIT_ITEM.finditer(evidence))
+        for index, match in enumerate(matches):
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(evidence)
+            raw = evidence[match.start() : end].strip()
+            preceding_markers = re.findall(
+                r"\[N\d+:P\d+\]", evidence[: match.start()]
+            )
+            preceding = preceding_markers[-1] if preceding_markers else None
+            label = " ".join(match.group("label").split())
+            kind: Literal["exercise", "worked_example"] = (
+                "worked_example"
+                if re.match(r"(?i)(?:worked example|example\s+\d)", label)
+                else "exercise"
+            )
+            solution = SOLUTION_LABEL.search(raw)
+            if kind == "worked_example" and solution is None:
+                continue
+
+            if solution:
+                prompt_end = solution.start()
+                answer_prefix = ""
+                preceding_solution_markers = list(
+                    re.finditer(r"\[N\d+:P\d+\]", raw[: solution.start()])
+                )
+                if preceding_solution_markers:
+                    last_marker = preceding_solution_markers[-1]
+                    if not raw[last_marker.end() : solution.start()].strip():
+                        prompt_end = last_marker.start()
+                        answer_prefix = last_marker.group(0) + "\n"
+                prompt_raw = raw[:prompt_end]
+                answer_raw = answer_prefix + raw[solution.end() :]
+            else:
+                prompt_raw = raw
+                answer_raw = ""
+            question = _clean_source_question(prompt_raw)
+            printed_answer = _clean_source_question(answer_raw) or None
+            if not question:
+                continue
+            question_markers = _ordered_span_markers(
+                prompt_raw, preceding=preceding
+            )
+            answer_markers = (
+                _ordered_span_markers(
+                    answer_raw,
+                    preceding=(
+                        question_markers[-1]
+                        if question_markers and not _markers(answer_raw)
+                        else None
+                    ),
+                )
+                if printed_answer
+                else []
+            )
+            if not question_markers:
+                continue
+            items.append(
+                ExtractedQuestion(
+                    question=question,
+                    printed_answer=printed_answer,
+                    citation_marker=question_markers[0],
+                    question_citation_markers=question_markers,
+                    answer_citation_markers=answer_markers,
+                    source_label=label,
+                    item_kind=kind,
+                    placement="inline",
+                    discovery_method="explicit_label",
+                )
+            )
+    return tuple(items)
+
+
 def numbered_question_candidates(
     topics: Iterable[Topic],
 ) -> tuple[ExtractedQuestion, ...]:
@@ -512,6 +694,9 @@ def numbered_question_candidates(
                     citation_marker=markers[0],
                     question_citation_markers=markers,
                     source_label=f"Exercise {number}",
+                    item_kind="exercise",
+                    placement="end_of_chapter",
+                    discovery_method="numbered_section",
                 )
             )
     return tuple(questions)
@@ -580,15 +765,21 @@ def _extraction_metrics(
     inventory: ScopeInventory,
     tally: ValidationTally,
     *,
-    question_labels: Iterable[str] = (),
-    covered_question_labels: Iterable[str] = (),
+    source_items: Iterable[ExtractedQuestion] = (),
+    covered_source_item_keys: Iterable[str] = (),
     repair_attempted: bool = False,
     notice: str | None = None,
 ) -> DeckMetrics:
     """Metrics compare stored cards with the pre-answer question inventory."""
 
-    labels = tuple(question_labels)
-    covered = frozenset(covered_question_labels)
+    items = tuple(source_items)
+    covered = frozenset(covered_source_item_keys)
+    labels = tuple(item.source_label or "Source item" for item in items)
+    kind_counts: dict[str, int] = {}
+    placement_counts: dict[str, int] = {}
+    for item in items:
+        kind_counts[item.item_kind] = kind_counts.get(item.item_kind, 0) + 1
+        placement_counts[item.placement] = placement_counts.get(item.placement, 0) + 1
 
     return DeckMetrics(
         topics_total=len(inventory.topics),
@@ -596,8 +787,32 @@ def _extraction_metrics(
         topics_required=0,
         topics_covered=0,
         source_questions_total=len(labels),
-        source_questions_covered=sum(label in covered for label in labels),
-        uncovered_question_labels=[label for label in labels if label not in covered],
+        source_questions_covered=sum(
+            bool(item.source_item_key and item.source_item_key in covered)
+            for item in items
+        ),
+        uncovered_question_labels=[
+            item.source_label or "Source item"
+            for item in items
+            if not item.source_item_key or item.source_item_key not in covered
+        ],
+        source_items_total=len(items),
+        source_items_covered=sum(
+            bool(item.source_item_key and item.source_item_key in covered)
+            for item in items
+        ),
+        source_item_kind_counts=dict(sorted(kind_counts.items())),
+        source_item_placement_counts=dict(sorted(placement_counts.items())),
+        uncovered_source_items=[
+            {
+                "key": item.source_item_key or "",
+                "label": item.source_label or "Source item",
+                "kind": item.item_kind,
+                "placement": item.placement,
+            }
+            for item in items
+            if not item.source_item_key or item.source_item_key not in covered
+        ],
         cards_generated=tally.generated,
         cards_kept=tally.kept,
         cards_dropped_uncited=tally.dropped.get(DROP_UNCITED, 0),
@@ -688,6 +903,7 @@ def extract_and_generate_deck(
         marker: topic for topic in inventory.topics for marker in topic.allowed_markers
     }
     explicit_topics = question_section_topics(inventory.topics)
+    explicit_keys = {topic.key for topic in explicit_topics}
     if explicit_topics:
         source_topics = _source_pdf_question_topics(
             connection,
@@ -695,28 +911,109 @@ def extract_and_generate_deck(
             book_id=book_id,
             topics=explicit_topics,
         )
+        for source_topic in source_topics:
+            for marker in source_topic.allowed_markers:
+                marker_to_topic[marker] = source_topic
         numbered = numbered_question_candidates(source_topics)
-        scan = QuestionScan(numbered, source_topics, bool(numbered))
+        residual_topics = tuple(
+            topic for topic in inventory.topics if topic.key not in explicit_keys
+        )
+        detected = [
+            *numbered,
+            *explicitly_labeled_candidates(residual_topics),
+        ]
+        fallback_topics = source_topics
     else:
-        scan = _question_scan(inventory)
-    batches = evidence_batches(scan.evidence_topics)
+        detected = list(explicitly_labeled_candidates(inventory.topics))
+        fallback_topics = inventory.topics
+
+    batches = evidence_batches(fallback_topics)
     if not batches:
         raise DeckGenerationError(
             "this scope has no citable text to scan for questions"
         )
 
-    extracted_questions: list[ExtractedQuestion] = list(scan.questions)
-    if not scan.used_numbered_boundaries:
+    extracted_questions: list[ExtractedQuestion] = detected
+    detected_markers = {
+        marker
+        for item in detected
+        for marker in (
+            item.question_citation_markers or [item.citation_marker]
+        )
+    }
+    example_topics = tuple(
+        topic
+        for topic in structured_example_topics(inventory.topics)
+        if topic.key not in explicit_keys
+        and not (topic.allowed_markers & detected_markers)
+    )
+    if example_topics:
+        example_extractor = _question_extraction_model()
+        example_batches = evidence_batches(example_topics)
+        for batch_index, evidence in enumerate(example_batches, start=1):
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "This excerpt comes from a structurally labelled worked-example "
+                        "section. Extract one atomic worked example only when the author "
+                        "provides both a concrete setup/task and its worked reasoning or "
+                        "solution. Copy the setup into question and the authored walkthrough "
+                        "into printed_answer. Set item_kind to worked_example, placement to "
+                        "inline, and copy separate exact page markers into "
+                        "question_citation_markers and answer_citation_markers. Do not turn "
+                        "a bare illustrative anecdote into a worked example. Preserve tables, "
+                        "code, equations, and every labelled step without truncation."
+                    ),
+                },
+                {"role": "user", "content": f"Example excerpt:\n\n{evidence}"},
+            ]
+            try:
+                result: ExtractedQuestionList = example_extractor.invoke(messages)
+            except Exception as exc:
+                logger.exception(
+                    "worked-example extraction batch failed",
+                    extra={"scope_key": inventory.scope_key, "batch": batch_index},
+                )
+                raise DeckGenerationError(
+                    "worked-example extraction failed in batch "
+                    f"{batch_index} of {len(example_batches)}: {exc}"
+                ) from exc
+            supplied_markers = _markers(evidence)
+            for item in result.questions:
+                emitted_markers = {
+                    item.citation_marker.strip(),
+                    *(marker.strip() for marker in item.question_citation_markers),
+                    *(marker.strip() for marker in item.answer_citation_markers),
+                }
+                if not emitted_markers <= supplied_markers:
+                    raise DeckGenerationError(
+                        "worked-example extraction returned an out-of-scope citation"
+                    )
+                if not item.printed_answer or not item.answer_citation_markers:
+                    continue
+                item.item_kind = "worked_example"
+                item.placement = "inline"
+                item.discovery_method = "model_fallback"
+                if item.source_label is None:
+                    item.source_label = f"Worked example {batch_index}"
+                extracted_questions.append(item)
+
+    # The legacy model fallback remains only for chapters with no explicit,
+    # high-signal source item. One detected category never suppresses another:
+    # end exercises and inline labelled material were collected additively.
+    if not extracted_questions:
         extractor = _question_extraction_model()
         for batch_index, evidence in enumerate(batches, start=1):
             messages = [
                 {
                     "role": "system",
                     "content": (
-                        "Extract only source-authored exercises, review/study questions, or "
-                        "explicitly labelled problem directives from the supplied excerpt. "
-                        "Ignore rhetorical questions in explanatory prose and tutorial/lab "
-                        "discussion. Preserve every setup sentence, data row, code fragment, "
+                        "Extract only explicitly source-authored exercises, review/study "
+                        "questions, labelled problem directives, or worked examples with a "
+                        "printed Solution/Answer. Ignore rhetorical questions and bare prose "
+                        "phrases such as 'for example'. Preserve every setup sentence, data "
+                        "row, code fragment, printed solution, "
                         "and labelled subpart; never abbreviate with an ellipsis and never "
                         "truncate. A top-level numbered exercise is one question even when it "
                         "spans pages. Copy every page marker spanned by the question into "
@@ -738,6 +1035,10 @@ def extract_and_generate_deck(
                 ) from exc
             supplied_markers = _markers(evidence)
             for item in result.questions:
+                item.discovery_method = "model_fallback"
+                item.placement = (
+                    "end_of_chapter" if explicit_topics else "inline"
+                )
                 emitted_markers = {
                     item.citation_marker.strip(),
                     *(marker.strip() for marker in item.question_citation_markers),
@@ -749,17 +1050,17 @@ def extract_and_generate_deck(
                     )
             extracted_questions.extend(result.questions)
 
-    for index, item in enumerate(extracted_questions, start=1):
-        if item.source_label is None:
-            item.source_label = f"Question {index}"
+    source_items = _source_items(extracted_questions)
 
-    if not extracted_questions:
+    if not source_items:
         tally = ValidationTally()
         return GeneratedDeck(
             inventory=inventory,
             cards=(),
             metrics=_extraction_metrics(
-                inventory, tally, notice="No questions printed in this chapter"
+                inventory,
+                tally,
+                notice="No explicitly labelled exercises or worked examples found",
             ),
             model_name=model_name(),
             prompt_version=EXTRACTION_PROMPT_VERSION,
@@ -767,24 +1068,19 @@ def extract_and_generate_deck(
 
     cards: list[DeckCard] = []
     tally = ValidationTally()
-    seen_fronts: set[str] = set()
     rag_model = None
-    question_labels = [
-        item.source_label or f"Question {index}"
-        for index, item in enumerate(extracted_questions, start=1)
-    ]
-    covered_question_labels: list[str] = []
+    covered_source_item_keys: list[str] = []
     repair_attempted = False
 
     if progress is not None:
-        progress(0, len(extracted_questions))
+        progress(0, len(source_items))
 
-    for question_index, item in enumerate(extracted_questions, start=1):
+    for question_index, item in enumerate(source_items, start=1):
         tally.generated += 1
         question = item.question.strip()
         front_key = normalized_front(question)
-        if not front_key or front_key in seen_fronts:
-            tally.drop(DROP_DUPLICATE)
+        if not front_key:
+            tally.drop(DROP_MALFORMED)
             continue
 
         question_markers = list(
@@ -802,17 +1098,36 @@ def extract_and_generate_deck(
         if topic is None or question_citation is None:
             tally.drop(DROP_OUT_OF_SCOPE if question_citation else DROP_UNCITED)
             continue
+        question_citations = _valid_citations(question_markers, marker_to_topic)
+        if not question_citations:
+            tally.drop(DROP_OUT_OF_SCOPE)
+            continue
 
         answer_source: AnswerSource
         if item.printed_answer and item.printed_answer.strip():
             answer_text = item.printed_answer.strip()
+            answer_issue = _answer_gap(question, answer_text)
+            if answer_issue is not None:
+                raise DeckGenerationError(
+                    f"printed solution validation failed for "
+                    f"{item.source_label or question_index}: {answer_issue}"
+                )
+            if (
+                item.item_kind == "worked_example"
+                and not item.answer_citation_markers
+            ):
+                raise DeckGenerationError(
+                    f"worked example {item.source_label or question_index} "
+                    "has no separate printed-solution citation"
+                )
             answer_markers = item.answer_citation_markers or [question_marker]
+            answer_citations = _valid_citations(answer_markers, marker_to_topic)
+            if not answer_citations:
+                tally.drop(DROP_OUT_OF_SCOPE)
+                continue
             citations = _valid_citations(
                 [*question_markers, *answer_markers], marker_to_topic
             )
-            if not citations:
-                tally.drop(DROP_OUT_OF_SCOPE)
-                continue
             back = CardBack(
                 answer=answer_text,
                 say_it_aloud=answer_text[:400],
@@ -941,6 +1256,13 @@ def extract_and_generate_deck(
                 if rag_output.answer_source == "printed_in_book"
                 else "rag_generated"
             )
+            answer_citations = _valid_citations(
+                resolved_answer_markers, marker_to_topic
+            )
+            if not answer_citations:
+                raise DeckGenerationError(
+                    "answer generation returned no separately valid answer citation"
+                )
 
         card = DeckCard(
             topic_key=topic.key,
@@ -952,22 +1274,30 @@ def extract_and_generate_deck(
             interview_priority=3,
             difficulty=item.difficulty,
             answer_source=answer_source,
+            source_item_key=item.source_item_key,
+            source_item_kind=item.item_kind,
+            source_item_placement=item.placement,
+            source_label=item.source_label,
+            source_discovery_method=item.discovery_method,
+            question_citations=question_citations,
+            answer_citations=answer_citations,
         )
-        seen_fronts.add(front_key)
         cards.append(card)
         tally.keep(card)
-        covered_question_labels.append(
-            item.source_label or f"Question {question_index}"
-        )
+        assert item.source_item_key is not None
+        covered_source_item_keys.append(item.source_item_key)
         if progress is not None:
-            progress(question_index, len(extracted_questions))
+            progress(question_index, len(source_items))
 
     if not cards:
         raise DeckGenerationError(
             "questions were detected, but none had valid in-scope citations and answers"
         )
+    covered_keys = frozenset(covered_source_item_keys)
     uncovered = [
-        label for label in question_labels if label not in covered_question_labels
+        item.source_label or item.source_item_key or "Source item"
+        for item in source_items
+        if not item.source_item_key or item.source_item_key not in covered_keys
     ]
     if uncovered:
         raise DeckGenerationError(
@@ -980,8 +1310,8 @@ def extract_and_generate_deck(
         metrics=_extraction_metrics(
             inventory,
             tally,
-            question_labels=question_labels,
-            covered_question_labels=covered_question_labels,
+            source_items=source_items,
+            covered_source_item_keys=covered_source_item_keys,
             repair_attempted=repair_attempted,
         ),
         model_name=model_name(),

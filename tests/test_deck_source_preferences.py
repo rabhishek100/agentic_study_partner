@@ -13,6 +13,7 @@ from api.main import app
 from decks import jobs, source_preferences, store
 from decks.contracts import CardBack, DeckCard, DeckCitation
 from decks.generate import GeneratedDeck
+from decks.pipeline import DeckCancellationRequested, run_deck_job
 from decks.topics import Topic, book_scope_key, video_scope_key
 from decks.validate import ValidationTally, build_metrics
 from parsing.models import ParsedBook, Section, TextBlock
@@ -112,6 +113,24 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
         )
         return created
 
+    def _mark_eligible(self, source_kind: str, source_id) -> None:
+        if source_kind == "book":
+            self.connection.execute(
+                """
+                update public.books set cards_automation_eligible_at = now()
+                where id = %s and owner_id = %s
+                """,
+                (source_id, self.owner_id),
+            )
+        else:
+            self.connection.execute(
+                """
+                update video.videos set cards_automation_eligible_at = now()
+                where id = %s and owner_id = %s
+                """,
+                (source_id, self.owner_id),
+            )
+
     def _store_one_card(self):
         chapter = list_chapters(
             self.connection, owner_id=self.owner_id, book_id=self.book_id
@@ -186,11 +205,14 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(sources[0].source_id, str(self.book_id))
         self.assertTrue(sources[0].cards_enabled)
         self.assertFalse(sources[0].automatic_cards_queued)
+        self.assertFalse(sources[0].automatic_cards_activated)
+        self.assertEqual(sources[0].missing_automatic_set_count, 1)
+        self.assertTrue(sources[0].can_activate_automatic_cards)
         self.assertEqual(
             source_preferences.reconcile_missing_initial_sets(self.connection), 0
         )
 
-    def test_enabling_a_paper_makes_its_whole_document_set_eligible(self):
+    def test_paper_activation_is_explicit_and_queues_the_whole_document(self):
         paper_id = ingest_book(
             self.connection,
             sample_book(),
@@ -219,13 +241,21 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
             (paper_id, self.owner_id),
         ).fetchone()
         self.assertTrue(row["cards_enabled"])
-        self.assertIsNotNone(row["cards_automation_eligible_at"])
-        queued = source_preferences.enqueue_initial_for_book(
-            self.connection, owner_id=self.owner_id, book_id=paper_id
+        self.assertIsNone(row["cards_automation_eligible_at"])
+        queued_count = source_preferences.activate_initial_sets(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            source_id=paper_id,
+            expected_missing_set_count=1,
         )
-        self.assertEqual(len(queued), 1)
-        self.assertEqual(queued[0].scope_key, f"paper:{paper_id}")
-        self.assertIsNone(queued[0].node_id)
+        self.assertEqual(queued_count, 1)
+        queued = next(
+            job
+            for job in jobs.list_jobs(self.connection, owner_id=self.owner_id)
+            if job.scope_key == f"paper:{paper_id}"
+        )
+        self.assertIsNone(queued.node_id)
 
     def test_source_updates_are_owner_scoped(self):
         foreign_owner = uuid4()
@@ -328,6 +358,7 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
             source_id=second_book,
             cards_enabled=True,
         )
+        self._mark_eligible("book", second_book)
 
         first = source_preferences.enqueue_initial_for_book(
             self.connection, owner_id=self.owner_id, book_id=second_book
@@ -393,6 +424,7 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
             source_id=self.book_id,
             cards_enabled=True,
         )
+        self._mark_eligible("book", self.book_id)
         first = source_preferences.enqueue_initial_for_book(
             self.connection, owner_id=self.owner_id, book_id=self.book_id
         )
@@ -425,6 +457,34 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(resumed[0].status, "queued")
         self.assertFalse(resumed[0].cancellation_requested)
 
+    def test_disabling_stops_running_automation_at_the_next_safe_boundary(self):
+        self._mark_eligible("book", self.book_id)
+        [queued] = source_preferences.enqueue_initial_for_book(
+            self.connection, owner_id=self.owner_id, book_id=self.book_id
+        )
+        running = jobs.claim_next_job(
+            self.connection, worker_id="test-worker", lease_seconds=60
+        )
+        self.assertIsNotNone(running)
+        self.assertEqual(running.id, queued.id)
+
+        source_preferences.save_source(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            source_id=self.book_id,
+            cards_enabled=False,
+        )
+        with self.assertRaises(DeckCancellationRequested):
+            run_deck_job(self.connection, job=running)
+
+        jobs.finish_cancellation(self.connection, job_id=running.id)
+        cancelled = jobs.get_job(
+            self.connection, owner_id=self.owner_id, job_id=running.id
+        )
+        self.assertEqual(cancelled.status, "cancelled")
+        self.assertTrue(cancelled.cancellation_requested)
+
     def test_reconcile_is_idempotent_for_book_video_and_failed_jobs(self):
         video = self._publish_video(readiness="degraded")
         for source_kind, source_id in (
@@ -438,6 +498,7 @@ class DeckSourcePreferenceTests(PostgresOwnerMixin, unittest.TestCase):
                 source_id=source_id,
                 cards_enabled=True,
             )
+            self._mark_eligible(source_kind, source_id)
 
         self.assertEqual(
             source_preferences.reconcile_missing_initial_sets(self.connection), 2
@@ -515,6 +576,9 @@ class DeckSourcePreferenceEndpointTests(
                         "status": "ready",
                         "cards_enabled": True,
                         "automatic_cards_queued": False,
+                        "automatic_cards_activated": False,
+                        "missing_automatic_set_count": 1,
+                        "can_activate_automatic_cards": True,
                     }
                 ]
             },
@@ -543,6 +607,28 @@ class DeckSourcePreferenceEndpointTests(
             )
 
         self.assertEqual(response.status_code, 404, response.text)
+
+    async def test_automatic_set_activation_is_explicit_and_idempotent(self) -> None:
+        async with await self._client() as client:
+            stale = await client.post(
+                f"/api/decks/sources/book/{self.book_id}/automatic-set-1",
+                json={"expected_missing_set_count": 2},
+            )
+            activated = await client.post(
+                f"/api/decks/sources/book/{self.book_id}/automatic-set-1",
+                json={"expected_missing_set_count": 1},
+            )
+            repeated = await client.post(
+                f"/api/decks/sources/book/{self.book_id}/automatic-set-1",
+                json={"expected_missing_set_count": 1},
+            )
+
+        self.assertEqual(stale.status_code, 409, stale.text)
+        self.assertEqual(activated.status_code, 202, activated.text)
+        self.assertEqual(activated.json()["jobs_queued"], 1)
+        self.assertTrue(activated.json()["source"]["automatic_cards_activated"])
+        self.assertEqual(repeated.status_code, 202, repeated.text)
+        self.assertEqual(repeated.json()["jobs_queued"], 0)
 
     async def test_batch_source_update_is_atomic(self) -> None:
         async with await self._client() as client:

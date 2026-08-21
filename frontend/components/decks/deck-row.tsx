@@ -43,14 +43,28 @@ export function CoverageBadge({
 }) {
   const legacyQuestionDeck =
     generationMode === "book_extracted" &&
+    metrics.source_items_total === 0 &&
     metrics.source_questions_total === 0 &&
     !metrics.notice;
   const percent = coveragePercent(metrics);
+  const sourceItemCoverage = metrics.source_items_total > 0;
   const questionCoverage = metrics.source_questions_total > 0;
+  const extractedCoverage = sourceItemCoverage || questionCoverage;
+  const sourceCovered = sourceItemCoverage
+    ? metrics.source_items_covered
+    : metrics.source_questions_covered;
+  const sourceTotal = sourceItemCoverage
+    ? metrics.source_items_total
+    : metrics.source_questions_total;
+  const uncovered = sourceItemCoverage
+    ? metrics.uncovered_source_items.map((item) => item.label)
+    : questionCoverage
+      ? metrics.uncovered_question_labels
+      : metrics.uncovered_topic_labels;
   const complete =
     !legacyQuestionDeck &&
-    (questionCoverage
-      ? metrics.source_questions_covered >= metrics.source_questions_total
+    (extractedCoverage
+      ? sourceCovered >= sourceTotal
       : metrics.topics_covered >= metrics.topics_required);
 
   return (
@@ -67,29 +81,18 @@ export function CoverageBadge({
       <TooltipContent className="max-w-xs">
         <p>
           {legacyQuestionDeck
-            ? "This deck predates source-question coverage checks. Regenerate it to audit every exercise."
-            : questionCoverage
-              ? `${metrics.source_questions_covered} of ${metrics.source_questions_total} source questions have complete cards.`
+            ? "This deck predates source-item coverage checks. Regenerate it to audit every exercise and worked example."
+            : sourceItemCoverage
+              ? `${sourceCovered} of ${sourceTotal} exercises and worked examples have complete cards.`
+              : questionCoverage
+                ? `${sourceCovered} of ${sourceTotal} source questions have complete cards.`
               : `${metrics.topics_covered} of ${metrics.topics_required} required topics have at least one card.`}
         </p>
-        {(questionCoverage
-          ? metrics.uncovered_question_labels
-          : metrics.uncovered_topic_labels
-        ).length > 0 ? (
+        {uncovered.length > 0 ? (
           <p className="mt-1 text-xs opacity-80">
             Missing:{" "}
-            {(questionCoverage
-              ? metrics.uncovered_question_labels
-              : metrics.uncovered_topic_labels
-            )
-              .slice(0, 3)
-              .join("; ")}
-            {(questionCoverage
-              ? metrics.uncovered_question_labels
-              : metrics.uncovered_topic_labels
-            ).length > 3
-              ? "…"
-              : ""}
+            {uncovered.slice(0, 3).join("; ")}
+            {uncovered.length > 3 ? "…" : ""}
           </p>
         ) : null}
       </TooltipContent>
@@ -171,7 +174,7 @@ export function DeckRow({ deck }: { deck: DeckSummary }) {
       <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 sm:hidden">
         <Badge variant={extracted ? "secondary" : "outline"} className="gap-1 font-normal">
           {extracted ? <BookOpen aria-hidden className="size-3" /> : <Sparkles aria-hidden className="size-3" />}
-          {extracted ? "From book" : "AI-generated"}
+          {extracted ? "Exercises & examples" : "AI-generated"}
         </Badge>
         <Badge variant="outline" className="font-normal tabular-nums">
           {deck.card_count} cards
@@ -240,7 +243,7 @@ export function DeckJobRow({
     job.timing.estimated_remaining_seconds == null
       ? null
       : Math.max(0, job.timing.estimated_remaining_seconds - sincePoll);
-  const itemLabel = extracted ? "questions answered" : "topics completed";
+  const itemLabel = extracted ? "source items answered" : "topics completed";
 
   return (
     <li
@@ -264,7 +267,7 @@ export function DeckJobRow({
                   variant={extracted ? "secondary" : "outline"}
                   className="font-normal"
                 >
-                  {extracted ? "From book" : "AI-generated"}
+                  {extracted ? "Exercises & examples" : "AI-generated"}
                 </Badge>
                 <Badge
                   variant={failed ? "destructive" : "outline"}

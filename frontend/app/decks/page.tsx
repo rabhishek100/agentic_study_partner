@@ -38,6 +38,7 @@ import { useCardSideChats } from "@/hooks/use-card-side-chats";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import {
+  type AutomaticSetActivationResponse,
   type DeckJob,
   type DeckListResponse,
   type DeckPreferences,
@@ -190,6 +191,35 @@ export default function DecksPage() {
       }
     },
     [load, sources],
+  );
+
+  const activateAutomaticSet = useCallback(
+    async (
+      source: DeckSourcePreference,
+      expectedMissingSetCount: number,
+    ) => {
+      try {
+        const result = await apiFetch<AutomaticSetActivationResponse>(
+          `/decks/sources/${source.source_kind}/${source.source_id}/automatic-set-1`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              expected_missing_set_count: expectedMissingSetCount,
+            }),
+          },
+        );
+        await load();
+        setError("");
+        return result;
+      } catch (caught) {
+        setError(
+          (caught as Error).message ||
+            "Could not activate automatic cards for that source.",
+        );
+        throw caught;
+      }
+    },
+    [load],
   );
 
   const retryJob = useCallback(async (failed: DeckJob) => {
@@ -417,6 +447,7 @@ export default function DecksPage() {
                   sources={sources}
                   reviewedToday={queue?.reviewed_today ?? 0}
                   onSave={savePreferences}
+                  onActivate={activateAutomaticSet}
                 />
               </div>
             </header>
@@ -497,7 +528,7 @@ export default function DecksPage() {
                       Deck library
                     </h2>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      AI-written revision cards and printed book questions stay clearly separated.
+                      AI-written revision cards and source-authored exercises and worked examples stay clearly separated.
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -518,7 +549,9 @@ export default function DecksPage() {
                       <SelectContent>
                         <SelectItem value="all">All decks</SelectItem>
                         <SelectItem value="topic_generated">AI-generated</SelectItem>
-                        <SelectItem value="book_extracted">From books</SelectItem>
+                        <SelectItem value="book_extracted">
+                          Exercises &amp; worked examples
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -555,7 +588,7 @@ export default function DecksPage() {
                     {bookQuestionDecks.length > 0 ? (
                       <DeckGroup
                         id="book-question-decks"
-                        title="From books"
+                        title="Exercises & worked examples"
                         count={bookQuestionDecks.length}
                         mode="book_extracted"
                         decks={bookQuestionDecks}

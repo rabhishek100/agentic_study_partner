@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from uuid import UUID
 
 from psycopg import Connection
@@ -14,17 +15,123 @@ from .contracts import DeckSourcePreference
 from .topics import book_scope_key, paper_scope_key, video_scope_key
 
 
+class SourceActivationConflict(ValueError):
+    """The source is not safely activatable from the supplied preview."""
+
+
+@dataclass(frozen=True)
+class InitialScope:
+    source_kind: str
+    source_id: str
+    scope_key: str
+    book_id: int | None = None
+    node_id: int | None = None
+    video_id: UUID | None = None
+
+
+def missing_initial_scopes(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    source_kind: str | None = None,
+    source_id: str | int | UUID | None = None,
+) -> tuple[InitialScope, ...]:
+    """Return every generated Set 1 scope not already durably accounted for."""
+
+    owner = parse_owner_id(owner_id)
+    source_identifier = str(source_id) if source_id is not None else None
+    rows = connection.execute(
+        """
+        with candidate_scopes as (
+            select 'book'::text as source_kind, book.id::text as source_id,
+                   'book:' || book.id || ':node:' || chapter.id as scope_key,
+                   book.id as book_id, chapter.id as node_id,
+                   null::uuid as video_id
+            from public.books as book
+            join public.nodes as chapter
+              on chapter.book_id = book.id
+             and chapter.owner_id = book.owner_id
+             and chapter.node_type = 'chapter'
+            where book.owner_id = %s and book.document_type = 'book'
+
+            union all
+
+            select 'book', book.id::text, 'paper:' || book.id,
+                   book.id, null::bigint, null::uuid
+            from public.books as book
+            where book.owner_id = %s and book.document_type = 'paper'
+
+            union all
+
+            select 'video', video.id::text, 'video:' || video.id,
+                   null::bigint, null::bigint, video.id
+            from video.videos as video
+            where video.owner_id = %s
+        )
+        select candidate.*
+        from candidate_scopes as candidate
+        where (%s::text is null or candidate.source_kind = %s)
+          and (%s::text is null or candidate.source_id = %s)
+          and not exists (
+              select 1 from public.decks as deck
+              where deck.owner_id = %s
+                and deck.scope_key = candidate.scope_key
+                and deck.status in ('ready', 'partial')
+          )
+          and not exists (
+              select 1 from public.deck_jobs as job
+              where job.owner_id = %s
+                and job.scope_key = candidate.scope_key
+                and (
+                    (job.automatic_key is not null and job.status <> 'cancelled')
+                    or job.status in ('queued', 'running', 'succeeded')
+                )
+          )
+        order by candidate.source_kind, candidate.source_id, candidate.scope_key
+        """,
+        (
+            owner,
+            owner,
+            owner,
+            source_kind,
+            source_kind,
+            source_identifier,
+            source_identifier,
+            owner,
+            owner,
+        ),
+    ).fetchall()
+    return tuple(
+        InitialScope(
+            source_kind=row["source_kind"],
+            source_id=row["source_id"],
+            scope_key=row["scope_key"],
+            book_id=row["book_id"],
+            node_id=row["node_id"],
+            video_id=row["video_id"],
+        )
+        for row in rows
+    )
+
+
 def list_sources(
     connection: Connection, *, owner_id: str | UUID
 ) -> list[DeckSourcePreference]:
     """All book and video sources, including ones still being processed."""
 
     owner = parse_owner_id(owner_id)
+    missing_counts: dict[tuple[str, str], int] = {}
+    for scope in missing_initial_scopes(connection, owner_id=owner):
+        key = (scope.source_kind, scope.source_id)
+        missing_counts[key] = missing_counts.get(key, 0) + 1
+
     rows = connection.execute(
         """
         select 'book' as source_kind, book.id::text as source_id,
                book.title, book.document_type, book.status,
                book.cards_enabled,
+               book.cards_automation_eligible_at is not null
+                   as automatic_cards_activated,
                exists (
                    select 1 from public.deck_jobs as job
                    where job.owner_id = book.owner_id
@@ -52,6 +159,8 @@ def list_sources(
                video.title, 'video' as document_type,
                video.readiness_status as status,
                video.cards_enabled,
+               video.cards_automation_eligible_at is not null
+                   as automatic_cards_activated,
                exists (
                    select 1 from public.deck_jobs as job
                    where job.owner_id = video.owner_id
@@ -65,18 +174,31 @@ def list_sources(
         """,
         (owner, owner),
     ).fetchall()
-    return [
-        DeckSourcePreference(
-            source_kind=row["source_kind"],
-            source_id=row["source_id"],
-            title=row["title"] or "Untitled source",
-            document_type=row["document_type"],
-            status=row["status"],
-            cards_enabled=row["cards_enabled"],
-            automatic_cards_queued=row["automatic_cards_queued"],
+    sources: list[DeckSourcePreference] = []
+    for row in rows:
+        key = (row["source_kind"], row["source_id"])
+        missing = missing_counts.get(key, 0)
+        ready = row["status"] in {"ready", "degraded"}
+        sources.append(
+            DeckSourcePreference(
+                source_kind=row["source_kind"],
+                source_id=row["source_id"],
+                title=row["title"] or "Untitled source",
+                document_type=row["document_type"],
+                status=row["status"],
+                cards_enabled=row["cards_enabled"],
+                automatic_cards_queued=row["automatic_cards_queued"],
+                automatic_cards_activated=row["automatic_cards_activated"],
+                missing_automatic_set_count=missing,
+                can_activate_automatic_cards=(
+                    ready
+                    and row["cards_enabled"]
+                    and not row["automatic_cards_activated"]
+                    and missing > 0
+                ),
+            )
         )
-        for row in rows
-    ]
+    return sources
 
 
 def save_source(
@@ -95,32 +217,22 @@ def save_source(
         row = connection.execute(
             """
             update public.books
-            set cards_enabled = %s,
-                cards_automation_eligible_at = case
-                    when %s and status = 'ready'
-                    then coalesce(cards_automation_eligible_at, now())
-                    else cards_automation_eligible_at
-                end
+            set cards_enabled = %s
             where id = %s and owner_id = %s
             returning id
             """,
-            (cards_enabled, cards_enabled, identifier, owner),
+            (cards_enabled, identifier, owner),
         ).fetchone()
     elif source_kind == "video":
         identifier = UUID(str(source_id))
         row = connection.execute(
             """
             update video.videos
-            set cards_enabled = %s,
-                cards_automation_eligible_at = case
-                    when %s and readiness_status in ('ready', 'degraded')
-                    then coalesce(cards_automation_eligible_at, now())
-                    else cards_automation_eligible_at
-                end
+            set cards_enabled = %s
             where id = %s and owner_id = %s
             returning id
             """,
-            (cards_enabled, cards_enabled, identifier, owner),
+            (cards_enabled, identifier, owner),
         ).fetchone()
     else:
         raise ValueError("source_kind must be book or video")
@@ -163,6 +275,103 @@ def save_source(
         item
         for item in list_sources(connection, owner_id=owner)
         if item.source_kind == source_kind and item.source_id == str(identifier)
+    )
+
+
+def activate_initial_sets(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    source_kind: str,
+    source_id: str | int | UUID,
+    expected_missing_set_count: int,
+) -> int:
+    """Explicitly consent to and queue legacy initial cards once."""
+
+    owner = parse_owner_id(owner_id)
+    if source_kind == "book":
+        try:
+            identifier: int | UUID = int(source_id)
+        except (TypeError, ValueError) as error:
+            raise LookupError("no such source") from error
+        source = connection.execute(
+            """
+            select status, cards_enabled,
+                   cards_automation_eligible_at is not null as activated
+            from public.books
+            where id = %s and owner_id = %s
+            for update
+            """,
+            (identifier, owner),
+        ).fetchone()
+        ready = source is not None and source["status"] == "ready"
+    elif source_kind == "video":
+        try:
+            identifier = UUID(str(source_id))
+        except (TypeError, ValueError) as error:
+            raise LookupError("no such source") from error
+        source = connection.execute(
+            """
+            select readiness_status, cards_enabled,
+                   cards_automation_eligible_at is not null as activated
+            from video.videos
+            where id = %s and owner_id = %s
+            for update
+            """,
+            (identifier, owner),
+        ).fetchone()
+        ready = (
+            source is not None
+            and source["readiness_status"] in {"ready", "degraded"}
+        )
+    else:
+        raise LookupError("no such source")
+
+    if source is None:
+        raise LookupError("no such source")
+    if source["activated"]:
+        return 0
+    if not ready or not source["cards_enabled"]:
+        raise SourceActivationConflict("source must be ready and included")
+
+    missing = missing_initial_scopes(
+        connection,
+        owner_id=owner,
+        source_kind=source_kind,
+        source_id=identifier,
+    )
+    if not missing:
+        raise SourceActivationConflict("no initial sets are missing")
+    if len(missing) != expected_missing_set_count:
+        raise SourceActivationConflict("the missing-set preview changed")
+
+    if source_kind == "book":
+        connection.execute(
+            """
+            update public.books
+            set cards_automation_eligible_at = now()
+            where id = %s and owner_id = %s
+            """,
+            (identifier, owner),
+        )
+        return len(
+            enqueue_initial_for_book(
+                connection, owner_id=owner, book_id=int(identifier)
+            )
+        )
+
+    connection.execute(
+        """
+        update video.videos
+        set cards_automation_eligible_at = now()
+        where id = %s and owner_id = %s
+        """,
+        (identifier, owner),
+    )
+    return len(
+        enqueue_initial_for_video(
+            connection, owner_id=owner, video_id=identifier
+        )
     )
 
 

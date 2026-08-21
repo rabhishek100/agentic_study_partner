@@ -261,8 +261,12 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                         : "rounded-md border bg-card p-3 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >
-                    <div className="font-semibold text-foreground">Use questions from book</div>
-                    <div className="mt-1 text-xs text-muted-foreground">Preserve printed exercises and answers</div>
+                    <div className="font-semibold text-foreground">
+                      Exercises &amp; worked examples
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Preserve source-authored questions and solutions
+                    </div>
                   </button>
                 </div>
               </div>

@@ -24,6 +24,8 @@ from decks.contracts import (
     ContractModel,
     DeckCard,
     DeckPreferences,
+    DeckSourceActivationRequest,
+    DeckSourceActivationResponse,
     DeckSourcePreference,
     DeckSourcePreferences,
     DeckSourcePreferencesUpdate,
@@ -428,6 +430,52 @@ async def update_card_source(
                 )
                 if item.source_kind == source_kind
                 and item.source_id == saved.source_id
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.post(
+    "/sources/{source_kind}/{source_id}/automatic-set-1",
+    response_model=DeckSourceActivationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def activate_automatic_set_one(
+    source_kind: Literal["book", "video"],
+    source_id: str,
+    request: DeckSourceActivationRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourceActivationResponse:
+    """Explicitly queue missing initial sets for one legacy source."""
+
+    def run() -> DeckSourceActivationResponse:
+        with database_connection() as connection:
+            try:
+                queued = source_preferences.activate_initial_sets(
+                    connection,
+                    owner_id=owner_id,
+                    source_kind=source_kind,
+                    source_id=source_id,
+                    expected_missing_set_count=request.expected_missing_set_count,
+                )
+            except LookupError as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such card source"
+                ) from error
+            except source_preferences.SourceActivationConflict as error:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT, detail=str(error)
+                ) from error
+            source = next(
+                item
+                for item in source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
+                if item.source_kind == source_kind
+                and item.source_id == str(source_id)
+            )
+            return DeckSourceActivationResponse(
+                source=source, jobs_queued=queued
             )
 
     return await run_in_threadpool(run)

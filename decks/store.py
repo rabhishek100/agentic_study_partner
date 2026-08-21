@@ -188,9 +188,15 @@ def store_deck(
                     owner_id, deck_id, topic_key, card_index, card_type,
                     front, back_json, interview_priority, priority_reason,
                     difficulty, citations_json, figures_json, interview_angle,
-                    answer_source
+                    answer_source, source_item_key, source_item_kind,
+                    source_item_placement, source_label,
+                    source_discovery_method, question_citations_json,
+                    answer_citations_json
                 )
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                values (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
                 returning id
                 """,
                 (
@@ -208,6 +214,23 @@ def store_deck(
                     _json([item.model_dump(mode="json") for item in card.figures]),
                     card.interview_angle,
                     card.answer_source,
+                    card.source_item_key,
+                    card.source_item_kind,
+                    card.source_item_placement,
+                    card.source_label,
+                    card.source_discovery_method,
+                    _json(
+                        [
+                            item.model_dump(mode="json")
+                            for item in card.question_citations
+                        ]
+                    ),
+                    _json(
+                        [
+                            item.model_dump(mode="json")
+                            for item in card.answer_citations
+                        ]
+                    ),
                 ),
             ).fetchone()
             connection.execute(
@@ -412,6 +435,19 @@ def _card(row: Any) -> DeckCard:
         difficulty=row["difficulty"],
         interview_angle=row["interview_angle"],
         answer_source=row.get("answer_source"),
+        source_item_key=row.get("source_item_key"),
+        source_item_kind=row.get("source_item_kind"),
+        source_item_placement=row.get("source_item_placement"),
+        source_label=row.get("source_label"),
+        source_discovery_method=row.get("source_discovery_method"),
+        question_citations=[
+            DeckCitation.model_validate(item)
+            for item in row.get("question_citations_json", []) or []
+        ],
+        answer_citations=[
+            DeckCitation.model_validate(item)
+            for item in row.get("answer_citations_json", []) or []
+        ],
     )
 
 

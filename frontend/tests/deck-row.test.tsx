@@ -13,6 +13,11 @@ const metrics: DeckMetrics = {
   source_questions_total: 10,
   source_questions_covered: 10,
   uncovered_question_labels: [],
+  source_items_total: 10,
+  source_items_covered: 10,
+  source_item_kind_counts: { exercise: 8, worked_example: 2 },
+  source_item_placement_counts: { inline: 4, end_of_chapter: 6 },
+  uncovered_source_items: [],
   cards_generated: 8,
   cards_kept: 7,
   cards_dropped_uncited: 0,
@@ -95,13 +100,13 @@ const failedJob: DeckJob = {
 };
 
 describe("book-extracted deck presentation", () => {
-  it("labels source questions and reports source-question coverage", () => {
+  it("labels source items and reports unified coverage", () => {
     render(
       <TooltipProvider>
         <DeckRow deck={extractedDeck} />
       </TooltipProvider>,
     );
-    expect(screen.getByText("From book")).toBeTruthy();
+    expect(screen.getByText("Exercises & examples")).toBeTruthy();
     expect(screen.getByText("100% covered")).toBeTruthy();
   });
 
@@ -113,6 +118,8 @@ describe("book-extracted deck presentation", () => {
             ...extractedDeck,
             metrics: {
               ...metrics,
+              source_items_total: 0,
+              source_items_covered: 0,
               source_questions_total: 0,
               source_questions_covered: 0,
             },
