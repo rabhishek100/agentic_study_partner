@@ -28,7 +28,16 @@ set -euo pipefail
 
 service="${1:-}"
 if [[ -z "$service" ]]; then
-    echo "usage: scripts/deploy.sh <api|web|worker>" >&2
+    echo "usage: scripts/deploy.sh <api|web>" >&2
+    exit 2
+fi
+
+if [[ "$service" == "worker" ]]; then
+    echo "worker is vestigial; deploy api, which runs the combined worker" >&2
+    exit 2
+fi
+if [[ "$service" != "api" && "$service" != "web" ]]; then
+    echo "usage: scripts/deploy.sh <api|web>" >&2
     exit 2
 fi
 

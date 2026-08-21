@@ -400,6 +400,38 @@ class DeckQueueTests(PostgresOwnerMixin, unittest.TestCase):
             "failed",
         )
 
+    def test_success_clears_an_earlier_retry_error(self) -> None:
+        job = self._enqueue()
+        self.connection.execute(
+            "update public.deck_jobs set attempt_count = 1 where id = %s", (job.id,)
+        )
+        jobs.fail_job(
+            self.connection,
+            job_id=job.id,
+            code="generation_failed",
+            detail="first attempt was incomplete",
+            retryable=True,
+        )
+        deck_id, _ = store.create_deck(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=self.scope_key,
+            title="Chapter 1",
+            source_title="Sample Book",
+            book_id=self.book_id,
+            node_id=self.scope.root_node_id,
+        )
+
+        jobs.finish_job(self.connection, job_id=job.id, deck_id=deck_id)
+
+        completed = jobs.get_job(
+            self.connection, owner_id=self.owner_id, job_id=job.id
+        )
+        self.assertEqual(completed.status, "succeeded")
+        self.assertIsNone(completed.error_code)
+        self.assertIsNone(completed.error_detail)
+
     def test_a_source_failure_does_not_retry(self) -> None:
         job = self._enqueue()
         jobs.fail_job(

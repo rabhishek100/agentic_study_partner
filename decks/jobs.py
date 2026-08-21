@@ -418,7 +418,8 @@ def finish_job(connection: Connection, *, job_id: UUID, deck_id: UUID) -> None:
         """
         update public.deck_jobs
         set status = 'succeeded', stage = 'done', deck_id = %s,
-            lease_expires_at = null, updated_at = now()
+            lease_expires_at = null, error_code = null, error_detail = null,
+            updated_at = now()
         where id = %s
         """,
         (deck_id, job_id),
