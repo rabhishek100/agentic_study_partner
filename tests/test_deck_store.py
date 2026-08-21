@@ -2,7 +2,12 @@
 
 import unittest
 from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
+from httpx import ASGITransport, AsyncClient
+
+from api.auth import current_owner
+from api.main import app
 from decks import jobs, store
 from decks.contracts import CardBack, DeckCard, DeckCitation, DeckPreferences
 from decks.generate import GeneratedDeck
@@ -342,6 +347,78 @@ class DeckQueueTests(PostgresOwnerMixin, unittest.TestCase):
             "failed",
         )
 
+    def test_a_failed_job_can_be_dismissed_without_deleting_it(self) -> None:
+        job = self._enqueue()
+        jobs.fail_job(
+            self.connection,
+            job_id=job.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        self.assertEqual(
+            [
+                item.id
+                for item in jobs.list_jobs(
+                    self.connection, owner_id=self.owner_id
+                )
+            ],
+            [job.id],
+        )
+
+        self.assertTrue(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            )
+        )
+        self.assertEqual(
+            jobs.list_jobs(self.connection, owner_id=self.owner_id), []
+        )
+        self.assertEqual(
+            jobs.get_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            ).status,
+            "failed",
+        )
+
+    def test_a_newer_attempt_resolves_the_old_failure_alert(self) -> None:
+        failed = self._enqueue()
+        jobs.fail_job(
+            self.connection,
+            job_id=failed.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        retry = self._enqueue()
+
+        visible = jobs.list_jobs(self.connection, owner_id=self.owner_id)
+        self.assertIn(retry.id, [item.id for item in visible])
+        self.assertNotIn(failed.id, [item.id for item in visible])
+
+    def test_dismissal_is_owner_scoped_and_repeatable(self) -> None:
+        job = self._enqueue()
+        jobs.fail_job(
+            self.connection,
+            job_id=job.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        stranger = uuid4()
+        self.assertFalse(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=stranger, job_id=job.id
+            )
+        )
+        self.assertTrue(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            )
+        )
+        self.assertTrue(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            )
+        )
+
     def test_an_expired_lease_returns_the_job_to_the_queue(self) -> None:
         job = self._enqueue()
         self.connection.execute(
@@ -357,6 +434,105 @@ class DeckQueueTests(PostgresOwnerMixin, unittest.TestCase):
             jobs.get_job(self.connection, owner_id=self.owner_id, job_id=job.id).status,
             "queued",
         )
+
+
+class DeckJobEndpointTests(PostgresOwnerMixin, unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.setUpPostgresOwner()
+        self.database_context = database_connection(self.database_url)
+        self.connection = self.database_context.__enter__()
+        self.book_id = ingest_book(
+            self.connection,
+            sample_book(),
+            owner_id=self.owner_id,
+            title="Sample Book",
+            author="Test Author",
+            file_hash=FILE_HASH,
+            page_count=5,
+            parser_version="test-v1",
+        )
+        scope = resolve_chapter(
+            self.connection, 1, owner_id=self.owner_id, book_id=self.book_id
+        )
+        self.node_id = scope.root_node_id
+        self.scope_key = book_scope_key(self.book_id, self.node_id)
+        self.failed = jobs.enqueue(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=self.scope_key,
+            book_id=self.book_id,
+            node_id=self.node_id,
+        )
+        jobs.fail_job(
+            self.connection,
+            job_id=self.failed.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        # The endpoint uses a separate pooled connection.
+        self.connection.commit()
+        app.dependency_overrides[current_owner] = lambda: UUID(self.owner_id)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.pop(current_owner, None)
+        self.database_context.__exit__(None, None, None)
+        self.tearDownPostgresOwner()
+
+    async def _client(self) -> AsyncClient:
+        return AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver"
+        )
+
+    async def test_failed_job_dismissal_is_idempotent_and_retains_history(
+        self,
+    ) -> None:
+        async with await self._client() as client:
+            first = await client.post(
+                f"/api/decks/jobs/{self.failed.id}/dismiss"
+            )
+            second = await client.post(
+                f"/api/decks/jobs/{self.failed.id}/dismiss"
+            )
+        self.assertEqual(first.status_code, 204, first.text)
+        self.assertEqual(second.status_code, 204, second.text)
+        self.assertEqual(
+            jobs.get_job(
+                self.connection, owner_id=self.owner_id, job_id=self.failed.id
+            ).status,
+            "failed",
+        )
+
+    async def test_failed_job_dismissal_is_owner_scoped(self) -> None:
+        app.dependency_overrides[current_owner] = uuid4
+        async with await self._client() as client:
+            response = await client.post(
+                f"/api/decks/jobs/{self.failed.id}/dismiss"
+            )
+        self.assertEqual(response.status_code, 404, response.text)
+
+    async def test_malformed_job_id_is_not_found(self) -> None:
+        async with await self._client() as client:
+            response = await client.post(
+                "/api/decks/jobs/not-a-uuid/dismiss"
+            )
+        self.assertEqual(response.status_code, 404, response.text)
+
+    async def test_live_job_cannot_be_dismissed(self) -> None:
+        live = jobs.enqueue(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=f"{self.scope_key}:another-set",
+            book_id=self.book_id,
+            node_id=self.node_id,
+        )
+        self.connection.commit()
+        async with await self._client() as client:
+            response = await client.post(
+                f"/api/decks/jobs/{live.id}/dismiss"
+            )
+        self.assertEqual(response.status_code, 409, response.text)
 
 
 class DeckInventoryTests(PostgresOwnerMixin, unittest.TestCase):

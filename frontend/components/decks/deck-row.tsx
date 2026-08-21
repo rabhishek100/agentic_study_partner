@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   Sparkles,
   Video,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -196,10 +197,12 @@ export function DeckJobRow({
   job,
   onRetry,
   onCancel,
+  onDismiss,
 }: {
   job: DeckJob;
   onRetry?: (job: DeckJob) => void;
   onCancel?: (job: DeckJob) => void;
+  onDismiss?: (job: DeckJob) => void;
 }) {
   const live = jobIsLive(job);
   const failed = job.status === "failed";
@@ -279,6 +282,17 @@ export function DeckJobRow({
                 {onRetry ? (
                   <Button type="button" size="sm" onClick={() => onRetry(job)}>
                     Try again
+                  </Button>
+                ) : null}
+                {onDismiss ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onDismiss(job)}
+                  >
+                    <X aria-hidden />
+                    Dismiss
                   </Button>
                 ) : null}
                 <details className="group/details">

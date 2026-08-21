@@ -199,6 +199,20 @@ export default function DecksPage() {
     }
   }, []);
 
+  const dismissJob = useCallback(async (job: DeckJob) => {
+    try {
+      await apiFetch<void>(`/decks/jobs/${job.job_id}/dismiss`, {
+        method: "POST",
+      });
+      setJobs((current) =>
+        current.filter((item) => item.job_id !== job.job_id),
+      );
+      setError("");
+    } catch (caught) {
+      setError((caught as Error).message || "Could not dismiss that failure.");
+    }
+  }, []);
+
   const filteredDecks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return decks.filter((deck) => {
@@ -275,6 +289,7 @@ export default function DecksPage() {
               recentlyFailed={recentlyFailed}
               onCancel={(job) => void cancelJob(job)}
               onRetry={(job) => void retryJob(job)}
+              onDismiss={(job) => void dismissJob(job)}
             />
           ),
         },
@@ -383,6 +398,9 @@ export default function DecksPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => void load()}>
                       Try again
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setError("")}>
+                      Dismiss
                     </Button>
                     <details>
                       <summary className="cursor-pointer text-xs text-muted-foreground">

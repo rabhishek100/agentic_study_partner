@@ -48,6 +48,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
 
   useEffect(() => {
     if (!open) return;
+    setError("");
     (async () => {
       try {
         const [bookPayload, videoPayload] = await Promise.all([
@@ -60,6 +61,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
             ["ready", "partial"].includes(videoState(video)),
           ),
         );
+        setError("");
       } catch (caught) {
         setError((caught as Error).message || "Could not load your library.");
       }
@@ -79,6 +81,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
           `/books/${bookId}/chapters`,
         );
         setChapters(payload.chapters);
+        setError("");
       } catch (caught) {
         setError((caught as Error).message || "Could not load the chapters.");
       } finally {

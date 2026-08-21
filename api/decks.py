@@ -356,6 +356,39 @@ async def cancel_deck_job(
     await run_in_threadpool(run)
 
 
+@router.post("/jobs/{job_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_deck_job(
+    job_id: str,
+    owner_id: UUID = Depends(current_owner),
+) -> None:
+    """Dismiss a failed generation alert while retaining its diagnostic row."""
+
+    def run() -> None:
+        with database_connection() as connection:
+            try:
+                job = deck_jobs.get_job(
+                    connection, owner_id=owner_id, job_id=job_id
+                )
+            except (LookupError, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such deck job"
+                ) from error
+            if job.status != "failed":
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="only failed deck jobs can be dismissed",
+                )
+            if not deck_jobs.dismiss_failed_job(
+                connection, owner_id=owner_id, job_id=job_id
+            ):
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="this deck job is no longer dismissible",
+                )
+
+    await run_in_threadpool(run)
+
+
 @router.get("/{deck_id}", response_model=DeckDetailResponse)
 async def deck_detail(
     deck_id: str,

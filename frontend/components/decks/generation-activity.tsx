@@ -17,11 +17,13 @@ export function GenerationActivity({
   recentlyFailed,
   onCancel,
   onRetry,
+  onDismiss,
 }: {
   working: DeckJob[];
   recentlyFailed: DeckJob[];
   onCancel: (job: DeckJob) => void;
   onRetry: (job: DeckJob) => void;
+  onDismiss: (job: DeckJob) => void;
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto">
@@ -40,7 +42,12 @@ export function GenerationActivity({
           <DeckJobRow key={job.job_id} job={job} onCancel={onCancel} />
         ))}
         {recentlyFailed.map((job) => (
-          <DeckJobRow key={job.job_id} job={job} onRetry={onRetry} />
+          <DeckJobRow
+            key={job.job_id}
+            job={job}
+            onRetry={onRetry}
+            onDismiss={onDismiss}
+          />
         ))}
       </ul>
     </div>

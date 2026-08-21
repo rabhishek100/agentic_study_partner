@@ -122,7 +122,10 @@ describe("book-extracted deck presentation", () => {
 
   it("names extraction failures and lets the reader retry", () => {
     const retry = vi.fn();
-    render(<DeckJobRow job={failedJob} onRetry={retry} />);
+    const dismiss = vi.fn();
+    render(
+      <DeckJobRow job={failedJob} onRetry={retry} onDismiss={dismiss} />,
+    );
     expect(screen.getByText("We couldn’t extract these questions")).toBeTruthy();
     const details = screen.getByText("Technical details").closest("details");
     expect(details?.open).toBe(false);
@@ -131,5 +134,7 @@ describe("book-extracted deck presentation", () => {
     expect(screen.getByText("Provider timed out")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledWith(failedJob);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(dismiss).toHaveBeenCalledWith(failedJob);
   });
 });

@@ -126,6 +126,17 @@ def enqueue(
     """Queue a generation, or return the run already in flight for this scope."""
 
     owner = parse_owner_id(owner_id)
+    # Starting or attaching to a new attempt resolves the old alert for this
+    # scope. Preserve every failed row for diagnostics, but do not make a
+    # successful retry resurrect its predecessor on the next library refresh.
+    connection.execute(
+        """
+        update public.deck_jobs
+        set dismissed_at = coalesce(dismissed_at, now()), updated_at = now()
+        where owner_id = %s and scope_key = %s and status = 'failed'
+        """,
+        (owner, scope_key),
+    )
     existing = connection.execute(
         _SELECT
         + """
@@ -176,12 +187,54 @@ def get_job(
 def list_jobs(
     connection: Connection, *, owner_id: str | UUID, limit: int = 20
 ) -> list[DeckJob]:
+    """Return current activity and unresolved history.
+
+    A failed attempt stops being actionable once the owner dismisses it or a
+    newer attempt exists for the same scope.  The row remains in Postgres for
+    diagnostics; it simply stops behaving like a permanent notification.
+    """
+
     rows = connection.execute(
         _SELECT
-        + " where job.owner_id = %s order by job.created_at desc limit %s",
+        + """
+        where job.owner_id = %s
+          and job.dismissed_at is null
+          and job.status in ('queued', 'running', 'failed')
+          and (
+              job.status <> 'failed'
+              or not exists (
+                  select 1
+                  from public.deck_jobs as newer
+                  where newer.owner_id = job.owner_id
+                    and newer.scope_key = job.scope_key
+                    and newer.created_at > job.created_at
+              )
+          )
+        order by
+            case when job.status in ('queued', 'running') then 0 else 1 end,
+            job.created_at desc
+        limit %s
+        """,
         (parse_owner_id(owner_id), limit),
     ).fetchall()
     return [_job(row) for row in rows]
+
+
+def dismiss_failed_job(
+    connection: Connection, *, owner_id: str | UUID, job_id: str | UUID
+) -> bool:
+    """Hide one failed job from activity without deleting diagnostic history."""
+
+    row = connection.execute(
+        """
+        update public.deck_jobs
+        set dismissed_at = coalesce(dismissed_at, now()), updated_at = now()
+        where id = %s and owner_id = %s and status = 'failed'
+        returning id
+        """,
+        (UUID(str(job_id)), parse_owner_id(owner_id)),
+    ).fetchone()
+    return row is not None
 
 
 def live_job_for_scope(
