@@ -242,6 +242,7 @@ class DeckSummary(ContractModel):
 
     deck_id: str
     source_kind: SourceKind
+    document_type: Literal["book", "paper", "video"]
     generation_mode: GenerationMode = "topic_generated"
     scope_key: str
     version: int

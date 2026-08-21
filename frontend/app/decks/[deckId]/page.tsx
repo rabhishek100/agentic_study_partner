@@ -35,6 +35,7 @@ import {
   type DeckDetailResponse,
   type QueueCard,
   type ReviewQueue,
+  nextSetRequest,
 } from "@/lib/deck-types";
 
 export default function DeckDetailPage() {
@@ -82,20 +83,13 @@ export default function DeckDetailPage() {
   const generateSet = useCallback(async () => {
     const current = detail?.deck;
     if (!current) return;
-    const isBook = current.source_kind === "book";
-    if (isBook && (current.book_id === null || current.node_id === null)) return;
-    if (!isBook && current.video_id === null) return;
+    const request = nextSetRequest(current);
+    if (!request) return;
     setGeneratingSet(true);
     try {
       await apiFetch("/decks", {
         method: "POST",
-        body: JSON.stringify({
-          source_kind: current.source_kind,
-          generation_mode: current.generation_mode,
-          ...(isBook
-            ? { book_id: current.book_id, node_id: current.node_id }
-            : { video_id: current.video_id }),
-        }),
+        body: JSON.stringify(request),
       });
       router.push("/decks");
     } catch (caught) {

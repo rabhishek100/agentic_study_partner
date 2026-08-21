@@ -38,11 +38,12 @@ from decks.pipeline import DeckSourceError, load_inventory
 from decks.progress import estimate
 from decks.scheduler import build_queue
 from decks.store import DeckNotFoundError
-from decks.topics import book_scope_key, video_scope_key
+from decks.topics import book_scope_key, paper_scope_key, video_scope_key
 from storage.conversations import append_turn, create_conversation, derive_title
 from storage.database import connection as database_connection
+from storage.postgres import ready_book
 from study.contracts import MAXIMUM_QUOTE_CHARS, QuoteAnchor
-from study.scope import ScopeNotFoundError, resolve_node
+from study.scope import ScopeNotFoundError, resolve_book, resolve_node
 
 logger = logging.getLogger("study_partner.api.decks")
 
@@ -62,6 +63,8 @@ class GenerateDeckRequest(ContractModel):
     def extracted_questions_are_book_only(self) -> GenerateDeckRequest:
         if self.source_kind != "book" and self.generation_mode == "book_extracted":
             raise ValueError("book-extracted questions require a book chapter")
+        if self.generation_mode == "book_extracted" and self.node_id is None:
+            raise ValueError("book-extracted questions require a chapter")
         return self
 
 
@@ -198,24 +201,58 @@ async def generate_deck(
         with database_connection() as connection:
             if request.source_kind == "book":
                 if request.node_id is None:
-                    raise HTTPException(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="a book deck needs a chapter or section",
+                    if request.book_id is None:
+                        raise HTTPException(
+                            status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="a document deck needs a paper or chapter",
+                        )
+                    source = ready_book(
+                        connection, request.book_id, owner_id=owner_id
                     )
-                try:
-                    scope = resolve_node(
-                        connection, request.node_id, owner_id=owner_id
+                    if source is None:
+                        raise HTTPException(
+                            status.HTTP_404_NOT_FOUND, detail="no such ready paper"
+                        )
+                    if (source.get("document_type") or "book") != "paper":
+                        raise HTTPException(
+                            status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=(
+                                "whole-document card sets are supported only "
+                                "for papers"
+                            ),
+                        )
+                    try:
+                        scope = resolve_book(
+                            connection,
+                            owner_id=owner_id,
+                            book_id=request.book_id,
+                        )
+                    except ScopeNotFoundError as error:
+                        raise HTTPException(
+                            status.HTTP_404_NOT_FOUND, detail="no such paper"
+                        ) from error
+                    scope_key = paper_scope_key(scope.book_id)
+                    book_id: int | None = scope.book_id
+                else:
+                    try:
+                        scope = resolve_node(
+                            connection, request.node_id, owner_id=owner_id
+                        )
+                    except ScopeNotFoundError as error:
+                        raise HTTPException(
+                            status.HTTP_404_NOT_FOUND, detail=str(error)
+                        ) from error
+                    if scope.document_type == "paper":
+                        raise HTTPException(
+                            status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="paper card sets cover the complete paper",
+                        )
+                    scope_key = book_scope_key(
+                        scope.book_id,
+                        request.node_id,
+                        generation_mode=request.generation_mode,
                     )
-                except ScopeNotFoundError as error:
-                    raise HTTPException(
-                        status.HTTP_404_NOT_FOUND, detail=str(error)
-                    ) from error
-                scope_key = book_scope_key(
-                    scope.book_id,
-                    request.node_id,
-                    generation_mode=request.generation_mode,
-                )
-                book_id: int | None = scope.book_id
+                    book_id = scope.book_id
                 video_id = None
             else:
                 if not request.video_id:

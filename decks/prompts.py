@@ -80,11 +80,11 @@ For every card:
   headed below. A card must be about one topic and cite only that topic's
   markers.
 - `front` must stand alone. A reader seeing only the front, with no memory of
-  the chapter, must know what is being asked.
+  the source scope, must know what is being asked.
 - `interview_priority` is 1–5, and it is a ranking, not a compliment. Rate the
   cards against each other, not against how interesting the material is:
   5 — an interviewer will open with this, or build a whole question on it.
-      Reserve it. Across a chapter it should fit on one hand.
+      Reserve it. Across a complete set it should fit on one hand.
   4 — likely to come up as a follow-up.
   3 — worth knowing; the default when nothing distinguishes a card.
   2 — supporting detail you would mention, not be asked.
@@ -105,12 +105,12 @@ Write {minimum}–{maximum} cards per required topic. A short topic may need onl
 one; a dense one may use the full allowance. Cover what a reader must be able
 to recall and explain, not every sentence present.
 
-The final chapter or lecture set is curated to at most 15 cards. Prefer a
+The final chapter, paper, or lecture set is curated to at most 15 cards. Prefer a
 small number of high-signal questions over several variations of the same
 idea; the target is 10–15 distinct cards across the complete scope when the
 evidence supports that many.
 
-Vary the card type by what the material is. A chapter that defines several
+Vary the card type by what the material is. A scope that defines several
 terms which are easy to confuse should produce some `mcq` cards; one that
 describes a pipeline or an architecture should produce a `system_design` card
 rather than prose about it. Do not turn everything into `qa`.
@@ -163,6 +163,8 @@ def prompt_version() -> str:
         (
             LOCKED_CARD_GROUNDING,
             CARD_TYPE_GUIDE,
+            VOLUME_GUIDANCE,
+            REPAIR_GUIDANCE,
             PREVIOUS_SET_GUIDANCE,
             USER_TEMPLATE,
             TOPIC_TEMPLATE,

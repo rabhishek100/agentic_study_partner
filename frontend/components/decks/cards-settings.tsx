@@ -25,11 +25,6 @@ type SourceGroup = {
 };
 
 function sourceStatus(source: DeckSourcePreference): string {
-  if (source.document_type === "paper") {
-    return source.cards_enabled
-      ? "Included in Today · Automatic cards are not supported yet"
-      : "Paused from Today · Automatic cards are not supported yet";
-  }
   if (!source.cards_enabled) return "Paused · Saved decks remain available";
   if (source.automatic_cards_queued) return "Automatic Set 1 queued";
   if (["ready", "degraded"].includes(source.status)) {
@@ -95,7 +90,8 @@ export function CardsSettings({
     {
       key: "papers",
       title: "Papers",
-      description: "Choose whether existing paper cards appear in Today.",
+      description:
+        "Generate Set 1 for the complete paper and include its cards in Today.",
       icon: FileText,
       sources: sources.filter(
         (source) =>

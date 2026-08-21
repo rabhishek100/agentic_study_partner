@@ -6,6 +6,7 @@ import {
   BookOpen,
   Check,
   Circle,
+  FileText,
   LoaderCircle,
   Sparkles,
   Video,
@@ -108,7 +109,12 @@ function updatedLabel(value: string | null): string {
 }
 
 export function DeckRow({ deck }: { deck: DeckSummary }) {
-  const Icon = deck.source_kind === "book" ? BookOpen : Video;
+  const Icon =
+    deck.document_type === "paper"
+      ? FileText
+      : deck.source_kind === "book"
+        ? BookOpen
+        : Video;
   const percent = coveragePercent(deck.metrics);
   const extracted = deck.generation_mode === "book_extracted";
 

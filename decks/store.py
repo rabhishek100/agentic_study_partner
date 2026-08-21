@@ -289,6 +289,13 @@ def _summary(row: Any) -> DeckSummary:
     return DeckSummary(
         deck_id=str(row["id"]),
         source_kind=row["source_kind"],
+        document_type=(
+            "video"
+            if row["source_kind"] == "video"
+            else "paper"
+            if row["scope_key"].startswith("paper:")
+            else "book"
+        ),
         generation_mode=row.get("generation_mode", "topic_generated"),
         scope_key=row["scope_key"],
         version=row["version"],

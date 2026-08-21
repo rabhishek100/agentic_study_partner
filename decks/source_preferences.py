@@ -11,7 +11,7 @@ from study.scope import list_chapters
 
 from . import jobs
 from .contracts import DeckSourcePreference
-from .topics import book_scope_key, video_scope_key
+from .topics import book_scope_key, paper_scope_key, video_scope_key
 
 
 def list_sources(
@@ -28,7 +28,18 @@ def list_sources(
                exists (
                    select 1 from public.deck_jobs as job
                    where job.owner_id = book.owner_id
-                     and job.automatic_key like 'auto:set1:book:' || book.id || ':%%'
+                     and (
+                         (
+                             book.document_type = 'book'
+                             and job.automatic_key like
+                                 'auto:set1:book:' || book.id || ':%%'
+                         )
+                         or (
+                             book.document_type = 'paper'
+                             and job.automatic_key =
+                                 'auto:set1:paper:' || book.id
+                         )
+                     )
                      and job.status in ('queued', 'running')
                ) as automatic_cards_queued,
                coalesce(book.ready_at, book.parsed_at) as source_date
@@ -86,7 +97,7 @@ def save_source(
             update public.books
             set cards_enabled = %s,
                 cards_automation_eligible_at = case
-                    when %s and status = 'ready' and document_type = 'book'
+                    when %s and status = 'ready'
                     then coalesce(cards_automation_eligible_at, now())
                     else cards_automation_eligible_at
                 end
@@ -187,7 +198,7 @@ def _has_initial_set(
 def enqueue_initial_for_book(
     connection: Connection, *, owner_id: str | UUID, book_id: int
 ) -> list[jobs.DeckJob]:
-    """Queue Set 1 for every chapter once, if the source is enabled and ready."""
+    """Queue one paper Set 1 or one Set 1 per book chapter."""
 
     owner = parse_owner_id(owner_id)
     source = connection.execute(
@@ -203,8 +214,25 @@ def enqueue_initial_for_book(
         or source["status"] != "ready"
         or not source["cards_enabled"]
         or not source["automation_eligible"]
-        or source["document_type"] != "book"
     ):
+        return []
+
+    if source["document_type"] == "paper":
+        scope_key = paper_scope_key(book_id)
+        if _has_initial_set(connection, owner_id=owner, scope_key=scope_key):
+            return []
+        return [
+            jobs.enqueue(
+                connection,
+                owner_id=owner,
+                source_kind="book",
+                scope_key=scope_key,
+                book_id=book_id,
+                node_id=None,
+                automatic_key=f"auto:set1:{scope_key}",
+            )
+        ]
+    if source["document_type"] != "book":
         return []
 
     queued: list[jobs.DeckJob] = []
@@ -268,34 +296,59 @@ def reconcile_missing_initial_sets(
 ) -> int:
     """Recover the publish-to-enqueue crash gap without backfilling old data."""
 
-    books = connection.execute(
+    documents = connection.execute(
         """
         select id, owner_id from public.books
-        where status = 'ready' and document_type = 'book' and cards_enabled
+        where status = 'ready' and cards_enabled
           and cards_automation_eligible_at is not null
-          and exists (
-              select 1 from public.nodes as chapter
-              where chapter.book_id = books.id
-                and chapter.owner_id = books.owner_id
-                and chapter.node_type = 'chapter'
-                and not exists (
-                    select 1 from public.decks as deck
-                    where deck.owner_id = books.owner_id
-                      and deck.scope_key =
-                          'book:' || books.id || ':node:' || chapter.id
-                      and deck.status in ('ready', 'partial')
-                )
-                and not exists (
-                    select 1 from public.deck_jobs as job
-                    where job.owner_id = books.owner_id
-                      and job.scope_key =
-                          'book:' || books.id || ':node:' || chapter.id
-                      and (
-                          (job.automatic_key is not null
-                           and job.status <> 'cancelled')
-                          or job.status in ('queued', 'running', 'succeeded')
-                      )
-                )
+          and (
+              (
+                  document_type = 'paper'
+                  and not exists (
+                      select 1 from public.decks as deck
+                      where deck.owner_id = books.owner_id
+                        and deck.scope_key = 'paper:' || books.id
+                        and deck.status in ('ready', 'partial')
+                  )
+                  and not exists (
+                      select 1 from public.deck_jobs as job
+                      where job.owner_id = books.owner_id
+                        and job.scope_key = 'paper:' || books.id
+                        and (
+                            (job.automatic_key is not null
+                             and job.status <> 'cancelled')
+                            or job.status in ('queued', 'running', 'succeeded')
+                        )
+                  )
+              )
+              or (
+                  document_type = 'book'
+                  and exists (
+                      select 1 from public.nodes as chapter
+                      where chapter.book_id = books.id
+                        and chapter.owner_id = books.owner_id
+                        and chapter.node_type = 'chapter'
+                        and not exists (
+                            select 1 from public.decks as deck
+                            where deck.owner_id = books.owner_id
+                              and deck.scope_key =
+                                  'book:' || books.id || ':node:' || chapter.id
+                              and deck.status in ('ready', 'partial')
+                        )
+                        and not exists (
+                            select 1 from public.deck_jobs as job
+                            where job.owner_id = books.owner_id
+                              and job.scope_key =
+                                  'book:' || books.id || ':node:' || chapter.id
+                              and (
+                                  (job.automatic_key is not null
+                                   and job.status <> 'cancelled')
+                                  or job.status in
+                                      ('queued', 'running', 'succeeded')
+                              )
+                        )
+                  )
+              )
           )
         order by cards_automation_eligible_at
         limit %s
@@ -329,10 +382,12 @@ def reconcile_missing_initial_sets(
         (limit,),
     ).fetchall()
     queued = 0
-    for book in books:
+    for document in documents:
         queued += len(
             enqueue_initial_for_book(
-                connection, owner_id=book["owner_id"], book_id=book["id"]
+                connection,
+                owner_id=document["owner_id"],
+                book_id=document["id"],
             )
         )
     for video in videos:

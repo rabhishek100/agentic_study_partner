@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   type DeckJob,
   type DeckMetrics,
+  type DeckSummary,
   coveragePercent,
   describeInterval,
   jobIsLive,
+  nextSetRequest,
 } from "@/lib/deck-types";
 
 const metrics = (overrides: Partial<DeckMetrics> = {}): DeckMetrics => ({
@@ -112,5 +114,38 @@ describe("jobIsLive", () => {
     expect(jobIsLive(job("succeeded"))).toBe(false);
     expect(jobIsLive(job("failed"))).toBe(false);
     expect(jobIsLive(job("cancelled"))).toBe(false);
+  });
+});
+
+describe("nextSetRequest", () => {
+  it("keeps a whole paper as one null-node scope for the next set", () => {
+    const paper = {
+      source_kind: "book",
+      document_type: "paper",
+      generation_mode: "topic_generated",
+      book_id: 42,
+      node_id: null,
+      video_id: null,
+    } as DeckSummary;
+
+    expect(nextSetRequest(paper)).toEqual({
+      source_kind: "book",
+      generation_mode: "topic_generated",
+      book_id: 42,
+      node_id: null,
+    });
+  });
+
+  it("still rejects an invalid null-node book scope", () => {
+    const book = {
+      source_kind: "book",
+      document_type: "book",
+      generation_mode: "topic_generated",
+      book_id: 42,
+      node_id: null,
+      video_id: null,
+    } as DeckSummary;
+
+    expect(nextSetRequest(book)).toBeNull();
   });
 });

@@ -96,6 +96,7 @@ export interface DeckMetrics {
 export interface DeckSummary {
   deck_id: string;
   source_kind: SourceKind;
+  document_type: "book" | "paper" | "video";
   generation_mode?: GenerationMode;
   scope_key: string;
   version: number;
@@ -164,6 +165,19 @@ export interface DeckSourcePreference {
 export interface DeckSourcePreferences {
   sources: DeckSourcePreference[];
 }
+
+export type GenerateDeckRequest =
+  | {
+      source_kind: "book";
+      generation_mode: GenerationMode;
+      book_id: number;
+      node_id: number | null;
+    }
+  | {
+      source_kind: "video";
+      generation_mode: GenerationMode;
+      video_id: string;
+    };
 
 export interface DeckJob {
   job_id: string;
@@ -252,6 +266,26 @@ export const RATING_LABELS: Record<Rating, string> = {
 /** A deck is live work when its job has not settled. */
 export function jobIsLive(job: DeckJob): boolean {
   return job.status === "queued" || job.status === "running";
+}
+
+/** Recreate the exact stable scope represented by an existing numbered set. */
+export function nextSetRequest(deck: DeckSummary): GenerateDeckRequest | null {
+  if (deck.source_kind === "video") {
+    if (!deck.video_id) return null;
+    return {
+      source_kind: "video",
+      generation_mode: deck.generation_mode ?? "topic_generated",
+      video_id: deck.video_id,
+    };
+  }
+  if (deck.book_id === null) return null;
+  if (deck.document_type !== "paper" && deck.node_id === null) return null;
+  return {
+    source_kind: "book",
+    generation_mode: deck.generation_mode ?? "topic_generated",
+    book_id: deck.book_id,
+    node_id: deck.document_type === "paper" ? null : deck.node_id,
+  };
 }
 
 export function formatDeckDuration(seconds: number | null | undefined): string {

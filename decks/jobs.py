@@ -101,7 +101,13 @@ _SELECT = """
            job.error_detail, job.cancellation_requested, job.automatic_key,
            job.created_at,
            job.updated_at,
-           coalesce(deck.title, node.title, video.title, 'Deck generation') as title,
+           coalesce(
+               deck.title,
+               node.title,
+               case when left(job.scope_key, 6) = 'paper:' then 'Full paper' end,
+               video.title,
+               'Deck generation'
+           ) as title,
            coalesce(deck.source_title, book.title, video.title, 'Source') as source_title
     from public.deck_jobs as job
     left join public.decks as deck

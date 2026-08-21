@@ -21,7 +21,7 @@ const sources: DeckSourcePreference[] = [
     document_type: "paper",
     status: "ready",
     cards_enabled: true,
-    automatic_cards_queued: false,
+    automatic_cards_queued: true,
   },
   {
     source_kind: "video",
@@ -48,7 +48,7 @@ function renderSettings(onSave = vi.fn().mockResolvedValue(undefined)) {
 }
 
 describe("Cards source settings", () => {
-  it("groups books, papers, and lectures and explains paper limitations", () => {
+  it("groups books, papers, and lectures and shows paper automation", () => {
     renderSettings();
 
     expect(screen.getByRole("heading", { name: "Books" })).toBeInTheDocument();
@@ -57,8 +57,11 @@ describe("Cards source settings", () => {
       screen.getByRole("heading", { name: "Lectures" }),
     ).toBeInTheDocument();
     expect(
+      screen.getByText("Automatic Set 1 queued"),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText(
-        "Included in Today · Automatic cards are not supported yet",
+        "Generate Set 1 for the complete paper and include its cards in Today.",
       ),
     ).toBeInTheDocument();
     expect(

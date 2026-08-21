@@ -92,6 +92,7 @@ const detail: DeckDetailResponse = {
   deck: {
     deck_id: "deck-1",
     source_kind: "book",
+    document_type: "book",
     generation_mode: "book_extracted",
     scope_key: "book:1:node:2:mode:book_extracted",
     version: 1,
