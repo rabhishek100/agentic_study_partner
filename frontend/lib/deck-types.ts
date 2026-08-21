@@ -150,6 +150,21 @@ export interface DeckPreferences {
   max_reviews_per_day: number;
 }
 
+/** One library source's eligibility for automatic cards and mixed review. */
+export interface DeckSourcePreference {
+  source_kind: SourceKind;
+  source_id: string;
+  title: string;
+  document_type: "book" | "paper" | "video";
+  status: string;
+  cards_enabled: boolean;
+  automatic_cards_queued: boolean;
+}
+
+export interface DeckSourcePreferences {
+  sources: DeckSourcePreference[];
+}
+
 export interface DeckJob {
   job_id: string;
   source_kind: SourceKind;
@@ -165,6 +180,7 @@ export interface DeckJob {
   topics_done: number;
   progress: number;
   attempt_count: number;
+  automatic?: boolean;
   error_code: string | null;
   error_detail: string | null;
   title: string;
@@ -244,7 +260,8 @@ export function formatDeckDuration(seconds: number | null | undefined): string {
   if (whole < 60) return `${whole}s`;
   const minutes = Math.floor(whole / 60);
   const remainder = whole % 60;
-  if (minutes < 60) return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+  if (minutes < 60)
+    return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   const minuteRemainder = minutes % 60;
   return minuteRemainder ? `${hours}h ${minuteRemainder}m` : `${hours}h`;
@@ -284,9 +301,13 @@ export function deckJobError(job: DeckJob): {
   };
   const safe = copy[job.error_code ?? ""] ?? {
     title: fallbackTitle,
-    message: "Generation stopped before the new deck was saved. Please try again.",
+    message:
+      "Generation stopped before the new deck was saved. Please try again.",
   };
-  const compactId = job.job_id.replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase();
+  const compactId = job.job_id
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 6)
+    .toUpperCase();
   return { ...safe, reference: `DECK-${compactId || "UNKNOWN"}` };
 }
 

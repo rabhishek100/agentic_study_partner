@@ -23,9 +23,13 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
+from api.version import build_revision, build_time
+from decks.source_preferences import (
+    enqueue_initial_for_book,
+    reconcile_missing_initial_sets,
+)
 from decks.worker import DeckWorker as StandaloneDeckWorker
 from ingestion.cleanup import run_cleanup
-from api.version import build_revision, build_time
 from ingestion.config import IngestionLimits, load_limits
 from ingestion.errors import ErrorCode, IngestionError, classify_failure
 from ingestion.jobs import (
@@ -39,20 +43,22 @@ from ingestion.jobs import (
 )
 from ingestion.pipeline import (
     CancellationRequested,
+    JobOutcome,
     PipelineDependencies,
     run_job,
 )
 from ingestion.states import Status, is_terminal
-from storage.database import close_pools, connection as database_connection
+from storage.database import close_pools
+from storage.database import connection as database_connection
 from video.cleanup import run_video_cleanup
 from video.worker import VideoWorker as StandaloneVideoWorker
-
 
 logger = logging.getLogger("study_partner.worker")
 
 TEMPORARY_DIRECTORY_NAME = "study-partner-ingestion"
 # Renew well inside the lease so one slow renewal does not lose the job.
 LEASE_RENEWAL_FRACTION = 3
+CARDS_RECONCILE_INTERVAL_SECONDS = 30
 
 
 class JsonFormatter(logging.Formatter):
@@ -180,6 +186,7 @@ class Worker:
         # Force the first loop iteration to run a retention pass, so a worker
         # that restarts daily still cleans up even with long intervals.
         self._last_cleanup = -float(self.limits.cleanup_interval_seconds)
+        self._last_cards_reconcile = -float(CARDS_RECONCILE_INTERVAL_SECONDS)
 
     def request_stop(self, *_: object) -> None:
         """Stop claiming new work. The current job finishes its attempt."""
@@ -272,8 +279,39 @@ class Worker:
                         "elapsed_seconds": round(time.monotonic() - started),
                     },
                 )
+                self._enqueue_initial_cards(outcome)
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
+
+    def _enqueue_initial_cards(self, outcome: JobOutcome) -> None:
+        """Best-effort publish hook; reconciliation closes the crash gap."""
+
+        if outcome.book_id is None:
+            return
+        try:
+            with database_connection(self.database_url) as connection:
+                queued = enqueue_initial_for_book(
+                    connection,
+                    owner_id=outcome.job.owner_id,
+                    book_id=outcome.book_id,
+                )
+            if queued:
+                logger.info(
+                    "automatic chapter decks queued",
+                    extra={
+                        "owner_id": str(outcome.job.owner_id),
+                        "book_id": outcome.book_id,
+                        "jobs": len(queued),
+                    },
+                )
+        except Exception:
+            logger.exception(
+                "automatic chapter deck dispatch failed",
+                extra={
+                    "owner_id": str(outcome.job.owner_id),
+                    "book_id": outcome.book_id,
+                },
+            )
 
     def _record_failure(
         self,
@@ -362,6 +400,24 @@ class Worker:
         except Exception:
             logger.exception("video retention pass failed")
 
+    def run_cards_reconciliation(self) -> None:
+        """Periodically recover a publish that committed before its hook ran."""
+
+        now = time.monotonic()
+        if now - self._last_cards_reconcile < CARDS_RECONCILE_INTERVAL_SECONDS:
+            return
+        self._last_cards_reconcile = now
+        try:
+            with database_connection(self.database_url) as connection:
+                queued = reconcile_missing_initial_sets(connection)
+            if queued:
+                logger.info(
+                    "automatic deck reconciliation queued work",
+                    extra={"jobs": queued},
+                )
+        except Exception:
+            logger.exception("automatic deck reconciliation failed")
+
     def run_once(self) -> bool:
         """Claim and run at most one job. True when work was done.
 
@@ -374,6 +430,7 @@ class Worker:
         self.video_worker.recover_abandoned_jobs()
         self.deck_worker.recover_abandoned_jobs()
         self.run_retention_pass()
+        self.run_cards_reconciliation()
 
         queues = (
             (self.claim, self.process),

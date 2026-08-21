@@ -19,11 +19,15 @@ from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
 from decks import jobs as deck_jobs
-from decks import store
+from decks import source_preferences, store
 from decks.contracts import (
     ContractModel,
     DeckCard,
     DeckPreferences,
+    DeckSourcePreference,
+    DeckSourcePreferences,
+    DeckSourcePreferencesUpdate,
+    DeckSourcePreferenceUpdate,
     DeckSummary,
     QueueCard,
     ReviewQueue,
@@ -76,6 +80,7 @@ class DeckJobResponse(ContractModel):
     topics_done: int = 0
     progress: float = 0.0
     attempt_count: int = 0
+    automatic: bool = False
     error_code: str | None = None
     error_detail: str | None = None
     title: str = "Deck generation"
@@ -150,6 +155,7 @@ def _job_response(job: deck_jobs.DeckJob) -> DeckJobResponse:
         topics_done=job.topics_done,
         progress=round(timing.percent / 100, 3),
         attempt_count=job.attempt_count,
+        automatic=job.automatic_key is not None,
         error_code=job.error_code,
         error_detail=job.error_detail,
         title=job.title,
@@ -318,6 +324,119 @@ async def update_preferences(
         with database_connection() as connection:
             return store.save_preferences(
                 connection, owner_id=owner_id, preferences=request
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.get("/sources", response_model=DeckSourcePreferences)
+async def card_sources(
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourcePreferences:
+    """List every source and whether it contributes automatic/daily cards."""
+
+    def run() -> DeckSourcePreferences:
+        with database_connection(readonly=True) as connection:
+            return DeckSourcePreferences(
+                sources=source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.patch(
+    "/sources/{source_kind}/{source_id}", response_model=DeckSourcePreference
+)
+async def update_card_source(
+    source_kind: Literal["book", "video"],
+    source_id: str,
+    request: DeckSourcePreferenceUpdate,
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourcePreference:
+    """Enable or pause one owner-scoped source without deleting its history."""
+
+    def run() -> DeckSourcePreference:
+        with database_connection() as connection:
+            try:
+                saved = source_preferences.save_source(
+                    connection,
+                    owner_id=owner_id,
+                    source_kind=source_kind,
+                    source_id=source_id,
+                    cards_enabled=request.cards_enabled,
+                )
+                if request.cards_enabled:
+                    if source_kind == "book":
+                        source_preferences.enqueue_initial_for_book(
+                            connection,
+                            owner_id=owner_id,
+                            book_id=int(source_id),
+                        )
+                    else:
+                        source_preferences.enqueue_initial_for_video(
+                            connection,
+                            owner_id=owner_id,
+                            video_id=source_id,
+                        )
+            except (LookupError, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such card source"
+                ) from error
+            return next(
+                item
+                for item in source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
+                if item.source_kind == source_kind
+                and item.source_id == saved.source_id
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.patch("/sources", response_model=DeckSourcePreferences)
+async def update_card_sources(
+    request: DeckSourcePreferencesUpdate,
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourcePreferences:
+    """Atomically save several source choices from the settings dialog."""
+
+    def run() -> DeckSourcePreferences:
+        with database_connection() as connection:
+            try:
+                for selection in request.sources:
+                    source_preferences.save_source(
+                        connection,
+                        owner_id=owner_id,
+                        source_kind=selection.source_kind,
+                        source_id=selection.source_id,
+                        cards_enabled=selection.cards_enabled,
+                    )
+                for selection in request.sources:
+                    if not selection.cards_enabled:
+                        continue
+                    if selection.source_kind == "book":
+                        source_preferences.enqueue_initial_for_book(
+                            connection,
+                            owner_id=owner_id,
+                            book_id=int(selection.source_id),
+                        )
+                    else:
+                        source_preferences.enqueue_initial_for_video(
+                            connection,
+                            owner_id=owner_id,
+                            video_id=selection.source_id,
+                        )
+            except (LookupError, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such card source"
+                ) from error
+            return DeckSourcePreferences(
+                sources=source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
             )
 
     return await run_in_threadpool(run)

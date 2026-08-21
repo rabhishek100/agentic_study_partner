@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 import shutil
 import tempfile
 import threading
+from pathlib import Path
 
+from decks.source_preferences import enqueue_initial_for_video
 from storage.database import connection as database_connection
 from video.acquisition import AcquisitionError, acquire_youtube
 from video.audio import AudioTranscriptionError
@@ -30,9 +31,8 @@ from video.pipeline import (
     VideoPipelineDependencies,
     run_video_stage,
 )
-from video.states import Stage, TERMINAL
+from video.states import TERMINAL, Stage
 from video.vision import VisualAnalysisError
-
 
 logger = logging.getLogger("study_partner.video_worker")
 SUPPORTED_STAGES = frozenset(Stage)
@@ -160,12 +160,41 @@ class VideoWorker:
                         work_dir=work_dir,
                         dependencies=self.dependencies,
                     )
+                if job.stage is Stage.PUBLISH:
+                    self._enqueue_initial_cards(job)
         except BaseException as error:  # every attempt must converge
             self._record_failure(job, error, context)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
+
+    def _enqueue_initial_cards(self, job: VideoIngestionJob) -> None:
+        """Dispatch after publish without making ingestion depend on cards."""
+
+        try:
+            with database_connection(self.database_url) as connection:
+                queued = enqueue_initial_for_video(
+                    connection,
+                    owner_id=job.owner_id,
+                    video_id=job.video_id,
+                )
+            if queued:
+                logger.info(
+                    "automatic lecture deck queued",
+                    extra={
+                        "owner_id": str(job.owner_id),
+                        "video_id": str(job.video_id),
+                    },
+                )
+        except Exception:
+            logger.exception(
+                "automatic lecture deck dispatch failed",
+                extra={
+                    "owner_id": str(job.owner_id),
+                    "video_id": str(job.video_id),
+                },
+            )
 
     def _record_failure(
         self,

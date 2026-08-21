@@ -41,6 +41,8 @@ import {
   type DeckJob,
   type DeckListResponse,
   type DeckPreferences,
+  type DeckSourcePreference,
+  type DeckSourcePreferences,
   type DeckSummary,
   type ReviewQueue,
   coveragePercent,
@@ -105,6 +107,7 @@ export default function DecksPage() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [jobs, setJobs] = useState<DeckJob[]>([]);
   const [queue, setQueue] = useState<ReviewQueue | null>(null);
+  const [sources, setSources] = useState<DeckSourcePreference[]>([]);
   const [reviewing, setReviewing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -115,13 +118,15 @@ export default function DecksPage() {
 
   const load = useCallback(async () => {
     try {
-      const [library, today] = await Promise.all([
+      const [library, today, sourcePayload] = await Promise.all([
         apiFetch<DeckListResponse>("/decks"),
         apiFetch<ReviewQueue>("/decks/queue"),
+        apiFetch<DeckSourcePreferences>("/decks/sources"),
       ]);
       setDecks(library.decks);
       setJobs(library.jobs);
       setQueue(today);
+      setSources(sourcePayload.sources);
       setError("");
     } catch (caught) {
       setError((caught as Error).message || "Could not load your decks.");
@@ -147,18 +152,44 @@ export default function DecksPage() {
   }, [session, working.length, reviewing, load]);
 
   const savePreferences = useCallback(
-    async (preferences: DeckPreferences) => {
+    async (
+      preferences: DeckPreferences,
+      updatedSources: DeckSourcePreference[],
+    ) => {
       try {
-        await apiFetch<DeckPreferences>("/decks/preferences", {
-          method: "PATCH",
-          body: JSON.stringify(preferences),
+        const changedSources = updatedSources.filter((source) => {
+          const current = sources.find(
+            (item) =>
+              item.source_kind === source.source_kind &&
+              item.source_id === source.source_id,
+          );
+          return current?.cards_enabled !== source.cards_enabled;
         });
+        await Promise.all([
+          apiFetch<DeckPreferences>("/decks/preferences", {
+            method: "PATCH",
+            body: JSON.stringify(preferences),
+          }),
+          changedSources.length
+            ? apiFetch<DeckSourcePreferences>("/decks/sources", {
+                method: "PATCH",
+                body: JSON.stringify({
+                  sources: changedSources.map((source) => ({
+                    source_kind: source.source_kind,
+                    source_id: source.source_id,
+                    cards_enabled: source.cards_enabled,
+                  })),
+                }),
+              })
+            : Promise.resolve(),
+        ]);
         await load();
       } catch (caught) {
         setError((caught as Error).message || "Could not save that setting.");
+        throw caught;
       }
     },
-    [load],
+    [load, sources],
   );
 
   const retryJob = useCallback(async (failed: DeckJob) => {
@@ -383,6 +414,7 @@ export default function DecksPage() {
                 />
                 <CardsSettings
                   preferences={preferences}
+                  sources={sources}
                   reviewedToday={queue?.reviewed_today ?? 0}
                   onSave={savePreferences}
                 />
@@ -428,7 +460,7 @@ export default function DecksPage() {
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <p className="text-xs text-muted-foreground">
                     {queue
-                      ? `${queue.due_total} due · ${scheduledNew} new · across all decks`
+                      ? `${queue.due_total} due · ${scheduledNew} new · across enabled sources`
                       : "Loading your review queue…"}
                   </p>
                   {dueToday > 0 ? (

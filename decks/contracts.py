@@ -298,3 +298,39 @@ class ReviewQueue(ContractModel):
 class DeckPreferences(ContractModel):
     new_cards_per_day: int = Field(default=10, ge=0, le=200)
     max_reviews_per_day: int = Field(default=120, ge=1, le=1_000)
+
+
+class DeckSourcePreference(ContractModel):
+    """One source's eligibility for automatic cards and mixed review."""
+
+    source_kind: SourceKind
+    source_id: str
+    title: str
+    document_type: str = "book"
+    status: str
+    cards_enabled: bool = True
+    automatic_cards_queued: bool = False
+
+
+class DeckSourcePreferences(ContractModel):
+    sources: list[DeckSourcePreference] = Field(default_factory=list)
+
+
+class DeckSourcePreferenceUpdate(ContractModel):
+    cards_enabled: bool
+
+
+class DeckSourcePreferenceSelection(DeckSourcePreferenceUpdate):
+    source_kind: SourceKind
+    source_id: str = Field(min_length=1, max_length=100)
+
+
+class DeckSourcePreferencesUpdate(ContractModel):
+    sources: list[DeckSourcePreferenceSelection] = Field(max_length=500)
+
+    @model_validator(mode="after")
+    def sources_are_unique(self) -> DeckSourcePreferencesUpdate:
+        keys = [(item.source_kind, item.source_id) for item in self.sources]
+        if len(keys) != len(set(keys)):
+            raise ValueError("each card source may appear only once")
+        return self

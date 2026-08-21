@@ -30,7 +30,8 @@ from .contracts import (
     ReviewState,
 )
 from .generate import GeneratedDeck
-from .scheduler import initial_state, review as schedule_review
+from .scheduler import initial_state
+from .scheduler import review as schedule_review
 from .topics import Topic
 
 # The library and the queue both read cards; neither ever wants a whole book's
@@ -454,6 +455,10 @@ _CARD_SELECT = """
       on deck.id = card.deck_id and deck.owner_id = card.owner_id
     join public.deck_card_reviews as review
       on review.card_id = card.id and review.owner_id = card.owner_id
+    left join public.books as source_book
+      on source_book.id = deck.book_id and source_book.owner_id = deck.owner_id
+    left join video.videos as source_video
+      on source_video.id = deck.video_id and source_video.owner_id = deck.owner_id
 """
 
 
@@ -487,6 +492,10 @@ def due_cards(
         where card.owner_id = %s
           and deck.status in ('ready', 'partial')
           and (%s::uuid is null or card.deck_id = %s::uuid)
+          and (
+              %s::boolean
+              or coalesce(source_book.cards_enabled, source_video.cards_enabled, true)
+          )
           and review.due_at is not null
           and review.due_at <= now()
         order by review.due_at
@@ -496,6 +505,7 @@ def due_cards(
             parse_owner_id(owner_id),
             str(deck_id) if deck_id else None,
             str(deck_id) if deck_id else None,
+            deck_id is not None,
             limit,
         ),
     ).fetchall()
@@ -515,6 +525,10 @@ def new_cards(
         where card.owner_id = %s
           and deck.status in ('ready', 'partial')
           and (%s::uuid is null or card.deck_id = %s::uuid)
+          and (
+              %s::boolean
+              or coalesce(source_book.cards_enabled, source_video.cards_enabled, true)
+          )
           and review.state = 'new'
         order by card.interview_priority desc, card.card_index
         limit %s
@@ -523,6 +537,7 @@ def new_cards(
             parse_owner_id(owner_id),
             str(deck_id) if deck_id else None,
             str(deck_id) if deck_id else None,
+            deck_id is not None,
             limit,
         ),
     ).fetchall()

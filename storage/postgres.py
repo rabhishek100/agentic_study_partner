@@ -481,7 +481,10 @@ def mark_book_ready(
     updated = connection.execute(
         """
         update books
-        set status = 'ready', ready_at = now()
+        set status = 'ready', ready_at = now(),
+            cards_automation_eligible_at = coalesce(
+                cards_automation_eligible_at, now()
+            )
         where id = %s and owner_id = %s and status <> 'ready'
         """,
         (book_id, owner),
