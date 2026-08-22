@@ -29,6 +29,7 @@ from storage.postgres import (
     InvalidBookError,
     book_for_job,
     canonical_counts,
+    canonical_text,
     delete_book,
     ingest_book,
     mark_book_ready,
@@ -159,6 +160,19 @@ def _paper_outline(
     return [(1, PAPER_WHOLE_DOCUMENT_TITLE, 1)], "whole_document"
 
 
+def _requires_outline_transcription(
+    report: PreflightReport, *, document_type: str
+) -> bool:
+    """Whether structure uncertainty must enter OCR and human review.
+
+    Books need reviewed chapter boundaries before they become retrieval
+    scopes. A paper already has one natural scope—the complete document—so a
+    noisy outline never justifies OCR or a manual TOC gate for readable text.
+    """
+
+    return document_type != "paper" and report.decision.action == OCR
+
+
 def _check_cancelled(
     job: IngestionJob,
     *,
@@ -196,12 +210,19 @@ def evaluate_extraction(
     almost nothing, which would otherwise become an empty, unanswerable book.
     """
 
-    total_characters = sum(len(section.full_text) for section in book.sections)
-    sections_with_text = sum(1 for section in book.sections if section.full_text)
+    raw_text = [section.full_text for section in book.sections]
+    # PostgreSQL text cannot represent embedded NUL characters. The canonical
+    # store deliberately removes those broken PDF glyphs, so extraction and
+    # restoration must measure the same normalized text. Otherwise a harmless
+    # NUL becomes a false final-verification failure after all work completed.
+    canonical_sections = [canonical_text(text) or "" for text in raw_text]
+    total_characters = sum(len(text) for text in canonical_sections)
+    sections_with_text = sum(1 for text in canonical_sections if text)
     metrics = {
         "sections": len(book.sections),
         "sections_with_text": sections_with_text,
         "total_characters": total_characters,
+        "nul_characters_removed": sum(map(len, raw_text)) - total_characters,
         "tables": sum(len(section.tables) for section in book.sections),
         "images": sum(len(section.images) for section in book.sections),
     }
@@ -538,7 +559,9 @@ def _validate_stage(
             )
         validate_table_of_contents(confirmed_toc, report.page_count)
         approved_toc = confirmed_toc
-    elif report.decision.action == OCR:
+    elif _requires_outline_transcription(
+        report, document_type=job.document_type
+    ):
         return _transcribe_and_pause(
             job,
             source=source,
@@ -551,8 +574,11 @@ def _validate_stage(
         # A paper is a useful retrieval scope even when its PDF has no embedded
         # outline.  Requiring a reviewer to invent chapters for it both models
         # the source incorrectly and blocks the most natural request: explain
-        # this whole paper.  Preserve a trustworthy native outline when one
-        # passed preflight; otherwise parse the complete PDF as one section.
+        # this whole paper. This branch deliberately precedes OCR routing: a
+        # noisy or poisoned outline is a structure problem, not evidence that
+        # a readable digital paper needs transcription and human TOC review.
+        # Preserve a trustworthy native outline when one passed preflight;
+        # otherwise parse the complete PDF as one section.
         approved_toc, strategy = _paper_outline(report)
         paper_outline = {
             "strategy": strategy,

@@ -8,6 +8,7 @@ from storage.postgres import (
     InvalidBookError,
     _postgres_json,
     _postgres_text,
+    canonical_text,
     ingest_book,
     restore_book,
 )
@@ -18,6 +19,7 @@ from tests.postgres import PostgresOwnerMixin
 
 class PostgresTextTests(unittest.TestCase):
     def test_nul_is_removed_from_text_and_nested_json(self) -> None:
+        self.assertEqual(canonical_text("before\x00after"), "beforeafter")
         self.assertEqual(_postgres_text("before\x00after"), "beforeafter")
         self.assertEqual(
             _postgres_json({"path": ["one\x00", {"title": "two\x00three"}]}),

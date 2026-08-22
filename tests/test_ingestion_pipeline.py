@@ -32,6 +32,7 @@ from ingestion.pipeline import (
     CancellationRequested,
     PipelineDependencies,
     _paper_outline,
+    _requires_outline_transcription,
     evaluate_extraction,
     run_job,
 )
@@ -43,6 +44,7 @@ from storage.database import DEFAULT_EMBEDDING_MODEL, connection, resolve_databa
 from storage.postgres import list_books, restore_book
 from tests.pdf_fixtures import (
     encrypted_pdf,
+    outline_pdf,
     pdf_with_visual_headings,
     scanned_pdf,
     structured_pdf,
@@ -195,6 +197,34 @@ class PaperOutlineTests(unittest.TestCase):
 
         self.assertEqual(outline, report.normalized_toc)
         self.assertEqual(strategy, "native_sections")
+
+    def test_a_poisoned_paper_outline_does_not_trigger_transcription_review(self):
+        with tempfile.TemporaryDirectory(prefix="paper-outline-test-") as directory:
+            source = outline_pdf(
+                Path(directory) / "paper.pdf",
+                [
+                    [1, "1 Introduction", 1],
+                    [2, "Agents expose only very narrow LM functionality", 1],
+                    [2, "Agentic systems are naturally heterogeneous", 1],
+                    [2, "This sentence is much too long to be a useful title", 1],
+                    [2, "Another prose fragment promoted into the outline", 1],
+                ],
+                page_count=4,
+            )
+            report = preflight(source, limits=LIMITS)
+
+        self.assertEqual(report.decision.action, "ocr")
+        self.assertTrue(report.outline.poisoning.poisoned)
+        self.assertFalse(
+            _requires_outline_transcription(report, document_type="paper")
+        )
+        self.assertTrue(
+            _requires_outline_transcription(report, document_type="book")
+        )
+        self.assertEqual(
+            _paper_outline(report),
+            ([(1, "Full paper", 1)], "whole_document"),
+        )
 
 
 @unittest.skipUnless(
@@ -471,6 +501,55 @@ class StubbedParserTests(PipelineFixture):
             "whole_document",
         )
         self.assertEqual([row["node_type"] for row in node_types], ["section"])
+
+    def test_a_paper_with_a_poisoned_outline_skips_ocr_and_ingests_whole(self):
+        source = outline_pdf(
+            self.directory / "paper.pdf",
+            [
+                [1, "1 Introduction", 1],
+                [2, "Agents expose only very narrow LM functionality", 1],
+                [2, "Agentic systems are naturally heterogeneous", 1],
+                [2, "This sentence is much too long to be a useful title", 1],
+                [2, "Another prose fragment promoted into the outline", 1],
+            ],
+            page_count=4,
+        )
+        report = preflight(source, limits=LIMITS)
+        self.assertEqual(report.decision.action, "ocr")
+        self.assertTrue(report.outline.poisoning.poisoned)
+        job = self.claim(source, document_type="paper")
+        self.dependencies = PipelineDependencies(
+            embedder_factory=DeterministicEmbedder,
+            ocr_factory=lambda: self.fail("a readable paper must not enter OCR"),
+        )
+
+        outcome = self.run_claimed(job)
+
+        self.assertEqual(outcome.job.status, Status.READY)
+        self.assertNotIn("outline_review", outcome.job.provenance)
+        self.assertEqual(
+            outcome.job.provenance["paper_outline"]["strategy"],
+            "whole_document",
+        )
+
+    def test_nul_glyphs_do_not_create_a_false_verification_failure(self):
+        source = structured_pdf(self.directory / "nul-glyph.pdf")
+
+        def parse_with_nuls(parsed_source, *args, **kwargs):
+            book = self._stub_parse(parsed_source, *args, **kwargs)
+            book.sections[0].texts[0].text += "\x00\x00\x00"
+            return book
+
+        self.parser.side_effect = parse_with_nuls
+        job = self.claim(source)
+
+        outcome = self.run_claimed(job)
+
+        self.assertEqual(outcome.job.status, Status.READY)
+        self.assertEqual(outcome.job.provenance["parser"]["nul_characters_removed"], 3)
+        with connection(self.database_url) as database:
+            restored = restore_book(database, outcome.book_id, owner_id=self.owner)
+        self.assertNotIn("\x00", "".join(s.full_text for s in restored.sections))
 
     def test_an_encrypted_pdf_fails_without_a_retry(self):
         job = self.claim(encrypted_pdf(self.directory / "locked.pdf"))
@@ -797,6 +876,16 @@ class ExtractionQualityTests(unittest.TestCase):
         self.assertEqual(metrics["sections"], 4)
         self.assertEqual(metrics["sections_with_text"], 4)
         self.assertGreater(metrics["total_characters"], 200)
+
+    def test_nul_glyphs_are_removed_before_canonical_character_metrics(self):
+        book = stub_parsed_book()
+        raw_characters = sum(len(section.full_text) for section in book.sections)
+        book.sections[0].texts[0].text += "\x00\x00\x00"
+
+        metrics = evaluate_extraction(book, self.report())
+
+        self.assertEqual(metrics["total_characters"], raw_characters)
+        self.assertEqual(metrics["nul_characters_removed"], 3)
 
     def test_a_section_count_mismatch_is_a_contract_violation(self):
         book = stub_parsed_book()
