@@ -15,8 +15,9 @@ from uuid import UUID
 from psycopg import Connection
 
 from storage.database import parse_owner_id
+from storage.postgres import ready_book
 from study.content import load_scope_content
-from study.scope import ScopeNotFoundError, resolve_node
+from study.scope import ScopeNotFoundError, resolve_book, resolve_node
 from video.errors import VideoIngestionError
 from video.lecture import (
     NoTranscriptError,
@@ -33,9 +34,18 @@ from .generate import (
     GenerationConfig,
     generate_deck,
 )
-from .topics import ScopeInventory, book_inventory, lecture_inventory
+from .topics import (
+    ScopeInventory,
+    book_inventory,
+    lecture_inventory,
+    paper_inventory,
+)
 
 logger = logging.getLogger("study_partner.decks")
+
+
+class DeckCancellationRequested(RuntimeError):
+    """The owner paused a source while its automatic deck was running."""
 
 
 class DeckSourceError(RuntimeError):
@@ -67,13 +77,40 @@ def load_inventory(
     owner = parse_owner_id(owner_id)
     if source_kind == "book":
         if node_id is None:
-            raise DeckSourceError("a book deck needs a chapter or section node")
-        try:
-            scope = resolve_node(connection, node_id, owner_id=owner)
-        except ScopeNotFoundError as error:
-            raise DeckSourceError(str(error)) from error
+            if book_id is None:
+                raise DeckSourceError(
+                    "a document deck needs a paper or chapter scope"
+                )
+            source = ready_book(connection, book_id, owner_id=owner)
+            if source is None:
+                raise DeckSourceError("no such ready paper")
+            if (source.get("document_type") or "book") != "paper":
+                raise DeckSourceError(
+                    "a whole-document deck is supported only for papers"
+                )
+            try:
+                scope = resolve_book(
+                    connection, owner_id=owner, book_id=book_id
+                )
+            except ScopeNotFoundError as error:
+                raise DeckSourceError(str(error)) from error
+        else:
+            try:
+                scope = resolve_node(connection, node_id, owner_id=owner)
+            except ScopeNotFoundError as error:
+                raise DeckSourceError(str(error)) from error
+            if scope.document_type == "paper":
+                raise DeckSourceError(
+                    "paper cards cover the complete paper, not one section"
+                )
+            if book_id is not None and scope.book_id != book_id:
+                raise DeckSourceError("that node does not belong to this book")
         bundle = load_scope_content(connection, scope, owner_id=owner)
-        inventory = book_inventory(bundle, connection=connection, owner_id=owner)
+        inventory = (
+            paper_inventory(bundle, connection=connection, owner_id=owner)
+            if scope.document_type == "paper"
+            else book_inventory(bundle, connection=connection, owner_id=owner)
+        )
         if not inventory.topics:
             raise DeckSourceError(
                 "this scope has no readable content to make cards from"
@@ -126,6 +163,11 @@ def run_deck_job(
     whole deck lands, in one transaction, inside `store_deck`.
     """
 
+    def ensure_not_cancelled() -> None:
+        if jobs.cancellation_requested(connection, job_id=job.id):
+            raise DeckCancellationRequested("deck generation was cancelled")
+
+    ensure_not_cancelled()
     jobs.record_progress(connection, job_id=job.id, stage="inventory")
     inventory, version_id = load_inventory(
         connection,
@@ -134,6 +176,15 @@ def run_deck_job(
         book_id=job.book_id,
         node_id=job.node_id,
         video_id=job.video_id,
+    )
+    previous_fronts = (
+        store.generated_fronts(
+            connection,
+            owner_id=job.owner_id,
+            scope_key=job.scope_key,
+        )
+        if job.generation_mode == "topic_generated"
+        else ()
     )
 
     deck_id, version = store.create_deck(
@@ -169,6 +220,7 @@ def run_deck_job(
     )
 
     def progress(done: int, total: int) -> None:
+        ensure_not_cancelled()
         jobs.record_progress(
             connection,
             job_id=job.id,
@@ -190,7 +242,11 @@ def run_deck_job(
             )
         else:
             generated = generate_deck(
-                inventory, model=model, config=config, progress=progress
+                inventory,
+                model=model,
+                config=config,
+                progress=progress,
+                previous_fronts=previous_fronts,
             )
     except Exception:
         # Every attempt creates a version before making a provider call.  Do
@@ -205,6 +261,7 @@ def run_deck_job(
             "no card survived validation for this scope; nothing was stored"
         )
 
+    ensure_not_cancelled()
     jobs.record_progress(connection, job_id=job.id, stage="storing")
     store.store_deck(
         connection,

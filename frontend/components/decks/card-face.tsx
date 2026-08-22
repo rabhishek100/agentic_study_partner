@@ -33,6 +33,51 @@ export function sourceQuestion(text: string): string {
   return text.replace(MARKER, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+export function isSourceAuthoredCard(card: DeckCard): boolean {
+  return Boolean(card.source_item_key && card.source_item_kind);
+}
+
+export function sourceItemKindLabel(card: DeckCard): string | null {
+  if (card.source_item_kind === "worked_example") return "Worked example";
+  if (card.source_item_kind === "exercise") return "Exercise";
+  return null;
+}
+
+export function sourceItemPlacementLabel(card: DeckCard): string | null {
+  if (card.source_item_placement === "end_of_chapter") {
+    return "End of chapter";
+  }
+  if (card.source_item_placement === "inline") return "Inline";
+  return null;
+}
+
+export function solutionLabel(card: DeckCard): string {
+  if (isSourceAuthoredCard(card)) {
+    return card.answer_source === "printed_in_book"
+      ? "Book solution"
+      : "Grounded solution";
+  }
+  return card.answer_source === "printed_in_book"
+    ? "Answer from book"
+    : "Grounded answer";
+}
+
+export function SourceItemMeta({ card }: { card: DeckCard }) {
+  if (!isSourceAuthoredCard(card)) return null;
+  const kind = sourceItemKindLabel(card);
+  const placement = sourceItemPlacementLabel(card);
+
+  return (
+    <>
+      {card.source_label ? <span>{card.source_label}</span> : null}
+      {card.source_label && kind ? <span aria-hidden>·</span> : null}
+      {kind ? <span>{kind}</span> : null}
+      {kind && placement ? <span aria-hidden>·</span> : null}
+      {placement ? <span>{placement}</span> : null}
+    </>
+  );
+}
+
 function timestamp(ms: number | null): string {
   if (ms === null) return "";
   const total = Math.floor(ms / 1000);
@@ -373,29 +418,59 @@ export function CardSources({
   onOpenSource?: (citation: QueueCard["card"]["citations"][number]) => void;
 }) {
   const { card } = item;
-  if (card.citations.length === 0) return null;
+  const separated = isSourceAuthoredCard(card);
+  const questionCitations = card.question_citations ?? [];
+  const answerCitations = card.answer_citations ?? [];
+  if (
+    card.citations.length === 0 &&
+    questionCitations.length === 0 &&
+    answerCitations.length === 0
+  ) {
+    return null;
+  }
 
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs text-muted-foreground">Source:</span>
-      {card.citations.map((citation) => {
-        const label =
-          citation.page !== null
-            ? `p. ${citation.page}`
-            : timestamp(citation.start_ms) || `[${citation.evidence_rank}]`;
-        return (
-          <button
-            key={citation.marker}
-            type="button"
-            onClick={() => onOpenSource?.(citation)}
-            className="rounded-md border border-border px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
-  );
+  function CitationGroup({
+    label,
+    citations,
+  }: {
+    label: string;
+    citations: QueueCard["card"]["citations"];
+  }) {
+    if (citations.length === 0) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">{label}:</span>
+        {citations.map((citation) => {
+          const location =
+            citation.page !== null
+              ? `p. ${citation.page}`
+              : timestamp(citation.start_ms) || `[${citation.evidence_rank}]`;
+          return (
+            <button
+              key={citation.marker}
+              type="button"
+              aria-label={`${label}: ${location}`}
+              onClick={() => onOpenSource?.(citation)}
+              className="rounded-md border border-border px-2 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              {location}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (separated && (questionCitations.length || answerCitations.length)) {
+    return (
+      <div className="space-y-2">
+        <CitationGroup label="Question source" citations={questionCitations} />
+        <CitationGroup label="Solution source" citations={answerCitations} />
+      </div>
+    );
+  }
+
+  return <CitationGroup label="Source" citations={card.citations} />;
 }
 
 export function CardMeta({ card }: { card: DeckCard }) {
@@ -403,11 +478,13 @@ export function CardMeta({ card }: { card: DeckCard }) {
     <div className="flex flex-wrap items-center gap-2">
       {card.answer_source === "printed_in_book" ? (
         <Badge variant="default" className="bg-wash text-white font-normal hover:bg-positive">
-          Original Book Answer
+          {isSourceAuthoredCard(card) ? "Book solution" : "Original Book Answer"}
         </Badge>
       ) : card.answer_source === "rag_generated" ? (
         <Badge variant="secondary" className="font-normal border border-action">
-          Grounded RAG Answer
+          {isSourceAuthoredCard(card)
+            ? "Grounded solution"
+            : "Grounded RAG Answer"}
         </Badge>
       ) : null}
       <Badge variant="secondary" className="font-normal">

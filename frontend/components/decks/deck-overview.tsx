@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Loader2,
   MoreVertical,
+  Plus,
   RefreshCw,
   RotateCcw,
   Timer,
@@ -19,7 +20,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CardBackFace,
   CardSources,
+  SourceItemMeta,
+  isSourceAuthoredCard,
   plain,
+  solutionLabel,
   sourceQuestion,
 } from "@/components/decks/card-face";
 import { Button } from "@/components/ui/button";
@@ -72,11 +76,11 @@ export function DeckOverview({
   dueNow,
   reviewableCardIds,
   filter,
-  regenerating,
+  generatingSet,
   onFilterChange,
   onStartReview,
   onStudyCard,
-  onRegenerate,
+  onGenerateSet,
   onReset,
   onOpenSource,
 }: {
@@ -85,11 +89,11 @@ export function DeckOverview({
   /** Cards returned by today's review queue, not every card in the deck. */
   reviewableCardIds: string[];
   filter: DeckFilter;
-  regenerating: boolean;
+  generatingSet: boolean;
   onFilterChange: (filter: DeckFilter) => void;
   onStartReview: () => void;
   onStudyCard: (card: QueueCard) => void;
-  onRegenerate: () => void;
+  onGenerateSet: () => void;
   onReset: () => void;
   onOpenSource: (item: QueueCard, citation: DeckCitation) => void;
 }) {
@@ -137,12 +141,17 @@ export function DeckOverview({
     }
   };
 
-  const sourceQuestions = deck.generation_mode === "book_extracted";
-  const covered = sourceQuestions
-    ? deck.metrics.source_questions_covered
+  const sourceItems = deck.generation_mode === "book_extracted";
+  const unifiedSourceMetrics = deck.metrics.source_items_total > 0;
+  const covered = sourceItems
+    ? unifiedSourceMetrics
+      ? deck.metrics.source_items_covered
+      : deck.metrics.source_questions_covered
     : deck.metrics.topics_covered;
-  const total = sourceQuestions
-    ? deck.metrics.source_questions_total
+  const total = sourceItems
+    ? unifiedSourceMetrics
+      ? deck.metrics.source_items_total
+      : deck.metrics.source_questions_total
     : deck.metrics.topics_required;
   const exactCoverage = total > 0 ? `${covered}/${total}` : `${deck.card_count}`;
   const selectedIsDue = selected?.card.card_id
@@ -168,6 +177,11 @@ export function DeckOverview({
               <h1 className="truncate font-serif text-lg font-medium sm:text-xl">
                 {deck.title}
               </h1>
+              {!sourceItems ? (
+                <span className="rounded-full border border-border px-2 py-1 text-xs leading-none text-muted-foreground">
+                  Set {deck.set_number}
+                </span>
+              ) : null}
               <span className="hidden truncate text-sm text-muted-foreground lg:inline">
                 {deck.source_title}
               </span>
@@ -177,7 +191,7 @@ export function DeckOverview({
                   <Check aria-hidden className="size-3.5" />
                 </span>
                 <span className="tabular-nums">
-                  {exactCoverage} {sourceQuestions ? "extracted and answered" : "covered"}
+                  {exactCoverage} {sourceItems ? "source items covered" : "covered"}
                 </span>
               </span>
             </div>
@@ -201,19 +215,25 @@ export function DeckOverview({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Deck options</DropdownMenuLabel>
-              {sourceQuestions ? (
-                <DropdownMenuItem
-                  disabled={regenerating}
-                  onSelect={onRegenerate}
-                >
-                  {regenerating ? (
-                    <Loader2 aria-hidden className="animate-spin" />
-                  ) : (
-                    <RefreshCw aria-hidden />
-                  )}
-                  {regenerating ? "Starting regeneration…" : "Regenerate from book"}
-                </DropdownMenuItem>
-              ) : null}
+              <DropdownMenuItem
+                disabled={generatingSet}
+                onSelect={onGenerateSet}
+              >
+                {generatingSet ? (
+                  <Loader2 aria-hidden className="animate-spin" />
+                ) : sourceItems ? (
+                  <RefreshCw aria-hidden />
+                ) : (
+                  <Plus aria-hidden />
+                )}
+                {generatingSet
+                  ? sourceItems
+                    ? "Starting regeneration…"
+                    : "Starting next set…"
+                  : sourceItems
+                    ? "Regenerate source items"
+                    : `Create Set ${deck.set_number + 1}`}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
@@ -256,21 +276,38 @@ export function DeckOverview({
               <div className="grid gap-3 rounded-lg border border-border bg-surface p-4 text-sm sm:grid-cols-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {sourceQuestions ? "Questions found" : "Topics required"}
+                    {sourceItems ? "Source items found" : "Topics required"}
                   </p>
                   <p className="mt-1 font-medium tabular-nums">{total}</p>
+                  {sourceItems && unifiedSourceMetrics ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {deck.metrics.source_item_kind_counts.exercise ?? 0} exercises ·{" "}
+                      {deck.metrics.source_item_kind_counts.worked_example ?? 0} worked examples
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">
-                    {sourceQuestions ? "Questions answered" : "Topics covered"}
+                    {sourceItems ? "Source items covered" : "Topics covered"}
                   </p>
                   <p className="mt-1 font-medium tabular-nums">{covered}</p>
+                  {sourceItems && unifiedSourceMetrics ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {deck.metrics.source_item_placement_counts.inline ?? 0} inline ·{" "}
+                      {deck.metrics.source_item_placement_counts.end_of_chapter ?? 0} end of chapter
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Cards kept</p>
                   <p className="mt-1 font-medium tabular-nums">
                     {deck.metrics.cards_kept}
                   </p>
+                  {deck.metrics.cards_curated_out > 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {deck.metrics.cards_curated_out} lower-signal candidates omitted
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Dropped as ungrounded</p>
@@ -292,6 +329,13 @@ export function DeckOverview({
                   </p>
                 </div>
               </div>
+              {sourceItems && deck.metrics.uncovered_source_items.length > 0 ? (
+                <p className="mt-3 text-xs text-warning">
+                  Missing: {deck.metrics.uncovered_source_items
+                    .map((item) => item.label)
+                    .join("; ")}
+                </p>
+              ) : null}
             </CollapsibleContent>
           </div>
         </Collapsible>
@@ -306,7 +350,7 @@ export function DeckOverview({
         >
           <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
             <h2 className="font-serif text-lg font-medium">
-              {sourceQuestions ? "Chapter exercises" : "Study questions"}
+              {sourceItems ? "Exercises & worked examples" : "Study questions"}
             </h2>
             <div className="flex rounded-lg border border-border p-1" aria-label="Question filter">
               {(["all", "top"] as DeckFilter[]).map((value) => (
@@ -397,7 +441,7 @@ export function DeckOverview({
                 onClick={() => setMobileDetail(false)}
               >
                 <ArrowLeft aria-hidden />
-                All exercises
+                {sourceItems ? "All source items" : "All questions"}
               </Button>
               <div className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-2">
@@ -406,16 +450,20 @@ export function DeckOverview({
                 </span>
                 <span aria-hidden>·</span>
                 <span>
-                  {selected.card.answer_source === "printed_in_book"
-                    ? "Answer from book"
-                    : "Grounded answer"}
+                  {solutionLabel(selected.card)}
                 </span>
+                {isSourceAuthoredCard(selected.card) ? (
+                  <>
+                    <span aria-hidden>·</span>
+                    <SourceItemMeta card={selected.card} />
+                  </>
+                ) : null}
                 <span aria-hidden>·</span>
                 <span>{CARD_TYPE_LABELS[selected.card.card_type]}</span>
               </div>
 
               <p className="mb-6 text-sm font-medium text-muted-foreground">
-                {sourceQuestions ? "Exercise" : "Question"} {selected.card.card_index + 1}
+                {sourceItems ? "Source item" : "Question"} {selected.card.card_index + 1}
               </p>
               <h2 className="whitespace-pre-wrap font-serif text-xl font-normal leading-[1.5] sm:text-lg">
                 {sourceQuestion(selected.card.front)}

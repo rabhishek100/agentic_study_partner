@@ -17,6 +17,9 @@ import {
   CardBackFace,
   CardFront,
   CardSources,
+  SourceItemMeta,
+  isSourceAuthoredCard,
+  solutionLabel,
 } from "@/components/decks/card-face";
 import { AskSelection } from "@/components/side-chat/ask-selection";
 import { Button } from "@/components/ui/button";
@@ -104,7 +107,7 @@ export function ReviewSession({
   cards: QueueCard[];
   onFinished?: () => void;
   onExit?: () => void;
-  /** The deck contains exercises transcribed from the source book. */
+  /** The deck contains exercises and worked examples from the source book. */
   sourceQuestions?: boolean;
   /** Opens a selected browse card directly; defaults to the first due card. */
   initialCardId?: string | null;
@@ -491,7 +494,7 @@ export function ReviewSession({
         <article className="mx-auto w-full max-w-4xl px-6 py-6 sm:px-8 sm:py-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
             <span className="font-medium text-primary">
-              {sourceQuestions ? "Exercise" : "Card"} {index + 1}
+              {sourceQuestions ? "Source item" : "Card"} {index + 1}
             </span>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
               <span className="flex items-center gap-1">
@@ -504,7 +507,15 @@ export function ReviewSession({
                 {sourceLocation ? ` · ${sourceLocation}` : ""}
               </span>
               <span aria-hidden>•</span>
-              <span>Grounded in source</span>
+              {isSourceAuthoredCard(item.card) ? (
+                <>
+                  <SourceItemMeta card={item.card} />
+                  <span aria-hidden>•</span>
+                  <span>{solutionLabel(item.card)}</span>
+                </>
+              ) : (
+                <span>Grounded in source</span>
+              )}
               <span aria-hidden>•</span>
               <span>{item.card.difficulty}</span>
               {state.rating ? (

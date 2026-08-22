@@ -38,14 +38,18 @@ import { useCardSideChats } from "@/hooks/use-card-side-chats";
 import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import {
+  type AutomaticSetActivationResponse,
   type DeckJob,
   type DeckListResponse,
   type DeckPreferences,
+  type DeckSourcePreference,
+  type DeckSourcePreferences,
   type DeckSummary,
   type ReviewQueue,
   coveragePercent,
   jobIsLive,
 } from "@/lib/deck-types";
+import type { DeckReminderPreferences } from "@/lib/notification-types";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import type { ChatTurn } from "@/lib/types";
 
@@ -105,6 +109,10 @@ export default function DecksPage() {
   const [decks, setDecks] = useState<DeckSummary[]>([]);
   const [jobs, setJobs] = useState<DeckJob[]>([]);
   const [queue, setQueue] = useState<ReviewQueue | null>(null);
+  const [sources, setSources] = useState<DeckSourcePreference[]>([]);
+  const [reminderPreferences, setReminderPreferences] =
+    useState<DeckReminderPreferences | null>(null);
+  const [reminderLoadError, setReminderLoadError] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -115,13 +123,15 @@ export default function DecksPage() {
 
   const load = useCallback(async () => {
     try {
-      const [library, today] = await Promise.all([
+      const [library, today, sourcePayload] = await Promise.all([
         apiFetch<DeckListResponse>("/decks"),
         apiFetch<ReviewQueue>("/decks/queue"),
+        apiFetch<DeckSourcePreferences>("/decks/sources"),
       ]);
       setDecks(library.decks);
       setJobs(library.jobs);
       setQueue(today);
+      setSources(sourcePayload.sources);
       setError("");
     } catch (caught) {
       setError((caught as Error).message || "Could not load your decks.");
@@ -130,9 +140,25 @@ export default function DecksPage() {
     }
   }, []);
 
+  const loadReminderPreferences = useCallback(async () => {
+    try {
+      const result = await apiFetch<DeckReminderPreferences>(
+        "/decks/reminder-preferences",
+      );
+      setReminderPreferences(result);
+      setReminderLoadError("");
+    } catch (caught) {
+      setReminderLoadError(
+        (caught as Error).message || "Could not load reminder settings.",
+      );
+    }
+  }, []);
+
   useEffect(() => {
-    if (session) void load();
-  }, [session, load]);
+    if (!session) return;
+    void load();
+    void loadReminderPreferences();
+  }, [session, load, loadReminderPreferences]);
 
   const working = useMemo(() => jobs.filter(jobIsLive), [jobs]);
   const recentlyFailed = useMemo(
@@ -147,18 +173,109 @@ export default function DecksPage() {
   }, [session, working.length, reviewing, load]);
 
   const savePreferences = useCallback(
-    async (preferences: DeckPreferences) => {
+    async (
+      preferences: DeckPreferences,
+      updatedSources: DeckSourcePreference[],
+    ) => {
       try {
-        await apiFetch<DeckPreferences>("/decks/preferences", {
-          method: "PATCH",
-          body: JSON.stringify(preferences),
+        const changedSources = updatedSources.filter((source) => {
+          const current = sources.find(
+            (item) =>
+              item.source_kind === source.source_kind &&
+              item.source_id === source.source_id,
+          );
+          return current?.cards_enabled !== source.cards_enabled;
         });
+        await Promise.all([
+          apiFetch<DeckPreferences>("/decks/preferences", {
+            method: "PATCH",
+            body: JSON.stringify(preferences),
+          }),
+          changedSources.length
+            ? apiFetch<DeckSourcePreferences>("/decks/sources", {
+                method: "PATCH",
+                body: JSON.stringify({
+                  sources: changedSources.map((source) => ({
+                    source_kind: source.source_kind,
+                    source_id: source.source_id,
+                    cards_enabled: source.cards_enabled,
+                  })),
+                }),
+              })
+            : Promise.resolve(),
+        ]);
         await load();
       } catch (caught) {
         setError((caught as Error).message || "Could not save that setting.");
+        throw caught;
+      }
+    },
+    [load, sources],
+  );
+
+  const activateAutomaticSet = useCallback(
+    async (
+      source: DeckSourcePreference,
+      expectedMissingSetCount: number,
+    ) => {
+      try {
+        const result = await apiFetch<AutomaticSetActivationResponse>(
+          `/decks/sources/${source.source_kind}/${source.source_id}/automatic-set-1`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              expected_missing_set_count: expectedMissingSetCount,
+            }),
+          },
+        );
+        await load();
+        setError("");
+        return result;
+      } catch (caught) {
+        setError(
+          (caught as Error).message ||
+            "Could not activate automatic cards for that source.",
+        );
+        throw caught;
       }
     },
     [load],
+  );
+
+  const saveReminderPreferences = useCallback(
+    async (preferences: DeckReminderPreferences) => {
+      try {
+        const saved = await apiFetch<DeckReminderPreferences>(
+          "/decks/reminder-preferences",
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              enabled: preferences.enabled,
+              reminder_time: preferences.reminder_time,
+              timezone: preferences.timezone,
+            }),
+          },
+        );
+        setReminderPreferences(saved);
+        setReminderLoadError("");
+        setError("");
+        try {
+          setQueue(await apiFetch<ReviewQueue>("/decks/queue"));
+        } catch (caught) {
+          setError(
+            (caught as Error).message ||
+              "Reminder saved, but Today could not be refreshed.",
+          );
+        }
+        return saved;
+      } catch (caught) {
+        setError(
+          (caught as Error).message || "Could not save your daily reminder.",
+        );
+        throw caught;
+      }
+    },
+    [],
   );
 
   const retryJob = useCallback(async (failed: DeckJob) => {
@@ -196,6 +313,20 @@ export default function DecksPage() {
       setError("");
     } catch (caught) {
       setError((caught as Error).message || "Could not cancel generation.");
+    }
+  }, []);
+
+  const dismissJob = useCallback(async (job: DeckJob) => {
+    try {
+      await apiFetch<void>(`/decks/jobs/${job.job_id}/dismiss`, {
+        method: "POST",
+      });
+      setJobs((current) =>
+        current.filter((item) => item.job_id !== job.job_id),
+      );
+      setError("");
+    } catch (caught) {
+      setError((caught as Error).message || "Could not dismiss that failure.");
     }
   }, []);
 
@@ -275,6 +406,7 @@ export default function DecksPage() {
               recentlyFailed={recentlyFailed}
               onCancel={(job) => void cancelJob(job)}
               onRetry={(job) => void retryJob(job)}
+              onDismiss={(job) => void dismissJob(job)}
             />
           ),
         },
@@ -368,8 +500,14 @@ export default function DecksPage() {
                 />
                 <CardsSettings
                   preferences={preferences}
+                  sources={sources}
                   reviewedToday={queue?.reviewed_today ?? 0}
                   onSave={savePreferences}
+                  onActivate={activateAutomaticSet}
+                  reminderPreferences={reminderPreferences}
+                  reminderLoadError={reminderLoadError}
+                  onRetryReminder={loadReminderPreferences}
+                  onSaveReminder={saveReminderPreferences}
                 />
               </div>
             </header>
@@ -383,6 +521,9 @@ export default function DecksPage() {
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button variant="outline" size="sm" onClick={() => void load()}>
                       Try again
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setError("")}>
+                      Dismiss
                     </Button>
                     <details>
                       <summary className="cursor-pointer text-xs text-muted-foreground">
@@ -410,7 +551,7 @@ export default function DecksPage() {
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <p className="text-xs text-muted-foreground">
                     {queue
-                      ? `${queue.due_total} due · ${scheduledNew} new · across all decks`
+                      ? `${queue.due_total} due · ${scheduledNew} new · across enabled sources`
                       : "Loading your review queue…"}
                   </p>
                   {dueToday > 0 ? (
@@ -447,7 +588,7 @@ export default function DecksPage() {
                       Deck library
                     </h2>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      AI-written revision cards and printed book questions stay clearly separated.
+                      AI-written revision cards and source-authored exercises and worked examples stay clearly separated.
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
@@ -468,7 +609,9 @@ export default function DecksPage() {
                       <SelectContent>
                         <SelectItem value="all">All decks</SelectItem>
                         <SelectItem value="topic_generated">AI-generated</SelectItem>
-                        <SelectItem value="book_extracted">From books</SelectItem>
+                        <SelectItem value="book_extracted">
+                          Exercises &amp; worked examples
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -505,7 +648,7 @@ export default function DecksPage() {
                     {bookQuestionDecks.length > 0 ? (
                       <DeckGroup
                         id="book-question-decks"
-                        title="From books"
+                        title="Exercises & worked examples"
                         count={bookQuestionDecks.length}
                         mode="book_extracted"
                         decks={bookQuestionDecks}

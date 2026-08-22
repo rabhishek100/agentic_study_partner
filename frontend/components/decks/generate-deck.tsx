@@ -30,15 +30,23 @@ import type { BookListResponse, BookSummary } from "@/lib/types";
 import type { VideoListResponse, VideoSummary } from "@/lib/video-types";
 import { videoState } from "@/lib/video-state";
 
-type Mode = "book" | "video";
+type Mode = "book" | "paper" | "video";
+
+const MODE_LABELS: Record<Mode, string> = {
+  book: "Chapter",
+  paper: "Paper",
+  video: "Lecture",
+};
 
 export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("book");
   const [books, setBooks] = useState<BookSummary[]>([]);
+  const [papers, setPapers] = useState<BookSummary[]>([]);
   const [videos, setVideos] = useState<VideoSummary[]>([]);
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [bookId, setBookId] = useState<string>("");
+  const [paperId, setPaperId] = useState<string>("");
   const [nodeId, setNodeId] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
   const [generationMode, setGenerationMode] = useState<"topic_generated" | "book_extracted">("topic_generated");
@@ -48,18 +56,22 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
 
   useEffect(() => {
     if (!open) return;
+    setError("");
     (async () => {
       try {
-        const [bookPayload, videoPayload] = await Promise.all([
+        const [bookPayload, paperPayload, videoPayload] = await Promise.all([
           apiFetch<BookListResponse>("/books"),
+          apiFetch<BookListResponse>("/papers"),
           apiFetch<VideoListResponse>("/videos"),
         ]);
         setBooks(bookPayload.books);
+        setPapers(paperPayload.books);
         setVideos(
           videoPayload.videos.filter((video) =>
             ["ready", "partial"].includes(videoState(video)),
           ),
         );
+        setError("");
       } catch (caught) {
         setError((caught as Error).message || "Could not load your library.");
       }
@@ -79,6 +91,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
           `/books/${bookId}/chapters`,
         );
         setChapters(payload.chapters);
+        setError("");
       } catch (caught) {
         setError((caught as Error).message || "Could not load the chapters.");
       } finally {
@@ -101,6 +114,13 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                 book_id: Number(bookId),
                 node_id: Number(nodeId),
               }
+            : mode === "paper"
+              ? {
+                  source_kind: "book",
+                  generation_mode: "topic_generated",
+                  book_id: Number(paperId),
+                  node_id: null,
+                }
             : { source_kind: "video", video_id: videoId },
         ),
       });
@@ -111,9 +131,14 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
     } finally {
       setSubmitting(false);
     }
-  }, [bookId, generationMode, mode, nodeId, onQueued, videoId]);
+  }, [bookId, generationMode, mode, nodeId, onQueued, paperId, videoId]);
 
-  const ready = mode === "book" ? Boolean(bookId && nodeId) : Boolean(videoId);
+  const ready =
+    mode === "book"
+      ? Boolean(bookId && nodeId)
+      : mode === "paper"
+        ? Boolean(paperId)
+        : Boolean(videoId);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -128,24 +153,33 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
         <DialogDescription>
           {mode === "book" && generationMode === "book_extracted"
             ? "Use questions already printed in a chapter. Printed solutions are preserved; missing answers are grounded in the chapter."
-            : "One deck covers one chapter or lecture. Each generated card cites the page or moment it came from."}
+            : mode === "paper"
+              ? "Each numbered set covers one complete paper. New sets keep earlier cards and avoid repeating their questions."
+              : "Each numbered set covers one chapter or lecture. New sets keep earlier cards and avoid repeating their questions."}
         </DialogDescription>
 
         <div className="space-y-4 pt-2">
-          <div className="flex gap-1 rounded-lg bg-muted p-1">
-            {(["book", "video"] as Mode[]).map((value) => (
+          <div
+            role="group"
+            aria-label="Deck source"
+            className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+          >
+            {(["book", "paper", "video"] as Mode[]).map((value) => (
               <button
                 key={value}
                 type="button"
-                onClick={() => setMode(value)}
+                onClick={() => {
+                  setMode(value);
+                  setError("");
+                }}
                 aria-pressed={mode === value}
                 className={
                   mode === value
-                    ? "flex-1 rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm"
-                    : "flex-1 rounded-md px-3 py-2 text-sm text-muted-foreground"
+                    ? "rounded-md bg-background px-3 py-2 text-sm font-medium shadow-sm"
+                    : "rounded-md px-3 py-2 text-sm text-muted-foreground"
                 }
               >
-                {value === "book" ? "From a chapter" : "From a lecture"}
+                {MODE_LABELS[value]}
               </button>
             ))}
           </div>
@@ -158,7 +192,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                   <SelectTrigger id="deck-book">
                     <SelectValue placeholder="Choose a book" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent layer="dialog">
                     {books.map((book) => (
                       <SelectItem
                         key={book.book_id}
@@ -188,7 +222,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                         }
                       />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent layer="dialog">
                       {chapters.map((chapter) => (
                         <SelectItem
                           key={chapter.node_id}
@@ -227,12 +261,44 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                         : "rounded-md border bg-card p-3 text-left text-xs text-muted-foreground hover:bg-muted"
                     }
                   >
-                    <div className="font-semibold text-foreground">Use questions from book</div>
-                    <div className="mt-1 text-xs text-muted-foreground">Preserve printed exercises and answers</div>
+                    <div className="font-semibold text-foreground">
+                      Exercises &amp; worked examples
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Preserve source-authored questions and solutions
+                    </div>
                   </button>
                 </div>
               </div>
             </>
+          ) : mode === "paper" ? (
+            <div className="space-y-2">
+              <Label htmlFor="deck-paper">Paper</Label>
+              <Select value={paperId} onValueChange={setPaperId}>
+                <SelectTrigger id="deck-paper">
+                  <SelectValue placeholder="Choose a paper" />
+                </SelectTrigger>
+                <SelectContent layer="dialog">
+                  {papers.map((paper) => (
+                    <SelectItem
+                      key={paper.book_id}
+                      value={String(paper.book_id)}
+                    >
+                      {paper.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {papers.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No processed papers yet.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  The complete paper is one scope; sections are curated into 10–15 cards.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="space-y-2">
               <Label htmlFor="deck-video">Lecture</Label>
@@ -240,7 +306,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                 <SelectTrigger id="deck-video">
                   <SelectValue placeholder="Choose a lecture" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent layer="dialog">
                   {videos.map((video) => (
                     <SelectItem key={video.video_id} value={video.video_id}>
                       {video.title}
@@ -268,7 +334,10 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
             </Button>
             <Button disabled={!ready || submitting} onClick={() => void submit()}>
               {submitting ? (
-                <Loader2 aria-hidden className="animate-spin" />
+                <Loader2
+                  aria-hidden
+                  className="animate-spin motion-reduce:animate-none"
+                />
               ) : null}
               Generate
             </Button>

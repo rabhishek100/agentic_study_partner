@@ -146,6 +146,12 @@ def video_scope_key(video_id: str | UUID) -> str:
     return f"video:{video_id}"
 
 
+def paper_scope_key(book_id: int) -> str:
+    """Stable identity for a complete paper with several possible roots."""
+
+    return f"paper:{book_id}"
+
+
 def book_inventory(
     bundle: EvidenceBundle,
     *,
@@ -216,9 +222,14 @@ def book_inventory(
             )
         )
 
+    whole_paper = scope.document_type == "paper" and scope.root_node_id is None
     return ScopeInventory(
         source_kind="book",
-        scope_key=book_scope_key(scope.book_id, scope.root_node_id or 0),
+        scope_key=(
+            paper_scope_key(scope.book_id)
+            if whole_paper
+            else book_scope_key(scope.book_id, scope.root_node_id or 0)
+        ),
         title=scope.display_path,
         source_title=scope.book_title,
         outline="\n".join(
@@ -226,6 +237,29 @@ def book_inventory(
             for topic in topics
         ),
         topics=tuple(topics),
+    )
+
+
+def paper_inventory(
+    bundle: EvidenceBundle,
+    *,
+    connection: Connection | None = None,
+    owner_id: str | UUID | None = None,
+) -> ScopeInventory:
+    """Inventory every canonical section of one complete scientific paper."""
+
+    if bundle.scope.document_type != "paper" or bundle.scope.root_node_id is not None:
+        raise ValueError("paper inventory requires a complete paper scope")
+    inventory = book_inventory(
+        bundle, connection=connection, owner_id=owner_id
+    )
+    return ScopeInventory(
+        source_kind=inventory.source_kind,
+        scope_key=paper_scope_key(bundle.scope.book_id),
+        title="Full paper",
+        source_title=inventory.source_title,
+        outline=inventory.outline,
+        topics=inventory.topics,
     )
 
 

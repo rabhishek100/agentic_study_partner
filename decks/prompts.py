@@ -80,11 +80,11 @@ For every card:
   headed below. A card must be about one topic and cite only that topic's
   markers.
 - `front` must stand alone. A reader seeing only the front, with no memory of
-  the chapter, must know what is being asked.
+  the source scope, must know what is being asked.
 - `interview_priority` is 1–5, and it is a ranking, not a compliment. Rate the
   cards against each other, not against how interesting the material is:
   5 — an interviewer will open with this, or build a whole question on it.
-      Reserve it. Across a chapter it should fit on one hand.
+      Reserve it. Across a complete set it should fit on one hand.
   4 — likely to come up as a follow-up.
   3 — worth knowing; the default when nothing distinguishes a card.
   2 — supporting detail you would mention, not be asked.
@@ -105,7 +105,12 @@ Write {minimum}–{maximum} cards per required topic. A short topic may need onl
 one; a dense one may use the full allowance. Cover what a reader must be able
 to recall and explain, not every sentence present.
 
-Vary the card type by what the material is. A chapter that defines several
+The final chapter, paper, or lecture set is curated to at most 15 cards. Prefer a
+small number of high-signal questions over several variations of the same
+idea; the target is 10–15 distinct cards across the complete scope when the
+evidence supports that many.
+
+Vary the card type by what the material is. A scope that defines several
 terms which are easy to confuse should produce some `mcq` cards; one that
 describes a pipeline or an architecture should produce a `system_design` card
 rather than prose about it. Do not turn everything into `qa`.
@@ -119,6 +124,14 @@ written for a neighbouring topic.
 Write at least one card that is specific to this topic's own evidence and
 cites only this topic's markers. Prefer the single most interview-relevant
 point the evidence genuinely supports over a broad restatement.
+""".strip()
+
+PREVIOUS_SET_GUIDANCE = """
+This scope already has earlier study sets. Do not repeat or lightly rephrase
+any of these existing card fronts. Write complementary questions that test a
+different distinction, implication, comparison, or application supported by
+the supplied evidence:
+{fronts}
 """.strip()
 
 USER_TEMPLATE = """
@@ -147,7 +160,15 @@ def prompt_version() -> str:
     """A digest over the prompt text, so a deck records what produced it."""
 
     canonical = "\n\n".join(
-        (LOCKED_CARD_GROUNDING, CARD_TYPE_GUIDE, USER_TEMPLATE, TOPIC_TEMPLATE)
+        (
+            LOCKED_CARD_GROUNDING,
+            CARD_TYPE_GUIDE,
+            VOLUME_GUIDANCE,
+            REPAIR_GUIDANCE,
+            PREVIOUS_SET_GUIDANCE,
+            USER_TEMPLATE,
+            TOPIC_TEMPLATE,
+        )
     )
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
     return f"{PROMPT_SCHEMA_VERSION}:{digest}"
@@ -169,12 +190,19 @@ def build_card_messages(
     minimum_cards: int,
     maximum_cards: int,
     repair: bool = False,
+    previous_fronts: tuple[str, ...] = (),
 ) -> list[tuple[str, str]]:
     """Compile the locked rules, the card guide, and one batch of topics."""
 
     guidance = VOLUME_GUIDANCE.format(minimum=minimum_cards, maximum=maximum_cards)
     if repair:
         guidance = f"{REPAIR_GUIDANCE}\n\n{guidance}"
+    if previous_fronts:
+        prior = "\n".join(f"- {front}" for front in previous_fronts)
+        guidance = (
+            f"{guidance}\n\n"
+            f"{PREVIOUS_SET_GUIDANCE.format(fronts=prior)}"
+        )
 
     system = "\n\n".join((LOCKED_CARD_GROUNDING, CARD_TYPE_GUIDE))
     human = USER_TEMPLATE.format(

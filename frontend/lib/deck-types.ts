@@ -10,6 +10,12 @@ export type DeckStatus = "generating" | "ready" | "partial" | "failed";
 export type ReviewStateName = "new" | "learning" | "review" | "relearning";
 export type GenerationMode = "topic_generated" | "book_extracted";
 export type AnswerSource = "printed_in_book" | "rag_generated";
+export type SourceItemKind = "exercise" | "worked_example";
+export type SourceItemPlacement = "inline" | "end_of_chapter";
+export type SourceDiscoveryMethod =
+  | "numbered_section"
+  | "explicit_label"
+  | "model_fallback";
 
 /** Anki's four. 1 is a failure; 4 means it was instant. */
 export type Rating = 1 | 2 | 3 | 4;
@@ -69,6 +75,20 @@ export interface DeckCard {
   /** Model knowledge, labelled as such. Never counted as grounded. */
   interview_angle: string | null;
   answer_source?: AnswerSource | null;
+  source_item_key?: string | null;
+  source_item_kind?: SourceItemKind | null;
+  source_item_placement?: SourceItemPlacement | null;
+  source_label?: string | null;
+  source_discovery_method?: SourceDiscoveryMethod | null;
+  question_citations?: DeckCitation[];
+  answer_citations?: DeckCitation[];
+}
+
+export interface UncoveredSourceItem {
+  key: string;
+  label: string;
+  kind: string;
+  placement: string;
 }
 
 export interface DeckMetrics {
@@ -79,12 +99,18 @@ export interface DeckMetrics {
   source_questions_total: number;
   source_questions_covered: number;
   uncovered_question_labels: string[];
+  source_items_total: number;
+  source_items_covered: number;
+  source_item_kind_counts: Record<string, number>;
+  source_item_placement_counts: Record<string, number>;
+  uncovered_source_items: UncoveredSourceItem[];
   cards_generated: number;
   cards_kept: number;
   cards_dropped_uncited: number;
   cards_dropped_out_of_scope: number;
   cards_dropped_duplicate: number;
   cards_dropped_malformed: number;
+  cards_curated_out: number;
   cards_with_interview_angle: number;
   card_type_counts: Record<string, number>;
   priority_counts: Record<string, number>;
@@ -95,9 +121,11 @@ export interface DeckMetrics {
 export interface DeckSummary {
   deck_id: string;
   source_kind: SourceKind;
+  document_type: "book" | "paper" | "video";
   generation_mode?: GenerationMode;
   scope_key: string;
   version: number;
+  set_number: number;
   title: string;
   source_title: string;
   status: DeckStatus;
@@ -148,6 +176,42 @@ export interface DeckPreferences {
   max_reviews_per_day: number;
 }
 
+/** One library source's eligibility for automatic cards and mixed review. */
+export interface DeckSourcePreference {
+  source_kind: SourceKind;
+  source_id: string;
+  title: string;
+  document_type: "book" | "paper" | "video";
+  status: string;
+  cards_enabled: boolean;
+  automatic_cards_queued: boolean;
+  automatic_cards_activated: boolean;
+  missing_automatic_set_count: number;
+  can_activate_automatic_cards: boolean;
+}
+
+export interface DeckSourcePreferences {
+  sources: DeckSourcePreference[];
+}
+
+export interface AutomaticSetActivationResponse {
+  source: DeckSourcePreference;
+  jobs_queued: number;
+}
+
+export type GenerateDeckRequest =
+  | {
+      source_kind: "book";
+      generation_mode: GenerationMode;
+      book_id: number;
+      node_id: number | null;
+    }
+  | {
+      source_kind: "video";
+      generation_mode: GenerationMode;
+      video_id: string;
+    };
+
 export interface DeckJob {
   job_id: string;
   source_kind: SourceKind;
@@ -163,6 +227,7 @@ export interface DeckJob {
   topics_done: number;
   progress: number;
   attempt_count: number;
+  automatic?: boolean;
   error_code: string | null;
   error_detail: string | null;
   title: string;
@@ -236,13 +301,34 @@ export function jobIsLive(job: DeckJob): boolean {
   return job.status === "queued" || job.status === "running";
 }
 
+/** Recreate the exact stable scope represented by an existing numbered set. */
+export function nextSetRequest(deck: DeckSummary): GenerateDeckRequest | null {
+  if (deck.source_kind === "video") {
+    if (!deck.video_id) return null;
+    return {
+      source_kind: "video",
+      generation_mode: deck.generation_mode ?? "topic_generated",
+      video_id: deck.video_id,
+    };
+  }
+  if (deck.book_id === null) return null;
+  if (deck.document_type !== "paper" && deck.node_id === null) return null;
+  return {
+    source_kind: "book",
+    generation_mode: deck.generation_mode ?? "topic_generated",
+    book_id: deck.book_id,
+    node_id: deck.document_type === "paper" ? null : deck.node_id,
+  };
+}
+
 export function formatDeckDuration(seconds: number | null | undefined): string {
   if (seconds == null || !Number.isFinite(seconds)) return "—";
   const whole = Math.max(0, Math.round(seconds));
   if (whole < 60) return `${whole}s`;
   const minutes = Math.floor(whole / 60);
   const remainder = whole % 60;
-  if (minutes < 60) return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+  if (minutes < 60)
+    return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   const minuteRemainder = minutes % 60;
   return minuteRemainder ? `${hours}h ${minuteRemainder}m` : `${hours}h`;
@@ -282,9 +368,13 @@ export function deckJobError(job: DeckJob): {
   };
   const safe = copy[job.error_code ?? ""] ?? {
     title: fallbackTitle,
-    message: "Generation stopped before the new deck was saved. Please try again.",
+    message:
+      "Generation stopped before the new deck was saved. Please try again.",
   };
-  const compactId = job.job_id.replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase();
+  const compactId = job.job_id
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 6)
+    .toUpperCase();
   return { ...safe, reference: `DECK-${compactId || "UNKNOWN"}` };
 }
 
@@ -310,6 +400,11 @@ export function describeInterval(days: number): string {
 }
 
 export function coveragePercent(metrics: DeckMetrics): number {
+  if (metrics.source_items_total) {
+    return Math.round(
+      (metrics.source_items_covered / metrics.source_items_total) * 100,
+    );
+  }
   if (metrics.source_questions_total) {
     return Math.round(
       (metrics.source_questions_covered / metrics.source_questions_total) * 100,

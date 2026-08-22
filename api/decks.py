@@ -19,11 +19,17 @@ from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
 from decks import jobs as deck_jobs
-from decks import store
+from decks import source_preferences, store
 from decks.contracts import (
     ContractModel,
     DeckCard,
     DeckPreferences,
+    DeckSourceActivationRequest,
+    DeckSourceActivationResponse,
+    DeckSourcePreference,
+    DeckSourcePreferences,
+    DeckSourcePreferencesUpdate,
+    DeckSourcePreferenceUpdate,
     DeckSummary,
     QueueCard,
     ReviewQueue,
@@ -34,11 +40,13 @@ from decks.pipeline import DeckSourceError, load_inventory
 from decks.progress import estimate
 from decks.scheduler import build_queue
 from decks.store import DeckNotFoundError
-from decks.topics import book_scope_key, video_scope_key
+from decks.topics import book_scope_key, paper_scope_key, video_scope_key
+from notifications import store as notification_store
 from storage.conversations import append_turn, create_conversation, derive_title
 from storage.database import connection as database_connection
+from storage.postgres import ready_book
 from study.contracts import MAXIMUM_QUOTE_CHARS, QuoteAnchor
-from study.scope import ScopeNotFoundError, resolve_node
+from study.scope import ScopeNotFoundError, resolve_book, resolve_node
 
 logger = logging.getLogger("study_partner.api.decks")
 
@@ -58,6 +66,8 @@ class GenerateDeckRequest(ContractModel):
     def extracted_questions_are_book_only(self) -> GenerateDeckRequest:
         if self.source_kind != "book" and self.generation_mode == "book_extracted":
             raise ValueError("book-extracted questions require a book chapter")
+        if self.generation_mode == "book_extracted" and self.node_id is None:
+            raise ValueError("book-extracted questions require a chapter")
         return self
 
 
@@ -76,6 +86,7 @@ class DeckJobResponse(ContractModel):
     topics_done: int = 0
     progress: float = 0.0
     attempt_count: int = 0
+    automatic: bool = False
     error_code: str | None = None
     error_detail: str | None = None
     title: str = "Deck generation"
@@ -150,6 +161,7 @@ def _job_response(job: deck_jobs.DeckJob) -> DeckJobResponse:
         topics_done=job.topics_done,
         progress=round(timing.percent / 100, 3),
         attempt_count=job.attempt_count,
+        automatic=job.automatic_key is not None,
         error_code=job.error_code,
         error_detail=job.error_detail,
         title=job.title,
@@ -192,24 +204,58 @@ async def generate_deck(
         with database_connection() as connection:
             if request.source_kind == "book":
                 if request.node_id is None:
-                    raise HTTPException(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="a book deck needs a chapter or section",
+                    if request.book_id is None:
+                        raise HTTPException(
+                            status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="a document deck needs a paper or chapter",
+                        )
+                    source = ready_book(
+                        connection, request.book_id, owner_id=owner_id
                     )
-                try:
-                    scope = resolve_node(
-                        connection, request.node_id, owner_id=owner_id
+                    if source is None:
+                        raise HTTPException(
+                            status.HTTP_404_NOT_FOUND, detail="no such ready paper"
+                        )
+                    if (source.get("document_type") or "book") != "paper":
+                        raise HTTPException(
+                            status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=(
+                                "whole-document card sets are supported only "
+                                "for papers"
+                            ),
+                        )
+                    try:
+                        scope = resolve_book(
+                            connection,
+                            owner_id=owner_id,
+                            book_id=request.book_id,
+                        )
+                    except ScopeNotFoundError as error:
+                        raise HTTPException(
+                            status.HTTP_404_NOT_FOUND, detail="no such paper"
+                        ) from error
+                    scope_key = paper_scope_key(scope.book_id)
+                    book_id: int | None = scope.book_id
+                else:
+                    try:
+                        scope = resolve_node(
+                            connection, request.node_id, owner_id=owner_id
+                        )
+                    except ScopeNotFoundError as error:
+                        raise HTTPException(
+                            status.HTTP_404_NOT_FOUND, detail=str(error)
+                        ) from error
+                    if scope.document_type == "paper":
+                        raise HTTPException(
+                            status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="paper card sets cover the complete paper",
+                        )
+                    scope_key = book_scope_key(
+                        scope.book_id,
+                        request.node_id,
+                        generation_mode=request.generation_mode,
                     )
-                except ScopeNotFoundError as error:
-                    raise HTTPException(
-                        status.HTTP_404_NOT_FOUND, detail=str(error)
-                    ) from error
-                scope_key = book_scope_key(
-                    scope.book_id,
-                    request.node_id,
-                    generation_mode=request.generation_mode,
-                )
-                book_id: int | None = scope.book_id
+                    book_id = scope.book_id
                 video_id = None
             else:
                 if not request.video_id:
@@ -281,7 +327,14 @@ async def review_queue(
             preferences = store.get_preferences(connection, owner_id=owner_id)
             due = store.due_cards(connection, owner_id=owner_id, deck_id=deck_id)
             fresh = store.new_cards(connection, owner_id=owner_id, deck_id=deck_id)
-            reviewed, introduced = store.counts_today(connection, owner_id=owner_id)
+            reminder_preferences = notification_store.get_reminder_preferences(
+                connection, owner_id=owner_id
+            )
+            reviewed, introduced = store.counts_today(
+                connection,
+                owner_id=owner_id,
+                timezone_name=reminder_preferences.timezone,
+            )
             return ReviewQueue(
                 cards=build_queue(
                     due=due,
@@ -323,6 +376,165 @@ async def update_preferences(
     return await run_in_threadpool(run)
 
 
+@router.get("/sources", response_model=DeckSourcePreferences)
+async def card_sources(
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourcePreferences:
+    """List every source and whether it contributes automatic/daily cards."""
+
+    def run() -> DeckSourcePreferences:
+        with database_connection(readonly=True) as connection:
+            return DeckSourcePreferences(
+                sources=source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.patch(
+    "/sources/{source_kind}/{source_id}", response_model=DeckSourcePreference
+)
+async def update_card_source(
+    source_kind: Literal["book", "video"],
+    source_id: str,
+    request: DeckSourcePreferenceUpdate,
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourcePreference:
+    """Enable or pause one owner-scoped source without deleting its history."""
+
+    def run() -> DeckSourcePreference:
+        with database_connection() as connection:
+            try:
+                saved = source_preferences.save_source(
+                    connection,
+                    owner_id=owner_id,
+                    source_kind=source_kind,
+                    source_id=source_id,
+                    cards_enabled=request.cards_enabled,
+                )
+                if request.cards_enabled:
+                    if source_kind == "book":
+                        source_preferences.enqueue_initial_for_book(
+                            connection,
+                            owner_id=owner_id,
+                            book_id=int(source_id),
+                        )
+                    else:
+                        source_preferences.enqueue_initial_for_video(
+                            connection,
+                            owner_id=owner_id,
+                            video_id=source_id,
+                        )
+            except (LookupError, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such card source"
+                ) from error
+            return next(
+                item
+                for item in source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
+                if item.source_kind == source_kind
+                and item.source_id == saved.source_id
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.post(
+    "/sources/{source_kind}/{source_id}/automatic-set-1",
+    response_model=DeckSourceActivationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def activate_automatic_set_one(
+    source_kind: Literal["book", "video"],
+    source_id: str,
+    request: DeckSourceActivationRequest,
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourceActivationResponse:
+    """Explicitly queue missing initial sets for one legacy source."""
+
+    def run() -> DeckSourceActivationResponse:
+        with database_connection() as connection:
+            try:
+                queued = source_preferences.activate_initial_sets(
+                    connection,
+                    owner_id=owner_id,
+                    source_kind=source_kind,
+                    source_id=source_id,
+                    expected_missing_set_count=request.expected_missing_set_count,
+                )
+            except LookupError as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such card source"
+                ) from error
+            except source_preferences.SourceActivationConflict as error:
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT, detail=str(error)
+                ) from error
+            source = next(
+                item
+                for item in source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
+                if item.source_kind == source_kind
+                and item.source_id == str(source_id)
+            )
+            return DeckSourceActivationResponse(
+                source=source, jobs_queued=queued
+            )
+
+    return await run_in_threadpool(run)
+
+
+@router.patch("/sources", response_model=DeckSourcePreferences)
+async def update_card_sources(
+    request: DeckSourcePreferencesUpdate,
+    owner_id: UUID = Depends(current_owner),
+) -> DeckSourcePreferences:
+    """Atomically save several source choices from the settings dialog."""
+
+    def run() -> DeckSourcePreferences:
+        with database_connection() as connection:
+            try:
+                for selection in request.sources:
+                    source_preferences.save_source(
+                        connection,
+                        owner_id=owner_id,
+                        source_kind=selection.source_kind,
+                        source_id=selection.source_id,
+                        cards_enabled=selection.cards_enabled,
+                    )
+                for selection in request.sources:
+                    if not selection.cards_enabled:
+                        continue
+                    if selection.source_kind == "book":
+                        source_preferences.enqueue_initial_for_book(
+                            connection,
+                            owner_id=owner_id,
+                            book_id=int(selection.source_id),
+                        )
+                    else:
+                        source_preferences.enqueue_initial_for_video(
+                            connection,
+                            owner_id=owner_id,
+                            video_id=selection.source_id,
+                        )
+            except (LookupError, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such card source"
+                ) from error
+            return DeckSourcePreferences(
+                sources=source_preferences.list_sources(
+                    connection, owner_id=owner_id
+                )
+            )
+
+    return await run_in_threadpool(run)
+
+
 @router.get("/jobs/{job_id}", response_model=DeckJobResponse)
 async def deck_job(
     job_id: str,
@@ -352,6 +564,39 @@ async def cancel_deck_job(
             deck_jobs.request_cancellation(
                 connection, owner_id=owner_id, job_id=job_id
             )
+
+    await run_in_threadpool(run)
+
+
+@router.post("/jobs/{job_id}/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_deck_job(
+    job_id: str,
+    owner_id: UUID = Depends(current_owner),
+) -> None:
+    """Dismiss a failed generation alert while retaining its diagnostic row."""
+
+    def run() -> None:
+        with database_connection() as connection:
+            try:
+                job = deck_jobs.get_job(
+                    connection, owner_id=owner_id, job_id=job_id
+                )
+            except (LookupError, ValueError) as error:
+                raise HTTPException(
+                    status.HTTP_404_NOT_FOUND, detail="no such deck job"
+                ) from error
+            if job.status != "failed":
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="only failed deck jobs can be dismissed",
+                )
+            if not deck_jobs.dismiss_failed_job(
+                connection, owner_id=owner_id, job_id=job_id
+            ):
+                raise HTTPException(
+                    status.HTTP_409_CONFLICT,
+                    detail="this deck job is no longer dismissible",
+                )
 
     await run_in_threadpool(run)
 

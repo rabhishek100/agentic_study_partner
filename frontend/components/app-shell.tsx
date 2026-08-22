@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { HEADER_INSET } from "@/lib/floating-window";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 import { SplitPane, type RightRegionMode } from "@/components/pdf/split-pane";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -185,6 +186,7 @@ export function AppShell({
           {nav ? <div className="hidden sm:block">{nav}</div> : null}
           {sideChatControl}
           {documentControl}
+          <NotificationCenter />
           <ThemeToggle />
           {account}
         </div>

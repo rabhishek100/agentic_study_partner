@@ -158,6 +158,7 @@
     --z-index-drawer: 40;
     --z-index-popover: 50;
     --z-index-dialog: 60;
+    --z-index-dialog-popover: 65;
     --z-index-toast: 70;
     --z-index-skip-link: 80;
 
@@ -245,6 +246,7 @@
     --z-drawer: 40;
     --z-popover: 50;
     --z-dialog: 60;
+    --z-dialog-popover: 65;
     --z-toast: 70;
     --z-skip-link: 80;
 

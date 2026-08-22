@@ -10,7 +10,7 @@ to survive a regeneration it did not ask for.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -18,6 +18,7 @@ from psycopg import Connection
 
 from storage.database import parse_owner_id
 
+from .review_time import local_day_bounds
 from .contracts import (
     CardBack,
     DeckCard,
@@ -30,7 +31,8 @@ from .contracts import (
     ReviewState,
 )
 from .generate import GeneratedDeck
-from .scheduler import initial_state, review as schedule_review
+from .scheduler import initial_state
+from .scheduler import review as schedule_review
 from .topics import Topic
 
 # The library and the queue both read cards; neither ever wants a whole book's
@@ -129,6 +131,26 @@ def store_deck(
     covered = {card.topic_key for card in generated.cards}
 
     with connection.transaction():
+        deck_identity = connection.execute(
+            """
+            select scope_key, generation_mode
+            from public.decks
+            where id = %s and owner_id = %s
+            for update
+            """,
+            (deck_id, owner),
+        ).fetchone()
+        if deck_identity is None:
+            raise DeckNotFoundError(f"no deck {deck_id}")
+
+        # The job queue already permits only one live generation per scope.
+        # This transaction lock also protects callers outside the worker, so
+        # two successful publications can never claim the same visible set.
+        connection.execute(
+            "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            (f"{owner}:{deck_identity['scope_key']}",),
+        )
+
         connection.execute(
             "delete from public.deck_topics where deck_id = %s and owner_id = %s",
             (deck_id, owner),
@@ -167,9 +189,15 @@ def store_deck(
                     owner_id, deck_id, topic_key, card_index, card_type,
                     front, back_json, interview_priority, priority_reason,
                     difficulty, citations_json, figures_json, interview_angle,
-                    answer_source
+                    answer_source, source_item_key, source_item_kind,
+                    source_item_placement, source_label,
+                    source_discovery_method, question_citations_json,
+                    answer_citations_json
                 )
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                values (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
                 returning id
                 """,
                 (
@@ -187,6 +215,23 @@ def store_deck(
                     _json([item.model_dump(mode="json") for item in card.figures]),
                     card.interview_angle,
                     card.answer_source,
+                    card.source_item_key,
+                    card.source_item_kind,
+                    card.source_item_placement,
+                    card.source_label,
+                    card.source_discovery_method,
+                    _json(
+                        [
+                            item.model_dump(mode="json")
+                            for item in card.question_citations
+                        ]
+                    ),
+                    _json(
+                        [
+                            item.model_dump(mode="json")
+                            for item in card.answer_citations
+                        ]
+                    ),
                 ),
             ).fetchone()
             connection.execute(
@@ -197,21 +242,30 @@ def store_deck(
                 (row["id"], owner, deck_id),
             )
 
-        # Retire earlier versions *before* publishing this one. Only one
-        # version of a scope may be readable at a time and a partial unique
-        # index enforces it, so publishing first would collide with the very
-        # row this statement is about to stand down.
-        connection.execute(
-            """
-            update public.decks
-            set status = 'failed', updated_at = now()
-            where owner_id = %s
-              and scope_key = (select scope_key from public.decks where id = %s)
-              and id <> %s
-              and status in ('ready', 'partial')
-            """,
-            (owner, deck_id, deck_id),
-        )
+        if deck_identity["generation_mode"] == "book_extracted":
+            # Printed questions are canonical source material, not a stream of
+            # newly authored sets. Regeneration replaces that derived view.
+            connection.execute(
+                """
+                update public.decks
+                set status = 'failed', updated_at = now()
+                where owner_id = %s and scope_key = %s and id <> %s
+                  and status in ('ready', 'partial')
+                """,
+                (owner, deck_identity["scope_key"], deck_id),
+            )
+            set_number = 1
+        else:
+            row = connection.execute(
+                """
+                select coalesce(max(set_number), 0) + 1 as next_set
+                from public.decks
+                where owner_id = %s and scope_key = %s
+                  and status in ('ready', 'partial')
+                """,
+                (owner, deck_identity["scope_key"]),
+            ).fetchone()
+            set_number = row["next_set"]
 
         connection.execute(
             """
@@ -220,6 +274,7 @@ def store_deck(
                 generation_model = %s,
                 prompt_version = %s,
                 ingestion_version_id = %s,
+                set_number = %s,
                 topic_count = %s,
                 card_count = %s,
                 metrics_json = %s,
@@ -231,6 +286,7 @@ def store_deck(
                 generated.model_name,
                 generated.prompt_version,
                 UUID(str(ingestion_version_id)) if ingestion_version_id else None,
+                set_number,
                 len(topics),
                 len(generated.cards),
                 _json(metrics.model_dump(mode="json")),
@@ -257,9 +313,17 @@ def _summary(row: Any) -> DeckSummary:
     return DeckSummary(
         deck_id=str(row["id"]),
         source_kind=row["source_kind"],
+        document_type=(
+            "video"
+            if row["source_kind"] == "video"
+            else "paper"
+            if row["scope_key"].startswith("paper:")
+            else "book"
+        ),
         generation_mode=row.get("generation_mode", "topic_generated"),
         scope_key=row["scope_key"],
         version=row["version"],
+        set_number=row.get("set_number") or 1,
         title=row["title"],
         source_title=row["source_title"],
         status=row["status"],
@@ -298,6 +362,37 @@ def list_decks(
         (parse_owner_id(owner_id),),
     ).fetchall()
     return [_summary(row) for row in rows]
+
+
+def generated_fronts(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    scope_key: str,
+    limit: int = 100,
+) -> tuple[str, ...]:
+    """Questions already published for an AI-generated scope.
+
+    These are supplied to the next generation and also used by deterministic
+    validation, so a provider cannot silently rephrase punctuation and return
+    the same question as a new set.
+    """
+
+    rows = connection.execute(
+        """
+        select card.front
+        from public.deck_cards as card
+        join public.decks as deck
+          on deck.id = card.deck_id and deck.owner_id = card.owner_id
+        where deck.owner_id = %s and deck.scope_key = %s
+          and deck.generation_mode = 'topic_generated'
+          and deck.status in ('ready', 'partial')
+        order by deck.set_number desc, card.card_index
+        limit %s
+        """,
+        (parse_owner_id(owner_id), scope_key, limit),
+    ).fetchall()
+    return tuple(row["front"] for row in rows)
 
 
 def get_deck(
@@ -341,6 +436,19 @@ def _card(row: Any) -> DeckCard:
         difficulty=row["difficulty"],
         interview_angle=row["interview_angle"],
         answer_source=row.get("answer_source"),
+        source_item_key=row.get("source_item_key"),
+        source_item_kind=row.get("source_item_kind"),
+        source_item_placement=row.get("source_item_placement"),
+        source_label=row.get("source_label"),
+        source_discovery_method=row.get("source_discovery_method"),
+        question_citations=[
+            DeckCitation.model_validate(item)
+            for item in row.get("question_citations_json", []) or []
+        ],
+        answer_citations=[
+            DeckCitation.model_validate(item)
+            for item in row.get("answer_citations_json", []) or []
+        ],
     )
 
 
@@ -391,6 +499,10 @@ _CARD_SELECT = """
       on deck.id = card.deck_id and deck.owner_id = card.owner_id
     join public.deck_card_reviews as review
       on review.card_id = card.id and review.owner_id = card.owner_id
+    left join public.books as source_book
+      on source_book.id = deck.book_id and source_book.owner_id = deck.owner_id
+    left join video.videos as source_video
+      on source_video.id = deck.video_id and source_video.owner_id = deck.owner_id
 """
 
 
@@ -424,6 +536,10 @@ def due_cards(
         where card.owner_id = %s
           and deck.status in ('ready', 'partial')
           and (%s::uuid is null or card.deck_id = %s::uuid)
+          and (
+              %s::boolean
+              or coalesce(source_book.cards_enabled, source_video.cards_enabled, true)
+          )
           and review.due_at is not null
           and review.due_at <= now()
         order by review.due_at
@@ -433,6 +549,7 @@ def due_cards(
             parse_owner_id(owner_id),
             str(deck_id) if deck_id else None,
             str(deck_id) if deck_id else None,
+            deck_id is not None,
             limit,
         ),
     ).fetchall()
@@ -452,6 +569,10 @@ def new_cards(
         where card.owner_id = %s
           and deck.status in ('ready', 'partial')
           and (%s::uuid is null or card.deck_id = %s::uuid)
+          and (
+              %s::boolean
+              or coalesce(source_book.cards_enabled, source_video.cards_enabled, true)
+          )
           and review.state = 'new'
         order by card.interview_priority desc, card.card_index
         limit %s
@@ -460,6 +581,7 @@ def new_cards(
             parse_owner_id(owner_id),
             str(deck_id) if deck_id else None,
             str(deck_id) if deck_id else None,
+            deck_id is not None,
             limit,
         ),
     ).fetchall()
@@ -467,7 +589,11 @@ def new_cards(
 
 
 def counts_today(
-    connection: Connection, *, owner_id: str | UUID
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    timezone_name: str = "UTC",
+    now: datetime | None = None,
 ) -> tuple[int, int]:
     """Reviews done today, and how many of them introduced a new card.
 
@@ -476,21 +602,19 @@ def counts_today(
     only the log can answer.
     """
 
-    # The day boundary is computed by the database, in the same clock the
-    # events were stamped with. Deriving it from Python's local `date.today()`
-    # and comparing against UTC timestamps made "today" start at local
-    # midnight and the events land in UTC — so for the hours between the two,
-    # a review recorded minutes earlier did not count and the daily cap
-    # silently reset. It passed every test until the two dates disagreed.
+    # Review timestamps are absolute, but "today" belongs to the owner. Use
+    # explicit UTC bounds so the API, reminder worker, and database session all
+    # agree even when their machine timezones differ.
+    start, end = local_day_bounds(now or datetime.now(UTC), timezone_name)
     row = connection.execute(
         """
         select
             count(*) as reviewed,
             count(*) filter (where prior_state = 'new') as introduced
         from public.deck_review_events
-        where owner_id = %s and reviewed_at >= date_trunc('day', now())
+        where owner_id = %s and reviewed_at >= %s and reviewed_at < %s
         """,
-        (parse_owner_id(owner_id),),
+        (parse_owner_id(owner_id), start, end),
     ).fetchone()
     return int(row["reviewed"] or 0), int(row["introduced"] or 0)
 

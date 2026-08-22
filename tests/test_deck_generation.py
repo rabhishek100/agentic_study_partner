@@ -288,6 +288,32 @@ def inventory(*topics: Topic) -> ScopeInventory:
 
 
 class GenerateDeckTests(unittest.TestCase):
+    def test_a_generated_set_is_curated_to_fifteen_cards(self) -> None:
+        topics = tuple(
+            topic(index, node_id=10 + index, pages=(5 + index,))
+            for index in range(18)
+        )
+        generated = [
+            qa_card(
+                topic_ordinal=index + 1,
+                front=f"Question {index + 1}?",
+                markers=[f"[N{10 + index}:P{5 + index}]"],
+            ).model_copy(update={"interview_priority": 1 + (index % 5)})
+            for index in range(18)
+        ]
+        responses = tuple(TopicCards(cards=[item]) for item in generated)
+        deck = generate_deck(
+            inventory(*topics),
+            model=ScriptedModel(*responses),
+            config=GenerationConfig(repair=False, batch_tokens=100),
+        )
+
+        self.assertEqual(len(deck.cards), 15)
+        self.assertEqual(deck.metrics.cards_kept, 15)
+        self.assertEqual(deck.metrics.cards_curated_out, 3)
+        self.assertEqual(deck.metrics.topics_covered, 15)
+        self.assertEqual(len(deck.metrics.uncovered_topic_labels), 3)
+
     def test_reports_full_coverage_when_every_topic_gets_a_card(self) -> None:
         first, second = topic(0, node_id=10), topic(1, node_id=20, pages=(9,))
         model = ScriptedModel(
@@ -336,6 +362,20 @@ class GenerateDeckTests(unittest.TestCase):
         self.assertFalse(deck.complete)
         self.assertEqual(deck.metrics.topics_covered, 1)
         self.assertEqual(deck.metrics.uncovered_topic_labels, [second.label])
+
+    def test_a_new_set_rejects_and_warns_about_previous_card_fronts(self) -> None:
+        model = ScriptedModel(TopicCards(cards=[qa_card()]))
+        deck = generate_deck(
+            inventory(topic(0)),
+            model=model,
+            config=GenerationConfig(repair=False),
+            previous_fronts=("What is BACKPRESSURE?!",),
+        )
+
+        self.assertEqual(deck.cards, ())
+        self.assertEqual(deck.metrics.cards_dropped_duplicate, 1)
+        self.assertIn("Do not repeat or lightly rephrase", model.calls[0][1][1])
+        self.assertIn("What is BACKPRESSURE?!", model.calls[0][1][1])
 
     def test_an_optional_topic_never_fails_coverage(self) -> None:
         first = topic(0, node_id=10)

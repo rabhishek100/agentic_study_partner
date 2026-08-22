@@ -13,12 +13,18 @@ const metrics: DeckMetrics = {
   source_questions_total: 10,
   source_questions_covered: 10,
   uncovered_question_labels: [],
+  source_items_total: 10,
+  source_items_covered: 10,
+  source_item_kind_counts: { exercise: 8, worked_example: 2 },
+  source_item_placement_counts: { inline: 4, end_of_chapter: 6 },
+  uncovered_source_items: [],
   cards_generated: 8,
   cards_kept: 7,
   cards_dropped_uncited: 0,
   cards_dropped_out_of_scope: 0,
   cards_dropped_duplicate: 1,
   cards_dropped_malformed: 0,
+  cards_curated_out: 0,
   cards_with_interview_angle: 0,
   card_type_counts: { qa: 7 },
   priority_counts: { "3": 7 },
@@ -28,9 +34,11 @@ const metrics: DeckMetrics = {
 const extractedDeck: DeckSummary = {
   deck_id: "deck-1",
   source_kind: "book",
+  document_type: "book",
   generation_mode: "book_extracted",
   scope_key: "book:1:node:2:mode:book_extracted",
   version: 1,
+  set_number: 1,
   title: "Chapter 2",
   source_title: "ISLP",
   status: "ready",
@@ -92,13 +100,13 @@ const failedJob: DeckJob = {
 };
 
 describe("book-extracted deck presentation", () => {
-  it("labels source questions and reports source-question coverage", () => {
+  it("labels source items and reports unified coverage", () => {
     render(
       <TooltipProvider>
         <DeckRow deck={extractedDeck} />
       </TooltipProvider>,
     );
-    expect(screen.getByText("From book")).toBeTruthy();
+    expect(screen.getByText("Exercises & examples")).toBeTruthy();
     expect(screen.getByText("100% covered")).toBeTruthy();
   });
 
@@ -110,6 +118,8 @@ describe("book-extracted deck presentation", () => {
             ...extractedDeck,
             metrics: {
               ...metrics,
+              source_items_total: 0,
+              source_items_covered: 0,
               source_questions_total: 0,
               source_questions_covered: 0,
             },
@@ -122,7 +132,10 @@ describe("book-extracted deck presentation", () => {
 
   it("names extraction failures and lets the reader retry", () => {
     const retry = vi.fn();
-    render(<DeckJobRow job={failedJob} onRetry={retry} />);
+    const dismiss = vi.fn();
+    render(
+      <DeckJobRow job={failedJob} onRetry={retry} onDismiss={dismiss} />,
+    );
     expect(screen.getByText("We couldn’t extract these questions")).toBeTruthy();
     const details = screen.getByText("Technical details").closest("details");
     expect(details?.open).toBe(false);
@@ -131,5 +144,24 @@ describe("book-extracted deck presentation", () => {
     expect(screen.getByText("Provider timed out")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(retry).toHaveBeenCalledWith(failedJob);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(dismiss).toHaveBeenCalledWith(failedJob);
+  });
+});
+
+describe("numbered generated sets", () => {
+  it("shows the successful set number in the deck row", () => {
+    render(
+      <TooltipProvider>
+        <DeckRow
+          deck={{
+            ...extractedDeck,
+            generation_mode: "topic_generated",
+            set_number: 2,
+          }}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.getByText("Set 2")).toBeTruthy();
   });
 });

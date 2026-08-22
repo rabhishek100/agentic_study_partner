@@ -48,6 +48,7 @@ class DeckJob:
     topics_done: int
     attempt_count: int
     max_attempts: int
+    automatic_key: str | None = None
     generation_mode: str = "topic_generated"
     error_code: str | None = None
     error_detail: str | None = None
@@ -81,6 +82,7 @@ def _job(row: Any) -> DeckJob:
         topics_done=row["topics_done"],
         attempt_count=row["attempt_count"],
         max_attempts=row["max_attempts"],
+        automatic_key=row.get("automatic_key"),
         error_code=row["error_code"],
         error_detail=row["error_detail"],
         cancellation_requested=row["cancellation_requested"],
@@ -96,9 +98,16 @@ _SELECT = """
            job.node_id, job.video_id, job.scope_key, job.generation_mode,
            job.status, job.stage, job.topics_total, job.topics_done,
            job.attempt_count, job.max_attempts, job.error_code,
-           job.error_detail, job.cancellation_requested, job.created_at,
+           job.error_detail, job.cancellation_requested, job.automatic_key,
+           job.created_at,
            job.updated_at,
-           coalesce(deck.title, node.title, video.title, 'Deck generation') as title,
+           coalesce(
+               deck.title,
+               node.title,
+               case when left(job.scope_key, 6) = 'paper:' then 'Full paper' end,
+               video.title,
+               'Deck generation'
+           ) as title,
            coalesce(deck.source_title, book.title, video.title, 'Source') as source_title
     from public.deck_jobs as job
     left join public.decks as deck
@@ -122,10 +131,61 @@ def enqueue(
     book_id: int | None = None,
     node_id: int | None = None,
     video_id: str | UUID | None = None,
+    automatic_key: str | None = None,
 ) -> DeckJob:
     """Queue a generation, or return the run already in flight for this scope."""
 
     owner = parse_owner_id(owner_id)
+    # The live-job index protects one scope once a row exists, but automation
+    # can race between the publish hook and the periodic reconciler before
+    # either insert commits.  A transaction-scoped advisory lock serializes
+    # that short check/insert path without holding a table lock.
+    connection.execute(
+        "select pg_advisory_xact_lock(hashtextextended(%s, 0))",
+        (f"deck:{owner}:{scope_key}",),
+    )
+    if automatic_key is not None:
+        automatic = connection.execute(
+            _SELECT
+            + " where job.owner_id = %s and job.automatic_key = %s limit 1",
+            (owner, automatic_key),
+        ).fetchone()
+        if automatic is not None:
+            if automatic["status"] == "cancelled" or automatic[
+                "cancellation_requested"
+            ]:
+                connection.execute(
+                    """
+                    update public.deck_jobs
+                    set status = case
+                            when status = 'cancelled' then 'queued'
+                            else status
+                        end,
+                        stage = case
+                            when status = 'cancelled' then 'pending'
+                            else stage
+                        end,
+                        cancellation_requested = false,
+                        available_at = now(), updated_at = now()
+                    where id = %s
+                    """,
+                    (automatic["id"],),
+                )
+                return get_job(
+                    connection, owner_id=owner, job_id=automatic["id"]
+                )
+            return _job(automatic)
+    # Starting or attaching to a new attempt resolves the old alert for this
+    # scope. Preserve every failed row for diagnostics, but do not make a
+    # successful retry resurrect its predecessor on the next library refresh.
+    connection.execute(
+        """
+        update public.deck_jobs
+        set dismissed_at = coalesce(dismissed_at, now()), updated_at = now()
+        where owner_id = %s and scope_key = %s and status = 'failed'
+        """,
+        (owner, scope_key),
+    )
     existing = connection.execute(
         _SELECT
         + """
@@ -142,9 +202,9 @@ def enqueue(
         """
         insert into public.deck_jobs (
             owner_id, source_kind, book_id, node_id, video_id, scope_key,
-            generation_mode, max_attempts
+            generation_mode, max_attempts, automatic_key
         )
-        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning id
         """,
         (
@@ -156,6 +216,7 @@ def enqueue(
             scope_key,
             generation_mode,
             DEFAULT_MAX_ATTEMPTS,
+            automatic_key,
         ),
     ).fetchone()
     return get_job(connection, owner_id=owner, job_id=row["id"])
@@ -176,12 +237,54 @@ def get_job(
 def list_jobs(
     connection: Connection, *, owner_id: str | UUID, limit: int = 20
 ) -> list[DeckJob]:
+    """Return current activity and unresolved history.
+
+    A failed attempt stops being actionable once the owner dismisses it or a
+    newer attempt exists for the same scope.  The row remains in Postgres for
+    diagnostics; it simply stops behaving like a permanent notification.
+    """
+
     rows = connection.execute(
         _SELECT
-        + " where job.owner_id = %s order by job.created_at desc limit %s",
+        + """
+        where job.owner_id = %s
+          and job.dismissed_at is null
+          and job.status in ('queued', 'running', 'failed')
+          and (
+              job.status <> 'failed'
+              or not exists (
+                  select 1
+                  from public.deck_jobs as newer
+                  where newer.owner_id = job.owner_id
+                    and newer.scope_key = job.scope_key
+                    and newer.created_at > job.created_at
+              )
+          )
+        order by
+            case when job.status in ('queued', 'running') then 0 else 1 end,
+            job.created_at desc
+        limit %s
+        """,
         (parse_owner_id(owner_id), limit),
     ).fetchall()
     return [_job(row) for row in rows]
+
+
+def dismiss_failed_job(
+    connection: Connection, *, owner_id: str | UUID, job_id: str | UUID
+) -> bool:
+    """Hide one failed job from activity without deleting diagnostic history."""
+
+    row = connection.execute(
+        """
+        update public.deck_jobs
+        set dismissed_at = coalesce(dismissed_at, now()), updated_at = now()
+        where id = %s and owner_id = %s and status = 'failed'
+        returning id
+        """,
+        (UUID(str(job_id)), parse_owner_id(owner_id)),
+    ).fetchone()
+    return row is not None
 
 
 def live_job_for_scope(
@@ -315,7 +418,8 @@ def finish_job(connection: Connection, *, job_id: UUID, deck_id: UUID) -> None:
         """
         update public.deck_jobs
         set status = 'succeeded', stage = 'done', deck_id = %s,
-            lease_expires_at = null, updated_at = now()
+            lease_expires_at = null, error_code = null, error_detail = null,
+            updated_at = now()
         where id = %s
         """,
         (deck_id, job_id),
@@ -374,4 +478,26 @@ def request_cancellation(
         where id = %s and owner_id = %s and status in ('queued', 'running')
         """,
         (UUID(str(job_id)), parse_owner_id(owner_id)),
+    )
+
+
+def cancellation_requested(connection: Connection, *, job_id: str | UUID) -> bool:
+    row = connection.execute(
+        "select cancellation_requested from public.deck_jobs where id = %s",
+        (UUID(str(job_id)),),
+    ).fetchone()
+    return bool(row and row["cancellation_requested"])
+
+
+def finish_cancellation(connection: Connection, *, job_id: str | UUID) -> None:
+    """Converge a running cancellation without recording a false failure."""
+
+    connection.execute(
+        """
+        update public.deck_jobs
+        set status = 'cancelled', stage = 'pending',
+            worker_id = null, lease_expires_at = null, updated_at = now()
+        where id = %s and status in ('queued', 'running', 'cancelled')
+        """,
+        (UUID(str(job_id)),),
     )

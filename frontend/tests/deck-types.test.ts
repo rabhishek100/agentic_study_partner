@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   type DeckJob,
   type DeckMetrics,
+  type DeckSummary,
   coveragePercent,
   describeInterval,
   jobIsLive,
+  nextSetRequest,
 } from "@/lib/deck-types";
 
 const metrics = (overrides: Partial<DeckMetrics> = {}): DeckMetrics => ({
@@ -16,12 +18,18 @@ const metrics = (overrides: Partial<DeckMetrics> = {}): DeckMetrics => ({
   source_questions_total: 0,
   source_questions_covered: 0,
   uncovered_question_labels: [],
+  source_items_total: 0,
+  source_items_covered: 0,
+  source_item_kind_counts: {},
+  source_item_placement_counts: {},
+  uncovered_source_items: [],
   cards_generated: 0,
   cards_kept: 0,
   cards_dropped_uncited: 0,
   cards_dropped_out_of_scope: 0,
   cards_dropped_duplicate: 0,
   cards_dropped_malformed: 0,
+  cards_curated_out: 0,
   cards_with_interview_angle: 0,
   card_type_counts: {},
   priority_counts: {},
@@ -69,6 +77,19 @@ describe("coveragePercent", () => {
   it("treats a scope with nothing required as covered", () => {
     expect(coveragePercent(metrics())).toBe(100);
   });
+
+  it("uses unified source-item coverage for exercises and worked examples", () => {
+    expect(
+      coveragePercent(
+        metrics({
+          source_questions_total: 10,
+          source_questions_covered: 10,
+          source_items_total: 5,
+          source_items_covered: 4,
+        }),
+      ),
+    ).toBe(80);
+  });
 });
 
 describe("jobIsLive", () => {
@@ -111,5 +132,38 @@ describe("jobIsLive", () => {
     expect(jobIsLive(job("succeeded"))).toBe(false);
     expect(jobIsLive(job("failed"))).toBe(false);
     expect(jobIsLive(job("cancelled"))).toBe(false);
+  });
+});
+
+describe("nextSetRequest", () => {
+  it("keeps a whole paper as one null-node scope for the next set", () => {
+    const paper = {
+      source_kind: "book",
+      document_type: "paper",
+      generation_mode: "topic_generated",
+      book_id: 42,
+      node_id: null,
+      video_id: null,
+    } as DeckSummary;
+
+    expect(nextSetRequest(paper)).toEqual({
+      source_kind: "book",
+      generation_mode: "topic_generated",
+      book_id: 42,
+      node_id: null,
+    });
+  });
+
+  it("still rejects an invalid null-node book scope", () => {
+    const book = {
+      source_kind: "book",
+      document_type: "book",
+      generation_mode: "topic_generated",
+      book_id: 42,
+      node_id: null,
+      video_id: null,
+    } as DeckSummary;
+
+    expect(nextSetRequest(book)).toBeNull();
   });
 });

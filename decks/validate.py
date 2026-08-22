@@ -43,6 +43,7 @@ class ValidationTally:
     with_angle: int = 0
     card_types: dict[str, int] = field(default_factory=dict)
     priorities: dict[str, int] = field(default_factory=dict)
+    curated_out: int = 0
 
     def drop(self, reason: DropReason) -> None:
         self.dropped[reason] = self.dropped.get(reason, 0) + 1
@@ -54,6 +55,25 @@ class ValidationTally:
         self.priorities[key] = self.priorities.get(key, 0) + 1
         if card.interview_angle:
             self.with_angle += 1
+
+    def remove_for_curation(self, card: DeckCard) -> None:
+        """Remove one valid but lower-signal card from the published set."""
+
+        self.kept -= 1
+        self.curated_out += 1
+        card_type_count = self.card_types.get(card.card_type, 0) - 1
+        if card_type_count > 0:
+            self.card_types[card.card_type] = card_type_count
+        else:
+            self.card_types.pop(card.card_type, None)
+        priority = str(card.interview_priority)
+        priority_count = self.priorities.get(priority, 0) - 1
+        if priority_count > 0:
+            self.priorities[priority] = priority_count
+        else:
+            self.priorities.pop(priority, None)
+        if card.interview_angle:
+            self.with_angle -= 1
 
 
 def parse_marker(marker: str) -> DeckCitation | None:
@@ -218,6 +238,7 @@ def build_metrics(
         cards_dropped_out_of_scope=tally.dropped.get(DROP_OUT_OF_SCOPE, 0),
         cards_dropped_duplicate=tally.dropped.get(DROP_DUPLICATE, 0),
         cards_dropped_malformed=tally.dropped.get(DROP_MALFORMED, 0),
+        cards_curated_out=tally.curated_out,
         cards_with_interview_angle=tally.with_angle,
         card_type_counts=dict(sorted(tally.card_types.items())),
         priority_counts=dict(sorted(tally.priorities.items())),

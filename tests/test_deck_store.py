@@ -2,7 +2,12 @@
 
 import unittest
 from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
+from httpx import ASGITransport, AsyncClient
+
+from api.auth import current_owner
+from api.main import app
 from decks import jobs, store
 from decks.contracts import CardBack, DeckCard, DeckCitation, DeckPreferences
 from decks.generate import GeneratedDeck
@@ -67,16 +72,23 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
         self.database_context.__exit__(None, None, None)
         self.tearDownPostgresOwner()
 
-    def _store(self, *, fronts: tuple[str, ...] = ("What is an invariant?",)):
+    def _store(
+        self,
+        *,
+        fronts: tuple[str, ...] = ("What is an invariant?",),
+        generation_mode: str = "topic_generated",
+        scope_key: str | None = None,
+    ):
         deck_id, version = store.create_deck(
             self.connection,
             owner_id=self.owner_id,
             source_kind="book",
-            scope_key=self.scope_key,
+            scope_key=scope_key or self.scope_key,
             title=self.scope.display_path,
             source_title=self.scope.book_title,
             book_id=self.book_id,
             node_id=self.node_id,
+            generation_mode=generation_mode,
         )
         topics = (topic("node:a", ordinal=0, node_id=self.node_id),)
         cards = tuple(
@@ -114,6 +126,7 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
             self.connection, owner_id=self.owner_id, deck_id=deck_id
         )
         self.assertEqual(summary.status, "ready")
+        self.assertEqual(summary.set_number, 1)
         self.assertEqual(summary.card_count, 1)
         self.assertEqual(summary.metrics.topics_covered, 1)
         self.assertEqual(summary.new_count, 1)
@@ -124,19 +137,77 @@ class DeckStoreTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(cards[0].review.state, "new")
         self.assertEqual(cards[0].card.citations[0].page, 1)
 
-    def test_regenerating_supersedes_the_previous_version(self) -> None:
+    def test_another_generation_publishes_a_cumulative_numbered_set(self) -> None:
         first, _ = self._store()
         second, version = self._store(fronts=("What is a lapse?",))
         self.assertEqual(version, 2)
 
         library = store.list_decks(self.connection, owner_id=self.owner_id)
-        self.assertEqual([deck.deck_id for deck in library], [str(second)])
-        # The superseded version keeps its rows, so its review history — and
-        # the foreign keys pointing at its cards — survive.
-        superseded = store.get_deck(
+        by_set = {deck.set_number: deck.deck_id for deck in library}
+        self.assertEqual(by_set, {1: str(first), 2: str(second)})
+        previous = store.get_deck(
             self.connection, owner_id=self.owner_id, deck_id=first
         )
-        self.assertEqual(superseded.status, "failed")
+        self.assertEqual(previous.status, "ready")
+        self.assertEqual(len(store.new_cards(self.connection, owner_id=self.owner_id)), 2)
+
+    def test_a_failed_attempt_does_not_consume_a_set_number(self) -> None:
+        failed, version = store.create_deck(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=self.scope_key,
+            title=self.scope.display_path,
+            source_title=self.scope.book_title,
+            book_id=self.book_id,
+            node_id=self.node_id,
+        )
+        self.assertEqual(version, 1)
+        store.fail_deck(self.connection, owner_id=self.owner_id, deck_id=failed)
+
+        published, version = self._store()
+        self.assertEqual(version, 2)
+        self.assertEqual(
+            store.get_deck(
+                self.connection, owner_id=self.owner_id, deck_id=published
+            ).set_number,
+            1,
+        )
+
+    def test_extracted_questions_remain_one_replaceable_deck(self) -> None:
+        extracted_scope = book_scope_key(
+            self.book_id, self.node_id, generation_mode="book_extracted"
+        )
+        first, _ = self._store(
+            generation_mode="book_extracted", scope_key=extracted_scope
+        )
+        second, _ = self._store(
+            fronts=("What does the exercise ask?",),
+            generation_mode="book_extracted",
+            scope_key=extracted_scope,
+        )
+
+        self.assertEqual(
+            store.get_deck(
+                self.connection, owner_id=self.owner_id, deck_id=first
+            ).status,
+            "failed",
+        )
+        replacement = store.get_deck(
+            self.connection, owner_id=self.owner_id, deck_id=second
+        )
+        self.assertEqual(replacement.set_number, 1)
+
+    def test_previous_generated_fronts_are_available_to_the_next_set(self) -> None:
+        self._store(fronts=("First question?", "Second question?"))
+        self.assertEqual(
+            store.generated_fronts(
+                self.connection,
+                owner_id=self.owner_id,
+                scope_key=self.scope_key,
+            ),
+            ("First question?", "Second question?"),
+        )
 
     def test_grading_moves_the_card_and_records_the_event(self) -> None:
         deck_id, _ = self._store()
@@ -329,6 +400,38 @@ class DeckQueueTests(PostgresOwnerMixin, unittest.TestCase):
             "failed",
         )
 
+    def test_success_clears_an_earlier_retry_error(self) -> None:
+        job = self._enqueue()
+        self.connection.execute(
+            "update public.deck_jobs set attempt_count = 1 where id = %s", (job.id,)
+        )
+        jobs.fail_job(
+            self.connection,
+            job_id=job.id,
+            code="generation_failed",
+            detail="first attempt was incomplete",
+            retryable=True,
+        )
+        deck_id, _ = store.create_deck(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=self.scope_key,
+            title="Chapter 1",
+            source_title="Sample Book",
+            book_id=self.book_id,
+            node_id=self.scope.root_node_id,
+        )
+
+        jobs.finish_job(self.connection, job_id=job.id, deck_id=deck_id)
+
+        completed = jobs.get_job(
+            self.connection, owner_id=self.owner_id, job_id=job.id
+        )
+        self.assertEqual(completed.status, "succeeded")
+        self.assertIsNone(completed.error_code)
+        self.assertIsNone(completed.error_detail)
+
     def test_a_source_failure_does_not_retry(self) -> None:
         job = self._enqueue()
         jobs.fail_job(
@@ -340,6 +443,78 @@ class DeckQueueTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(
             jobs.get_job(self.connection, owner_id=self.owner_id, job_id=job.id).status,
             "failed",
+        )
+
+    def test_a_failed_job_can_be_dismissed_without_deleting_it(self) -> None:
+        job = self._enqueue()
+        jobs.fail_job(
+            self.connection,
+            job_id=job.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        self.assertEqual(
+            [
+                item.id
+                for item in jobs.list_jobs(
+                    self.connection, owner_id=self.owner_id
+                )
+            ],
+            [job.id],
+        )
+
+        self.assertTrue(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            )
+        )
+        self.assertEqual(
+            jobs.list_jobs(self.connection, owner_id=self.owner_id), []
+        )
+        self.assertEqual(
+            jobs.get_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            ).status,
+            "failed",
+        )
+
+    def test_a_newer_attempt_resolves_the_old_failure_alert(self) -> None:
+        failed = self._enqueue()
+        jobs.fail_job(
+            self.connection,
+            job_id=failed.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        retry = self._enqueue()
+
+        visible = jobs.list_jobs(self.connection, owner_id=self.owner_id)
+        self.assertIn(retry.id, [item.id for item in visible])
+        self.assertNotIn(failed.id, [item.id for item in visible])
+
+    def test_dismissal_is_owner_scoped_and_repeatable(self) -> None:
+        job = self._enqueue()
+        jobs.fail_job(
+            self.connection,
+            job_id=job.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        stranger = uuid4()
+        self.assertFalse(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=stranger, job_id=job.id
+            )
+        )
+        self.assertTrue(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            )
+        )
+        self.assertTrue(
+            jobs.dismiss_failed_job(
+                self.connection, owner_id=self.owner_id, job_id=job.id
+            )
         )
 
     def test_an_expired_lease_returns_the_job_to_the_queue(self) -> None:
@@ -357,6 +532,105 @@ class DeckQueueTests(PostgresOwnerMixin, unittest.TestCase):
             jobs.get_job(self.connection, owner_id=self.owner_id, job_id=job.id).status,
             "queued",
         )
+
+
+class DeckJobEndpointTests(PostgresOwnerMixin, unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.setUpPostgresOwner()
+        self.database_context = database_connection(self.database_url)
+        self.connection = self.database_context.__enter__()
+        self.book_id = ingest_book(
+            self.connection,
+            sample_book(),
+            owner_id=self.owner_id,
+            title="Sample Book",
+            author="Test Author",
+            file_hash=FILE_HASH,
+            page_count=5,
+            parser_version="test-v1",
+        )
+        scope = resolve_chapter(
+            self.connection, 1, owner_id=self.owner_id, book_id=self.book_id
+        )
+        self.node_id = scope.root_node_id
+        self.scope_key = book_scope_key(self.book_id, self.node_id)
+        self.failed = jobs.enqueue(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=self.scope_key,
+            book_id=self.book_id,
+            node_id=self.node_id,
+        )
+        jobs.fail_job(
+            self.connection,
+            job_id=self.failed.id,
+            code="source_unavailable",
+            retryable=False,
+        )
+        # The endpoint uses a separate pooled connection.
+        self.connection.commit()
+        app.dependency_overrides[current_owner] = lambda: UUID(self.owner_id)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.pop(current_owner, None)
+        self.database_context.__exit__(None, None, None)
+        self.tearDownPostgresOwner()
+
+    async def _client(self) -> AsyncClient:
+        return AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver"
+        )
+
+    async def test_failed_job_dismissal_is_idempotent_and_retains_history(
+        self,
+    ) -> None:
+        async with await self._client() as client:
+            first = await client.post(
+                f"/api/decks/jobs/{self.failed.id}/dismiss"
+            )
+            second = await client.post(
+                f"/api/decks/jobs/{self.failed.id}/dismiss"
+            )
+        self.assertEqual(first.status_code, 204, first.text)
+        self.assertEqual(second.status_code, 204, second.text)
+        self.assertEqual(
+            jobs.get_job(
+                self.connection, owner_id=self.owner_id, job_id=self.failed.id
+            ).status,
+            "failed",
+        )
+
+    async def test_failed_job_dismissal_is_owner_scoped(self) -> None:
+        app.dependency_overrides[current_owner] = uuid4
+        async with await self._client() as client:
+            response = await client.post(
+                f"/api/decks/jobs/{self.failed.id}/dismiss"
+            )
+        self.assertEqual(response.status_code, 404, response.text)
+
+    async def test_malformed_job_id_is_not_found(self) -> None:
+        async with await self._client() as client:
+            response = await client.post(
+                "/api/decks/jobs/not-a-uuid/dismiss"
+            )
+        self.assertEqual(response.status_code, 404, response.text)
+
+    async def test_live_job_cannot_be_dismissed(self) -> None:
+        live = jobs.enqueue(
+            self.connection,
+            owner_id=self.owner_id,
+            source_kind="book",
+            scope_key=f"{self.scope_key}:another-set",
+            book_id=self.book_id,
+            node_id=self.node_id,
+        )
+        self.connection.commit()
+        async with await self._client() as client:
+            response = await client.post(
+                f"/api/decks/jobs/{live.id}/dismiss"
+            )
+        self.assertEqual(response.status_code, 409, response.text)
 
 
 class DeckInventoryTests(PostgresOwnerMixin, unittest.TestCase):

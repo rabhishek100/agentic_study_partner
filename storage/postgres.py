@@ -32,7 +32,7 @@ TABLE_MARKER = re.compile(r"^\[TABLE (\d+)]$")
 IMAGE_MARKER = re.compile(r"^\[IMAGE (\d+)]$")
 
 
-def _postgres_text(value: str | None) -> str | None:
+def canonical_text(value: str | None) -> str | None:
     """Remove the one Unicode code point PostgreSQL text cannot represent.
 
     PDF text layers occasionally contain an embedded NUL as a broken glyph.
@@ -41,6 +41,12 @@ def _postgres_text(value: str | None) -> str | None:
     """
 
     return None if value is None else value.replace("\x00", "")
+
+
+def _postgres_text(value: str | None) -> str | None:
+    """Backward-compatible binding helper for canonical text values."""
+
+    return canonical_text(value)
 
 
 def _postgres_json(value: Any) -> Any:
@@ -481,7 +487,10 @@ def mark_book_ready(
     updated = connection.execute(
         """
         update books
-        set status = 'ready', ready_at = now()
+        set status = 'ready', ready_at = now(),
+            cards_automation_eligible_at = coalesce(
+                cards_automation_eligible_at, now()
+            )
         where id = %s and owner_id = %s and status <> 'ready'
         """,
         (book_id, owner),

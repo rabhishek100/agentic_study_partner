@@ -21,6 +21,11 @@ DeckStatus = Literal["generating", "ready", "partial", "failed"]
 ReviewStateName = Literal["new", "learning", "review", "relearning"]
 GenerationMode = Literal["topic_generated", "book_extracted"]
 AnswerSource = Literal["printed_in_book", "rag_generated"]
+SourceItemKind = Literal["exercise", "worked_example"]
+SourceItemPlacement = Literal["inline", "end_of_chapter"]
+SourceDiscoveryMethod = Literal[
+    "numbered_section", "explicit_label", "model_fallback"
+]
 
 # Anki's four, and for the same reason: three buttons cannot separate "I had to
 # think" from "that was instant", and that difference is most of the signal a
@@ -188,6 +193,33 @@ class DeckCard(ContractModel):
     difficulty: Difficulty = "intermediate"
     interview_angle: str | None = None
     answer_source: AnswerSource | None = None
+    source_item_key: str | None = None
+    source_item_kind: SourceItemKind | None = None
+    source_item_placement: SourceItemPlacement | None = None
+    source_label: str | None = None
+    source_discovery_method: SourceDiscoveryMethod | None = None
+    question_citations: list[DeckCitation] = Field(default_factory=list)
+    answer_citations: list[DeckCitation] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def source_item_provenance_is_complete(self) -> DeckCard:
+        metadata = (
+            self.source_item_key,
+            self.source_item_kind,
+            self.source_item_placement,
+            self.source_label,
+            self.source_discovery_method,
+        )
+        if any(metadata) and not all(metadata):
+            raise ValueError("source-authored card metadata must be complete")
+        if self.source_item_key and not self.question_citations:
+            raise ValueError("a source-authored card needs question citations")
+        if self.source_item_kind == "worked_example":
+            if self.answer_source != "printed_in_book" or not self.answer_citations:
+                raise ValueError(
+                    "a worked example needs a separately cited printed solution"
+                )
+        return self
 
 
 class DeckMetrics(ContractModel):
@@ -209,12 +241,18 @@ class DeckMetrics(ContractModel):
     source_questions_total: int = Field(default=0, ge=0)
     source_questions_covered: int = Field(default=0, ge=0)
     uncovered_question_labels: list[str] = Field(default_factory=list)
+    source_items_total: int = Field(default=0, ge=0)
+    source_items_covered: int = Field(default=0, ge=0)
+    source_item_kind_counts: dict[str, int] = Field(default_factory=dict)
+    source_item_placement_counts: dict[str, int] = Field(default_factory=dict)
+    uncovered_source_items: list[dict[str, str]] = Field(default_factory=list)
     cards_generated: int = Field(default=0, ge=0)
     cards_kept: int = Field(default=0, ge=0)
     cards_dropped_uncited: int = Field(default=0, ge=0)
     cards_dropped_out_of_scope: int = Field(default=0, ge=0)
     cards_dropped_duplicate: int = Field(default=0, ge=0)
     cards_dropped_malformed: int = Field(default=0, ge=0)
+    cards_curated_out: int = Field(default=0, ge=0)
     cards_with_interview_angle: int = Field(default=0, ge=0)
     card_type_counts: dict[str, int] = Field(default_factory=dict)
     priority_counts: dict[str, int] = Field(default_factory=dict)
@@ -223,6 +261,8 @@ class DeckMetrics(ContractModel):
 
     @property
     def coverage_ratio(self) -> float:
+        if self.source_items_total:
+            return self.source_items_covered / self.source_items_total
         if self.source_questions_total:
             return self.source_questions_covered / self.source_questions_total
         if not self.topics_required:
@@ -231,6 +271,8 @@ class DeckMetrics(ContractModel):
 
     @property
     def complete(self) -> bool:
+        if self.source_items_total:
+            return self.source_items_covered >= self.source_items_total
         if self.source_questions_total:
             return self.source_questions_covered >= self.source_questions_total
         return self.topics_covered >= self.topics_required
@@ -241,9 +283,11 @@ class DeckSummary(ContractModel):
 
     deck_id: str
     source_kind: SourceKind
+    document_type: Literal["book", "paper", "video"]
     generation_mode: GenerationMode = "topic_generated"
     scope_key: str
     version: int
+    set_number: int = Field(default=1, ge=1)
     title: str
     source_title: str
     status: DeckStatus
@@ -296,3 +340,51 @@ class ReviewQueue(ContractModel):
 class DeckPreferences(ContractModel):
     new_cards_per_day: int = Field(default=10, ge=0, le=200)
     max_reviews_per_day: int = Field(default=120, ge=1, le=1_000)
+
+
+class DeckSourcePreference(ContractModel):
+    """One source's eligibility for automatic cards and mixed review."""
+
+    source_kind: SourceKind
+    source_id: str
+    title: str
+    document_type: str = "book"
+    status: str
+    cards_enabled: bool = True
+    automatic_cards_queued: bool = False
+    automatic_cards_activated: bool = False
+    missing_automatic_set_count: int = Field(default=0, ge=0)
+    can_activate_automatic_cards: bool = False
+
+
+class DeckSourcePreferences(ContractModel):
+    sources: list[DeckSourcePreference] = Field(default_factory=list)
+
+
+class DeckSourcePreferenceUpdate(ContractModel):
+    cards_enabled: bool
+
+
+class DeckSourceActivationRequest(ContractModel):
+    expected_missing_set_count: int = Field(ge=1)
+
+
+class DeckSourceActivationResponse(ContractModel):
+    source: DeckSourcePreference
+    jobs_queued: int = Field(ge=0)
+
+
+class DeckSourcePreferenceSelection(DeckSourcePreferenceUpdate):
+    source_kind: SourceKind
+    source_id: str = Field(min_length=1, max_length=100)
+
+
+class DeckSourcePreferencesUpdate(ContractModel):
+    sources: list[DeckSourcePreferenceSelection] = Field(max_length=500)
+
+    @model_validator(mode="after")
+    def sources_are_unique(self) -> DeckSourcePreferencesUpdate:
+        keys = [(item.source_kind, item.source_id) for item in self.sources]
+        if len(keys) != len(set(keys)):
+            raise ValueError("each card source may appear only once")
+        return self

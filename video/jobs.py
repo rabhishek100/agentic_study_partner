@@ -4,12 +4,12 @@ This module is deliberately separate from the PDF worker: the two domains
 have different stages, checkpoints, and publication rules.
 """
 
+import re
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
-import re
 from uuid import UUID
 
 from psycopg import Connection
@@ -17,8 +17,7 @@ from psycopg.types.json import Jsonb
 
 from storage.database import parse_owner_id
 from video.errors import SAFE_MESSAGES, VideoBudgetExceeded, VideoErrorCode
-from video.states import PIPELINE, Stage, Status, TERMINAL
-
+from video.states import PIPELINE, TERMINAL, Stage, Status
 
 JOB_COLUMNS = """
     id, owner_id, video_id, target_version_id, idempotency_key, status, stage,
@@ -903,7 +902,10 @@ def publish_job(
             """
             update video.videos
             set readiness_status = %s, current_ingestion_version_id = %s,
-                ready_at = now()
+                ready_at = now(),
+                cards_automation_eligible_at = coalesce(
+                    cards_automation_eligible_at, now()
+                )
             where id = %s and owner_id = %s
             """,
             (

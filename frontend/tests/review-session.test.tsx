@@ -84,7 +84,8 @@ describe("focused deck review", () => {
     renderSession({ onExit });
 
     expect(screen.getByText("2 Statistical Learning")).toBeInTheDocument();
-    expect(screen.getByText("Exercise 1")).toBeInTheDocument();
+    expect(screen.getByText("Source item 1")).toBeInTheDocument();
+    expect(screen.getByText("Grounded in source")).toBeInTheDocument();
     expect(screen.getByText(/For each of parts/)).toBeInTheDocument();
     expect(screen.queryByText("30-second answer")).toBeNull();
 
@@ -105,6 +106,7 @@ describe("focused deck review", () => {
     expect(screen.getByRole("button", { name: /Good/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Easy/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open source" })).toBeInTheDocument();
+    expect(screen.getByText("Source:")).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Question (collapse)" }),
@@ -113,6 +115,45 @@ describe("focused deck review", () => {
     expect(
       screen.getByRole("button", { name: "Question (expand)" }),
     ).toBeInTheDocument();
+  });
+
+  it("separates source-authored question and solution provenance", () => {
+    const questionCitation = item.card.citations[0]!;
+    const solutionCitation = {
+      ...questionCitation,
+      marker: "[N42:P74]",
+      page: 74,
+    };
+    const sourceAuthored: QueueCard = {
+      ...item,
+      card: {
+        ...item.card,
+        citations: [questionCitation, solutionCitation],
+        answer_source: "printed_in_book",
+        source_item_key: "worked-example:2.1",
+        source_item_kind: "worked_example",
+        source_item_placement: "inline",
+        source_label: "Worked Example 2.1",
+        source_discovery_method: "explicit_label",
+        question_citations: [questionCitation],
+        answer_citations: [solutionCitation],
+      },
+    };
+    renderSession({ cards: [sourceAuthored] });
+
+    expect(screen.getByText("Worked Example 2.1")).toBeInTheDocument();
+    expect(screen.getByText("Worked example")).toBeInTheDocument();
+    expect(screen.getByText("Inline")).toBeInTheDocument();
+    expect(screen.getByText("Book solution")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Show answer/ }));
+    expect(
+      screen.getByRole("button", { name: "Question source: p. 73" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Solution source: p. 74" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Source:")).toBeNull();
   });
 });
 

@@ -27,6 +27,7 @@ dependencies = [
     "pyjwt[crypto]>=2.10,<3",
     "yt-dlp>=2025.12.8,<2027",
     "duckduckgo-search>=8.1.1",
+    "tzdata>=2025.2",
 ]
 
 [dependency-groups]

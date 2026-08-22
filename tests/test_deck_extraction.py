@@ -14,12 +14,15 @@ from decks.extraction import (
     ExtractedQuestion,
     ExtractedQuestionList,
     RAGAnswerOutput,
+    _subparts,
     _visual_page_text,
     answer_evidence,
     evidence_batches,
+    explicitly_labeled_candidates,
     extract_and_generate_deck,
     numbered_question_candidates,
     question_section_topics,
+    structured_example_topics,
 )
 from decks.generate import DeckGenerationError, GeneratedDeck
 from decks.topics import ScopeInventory, Topic, book_scope_key
@@ -45,8 +48,8 @@ def sample_topic(
         required=True,
         evidence_text=evidence_text
         or (
-            f"[N{node_id}:P1]\nQuestion 1: What is RAG? "
-            "Answer: RAG stands for Retrieval-Augmented Generation."
+            f"[N{node_id}:P1]\nThe chapter explains retrieval-augmented "
+            "generation and its grounded answer path."
         ),
         allowed_markers=frozenset({f"[N{node_id}:P1]", f"[N{node_id}:P2]"}),
         node_id=node_id,
@@ -67,6 +70,14 @@ def sample_inventory(topic: Topic | None = None) -> ScopeInventory:
 
 
 class DeckExtractionUnitTests(unittest.TestCase):
+    def test_math_covariate_is_not_treated_as_a_roman_subpart(self) -> None:
+        question = (
+            "(a) Create two groups using the covariate (X). "
+            "(b) Compare their survival curves."
+        )
+
+        self.assertEqual(_subparts(question), ("(a)", "(b)"))
+
     def test_visual_page_text_excludes_outside_margin_callouts(self) -> None:
         document = fitz.open()
         page = document.new_page(width=500, height=700)
@@ -261,6 +272,268 @@ class DeckExtractionUnitTests(unittest.TestCase):
         self.assertNotIn("[E", generated.cards[0].back.answer)
         self.assertIn("[N42:P", generated.cards[0].back.answer)
 
+    def test_inline_and_worked_examples_are_additive_with_end_exercises(self) -> None:
+        narrative = Topic(
+            key="narrative",
+            ordinal=0,
+            label="Problems with gradient descent",
+            required=True,
+            evidence_text=(
+                "[N41:P3]\nFor example, training may diverge. Why might that happen?\n"
+                "1. Load the data.\n2. Plot the loss."
+            ),
+            allowed_markers=frozenset({"[N41:P3]"}),
+            node_id=41,
+            start_page=3,
+            end_page=3,
+        )
+        inline = Topic(
+            key="inline",
+            ordinal=1,
+            label="Optimization",
+            required=True,
+            evidence_text=(
+                "[N42:P8]\nCheckpoint 1: Why does scaling stabilize training?"
+            ),
+            allowed_markers=frozenset({"[N42:P8]"}),
+            node_id=42,
+            start_page=8,
+            end_page=8,
+        )
+        worked = Topic(
+            key="worked",
+            ordinal=2,
+            label="Optimization :: Worked Example 2.3",
+            required=True,
+            evidence_text=(
+                "[N43:P12]\nWorked Example 2.3: Compute the normalized update.\n"
+                "x gradient\n1 4\n2 8\n"
+                "[N43:P13]\nSolution: Divide each gradient by the shared norm."
+            ),
+            allowed_markers=frozenset({"[N43:P12]", "[N43:P13]"}),
+            node_id=43,
+            start_page=12,
+            end_page=13,
+        )
+        exercises = Topic(
+            key="exercises",
+            ordinal=3,
+            label="Optimization :: 2.4 Exercises",
+            required=False,
+            evidence_text=(
+                "[N44:P20]\n2.4 Exercises\n"
+                "1. Compare two optimizers.\n(a) State one trade-off.\n"
+                "2. Diagnose an unstable run."
+            ),
+            allowed_markers=frozenset({"[N44:P20]"}),
+            node_id=44,
+            start_page=20,
+            end_page=20,
+        )
+        inventory = ScopeInventory(
+            source_kind="book",
+            scope_key="book:1:node:40:mode:book_extracted",
+            title="Optimization",
+            source_title="ML Book",
+            outline="- Optimization",
+            topics=(narrative, inline, worked, exercises),
+        )
+
+        answer_model = MagicMock()
+
+        def answer(messages):
+            marker = re.search(r"\[E\d+\]", messages[1]["content"]).group(0)
+            question = messages[1]["content"].split("\n\nChapter evidence:", 1)[0]
+            labels = list(dict.fromkeys(re.findall(r"\([a-z]\)", question)))
+            text = " ".join(f"{label} Complete answer." for label in labels)
+            return RAGAnswerOutput(
+                answer=f"{text or 'Complete answer.'} {marker}",
+                say_it_aloud="Complete answer.",
+                citation_markers=[marker],
+                answer_source="synthesized_from_book",
+            )
+
+        answer_model.invoke.side_effect = answer
+        with (
+            patch("decks.extraction._question_extraction_model") as extractor,
+            patch("decks.extraction._rag_answer_model", return_value=answer_model),
+        ):
+            generated = extract_and_generate_deck(
+                inventory, connection=MagicMock(), owner_id="owner"
+            )
+
+        extractor.assert_not_called()
+        self.assertEqual(len(generated.cards), 4)
+        self.assertEqual(
+            generated.metrics.source_item_kind_counts,
+            {"exercise": 3, "worked_example": 1},
+        )
+        self.assertEqual(
+            generated.metrics.source_item_placement_counts,
+            {"end_of_chapter": 2, "inline": 2},
+        )
+        worked_card = next(
+            card
+            for card in generated.cards
+            if card.source_item_kind == "worked_example"
+        )
+        self.assertEqual(worked_card.answer_source, "printed_in_book")
+        self.assertEqual(
+            [item.marker for item in worked_card.question_citations],
+            ["[N43:P12]"],
+        )
+        self.assertEqual(
+            [item.marker for item in worked_card.answer_citations],
+            ["[N43:P13]"],
+        )
+        self.assertNotIn(
+            "For example", "\n".join(card.front for card in generated.cards)
+        )
+        self.assertTrue(generated.metrics.complete)
+
+    def test_repeated_source_labels_receive_distinct_stable_keys(self) -> None:
+        first = sample_topic(
+            key="first",
+            node_id=50,
+            evidence_text="[N50:P1]\nCheckpoint 1: Define the training signal.",
+        )
+        second = sample_topic(
+            key="second",
+            node_id=51,
+            evidence_text="[N51:P2]\nCheckpoint 1: Explain the validation signal.",
+        )
+
+        items = explicitly_labeled_candidates((first, second))
+
+        self.assertEqual([item.source_label for item in items], ["Checkpoint 1"] * 2)
+        from decks.extraction import _source_items
+
+        identified = _source_items(items)
+        self.assertEqual(len({item.source_item_key for item in identified}), 2)
+
+    def test_structural_named_example_is_scanned_even_with_exercises(self) -> None:
+        example = Topic(
+            key="example",
+            ordinal=0,
+            label="Survival Analysis :: Example: Brain Cancer Data",
+            required=True,
+            evidence_text=(
+                "[N60:P30]\nThe authors fit a survival model to the brain data.\n"
+                "[N60:P31]\nThe fitted coefficients are interpreted in context."
+            ),
+            allowed_markers=frozenset({"[N60:P30]", "[N60:P31]"}),
+            node_id=60,
+            start_page=30,
+            end_page=31,
+        )
+        exercises = Topic(
+            key="exercises",
+            ordinal=1,
+            label="Survival Analysis :: Exercises",
+            required=False,
+            evidence_text="[N61:P40]\n1. Interpret a hazard ratio.",
+            allowed_markers=frozenset({"[N61:P40]"}),
+            node_id=61,
+            start_page=40,
+            end_page=40,
+        )
+        inventory = ScopeInventory(
+            source_kind="book",
+            scope_key="book:1:node:59:mode:book_extracted",
+            title="Survival Analysis",
+            source_title="Statistics Book",
+            outline="- Survival Analysis",
+            topics=(example, exercises),
+        )
+        extractor = MagicMock()
+        extractor.invoke.return_value = ExtractedQuestionList(
+            questions=[
+                ExtractedQuestion(
+                    question="Reproduce the brain-cancer survival analysis setup.",
+                    printed_answer="Fit the model and interpret its coefficients.",
+                    citation_marker="[N60:P30]",
+                    question_citation_markers=["[N60:P30]"],
+                    answer_citation_markers=["[N60:P31]"],
+                    source_label="Example: Brain Cancer Data",
+                )
+            ]
+        )
+        answer_model = MagicMock()
+        answer_model.invoke.return_value = RAGAnswerOutput(
+            answer="Interpret the ratio using the chapter definition. [E1]",
+            say_it_aloud="Interpret the ratio in context.",
+            citation_markers=["[E1]"],
+            answer_source="synthesized_from_book",
+        )
+
+        with (
+            patch(
+                "decks.extraction._question_extraction_model",
+                return_value=extractor,
+            ),
+            patch("decks.extraction._rag_answer_model", return_value=answer_model),
+        ):
+            generated = extract_and_generate_deck(
+                inventory, connection=MagicMock(), owner_id="owner"
+            )
+
+        self.assertEqual(extractor.invoke.call_count, 1)
+        self.assertEqual(len(generated.cards), 2)
+        worked_card = next(
+            card
+            for card in generated.cards
+            if card.source_item_kind == "worked_example"
+        )
+        self.assertEqual(worked_card.source_label, "Example: Brain Cancer Data")
+        self.assertEqual(worked_card.answer_source, "printed_in_book")
+
+    def test_example_heading_is_found_when_parser_attaches_it_to_previous_node(
+        self,
+    ) -> None:
+        preceding = sample_topic(
+            key="proportional-hazards",
+            evidence_text=(
+                "[N60:P30]\n11.5.3 Example: Brain Cancer Data\n"
+                "The authors fit a survival model and interpret its coefficients."
+            ),
+        )
+        empty_outline_node = Topic(
+            key="brain-example",
+            ordinal=1,
+            label="Survival :: Example: Brain Cancer Data",
+            required=True,
+            evidence_text="[N61:P30]\n",
+            allowed_markers=frozenset({"[N61:P30]"}),
+            node_id=61,
+            start_page=30,
+            end_page=30,
+        )
+
+        self.assertEqual(
+            structured_example_topics((preceding, empty_outline_node)),
+            (preceding,),
+        )
+
+    def test_unworked_example_and_problem_narrative_are_not_candidates(self) -> None:
+        unworked = sample_topic(
+            key="example",
+            evidence_text=(
+                "[N70:P5]\nWorked Example 1: Consider a model with no stated solution."
+            ),
+        )
+        problem_narrative = sample_topic(
+            key="problems",
+            evidence_text=(
+                "[N71:P6]\nProblems with replication lag\n"
+                "1. Read from a replica.\n2. Compare the timestamp."
+            ),
+        )
+
+        self.assertEqual(
+            explicitly_labeled_candidates((unworked, problem_narrative)), ()
+        )
+        self.assertEqual(question_section_topics((problem_narrative,)), ())
+
     @patch("decks.extraction._rag_answer_model")
     @patch("decks.extraction._question_extraction_model")
     def test_incomplete_answer_gets_one_repair_pass(
@@ -360,6 +633,32 @@ class DeckExtractionUnitTests(unittest.TestCase):
             ["[N42:P1]", "[N42:P2]"],
         )
 
+    @patch("decks.extraction._rag_answer_model")
+    @patch("decks.extraction._question_extraction_model")
+    def test_model_cannot_label_a_synthesized_exercise_as_book_solution(
+        self, extractor_builder, answer_builder
+    ) -> None:
+        extractor_builder.return_value.invoke.return_value = ExtractedQuestionList(
+            questions=[
+                ExtractedQuestion(
+                    question="Sketch the supplied survival function.",
+                    citation_marker="[N42:P1]",
+                )
+            ]
+        )
+        answer_builder.return_value.invoke.return_value = RAGAnswerOutput(
+            answer="Draw a right-continuous step function.",
+            say_it_aloud="Draw the step function.",
+            citation_markers=["[N42:P1]"],
+            answer_source="printed_in_book",
+        )
+
+        generated = extract_and_generate_deck(
+            sample_inventory(), connection=MagicMock(), owner_id="owner"
+        )
+
+        self.assertEqual(generated.cards[0].answer_source, "rag_generated")
+
     @patch("decks.extraction._question_extraction_model")
     def test_no_questions_is_a_successful_empty_source_deck(self, builder) -> None:
         builder.return_value.invoke.return_value = ExtractedQuestionList(questions=[])
@@ -368,7 +667,8 @@ class DeckExtractionUnitTests(unittest.TestCase):
         )
         self.assertEqual(generated.cards, ())
         self.assertEqual(
-            generated.metrics.notice, "No questions printed in this chapter"
+            generated.metrics.notice,
+            "No explicitly labelled exercises or worked examples found",
         )
         self.assertTrue(generated.metrics.complete)
 
@@ -383,7 +683,7 @@ class DeckExtractionUnitTests(unittest.TestCase):
             )
 
     @patch("decks.extraction._question_extraction_model")
-    def test_incomplete_question_inventory_fails_instead_of_publishing(
+    def test_cross_window_duplicate_source_items_are_collapsed(
         self, builder
     ) -> None:
         builder.return_value.invoke.return_value = ExtractedQuestionList(
@@ -400,10 +700,12 @@ class DeckExtractionUnitTests(unittest.TestCase):
                 ),
             ]
         )
-        with self.assertRaisesRegex(DeckGenerationError, "incomplete"):
-            extract_and_generate_deck(
-                sample_inventory(), connection=MagicMock(), owner_id="owner"
-            )
+        generated = extract_and_generate_deck(
+            sample_inventory(), connection=MagicMock(), owner_id="owner"
+        )
+        self.assertEqual(len(generated.cards), 1)
+        self.assertEqual(generated.metrics.source_items_total, 1)
+        self.assertTrue(generated.metrics.complete)
 
     @patch("decks.extraction._question_extraction_model")
     def test_invented_question_marker_is_not_replaced_with_first_page(
@@ -500,6 +802,25 @@ class DeckExtractionStoreTests(PostgresOwnerMixin, unittest.TestCase):
             ],
             interview_priority=3,
             answer_source="printed_in_book",
+            source_item_key="exercise:test-item",
+            source_item_kind="exercise",
+            source_item_placement="end_of_chapter",
+            source_label="Exercise 1",
+            source_discovery_method="numbered_section",
+            question_citations=[
+                DeckCitation(
+                    marker=f"[N{self.scope.root_node_id}:P1]",
+                    node_id=self.scope.root_node_id,
+                    page=1,
+                )
+            ],
+            answer_citations=[
+                DeckCitation(
+                    marker=f"[N{self.scope.root_node_id}:P1]",
+                    node_id=self.scope.root_node_id,
+                    page=1,
+                )
+            ],
         )
         inventory = ScopeInventory(
             source_kind="book",
@@ -539,6 +860,13 @@ class DeckExtractionStoreTests(PostgresOwnerMixin, unittest.TestCase):
             self.connection, owner_id=self.owner_id, deck_id=deck_id
         )
         self.assertEqual(cards[0].card.answer_source, "printed_in_book")
+        self.assertEqual(cards[0].card.source_item_key, "exercise:test-item")
+        self.assertEqual(cards[0].card.source_item_kind, "exercise")
+        self.assertEqual(cards[0].card.source_label, "Exercise 1")
+        self.assertEqual(
+            [item.marker for item in cards[0].card.question_citations],
+            [f"[N{self.scope.root_node_id}:P1]"],
+        )
 
 
 if __name__ == "__main__":

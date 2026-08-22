@@ -35,6 +35,7 @@ import {
   type DeckDetailResponse,
   type QueueCard,
   type ReviewQueue,
+  nextSetRequest,
 } from "@/lib/deck-types";
 
 export default function DeckDetailPage() {
@@ -45,7 +46,7 @@ export default function DeckDetailPage() {
   const [queue, setQueue] = useState<ReviewQueue | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [reviewStartCardId, setReviewStartCardId] = useState<string | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
+  const [generatingSet, setGeneratingSet] = useState(false);
   const [filter, setFilter] = useState<DeckFilter>("all");
   const [error, setError] = useState("");
   // One deck, so the parent conversation is unambiguous and stable for the
@@ -79,31 +80,21 @@ export default function DeckDetailPage() {
     }
   }, [deckId, load]);
 
-  const regenerate = useCallback(async () => {
+  const generateSet = useCallback(async () => {
     const current = detail?.deck;
-    if (
-      !current ||
-      current.generation_mode !== "book_extracted" ||
-      current.book_id === null ||
-      current.node_id === null
-    ) {
-      return;
-    }
-    setRegenerating(true);
+    if (!current) return;
+    const request = nextSetRequest(current);
+    if (!request) return;
+    setGeneratingSet(true);
     try {
       await apiFetch("/decks", {
         method: "POST",
-        body: JSON.stringify({
-          source_kind: "book",
-          generation_mode: "book_extracted",
-          book_id: current.book_id,
-          node_id: current.node_id,
-        }),
+        body: JSON.stringify(request),
       });
       router.push("/decks");
     } catch (caught) {
-      setError((caught as Error).message || "Could not regenerate that deck.");
-      setRegenerating(false);
+      setError((caught as Error).message || "Could not start the next set.");
+      setGeneratingSet(false);
     }
   }, [detail, router]);
 
@@ -238,7 +229,7 @@ export default function DeckDetailPage() {
               ) ?? []
             }
             filter={filter}
-            regenerating={regenerating}
+            generatingSet={generatingSet}
             onFilterChange={setFilter}
             onStartReview={() => {
               setReviewStartCardId(null);
@@ -248,7 +239,7 @@ export default function DeckDetailPage() {
               setReviewStartCardId(item.card.card_id);
               setReviewing(true);
             }}
-            onRegenerate={() => void regenerate()}
+            onGenerateSet={() => void generateSet()}
             onReset={() => void reset()}
             onOpenSource={openSource}
           />

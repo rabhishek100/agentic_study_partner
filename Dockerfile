@@ -25,6 +25,7 @@ COPY api ./api
 COPY decks ./decks
 COPY ingestion ./ingestion
 COPY interviews ./interviews
+COPY notifications ./notifications
 COPY parsing ./parsing
 COPY retrieval ./retrieval
 # The whole package: enumerating individual modules here means a new one is
