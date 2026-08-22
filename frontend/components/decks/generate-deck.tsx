@@ -192,7 +192,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                   <SelectTrigger id="deck-book">
                     <SelectValue placeholder="Choose a book" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-dialog">
                     {books.map((book) => (
                       <SelectItem
                         key={book.book_id}
@@ -222,7 +222,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                         }
                       />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-dialog">
                       {chapters.map((chapter) => (
                         <SelectItem
                           key={chapter.node_id}
@@ -278,7 +278,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                 <SelectTrigger id="deck-paper">
                   <SelectValue placeholder="Choose a paper" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-dialog">
                   {papers.map((paper) => (
                     <SelectItem
                       key={paper.book_id}
@@ -306,7 +306,7 @@ export function GenerateDeck({ onQueued }: { onQueued: (job: DeckJob) => void })
                 <SelectTrigger id="deck-video">
                   <SelectValue placeholder="Choose a lecture" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-dialog">
                   {videos.map((video) => (
                     <SelectItem key={video.video_id} value={video.video_id}>
                       {video.title}

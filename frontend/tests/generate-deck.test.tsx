@@ -52,6 +52,82 @@ describe("manual paper deck generation", () => {
     ).toBeInTheDocument();
   });
 
+  it("selects a book and chapter with pointer input inside the dialog", async () => {
+    const user = userEvent.setup();
+    const onQueued = vi.fn();
+    const queuedChapterJob = { job_id: "chapter-job" } as DeckJob;
+
+    vi.mocked(apiFetch).mockImplementation(async (path) => {
+      if (path === "/books") {
+        return {
+          books: [
+            {
+              book_id: 7,
+              title: "Designing Reliable Systems",
+              author: null,
+              page_count: 240,
+              ready_at: "2026-08-21T00:00:00Z",
+              chunk_count: 120,
+              embedding_count: 120,
+              retrieval_complete: true,
+              document_type: "book",
+            },
+          ],
+        };
+      }
+      if (path === "/papers") return { books: [] };
+      if (path === "/videos") return { videos: [] };
+      if (path === "/books/7/chapters") {
+        return {
+          book_id: 7,
+          chapters: [
+            {
+              node_id: 11,
+              title: "Failure domains",
+              path_text: "Failure domains",
+              start_page: 21,
+              end_page: 38,
+            },
+          ],
+        };
+      }
+      if (path === "/decks") return queuedChapterJob;
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    render(<GenerateDeck onQueued={onQueued} />);
+    await user.click(screen.getByRole("button", { name: "New deck" }));
+
+    await user.click(screen.getByLabelText("Book"));
+    const bookList = await screen.findByRole("listbox");
+    expect(bookList).toHaveClass("z-dialog");
+    await user.click(
+      screen.getByRole("option", { name: "Designing Reliable Systems" }),
+    );
+
+    await user.click(await screen.findByLabelText("Chapter"));
+    const chapterList = await screen.findByRole("listbox");
+    expect(chapterList).toHaveClass("z-dialog");
+    await user.click(
+      screen.getByRole("option", { name: "Failure domains · pp. 21–38" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenCalledWith("/decks", {
+        method: "POST",
+        body: JSON.stringify({
+          source_kind: "book",
+          generation_mode: "topic_generated",
+          book_id: 7,
+          node_id: 11,
+        }),
+      }),
+    );
+    expect(onQueued).toHaveBeenCalledWith(queuedChapterJob);
+  });
+
   it("submits one complete paper without a chapter node", async () => {
     const user = userEvent.setup();
     const onQueued = vi.fn();
