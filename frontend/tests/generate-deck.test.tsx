@@ -100,14 +100,14 @@ describe("manual paper deck generation", () => {
 
     await user.click(screen.getByLabelText("Book"));
     const bookList = await screen.findByRole("listbox");
-    expect(bookList).toHaveClass("z-dialog");
+    expect(bookList).toHaveClass("z-dialog-popover");
     await user.click(
       screen.getByRole("option", { name: "Designing Reliable Systems" }),
     );
 
     await user.click(await screen.findByLabelText("Chapter"));
     const chapterList = await screen.findByRole("listbox");
-    expect(chapterList).toHaveClass("z-dialog");
+    expect(chapterList).toHaveClass("z-dialog-popover");
     await user.click(
       screen.getByRole("option", { name: "Failure domains · pp. 21–38" }),
     );
