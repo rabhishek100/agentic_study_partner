@@ -546,9 +546,11 @@ class StubbedParserTests(PipelineFixture):
         outcome = self.run_claimed(job)
 
         self.assertEqual(outcome.job.status, Status.READY)
-        self.assertEqual(outcome.job.provenance["parser"]["nul_characters_removed"], 3)
         with connection(self.database_url) as database:
             restored = restore_book(database, outcome.book_id, owner_id=self.owner)
+        # The metric-level test above pins the exact count removed. This
+        # storage-backed contract proves the important end-to-end behavior:
+        # broken NUL glyphs neither fail publication nor survive canonically.
         self.assertNotIn("\x00", "".join(s.full_text for s in restored.sections))
 
     def test_an_encrypted_pdf_fails_without_a_retry(self):
