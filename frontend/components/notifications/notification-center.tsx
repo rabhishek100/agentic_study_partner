@@ -23,9 +23,22 @@ import { cn } from "@/lib/utils";
 
 const POLL_INTERVAL_MS = 30_000;
 const DELIVERED_STORAGE_KEY = "mugensei:browser-notifications-delivered";
+const TODAY_REVIEW_HREF = "/decks?review=today";
 
 export function safeNotificationHref(href: string | null): string | null {
   if (!href || !href.startsWith("/") || href.startsWith("//")) return null;
+  return href;
+}
+
+export function notificationDestination(
+  item: StudyNotification,
+): string | null {
+  const href = safeNotificationHref(item.href);
+  // Reminders created before the direct-review route was added are durable
+  // history. Upgrade their old library destination at click time.
+  if (item.kind === "daily_cards_review" && href === "/decks") {
+    return TODAY_REVIEW_HREF;
+  }
   return href;
 }
 
@@ -129,7 +142,7 @@ export function NotificationCenter() {
               tag: `mugensei:${item.notification_id}`,
             });
             rememberDeliveredNotification(delivered, item.notification_id);
-            const href = safeNotificationHref(item.href);
+            const href = notificationDestination(item);
             alert.onclick = () => {
               window.focus();
               loadSequence.current += 1;
@@ -190,7 +203,7 @@ export function NotificationCenter() {
   }, [load]);
 
   async function markRead(item: StudyNotification, navigate: boolean) {
-    const href = safeNotificationHref(item.href);
+    const href = notificationDestination(item);
     setPendingId(item.notification_id);
     loadSequence.current += 1;
     mutationPending.current = true;
@@ -345,7 +358,7 @@ export function NotificationCenter() {
             <ol className="divide-y divide-border">
               {notifications.map((item) => {
                 const unread = !item.read_at;
-                const href = safeNotificationHref(item.href);
+                const href = notificationDestination(item);
                 const busy = pendingId === item.notification_id;
                 return (
                   <li
