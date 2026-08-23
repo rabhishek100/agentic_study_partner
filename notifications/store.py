@@ -132,7 +132,7 @@ def create_daily_review_notification(
         )
         values (
             %s, 'daily_cards_review', %s, %s,
-            'Your daily cards are ready', %s, '/decks', %s
+            'Your daily cards are ready', %s, '/decks?review=today', %s
         )
         on conflict (owner_id, kind, dedupe_key) do nothing
         returning *

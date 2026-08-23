@@ -209,7 +209,7 @@ class ReviewNotificationTests(PostgresOwnerMixin, unittest.TestCase):
         )
         self.assertEqual(unread, 1)
         self.assertEqual(len(notifications), 1)
-        self.assertEqual(notifications[0].href, "/decks")
+        self.assertEqual(notifications[0].href, "/decks?review=today")
         self.assertEqual(
             notifications[0].body,
             "It's time for your daily review. "

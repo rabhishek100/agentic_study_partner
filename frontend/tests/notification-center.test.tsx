@@ -21,10 +21,10 @@ function notice(
 ): StudyNotification {
   return {
     notification_id: id,
-    kind: "daily_review_ready",
+    kind: "daily_cards_review",
     title: "Cards ready for review",
     body: "It's time for your daily review. Open Today to see what's ready now.",
-    href: "/decks",
+    href: "/decks?review=today",
     payload: { review_count: 12 },
     created_at: "2026-08-21T03:30:00Z",
     read_at: null,
@@ -52,6 +52,7 @@ describe("persistent notification center", () => {
   it("shows unread history and persists read, dismiss, and read-all actions", async () => {
     const first = notice("one");
     const second = notice("two", {
+      kind: "automatic_deck_ready",
       title: "Automatic cards ready",
       body: "Set 1 is ready for Chapter 2.",
       href: "/decks/deck-2",
@@ -92,10 +93,11 @@ describe("persistent notification center", () => {
         "It's time for your daily review. Open Today to see what's ready now.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Review today’s cards")).toBeVisible();
 
     await user.click(
       screen.getByRole("button", {
-        name: "Unread notification: Cards ready for review",
+        name: "Review today’s cards: Cards ready for review, unread",
       }),
     );
     await waitFor(() =>
@@ -103,7 +105,7 @@ describe("persistent notification center", () => {
         method: "POST",
       }),
     );
-    expect(push).toHaveBeenCalledWith("/decks");
+    expect(push).toHaveBeenCalledWith("/decks?review=today");
     expect(
       screen.getByRole("button", { name: "Notifications, 1 unread" }),
     ).toBeInTheDocument();
@@ -178,7 +180,7 @@ describe("persistent notification center", () => {
         method: "POST",
       }),
     );
-    expect(push).toHaveBeenCalledWith("/decks");
+    expect(push).toHaveBeenCalledWith("/decks?review=today");
     expect(alerts[0]?.close).toHaveBeenCalledOnce();
 
     view.unmount();
@@ -201,7 +203,7 @@ describe("persistent notification center", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Unread notification: Cards ready for review",
+        name: "Mark notification as read: Cards ready for review",
       }),
     );
     await waitFor(() =>
@@ -210,6 +212,29 @@ describe("persistent notification center", () => {
       }),
     );
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("opens legacy daily reminders in today's review", async () => {
+    vi.mocked(apiFetch).mockImplementation(async (path) => {
+      if (path === "/notifications") {
+        return response([notice("legacy", { href: "/decks" })]);
+      }
+      return {};
+    });
+    render(<NotificationCenter />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Notifications, 1 unread" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Review today’s cards: Cards ready for review, unread",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/decks?review=today"),
+    );
   });
 
   it("keeps in-app history available when native alerts fail", async () => {

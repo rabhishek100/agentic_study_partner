@@ -10,6 +10,7 @@ import { DeckJobRow, DeckRow } from "@/components/decks/deck-row";
 import { GenerateDeck } from "@/components/decks/generate-deck";
 import { GenerationActivity } from "@/components/decks/generation-activity";
 import { ReviewSession } from "@/components/decks/review-session";
+import { TodayReviewIntent } from "@/components/decks/today-review-intent";
 import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
@@ -120,6 +121,7 @@ export default function DecksPage() {
   const [filter, setFilter] = useState<DeckFilter>("all");
   const [askingDeckId, setAskingDeckId] = useState<string | null>(null);
   const sideChats = useCardSideChats(askingDeckId);
+  const startTodayReview = useCallback(() => setReviewing(true), []);
 
   const load = useCallback(async () => {
     try {
@@ -472,6 +474,7 @@ export default function DecksPage() {
         </DropdownMenu>
       }
     >
+      <TodayReviewIntent onRequested={startTodayReview} />
       <div className="h-full overflow-y-auto">
         {reviewing && queue ? (
           <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
