@@ -7,6 +7,10 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
+      SUPABASE_URL: ${DOCKER_SUPABASE_URL:-http://host.docker.internal:54321}
+      # Local tokens name the browser-visible issuer, even though the
+      # container reaches the same service through host.docker.internal.
+      SUPABASE_JWT_ISSUER: ${SUPABASE_JWT_ISSUER:-http://127.0.0.1:54321/auth/v1}
       VIDEO_MEDIA_ROOT: /var/lib/agentic-study-partner/video-media
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -38,7 +42,7 @@ services:
       # deployed worker service does.
       START_COMMAND: python -m worker.main
       DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
-      SUPABASE_URL: ${DOCKER_SUPABASE_URL:-${SUPABASE_URL:-http://host.docker.internal:54321}}
+      SUPABASE_URL: ${DOCKER_SUPABASE_URL:-http://host.docker.internal:54321}
       VIDEO_MEDIA_ROOT: /var/lib/agentic-study-partner/video-media
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -57,6 +61,7 @@ services:
         # must be reachable from the host browser, not from inside Compose.
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://127.0.0.1:54321}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_API_ORIGIN: ${NEXT_PUBLIC_API_ORIGIN:-http://127.0.0.1:8000}
     environment:
       BACKEND_URL: http://api:8000
     depends_on:

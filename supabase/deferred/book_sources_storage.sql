@@ -12,6 +12,7 @@ on conflict (id) do update set
     file_size_limit = excluded.file_size_limit,
     allowed_mime_types = excluded.allowed_mime_types;
 
+drop policy if exists "book_sources_owner_select" on storage.objects;
 create policy "book_sources_owner_select"
 on storage.objects for select to authenticated
 using (
@@ -19,6 +20,7 @@ using (
     and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
 
+drop policy if exists "book_sources_owner_insert" on storage.objects;
 create policy "book_sources_owner_insert"
 on storage.objects for insert to authenticated
 with check (
@@ -26,6 +28,7 @@ with check (
     and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
 
+drop policy if exists "book_sources_owner_update" on storage.objects;
 create policy "book_sources_owner_update"
 on storage.objects for update to authenticated
 using (
@@ -37,6 +40,7 @@ with check (
     and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
 
+drop policy if exists "book_sources_owner_delete" on storage.objects;
 create policy "book_sources_owner_delete"
 on storage.objects for delete to authenticated
 using (

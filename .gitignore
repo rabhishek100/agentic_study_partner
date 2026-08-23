@@ -9,6 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+.env.local
+.env.staging.local
 
 # Editor
 .vscode/
@@ -39,7 +41,9 @@ evaluation/runs/
 # Supabase CLI local state
 supabase/.branches/
 supabase/.temp/
+ops/staging/supabase/.temp/
 
 # Copied from pdfjs-dist at install time by scripts/copy-pdf-worker.mjs
 frontend/public/pdf.worker.min.mjs
 .local-postgres/
+.local-runtime/

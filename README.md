@@ -67,23 +67,22 @@ repository map is in [`CODEBASE_GUIDE.md`](CODEBASE_GUIDE.md).
 
 ## Setup
 
-Install Python dependencies and create local configuration:
+Bring up the complete local environment (Supabase Postgres, Auth, Storage,
+API/worker, and web):
 
 ```bash
-uv sync --frozen
-test -f .env || cp .env.example .env
+scripts/local.sh setup
+scripts/local.sh up
+scripts/local.sh doctor
 ```
+
+The web app is at `http://localhost:3000`; `scripts/local.sh down` preserves
+local data. See [`docs/environments.md`](docs/environments.md) for local and
+staging operations, isolation rules, promotion, and rollback.
 
 PDF parsing dependencies remain part of the deployed FastAPI image so the
 existing parser is available to the planned upload/ingestion API. Embedding
 and reranking inference remain hosted and do not add local model dependencies.
-
-Start local Supabase and apply the checked-in migration and seed:
-
-```bash
-npx supabase start
-npx supabase db reset
-```
 
 ### Without Docker
 
@@ -551,14 +550,13 @@ Start Supabase on the host first, then run the API, worker, and frontend
 containers:
 
 ```bash
-npx --yes supabase@2.109.1 start
-docker compose up --build
+scripts/local.sh up-containers
 ```
 
 For local Supabase, the containers reach the host database and Storage through
-`DOCKER_DATABASE_URL` and `DOCKER_SUPABASE_URL`. When those overrides are
-absent, Compose uses `DATABASE_URL` and `SUPABASE_URL`, so the same image can
-connect directly to hosted Supabase; unset the overrides in that case.
+`DOCKER_DATABASE_URL` and `DOCKER_SUPABASE_URL`. The committed Compose defaults
+are local-only. Hosted services are configured through environment-scoped
+Railway variables and are never selected by the local script.
 
 The API and worker share one image and differ only by command: the worker runs
 `python -m worker.main` and publishes no port. Splitting them into a slim API
