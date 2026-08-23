@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
+import { ArrowRight, Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -40,6 +40,10 @@ export function notificationDestination(
     return TODAY_REVIEW_HREF;
   }
   return href;
+}
+
+function notificationActionLabel(item: StudyNotification): string {
+  return item.kind === "daily_cards_review" ? "Review today’s cards" : "Open";
 }
 
 function deliveredNotificationIds(): Set<string> {
@@ -359,6 +363,7 @@ export function NotificationCenter() {
               {notifications.map((item) => {
                 const unread = !item.read_at;
                 const href = notificationDestination(item);
+                const actionLabel = href ? notificationActionLabel(item) : null;
                 const busy = pendingId === item.notification_id;
                 return (
                   <li
@@ -367,8 +372,12 @@ export function NotificationCenter() {
                   >
                     <button
                       type="button"
-                      aria-label={`${unread ? "Unread notification" : "Notification"}: ${item.title}`}
-                      className="min-w-0 flex-1 rounded-sm text-left"
+                      aria-label={
+                        actionLabel
+                          ? `${actionLabel}: ${item.title}${unread ? ", unread" : ""}`
+                          : `${unread ? "Mark notification as read" : "Notification"}: ${item.title}`
+                      }
+                      className="group -m-1 min-w-0 flex-1 cursor-pointer rounded-md p-1 text-left hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
                       disabled={pendingId !== null}
                       onClick={() => void markRead(item, Boolean(href))}
                     >
@@ -387,6 +396,12 @@ export function NotificationCenter() {
                       <span className="mt-1 block text-xs text-muted-foreground">
                         {createdLabel(item.created_at)}
                       </span>
+                      {actionLabel ? (
+                        <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary group-hover:text-action-hover">
+                          {actionLabel}
+                          <ArrowRight aria-hidden className="size-4" />
+                        </span>
+                      ) : null}
                     </button>
                     <Button
                       variant="ghost"

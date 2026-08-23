@@ -52,6 +52,7 @@ describe("persistent notification center", () => {
   it("shows unread history and persists read, dismiss, and read-all actions", async () => {
     const first = notice("one");
     const second = notice("two", {
+      kind: "automatic_deck_ready",
       title: "Automatic cards ready",
       body: "Set 1 is ready for Chapter 2.",
       href: "/decks/deck-2",
@@ -92,10 +93,11 @@ describe("persistent notification center", () => {
         "It's time for your daily review. Open Today to see what's ready now.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Review today’s cards")).toBeVisible();
 
     await user.click(
       screen.getByRole("button", {
-        name: "Unread notification: Cards ready for review",
+        name: "Review today’s cards: Cards ready for review, unread",
       }),
     );
     await waitFor(() =>
@@ -201,7 +203,7 @@ describe("persistent notification center", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Unread notification: Cards ready for review",
+        name: "Mark notification as read: Cards ready for review",
       }),
     );
     await waitFor(() =>
@@ -226,7 +228,7 @@ describe("persistent notification center", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Unread notification: Cards ready for review",
+        name: "Review today’s cards: Cards ready for review, unread",
       }),
     );
 
