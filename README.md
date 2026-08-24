@@ -86,6 +86,12 @@ model-billed ingestion—run `scripts/clone_prod_to_local.sh --yes`. The full
 contract and local-only login handling are documented in
 [`docs/environments.md`](docs/environments.md#local-production-library-snapshot).
 
+On the Supabase Free plan, staging uses a smaller deterministic fixture rather
+than a second full production database. Refresh it with
+`scripts/clone_prod_to_staging.sh --yes`; the selected documents and safety
+contract are documented in
+[`docs/environments.md`](docs/environments.md#curated-staging-snapshot).
+
 PDF parsing dependencies remain part of the deployed FastAPI image so the
 existing parser is available to the planned upload/ingestion API. Embedding
 and reranking inference remain hosted and do not add local model dependencies.

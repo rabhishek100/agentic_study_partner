@@ -94,6 +94,55 @@ Its Supabase Auth Site URL and redirect allow-list contain only the staging
 web origin. Its `LANGSMITH_PROJECT` is `agentic-study-partner-staging`, and
 video cleanup initially runs with `VIDEO_CLEANUP_DRY_RUN=1`.
 
+### Curated staging snapshot
+
+The Supabase Free plan permits 500 MB of database data per project, so staging
+does not hold the complete production corpus. Local remains the full-corpus
+environment; staging holds a deterministic, production-shaped fixture selected
+in `ops/staging/curated_documents.json`.
+
+Refresh it with:
+
+```bash
+scripts/clone_prod_to_staging.sh --yes
+```
+
+The command is destructive only to staging `public`/`video` application rows,
+the staging `book-sources` bucket, the staging API video volume, and the
+dedicated staging library Auth user. It verifies exact Railway and Supabase
+targets before changing anything. Production database, Storage, and volume
+access remain read only.
+
+The staging API/worker is scaled to zero during database replacement so it
+cannot schedule work against a partial snapshot. An exit trap restores it after
+an interrupted run. Production queue history and Auth rows are not copied. The
+primary production owner instead receives this staging-only login:
+
+```text
+staging-library@study-partner.test
+```
+
+Its generated password is stored in macOS Keychain:
+
+```bash
+security find-generic-password \
+  -s agentic-study-partner-staging-library \
+  -a staging-library@study-partner.test -w
+```
+
+The fixture currently contains three books, three papers, their PDFs, complete
+retrieval data and figures, three review decks, the clickable daily-review
+notification, and the complete video corpus. The clone enforces a 350 MiB
+database ceiling, leaving headroom below the Free limit. It finishes by checking
+source/target row counts, PDF sizes and hashes, the full video-volume inventory,
+every referenced video object hash, Auth, retrieval completeness, notification
+navigation, PDF access, and hosted API availability.
+
+The first verified snapshot used 279,129,235 database bytes, 122,494,196 PDF
+bytes, and 420,149,916 Railway video-volume bytes. Re-running the command
+replaces the fixture from scratch; it does not merge staging activity back into
+production.
+
 Deploy and verify:
 
 ```bash

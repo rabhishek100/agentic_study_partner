@@ -73,6 +73,38 @@ class EnvironmentContractTests(unittest.TestCase):
         self.assertIn('[[ "$video_count" == "$expected_video_count" ]]', script)
         self.assertIn("PostgreSQL major versions must match", script)
 
+    def test_curated_staging_manifest_is_small_and_mixed(self) -> None:
+        import json
+
+        manifest = json.loads(self.read("ops/staging/curated_documents.json"))
+        self.assertEqual(len(manifest), 6)
+        self.assertEqual(len({item["id"] for item in manifest}), 6)
+        self.assertTrue(all(item["reason"] for item in manifest))
+
+    def test_staging_clone_is_explicit_and_environment_locked(self) -> None:
+        script = self.read("scripts/clone_prod_to_staging.sh")
+        self.assertIn('[[ "${1:-}" == "--yes"', script)
+        self.assertIn('[[ "$SOURCE_ENVIRONMENT" == "production" ]]', script)
+        self.assertIn('[[ "$TARGET_ENVIRONMENT" == "staging" ]]', script)
+        self.assertIn('TARGET_PROJECT_REF="xtkbcireogbjjiuruvzp"', script)
+        self.assertIn("source and target unexpectedly resolve to the same service", script)
+
+    def test_staging_clone_preserves_free_plan_headroom_and_auth_isolation(self) -> None:
+        script = self.read("scripts/clone_prod_to_staging.sh")
+        self.assertIn("MAX_DATABASE_BYTES=$((350 * 1024 * 1024))", script)
+        self.assertIn("staging-library@study-partner.test", script)
+        self.assertIn("security add-generic-password", script)
+        self.assertNotIn("--schema=auth", script)
+        self.assertIn("cards_automation_eligible_at = null", script)
+
+    def test_staging_clone_pauses_worker_and_verifies_media_and_notification(self) -> None:
+        script = self.read("scripts/clone_prod_to_staging.sh")
+        self.assertIn("us-west=0", script)
+        self.assertGreaterEqual(script.count("us-west=1"), 2)
+        self.assertIn("sha256sum -c", script)
+        self.assertIn("staging video volume inventory differs", script)
+        self.assertIn('[[ "$notification_href" == "/decks?review=today" ]]', script)
+
 
 if __name__ == "__main__":
     unittest.main()
