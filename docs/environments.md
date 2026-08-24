@@ -9,8 +9,11 @@ databases, Auth users, Storage objects, and video volumes do not.
 | staging | Railway `staging` | `agentic-study-partner-staging` (`xtkbcireogbjjiuruvzp`) | staging `api-volume` | production-shaped acceptance testing |
 | production | Railway `production` | production project | production `api-volume` | real data |
 
-Never copy a production database URL, service-role key, volume, or Storage
-object into local or staging. Railway variables are environment-scoped, and
+Never configure a local or staging runtime to use a production database URL,
+service-role key, volume, or Storage endpoint. A deliberate read-only snapshot
+into local is the sole exception: `scripts/clone_prod_to_local.sh` streams the
+data into local services, verifies it, and discards production credentials
+without writing them to disk. Railway variables are environment-scoped, and
 the staging Supabase database password lives in macOS Keychain under
 `agentic-study-partner-staging-db` rather than in this repository.
 
@@ -47,6 +50,38 @@ scripts/local.sh up-containers  # optional fully containerized app runtime
 
 `scripts/local_postgres.sh` remains a schema-only fallback. It cannot replace
 the full stack for Auth, Storage, ingestion, or browser testing.
+
+### Local production-library snapshot
+
+For an exact local copy of the current library without repeating parsing or
+model calls, first ensure at least 3 GiB is free and register a Railway SSH key.
+Then run:
+
+```bash
+scripts/clone_prod_to_local.sh --yes
+```
+
+This is destructive only to the isolated local database, local `book-sources`
+bucket, and `data/video-media`. Production is queried and streamed read-only.
+The command copies canonical and derived Postgres rows, all private book PDFs,
+and the Railway video volume; checks database counts, object sizes, and media
+hashes; starts the app; and exercises authenticated book and video endpoints.
+
+Production Auth rows, passwords, sessions, and tokens are not copied. The
+primary owner receives a new local-only login at
+`local-library@study-partner.test`; its generated password is held in macOS
+Keychain:
+
+```bash
+security find-generic-password \
+  -s agentic-study-partner-local-library \
+  -a local-library@study-partner.test -w
+```
+
+The two legacy bootstrap books remain under the bootstrap owner in Postgres,
+while the login-visible primary library contains the 54 distinct books and one
+video present in production. Re-running the command refreshes the snapshot
+from scratch and never merges production rows into existing local activity.
 
 ## Staging environment
 

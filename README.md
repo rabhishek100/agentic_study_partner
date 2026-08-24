@@ -80,6 +80,12 @@ The web app is at `http://localhost:3000`; `scripts/local.sh down` preserves
 local data. See [`docs/environments.md`](docs/environments.md) for local and
 staging operations, isolation rules, promotion, and rollback.
 
+To replace the isolated local data with a verified, read-only snapshot of the
+production library—without copying production Auth credentials or repeating
+model-billed ingestion—run `scripts/clone_prod_to_local.sh --yes`. The full
+contract and local-only login handling are documented in
+[`docs/environments.md`](docs/environments.md#local-production-library-snapshot).
+
 PDF parsing dependencies remain part of the deployed FastAPI image so the
 existing parser is available to the planned upload/ingestion API. Embedding
 and reranking inference remain hosted and do not add local model dependencies.

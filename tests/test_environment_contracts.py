@@ -47,6 +47,32 @@ class EnvironmentContractTests(unittest.TestCase):
             self.assertIn(f"drop policy if exists {policy}", sql)
             self.assertIn(f"create policy {policy}", sql)
 
+    def test_production_clone_is_explicit_and_keeps_local_runtime_isolated(self) -> None:
+        script = self.read("scripts/clone_prod_to_local.sh")
+        self.assertIn('[[ "${1:-}" == "--yes"', script)
+        self.assertIn('PRODUCTION_ENVIRONMENT="${RAILWAY_PRODUCTION_ENVIRONMENT:-production}"', script)
+        self.assertIn('[[ "$local_supabase_url" == "http://127.0.0.1:54321" ]]', script)
+        self.assertIn("bounded, resumable batches", script)
+        self.assertIn("order by ctid limit $batch_size offset $offset", script)
+        self.assertIn("set session_replication_role = replica", script)
+        self.assertNotIn("usuulfckhbeypjxwjpfn", script)
+
+    def test_production_clone_does_not_copy_auth_secrets(self) -> None:
+        script = self.read("scripts/clone_prod_to_local.sh")
+        self.assertNotIn("--schema=auth", script)
+        self.assertIn("local-library@study-partner.test", script)
+        self.assertIn("security add-generic-password", script)
+        self.assertIn("auth/v1/admin/users", script)
+
+    def test_production_clone_verifies_all_three_data_planes(self) -> None:
+        script = self.read("scripts/clone_prod_to_local.sh")
+        self.assertIn("canonical or derived database counts differ", script)
+        self.assertIn("local Storage metadata does not match", script)
+        self.assertIn("video media hash mismatch", script)
+        self.assertIn('[[ "$book_count" == "$expected_document_count" ]]', script)
+        self.assertIn('[[ "$video_count" == "$expected_video_count" ]]', script)
+        self.assertIn("PostgreSQL major versions must match", script)
+
 
 if __name__ == "__main__":
     unittest.main()
