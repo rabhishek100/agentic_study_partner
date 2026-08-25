@@ -1,0 +1,32 @@
+[
+  {
+    "id": 528,
+    "title": "AI Engineering",
+    "reason": "Long technical book with dense figures and tables"
+  },
+  {
+    "id": 536,
+    "title": "System Design Interview an Insiders Guide Volume 2",
+    "reason": "Complete-book OCR path and system-design coverage"
+  },
+  {
+    "id": 537,
+    "title": "The Hundred-Page Language Models Book 2025",
+    "reason": "Compact OCR book focused on current language-model concepts"
+  },
+  {
+    "id": 547,
+    "title": "Attention Is All You Need",
+    "reason": "Classic paper with an existing review deck"
+  },
+  {
+    "id": 577,
+    "title": "Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models",
+    "reason": "Current agentic research with tables and an existing review deck"
+  },
+  {
+    "id": 582,
+    "title": "Hallusionbench",
+    "reason": "Figure-heavy evaluation paper with an existing review deck"
+  }
+]

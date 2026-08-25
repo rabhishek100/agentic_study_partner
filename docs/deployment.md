@@ -1,6 +1,8 @@
 # Deployment: Railway + hosted Supabase
 
-Two Railway services against one hosted Supabase project.
+Two Railway services against one hosted Supabase project per deployed tier.
+This document describes production internals; the isolated local/staging
+contracts and commands are in [`environments.md`](environments.md).
 
 ```text
 Railway project
@@ -23,6 +25,12 @@ for every one of them — so merging to `main` deploys nothing at all. Every
 deployment is a `railway up` from a laptop, per service, and `main` and
 production drift apart the moment either moves without the other. Check which
 commit is actually serving with `/api/health`, never by reading the git log.
+
+The Railway project also has a separate `staging` environment. Deploy it only
+through `scripts/staging.sh`; its variables point at Supabase project
+`xtkbcireogbjjiuruvzp`, its volume is independent, and its LangSmith traces use
+`agentic-study-partner-staging`. Never use the production project reference in
+staging variables.
 
 The `api` service runs *both halves*: `python -m scripts.serve` supervises
 uvicorn and the ingestion worker in one container and exits if either of them

@@ -2,8 +2,8 @@
 #
 # Deploy one service, and record what was deployed.
 #
-#   scripts/deploy.sh api     API and ingestion worker, one container
-#   scripts/deploy.sh web
+#   scripts/deploy.sh api [environment]   API and worker, one container
+#   scripts/deploy.sh web [environment]
 #
 # The service is named `api` for historical reasons and runs both processes:
 # they have to share one media volume, and a Railway volume mounts to exactly
@@ -27,8 +27,9 @@
 set -euo pipefail
 
 service="${1:-}"
+environment="${2:-}"
 if [[ -z "$service" ]]; then
-    echo "usage: scripts/deploy.sh <api|web>" >&2
+    echo "usage: scripts/deploy.sh <api|web> [environment]" >&2
     exit 2
 fi
 
@@ -37,7 +38,7 @@ if [[ "$service" == "worker" ]]; then
     exit 2
 fi
 if [[ "$service" != "api" && "$service" != "web" ]]; then
-    echo "usage: scripts/deploy.sh <api|web>" >&2
+    echo "usage: scripts/deploy.sh <api|web> [environment]" >&2
     exit 2
 fi
 
@@ -47,8 +48,12 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
     echo "warning: deploying with uncommitted changes; recorded as ${revision}" >&2
 fi
 built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+environment_args=()
+if [[ -n "$environment" ]]; then
+    environment_args=(--environment "$environment")
+fi
 
-echo "deploying ${service} at ${revision}"
+echo "deploying ${service} at ${revision}${environment:+ to ${environment}}"
 # `--skip-deploys` on both. Setting a service variable triggers a redeploy of
 # whatever is currently deployed, so recording the revision queued two builds of
 # the *old* source seconds before the real upload — and then the upload waited
@@ -56,19 +61,24 @@ echo "deploying ${service} at ${revision}"
 # shows the same three entries, two of them REMOVED. On 2026-08-19, with
 # Railway's builders degraded, the two spurious builds wedged and the real
 # deployment failed without ever being assigned a build.
-railway variable set --skip-deploys --service "$service" "BUILD_REVISION=${revision}" >/dev/null
-railway variable set --skip-deploys --service "$service" "BUILD_TIME=${built_at}" >/dev/null
+railway variable set --skip-deploys --service "$service" \
+    "${environment_args[@]}" "BUILD_REVISION=${revision}" >/dev/null
+railway variable set --skip-deploys --service "$service" \
+    "${environment_args[@]}" "BUILD_TIME=${built_at}" >/dev/null
 
 case "$service" in
     web)
         # The link that decides the upload root lives at the repository root,
         # so the path has to be made explicit; see the comment above.
-        railway up ./frontend --path-as-root --service web --detach
+        railway up ./frontend --path-as-root --service web \
+            "${environment_args[@]}" --detach
         ;;
     *)
-        railway up --service "$service" --detach
+        railway up --service "$service" "${environment_args[@]}" --detach
         ;;
 esac
 
-echo "deployed ${service} at ${revision}; confirm with:"
-echo "  curl -s https://web-production-8529e.up.railway.app/api/health | jq"
+echo "uploaded ${service} at ${revision}; wait for Railway, then verify health"
+if [[ -n "$environment" ]]; then
+    echo "  railway deployment list --service ${service} --environment ${environment} --limit 1"
+fi

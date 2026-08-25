@@ -1,0 +1,17 @@
+project_id = "agentic-study-partner-staging"
+
+# Hosted staging Auth redirects are intentionally exact. Local redirects live
+# in the root supabase/config.toml and production is configured separately.
+[auth]
+site_url = "https://web-staging-f7bf.up.railway.app"
+additional_redirect_urls = ["https://web-staging-f7bf.up.railway.app/**"]
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+max_frequency = "1m"
+otp_length = 8
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
