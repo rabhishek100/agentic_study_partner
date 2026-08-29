@@ -22,7 +22,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v10"
+PROMPT_VERSION = "adaptive-interview-v13"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -49,13 +49,19 @@ when an answer to the actual question is ambiguous over assuming it is wrong.
 
 Ask exactly one concise, self-contained question at a time. Test reasoning and
 technical judgment, not recall of the source's wording, headings, list order, or
-obscure examples. Stay on the selected source. Do not pad an interview after
-meaningful coverage is complete.
+obscure examples. The source bounds the subject and supplies the private rubric,
+but the candidate-facing question must stand alone as a normal technical interview
+question. Never refer to "the book", "the chapter", "the lecture", "the source",
+or what an author said. Do not pad an interview after meaningful coverage is
+complete.
 
-Move through a chapter breadth-first. A primary question should test the core
-of its planned area. Do not remain on one local detail while planned chapter
-areas are still unseen. Revisit a topic only for a genuine ambiguity, a weak
-core prerequisite, or high-value depth after broad coverage.
+Move through an ordinary verbal concept interview breadth-first. A primary
+question should test the core of its planned area. Once the candidate is
+working through code, an architecture diagram, or a system-design problem,
+keep the shared problem coherent: one warranted follow-up may probe an
+assumption, changed constraint, failure mode, or verification step before the
+interview advances. Do not abandon an active work sample for an unrelated
+source heading, and do not remain on one local detail after that bounded probe.
 """.strip()
 
 
@@ -92,6 +98,7 @@ def build_question_messages(
     candidate_answer: str | None = None,
     purpose: str | None = None,
     recent_questions: list[InterviewQuestion] | None = None,
+    planned_move: str | None = None,
 ) -> list[Any]:
     context = [
         f"Source: {inventory.source_title}",
@@ -107,6 +114,8 @@ def build_question_messages(
         context.append(f"Candidate answer: {candidate_answer}")
     if purpose:
         context.append(f"Adaptive purpose: {purpose}")
+    if planned_move:
+        context.append(f"Planned interview move: {planned_move}")
     if recent_questions:
         context.append(
             "Recent questions — do not restate or circle back to these:\n"
@@ -123,8 +132,9 @@ the evidence. Keep the question appropriate for the target level and kind.
 The question must make its expected scope explicit and be answerable through
 reasoning without memorizing the source. Do not ask for the "central idea"
 behind a source heading, the book's exact taxonomy, a named list, or wording the
-candidate could only know by recall. Use a concrete concept, decision, scenario,
-or trade-off instead.
+candidate could only know by recall. Do not mention a book, chapter, lecture,
+section, source, author, page, or what any of them says. Use a concrete concept,
+decision, scenario, or trade-off instead.
 
 Provide at most three `expected_points`, and include only points directly
 solicited by the audible question. The candidate must not need to infer another
@@ -332,7 +342,10 @@ set
 `needs_depth_follow_up` and name only that detail in `depth_follow_up_focus`.
 Do not request depth for optional implementation specifics, another source
 example, trivia, or a detail that can be recorded for later review. Broad
-chapter coverage takes priority over immediate local depth.
+chapter coverage takes priority in an ordinary verbal concept interview. For
+code, architecture work, and system design, one essential follow-up may stay
+on the current problem so the candidate can handle an assumption, changed
+constraint, failure mode, or verification step.
 That unasked detail must not appear in `gaps`, reduce any score, or be framed as
 something the candidate should already have said. Set `topic_complete` when
 another question on this topic would add little interview signal. If a non-code

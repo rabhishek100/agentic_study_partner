@@ -203,6 +203,71 @@ uv run python -m scripts.rejudge_interview_results \
   evaluation/runs/interview/<timestamp>/results.json
 ```
 
+## Interview-session realism seed
+
+`interview_realism_seed.json` evaluates the separate adaptive interview
+feature. The interview-answer seed above asks whether a generated study answer
+is useful for interview preparation; this slice asks whether the interviewer
+itself behaves like a real interviewer.
+
+Five source-grounded synthetic sessions span ML engineering, AI engineering,
+entry SWE, senior ML system design, and senior software system design. Hard
+gates cover atomicity, source independence, grounding, non-repetition,
+breadth-first progression, repeated template shapes, fallback rate, and work
+sample cadence. An optional independent judge scores the semantic experience.
+
+```bash
+uv run python -m scripts.evaluate_interview_realism \
+  --all \
+  --judge
+```
+
+The research basis, thresholds, and claim boundary are documented in
+[`docs/interview-realism-evaluation.md`](../docs/interview-realism-evaluation.md).
+The dataset is research-derived and synthetic, not a human-verified sample of
+proprietary employer questions.
+
+## Transcript-derived interview interactions
+
+`interview_transcript_eval.json` adds eight public YouTube mock-interview
+sources, timestamped paraphrased observations, and eight synthetic adaptive
+turns. Four sources are development evidence and four are held out before the
+runtime policy change. Full captions are deliberately not stored.
+
+```bash
+uv run python -m scripts.evaluate_interview_interactions \
+  --split development \
+  --judge
+
+uv run python -m scripts.evaluate_interview_interactions \
+  --split held_out \
+  --judge
+```
+
+The eval runs the real answer graph after injecting a frozen strong or ambiguous
+candidate condition. It checks whether a warranted clarification or depth probe
+stays on the active problem, a complete ordinary concept answer advances,
+candidate-facing reactions remain neutral in realistic mode, and every next
+question remains focused, grounded, source-independent, and non-repeating.
+
+## Human-written candidate calibration
+
+`interview_candidate_profiles.json` freezes weak, mixed, and strong candidate
+answers for two uploaded-book system-design questions. Unlike the interaction
+suite, it does not inject a perfect structured evaluation. It sends the authored
+answer through the production grading prompt and contract, then checks broad
+score bands, completion, adaptive route, citation resolution, and monotonic
+ordering within each complete ladder.
+
+```bash
+uv run python -m scripts.evaluate_interview_candidate_calibration
+```
+
+Use repeated `--case` arguments to retry only provider-failed profiles. A
+partial selection runs profile gates but skips the monotonic ladder check until
+all three levels for that scenario are present. Provider failures are reported
+separately and do not receive synthetic candidate scores.
+
 ## Multi-turn conversation set
 
 `multiturn_gold.json` is the frozen synthetic seed set for implementing

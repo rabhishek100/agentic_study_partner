@@ -1,0 +1,595 @@
+{
+  "dataset_id": "interview-transcript-interactions-v1",
+  "version": 1,
+  "review_status": "public mock-interview transcript-derived; synthetic cases require human review before hiring-validity claims",
+  "methodology": "Public YouTube captions were reviewed for interaction structure, not copied as a question bank. Development sources informed the first policy revision. Held-out sources were assigned before implementation and are used only as a generalization check. Full transcripts are not redistributed; this dataset stores video metadata, timestamp ranges, and paraphrased behavioral observations. Synthetic cases exercise the production answer graph with strong, ambiguous, and constraint-changing candidate conditions.",
+  "sources": [
+    {
+      "id": "fcc-swe-full",
+      "video_id": "1qw5ITr3k9E",
+      "title": "Software Engineering Job Interview – Full Mock Interview",
+      "channel": "freeCodeCamp.org",
+      "url": "https://www.youtube.com/watch?v=1qw5ITr3k9E",
+      "upload_date": "2023-03-29",
+      "duration_seconds": 4468,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "development",
+      "observations": [
+        {
+          "start_seconds": 1400,
+          "end_seconds": 1530,
+          "behavior": "The interviewer introduces a related follow-up after observing the candidate's first implementation rather than switching to unrelated recall questions."
+        },
+        {
+          "start_seconds": 3970,
+          "end_seconds": 4160,
+          "behavior": "The debrief treats test cases, edge conditions, and explicit reasoning as core evidence from a coding round."
+        }
+      ]
+    },
+    {
+      "id": "exponent-kmeans",
+      "video_id": "gl96uVKroDM",
+      "title": "ML Coding Question - Implement K-Means (Full Mock Interview with Snapchat MLE)",
+      "channel": "Exponent",
+      "url": "https://www.youtube.com/watch?v=gl96uVKroDM",
+      "upload_date": "2024-03-25",
+      "duration_seconds": 2034,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "development",
+      "observations": [
+        {
+          "start_seconds": 46,
+          "end_seconds": 130,
+          "behavior": "The candidate clarifies the distance metric, stopping rule, and input shape; the interviewer answers the requested constraints without supplying an implementation."
+        },
+        {
+          "start_seconds": 312,
+          "end_seconds": 418,
+          "behavior": "The interviewer challenges an initialization assumption, lets the candidate make it explicit, and defers broader alternative discussion until after the implementation."
+        },
+        {
+          "start_seconds": 1549,
+          "end_seconds": 1725,
+          "behavior": "After the coding work, the interviewer asks how the candidate would evaluate cluster quality, extending the same problem into engineering judgment."
+        }
+      ]
+    },
+    {
+      "id": "exponent-rate-limiter",
+      "video_id": "SgWb6tWx3S8",
+      "title": "System Design Mock Interview: Design a Rate Limiter (with Meta Engineering Manager)",
+      "channel": "Exponent",
+      "url": "https://www.youtube.com/watch?v=SgWb6tWx3S8",
+      "upload_date": "2022-10-26",
+      "duration_seconds": 1354,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "development",
+      "observations": [
+        {
+          "start_seconds": 94,
+          "end_seconds": 147,
+          "behavior": "The candidate establishes server-side scope and an identity choice; the interviewer immediately probes why that choice is appropriate."
+        },
+        {
+          "start_seconds": 827,
+          "end_seconds": 1070,
+          "behavior": "The interviewer changes the scale assumption to a distributed environment and asks the candidate to adapt the existing design."
+        },
+        {
+          "start_seconds": 1143,
+          "end_seconds": 1249,
+          "behavior": "A later probe changes viewpoint to a legitimate client experiencing throttling, testing failure handling without abandoning the shared design scenario."
+        }
+      ]
+    },
+    {
+      "id": "think-models-ai",
+      "video_id": "O-kuHMOdjX4",
+      "title": "Inside a Real AI Engineer Interview (Mock Interview + Evaluation)",
+      "channel": "Think in Models",
+      "url": "https://www.youtube.com/watch?v=O-kuHMOdjX4",
+      "upload_date": "2026-04-12",
+      "duration_seconds": 4162,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "development",
+      "observations": [
+        {
+          "start_seconds": 779,
+          "end_seconds": 1015,
+          "behavior": "An open RAG design prompt leads to candidate clarification about inputs and processing before architecture details."
+        },
+        {
+          "start_seconds": 1145,
+          "end_seconds": 1385,
+          "behavior": "The interviewer repeatedly asks why a more complex retrieval or clustering choice is needed, testing trade-off reasoning rather than tool-name recall."
+        },
+        {
+          "start_seconds": 1881,
+          "end_seconds": 2045,
+          "behavior": "The coding discussion includes explicit complexity reasoning and mechanism questions anchored to the candidate's proposed data structure."
+        }
+      ]
+    },
+    {
+      "id": "neet-google-coding",
+      "video_id": "46dZH7LDbf8",
+      "title": "Mock Google Coding Interview with a Meta Intern",
+      "channel": "NeetCode",
+      "url": "https://www.youtube.com/watch?v=46dZH7LDbf8",
+      "upload_date": "2022-11-15",
+      "duration_seconds": 2823,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "held_out",
+      "observations": [
+        {
+          "start_seconds": 171,
+          "end_seconds": 275,
+          "behavior": "The candidate restates the contract and asks about value type, scale, operation mix, and language before implementation."
+        },
+        {
+          "start_seconds": 997,
+          "end_seconds": 1058,
+          "behavior": "The interviewer uses a short sequence of why and boundary probes to help expose the relevant constant-time removal property without stating the solution."
+        },
+        {
+          "start_seconds": 1528,
+          "end_seconds": 1774,
+          "behavior": "The interviewer requests concrete test cases; the walkthrough exposes and repairs a state-update defect."
+        },
+        {
+          "start_seconds": 1792,
+          "end_seconds": 1826,
+          "behavior": "The final follow-up changes the duplicate-value requirement while preserving the original data-structure problem."
+        }
+      ]
+    },
+    {
+      "id": "exponent-ai-coding",
+      "video_id": "ZE_YEn-okfk",
+      "title": "AI Coding Mock Interview (with Senior FAANG Engineer)",
+      "channel": "Exponent",
+      "url": "https://www.youtube.com/watch?v=ZE_YEn-okfk",
+      "upload_date": "2025-12-11",
+      "duration_seconds": 2173,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "held_out",
+      "observations": [
+        {
+          "start_seconds": 427,
+          "end_seconds": 442,
+          "behavior": "A candidate question is answered as a narrow contract clarification before work continues."
+        },
+        {
+          "start_seconds": 650,
+          "end_seconds": 760,
+          "behavior": "The interviewer asks a follow-up tied to the proposed AI-backed service rather than opening a new trivia topic."
+        },
+        {
+          "start_seconds": 1188,
+          "end_seconds": 1320,
+          "behavior": "A changed runtime condition tests how the candidate would preserve correctness and handle failure."
+        },
+        {
+          "start_seconds": 1409,
+          "end_seconds": 1450,
+          "behavior": "The final probe adds concurrency pressure to the same implementation and asks for a bounded adaptation."
+        }
+      ]
+    },
+    {
+      "id": "hello-youtube-design",
+      "video_id": "IUrQ5_g3XKs",
+      "title": "System Design Interview: Design YouTube w/ a Ex-Meta Staff Engineer",
+      "channel": "Hello Interview",
+      "url": "https://www.youtube.com/watch?v=IUrQ5_g3XKs",
+      "upload_date": "2025-03-09",
+      "duration_seconds": 2559,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "held_out",
+      "observations": [
+        {
+          "start_seconds": 560,
+          "end_seconds": 760,
+          "behavior": "The design is organized around explicit functional requirements before storage and data-flow details."
+        },
+        {
+          "start_seconds": 1040,
+          "end_seconds": 1210,
+          "behavior": "The discussion turns a requirement into a concrete client-to-service data-flow question."
+        },
+        {
+          "start_seconds": 1460,
+          "end_seconds": 1530,
+          "behavior": "A what-if change tests whether the proposed chunking and processing design still satisfies the same product requirement."
+        }
+      ]
+    },
+    {
+      "id": "mlepath-ml-design",
+      "video_id": "9U48NlbOzCU",
+      "title": "Full ML Design Mock by ex-Meta Staff Engineer (with feedback)",
+      "channel": "MLEpath",
+      "url": "https://www.youtube.com/watch?v=9U48NlbOzCU",
+      "upload_date": "2024-12-07",
+      "duration_seconds": 1992,
+      "transcript_kind": "youtube_auto_captions",
+      "split": "held_out",
+      "observations": [
+        {
+          "start_seconds": 120,
+          "end_seconds": 306,
+          "behavior": "The candidate makes latency, scale, accuracy, item shape, baseline, and success signals explicit before presenting an architecture."
+        },
+        {
+          "start_seconds": 1334,
+          "end_seconds": 1425,
+          "behavior": "The ML design connects temporal validation splits to seasonality and future production behavior."
+        },
+        {
+          "start_seconds": 1560,
+          "end_seconds": 1750,
+          "behavior": "The candidate chooses different retrieval and ranking metrics for different stages and explains why their objectives differ."
+        },
+        {
+          "start_seconds": 1780,
+          "end_seconds": 1915,
+          "behavior": "The design closes with online experimentation, deployment, and monitoring rather than ending at model selection."
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "dev-swe-system-depth",
+      "split": "development",
+      "source_ids": ["fcc-swe-full", "exponent-rate-limiter"],
+      "role": "senior software engineer",
+      "source_title": "Reliable Event Delivery",
+      "scope_title": "Designing a notification delivery service",
+      "interview_format": "system_design",
+      "target_level": "senior",
+      "topics": [
+        {
+          "key": "dev:swe:delivery",
+          "label": "Delivery path and idempotency",
+          "marker": "[N701:P12]",
+          "evidence": "A durable queue separates request handling from delivery workers. At-least-once delivery requires an idempotency key or deduplication boundary so retries do not create duplicate notifications."
+        },
+        {
+          "key": "dev:swe:capacity",
+          "label": "Capacity and backpressure",
+          "marker": "[N702:P18]",
+          "evidence": "Queue depth, worker concurrency, provider quotas, and retry delay determine throughput. Backpressure and admission control keep overload from exhausting the service."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "dev:swe:delivery",
+        "topic_label": "Delivery path and idempotency",
+        "kind": "primary",
+        "text": "Draw the request-to-provider components and data flow for a reliable notification service.",
+        "expected_points": ["Separate acceptance from delivery with durable work."],
+        "suggested_answer": "Accept the request durably, enqueue work, and let delivery workers call the provider with bounded retries. [N701:P12]",
+        "citation_markers": ["[N701:P12]"],
+        "difficulty": "senior",
+        "interviewer_note": "",
+        "work_sample": "architecture_diagram",
+        "work_sample_prompt": "Draw components and the request-to-provider data flow.",
+        "coding_exercise": null,
+        "clarifications": []
+      },
+      "candidate_answer": "I would accept the request through an API, place it on a durable queue, and have autoscaled workers call the provider with retries and a dead-letter queue.",
+      "route": "depth_follow_up",
+      "follow_up_focus": "how retries avoid delivering the same notification twice"
+    },
+    {
+      "id": "dev-ml-code-depth",
+      "split": "development",
+      "source_ids": ["exponent-kmeans"],
+      "role": "machine learning engineer",
+      "source_title": "Clustering Implementations",
+      "scope_title": "Implementing and validating clustering",
+      "interview_format": "concept",
+      "target_level": "mid",
+      "topics": [
+        {
+          "key": "dev:ml:kmeans",
+          "label": "K-means update step",
+          "marker": "[N711:P22]",
+          "evidence": "Each iteration assigns points to the nearest centroid and recomputes every centroid from its assigned points. An empty cluster needs an explicit policy rather than producing an invalid mean."
+        },
+        {
+          "key": "dev:ml:evaluation",
+          "label": "Cluster evaluation",
+          "marker": "[N712:P28]",
+          "evidence": "Within-cluster distance, stability, and downstream task impact provide different evidence about unsupervised cluster quality."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "dev:ml:kmeans",
+        "topic_label": "K-means update step",
+        "kind": "primary",
+        "text": "Implement a Python function for one K-means update that receives points and centroids and returns new centroid coordinates.",
+        "expected_points": ["Assign points and compute the mean per cluster."],
+        "suggested_answer": "Assign each point to its nearest centroid, then average assigned points for each centroid. [N711:P22]",
+        "citation_markers": ["[N711:P22]"],
+        "difficulty": "mid",
+        "interviewer_note": "",
+        "work_sample": "code",
+        "work_sample_prompt": "Complete the Python scaffold in the coding workspace.",
+        "coding_exercise": {
+          "language": "python",
+          "starter_code": "def update_centroids(points, centroids):\n    \"\"\"Return one updated centroid list.\"\"\"\n    # TODO: implement\n    raise NotImplementedError\n",
+          "visible_tests": "assert update_centroids([[0.0], [2.0]], [[0.0], [2.0]]) == [[0.0], [2.0]]\n",
+          "hints": ["Track point assignments separately from centroid recomputation."]
+        },
+        "clarifications": []
+      },
+      "candidate_answer": "I assign every point to its nearest centroid, accumulate per-cluster sums and counts, and divide each sum by its count to return the updated coordinates.",
+      "route": "depth_follow_up",
+      "follow_up_focus": "the behavior when a centroid receives no assigned points"
+    },
+    {
+      "id": "dev-ai-ambiguous-probe",
+      "split": "development",
+      "source_ids": ["think-models-ai"],
+      "role": "AI engineer",
+      "source_title": "Retrieval-Augmented Systems",
+      "scope_title": "Designing a grounded support assistant",
+      "interview_format": "concept",
+      "target_level": "mid",
+      "topics": [
+        {
+          "key": "dev:ai:chunking",
+          "label": "Chunking strategy",
+          "marker": "[N721:P10]",
+          "evidence": "Chunk size trades local retrieval precision against enough surrounding context to answer. Structure-aware boundaries can preserve coherent units without making every chunk large."
+        },
+        {
+          "key": "dev:ai:metrics",
+          "label": "Retrieval evaluation",
+          "marker": "[N722:P16]",
+          "evidence": "Retrieval recall and answer faithfulness isolate different failure stages and require representative answerable and unanswerable requests."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "dev:ai:chunking",
+        "topic_label": "Chunking strategy",
+        "kind": "primary",
+        "text": "How would you choose chunk boundaries for a support-document retrieval system?",
+        "expected_points": ["Tie boundaries to a measurable retrieval trade-off."],
+        "suggested_answer": "Use document structure and evaluate the precision-versus-context trade-off on representative queries. [N721:P10]",
+        "citation_markers": ["[N721:P10]"],
+        "difficulty": "mid",
+        "interviewer_note": "",
+        "work_sample": "none",
+        "work_sample_prompt": null,
+        "coding_exercise": null,
+        "clarifications": []
+      },
+      "candidate_answer": "I would use semantic chunks because they are generally better.",
+      "route": "clarifying",
+      "follow_up_focus": "which retrieval outcome the candidate means by better"
+    },
+    {
+      "id": "dev-concept-advance",
+      "split": "development",
+      "source_ids": ["fcc-swe-full", "think-models-ai"],
+      "role": "software engineer",
+      "source_title": "Practical API Engineering",
+      "scope_title": "Building a small reliable API",
+      "interview_format": "concept",
+      "target_level": "entry",
+      "topics": [
+        {
+          "key": "dev:api:contract",
+          "label": "API contract",
+          "marker": "[N731:P8]",
+          "evidence": "A small API contract makes inputs, outputs, validation, and error behavior explicit without exposing internal state."
+        },
+        {
+          "key": "dev:api:tests",
+          "label": "Boundary tests",
+          "marker": "[N732:P14]",
+          "evidence": "Boundary tests cover empty values, maximum sizes, malformed input, and behavior at the edge of accepted ranges."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "dev:api:contract",
+        "topic_label": "API contract",
+        "kind": "primary",
+        "text": "What should a small create-user API contract make explicit?",
+        "expected_points": ["Inputs, outputs, and error behavior."],
+        "suggested_answer": "It should state accepted inputs, returned output, validation, and error behavior while hiding internals. [N731:P8]",
+        "citation_markers": ["[N731:P8]"],
+        "difficulty": "entry",
+        "interviewer_note": "",
+        "work_sample": "none",
+        "work_sample_prompt": null,
+        "coding_exercise": null,
+        "clarifications": []
+      },
+      "candidate_answer": "It should specify required fields and validation, the success response, and stable error responses without exposing storage details.",
+      "route": "advance",
+      "follow_up_focus": null
+    },
+    {
+      "id": "held-swe-code-change",
+      "split": "held_out",
+      "source_ids": ["neet-google-coding"],
+      "role": "software engineer",
+      "source_title": "Data Structure Design",
+      "scope_title": "Implementing a mutable in-memory collection",
+      "interview_format": "concept",
+      "target_level": "mid",
+      "topics": [
+        {
+          "key": "held:swe:collection",
+          "label": "Constant-time collection operations",
+          "marker": "[N801:P11]",
+          "evidence": "An array supports random indexing while a map can locate an element. Swapping a removed element with the final array element avoids shifting the remaining values. Duplicate values require mapping a value to multiple positions."
+        },
+        {
+          "key": "held:swe:testing",
+          "label": "State transition tests",
+          "marker": "[N802:P17]",
+          "evidence": "Tests should walk state through insertion, removal of different positions, repeated values when allowed, and selection from the remaining elements."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "held:swe:collection",
+        "topic_label": "Constant-time collection operations",
+        "kind": "primary",
+        "text": "Implement a Python class whose methods insert, remove, and return a uniformly random stored unique integer.",
+        "expected_points": ["Combine indexed storage with value-to-position lookup."],
+        "suggested_answer": "Use an array plus a position map, and swap a removed value with the final array element before popping. [N801:P11]",
+        "citation_markers": ["[N801:P11]"],
+        "difficulty": "mid",
+        "interviewer_note": "",
+        "work_sample": "code",
+        "work_sample_prompt": "Complete the Python scaffold in the coding workspace.",
+        "coding_exercise": {
+          "language": "python",
+          "starter_code": "class RandomCollection:\n    def insert(self, value: int) -> None:\n        # TODO: implement\n        raise NotImplementedError\n\n    def remove(self, value: int) -> None:\n        # TODO: implement\n        raise NotImplementedError\n\n    def random(self) -> int:\n        # TODO: implement\n        raise NotImplementedError\n",
+          "visible_tests": "items = RandomCollection()\nitems.insert(3)\nitems.remove(3)\nassert hasattr(items, 'random')\n",
+          "hints": ["Consider combining indexed storage with value lookup."]
+        },
+        "clarifications": []
+      },
+      "candidate_answer": "I used an array for random access and a map from value to index. Removal swaps the target with the last item, updates that item's map entry, and pops the array.",
+      "route": "depth_follow_up",
+      "follow_up_focus": "how the representation changes if duplicate values are allowed"
+    },
+    {
+      "id": "held-ai-code-failure",
+      "split": "held_out",
+      "source_ids": ["exponent-ai-coding"],
+      "role": "AI engineer",
+      "source_title": "Reliable Model Clients",
+      "scope_title": "Building a bounded concurrent inference client",
+      "interview_format": "concept",
+      "target_level": "mid",
+      "topics": [
+        {
+          "key": "held:ai:client",
+          "label": "Bounded inference calls",
+          "marker": "[N811:P20]",
+          "evidence": "A model client should bound concurrency, apply timeouts, and distinguish retryable failures from permanent input errors. Shared retry state must remain safe when calls execute concurrently."
+        },
+        {
+          "key": "held:ai:observability",
+          "label": "Inference observability",
+          "marker": "[N812:P27]",
+          "evidence": "Request latency, queue time, timeouts, provider errors, token usage, and fallback rate reveal different serving failure modes."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "held:ai:client",
+        "topic_label": "Bounded inference calls",
+        "kind": "primary",
+        "text": "Implement a Python function that applies a timeout and bounded retries and returns one model response.",
+        "expected_points": ["Stop after a finite retry budget."],
+        "suggested_answer": "Apply a per-attempt timeout, retry only transient failures, and stop after a fixed attempt budget. [N811:P20]",
+        "citation_markers": ["[N811:P20]"],
+        "difficulty": "mid",
+        "interviewer_note": "",
+        "work_sample": "code",
+        "work_sample_prompt": "Complete the Python scaffold in the coding workspace.",
+        "coding_exercise": {
+          "language": "python",
+          "starter_code": "def call_with_retries(request_fn, attempts: int, timeout_s: float):\n    \"\"\"Return one model response or raise the final error.\"\"\"\n    # TODO: implement\n    raise NotImplementedError\n",
+          "visible_tests": "assert callable(call_with_retries)\n",
+          "hints": ["Classify failures before deciding whether to retry."]
+        },
+        "clarifications": []
+      },
+      "candidate_answer": "I loop up to the attempt limit, pass the timeout to each request, retry timeout and rate-limit errors with backoff, and immediately raise validation errors.",
+      "route": "depth_follow_up",
+      "follow_up_focus": "how the retry and concurrency policy changes when many requests arrive simultaneously"
+    },
+    {
+      "id": "held-swe-system-constraint",
+      "split": "held_out",
+      "source_ids": ["hello-youtube-design"],
+      "role": "senior software engineer",
+      "source_title": "Video Processing Systems",
+      "scope_title": "Designing a video upload and processing service",
+      "interview_format": "system_design",
+      "target_level": "senior",
+      "topics": [
+        {
+          "key": "held:video:upload",
+          "label": "Upload and processing data flow",
+          "marker": "[N821:P31]",
+          "evidence": "Clients can upload directly to object storage using a scoped URL. A durable event then triggers chunked transcoding, and published metadata should not expose an incomplete rendition as ready."
+        },
+        {
+          "key": "held:video:delivery",
+          "label": "Playback delivery",
+          "marker": "[N822:P38]",
+          "evidence": "A CDN serves prepared renditions while metadata directs clients to suitable segments. Cache behavior and regional availability affect startup latency."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "held:video:upload",
+        "topic_label": "Upload and processing data flow",
+        "kind": "primary",
+        "text": "Draw the upload-to-ready components and data flow for a large video processing service.",
+        "expected_points": ["Separate upload, durable processing, and readiness state."],
+        "suggested_answer": "Upload to object storage, emit durable processing work, transcode chunks, and publish readiness only after required renditions exist. [N821:P31]",
+        "citation_markers": ["[N821:P31]"],
+        "difficulty": "senior",
+        "interviewer_note": "",
+        "work_sample": "architecture_diagram",
+        "work_sample_prompt": "Draw components and the upload-to-ready data flow.",
+        "coding_exercise": null,
+        "clarifications": []
+      },
+      "candidate_answer": "The API issues a scoped object-store upload URL. Completion emits durable work, parallel transcoders create renditions, and metadata switches to ready after validation succeeds.",
+      "route": "depth_follow_up",
+      "follow_up_focus": "how the design handles one failed chunk without restarting the full upload"
+    },
+    {
+      "id": "held-ml-system-depth",
+      "split": "held_out",
+      "source_ids": ["mlepath-ml-design"],
+      "role": "senior machine learning engineer",
+      "source_title": "Recommendation Systems",
+      "scope_title": "Designing a short-video recommendation service",
+      "interview_format": "system_design",
+      "target_level": "senior",
+      "topics": [
+        {
+          "key": "held:ml:ranking",
+          "label": "Candidate generation and ranking",
+          "marker": "[N831:P42]",
+          "evidence": "Candidate generation optimizes recall under a tight latency and scale budget; a smaller downstream ranker can use richer features and optimize ordering quality."
+        },
+        {
+          "key": "held:ml:launch",
+          "label": "Evaluation and launch",
+          "marker": "[N832:P49]",
+          "evidence": "Temporal validation prevents future leakage. Guardrailed online experiments measure engagement while monitoring latency, reliability, and harmful outcomes."
+        }
+      ],
+      "primary_question": {
+        "topic_key": "held:ml:ranking",
+        "topic_label": "Candidate generation and ranking",
+        "kind": "primary",
+        "text": "Draw the online retrieval and ranking stages for a short-video recommendation service.",
+        "expected_points": ["Use different stages for scale and ranking quality."],
+        "suggested_answer": "Use a high-recall candidate generator followed by a richer ranker over the reduced set. [N831:P42]",
+        "citation_markers": ["[N831:P42]"],
+        "difficulty": "senior",
+        "interviewer_note": "",
+        "work_sample": "architecture_diagram",
+        "work_sample_prompt": "Draw the online retrieval and ranking stages.",
+        "coding_exercise": null,
+        "clarifications": []
+      },
+      "candidate_answer": "I would retrieve a few thousand candidates with approximate nearest neighbors, enrich those candidates with online features, and apply a more expensive ranker before returning the top results.",
+      "route": "depth_follow_up",
+      "follow_up_focus": "which offline metric should differ between candidate generation and final ranking, and why"
+    }
+  ]
+}

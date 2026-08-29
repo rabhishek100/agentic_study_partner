@@ -24,6 +24,7 @@ from .models import (
     structured_model,
 )
 from .prompts import build_question_messages, candidate_topic_label
+from .realism import question_is_source_dependent
 
 
 logger = logging.getLogger("study_partner.interviews.questions")
@@ -214,6 +215,9 @@ def _practical_fallback_scope(
     *,
     kind: QuestionKind,
     alternate: bool = False,
+    planned_move: str | None = None,
+    scope_title: str | None = None,
+    interview_format: InterviewFormat | None = None,
 ) -> tuple[str, list[str]]:
     """Build a reasoning prompt that never asks the candidate to recall text."""
 
@@ -234,6 +238,104 @@ def _practical_fallback_scope(
         if gerund_label
         else clean_label
     )
+    if planned_move and kind == "primary":
+        # The selected scope is a source heading and can carry printed labels
+        # such as "Chapter 1".  A continuity fallback must introduce the
+        # engineering scenario, not expose the table-of-contents label.
+        clean_scope = " ".join(
+            candidate_topic_label(scope_title or "").split()[:12]
+        ).strip(" -:;,.?")
+        # Keep product names and initialisms intact ("Proximity Service",
+        # "RAG"). The surrounding template already places the phrase in a
+        # grammatically neutral position.
+        natural_scope = clean_scope or "this production system"
+        scope_subject = re.sub(
+            r"^(?:designing|creating|implementing|"
+            r"building(?:\s+and\s+[a-z]+ing)?)\s+",
+            "",
+            natural_scope,
+            flags=re.IGNORECASE,
+        ) or natural_scope
+        natural_topic = clean_label[:1].lower() + clean_label[1:]
+        architecture_topic = re.sub(
+            r"\s+architecture$", "", natural_topic, flags=re.IGNORECASE
+        )
+        mechanism_topic = re.sub(
+            r"\s+behavio(?:u)?r$", "", natural_topic, flags=re.IGNORECASE
+        )
+        diagnostic_topic = re.sub(
+            r"^(?:diagnosing|debugging|investigating)\s+",
+            "",
+            natural_topic,
+            flags=re.IGNORECASE,
+        )
+        templates = {
+            "fundamentals": (
+                f"What engineering decision does {natural_topic} help you make, and why?",
+                ["Explain the core idea in decision-relevant terms."],
+            ),
+            "mechanism": (
+                f"How would you explain the behavior of {mechanism_topic} "
+                "that matters most in practice?",
+                ["Reason through the mechanism and its practical consequence."],
+            ),
+            "application": (
+                f"What production decision about {natural_topic} would you make first?",
+                ["Name a suitable situation and the reason it fits."],
+            ),
+            "requirements": (
+                f"You are designing {scope_subject}. What would you clarify "
+                "before proposing architecture?",
+                ["Establish one material requirement or constraint before design."],
+            ),
+            "architecture": (
+                f"Within {scope_subject}, where would you place "
+                f"{architecture_topic} in the request flow?",
+                ["Place the component at a coherent point in the request flow."],
+            ),
+            "tradeoff": (
+                f"Given that approach, which trade-off involving {natural_topic} "
+                "would drive your choice?",
+                ["Identify one consequential engineering trade-off."],
+            ),
+            "diagnosis": (
+                f"With that approach, you suspect {diagnostic_topic}. What would "
+                "you inspect first?",
+                ["Prioritize one plausible failure and a diagnostic direction."],
+            ),
+            "evaluation": (
+                f"Before launching {scope_subject}, which "
+                "operational signal would you validate first?",
+                ["Choose one meaningful validation signal or test."],
+            ),
+        }
+        if interview_format == "system_design":
+            templates.update(
+                {
+                    "architecture": (
+                        f"Within {scope_subject}, how would one request move "
+                        "through the system?",
+                        ["Describe a coherent request path and component boundaries."],
+                    ),
+                    "tradeoff": (
+                        "Given that approach, which production trade-off would "
+                        "you resolve next, and why?",
+                        ["Choose one consequential trade-off and justify its priority."],
+                    ),
+                    "diagnosis": (
+                        "Now assume one component degrades in production. "
+                        "What would you inspect first?",
+                        ["Prioritize one diagnostic signal or system boundary."],
+                    ),
+                    "evaluation": (
+                        f"Before launching {scope_subject}, which operational "
+                        "signal would you validate first?",
+                        ["Choose one launch-critical operational signal."],
+                    ),
+                }
+            )
+        if planned_move in templates:
+            return templates[planned_move]
     if alternate and gerund_label:
         return (
             f"What other factor would influence {natural_label} in this scenario?",
@@ -381,6 +483,10 @@ def grounded_fallback_question(
     target_level: TargetLevel,
     kind: QuestionKind,
     recent_questions: list[InterviewQuestion],
+    planned_move: str | None = None,
+    scope_title: str | None = None,
+    candidate_probe: str | None = None,
+    interview_format: InterviewFormat | None = None,
 ) -> InterviewQuestion:
     """Build one atomic cited question without another provider call.
 
@@ -391,7 +497,18 @@ def grounded_fallback_question(
 
     marker, excerpt = _fallback_evidence(topic)
     label = _fallback_topic_label(topic.label)
-    text, expected_points = _practical_fallback_scope(label, kind=kind)
+    text, expected_points = _practical_fallback_scope(
+        label,
+        kind=kind,
+        planned_move=planned_move,
+        scope_title=scope_title,
+        interview_format=interview_format,
+    )
+    if candidate_probe:
+        proposed = " ".join(candidate_probe.split()).strip()
+        if proposed:
+            text = proposed.rstrip(".?") + "?"
+            expected_points = ["Resolve the specific ambiguity in the prior answer."]
     question = InterviewQuestion(
         topic_key=topic.key,
         topic_label=topic.label,
@@ -449,6 +566,16 @@ def _asks_multiple_objectives(text: str) -> bool:
     )
 
 
+def _has_declarative_scenario_preamble(text: str) -> bool:
+    """Allow one short setup sentence before the sole audible question."""
+
+    match = re.fullmatch(r"\s*(?P<preamble>[^?]+\.)\s+(?P<question>[^?]+\?)\s*", text)
+    if match is None:
+        return False
+    preamble = match.group("preamble")
+    return not OBJECTIVE_CUE.search(preamble)
+
+
 def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
     """Keep one candidate turn to one atomic interview objective."""
 
@@ -470,13 +597,22 @@ def validate_question_focus(question: InterviewQuestion) -> InterviewQuestion:
     has_code_example = question.coding_exercise is not None and bool(
         re.search(r"(?:^|\.\s+)(?:Example|For example):?\s", text, re.IGNORECASE)
     )
-    if text.count("?") > 1 or terminal_count > (2 if has_code_example else 1):
+    allowed_terminals = (
+        2
+        if has_code_example or _has_declarative_scenario_preamble(text)
+        else 1
+    )
+    if text.count("?") > 1 or terminal_count > allowed_terminals:
         raise InterviewValidationError("the generated question contains multiple prompts")
     if _asks_multiple_objectives(text):
         raise InterviewValidationError("the generated question asks for multiple objectives")
     if GENERIC_RECALL_QUESTION.search(text):
         raise InterviewValidationError(
             "the generated question tests source recall instead of understanding"
+        )
+    if question_is_source_dependent(text):
+        raise InterviewValidationError(
+            "the generated question depends on awareness of the study source"
         )
     if len(question.expected_points) > MAX_EXPECTED_POINTS:
         raise InterviewValidationError(
@@ -635,6 +771,8 @@ def generate_question(
     candidate_answer: str | None = None,
     purpose: str | None = None,
     require_coding_exercise: bool = False,
+    planned_move: str | None = None,
+    fallback_probe: str | None = None,
     model: Any | None = None,
 ) -> tuple[InterviewQuestion, float]:
     """Generate with grounding and non-repetition validation, retrying once."""
@@ -644,8 +782,11 @@ def generate_question(
     total_cost = 0.0
     for attempt in range(QUESTION_RETRY_ATTEMPTS):
         repair = (
-            "Repair the prior draft: use only active-topic evidence markers, ask a "
+            f"Repair the prior draft, which was rejected because: {last_error}. "
+            "Use only active-topic evidence markers, ask a "
             "materially different question, and keep exactly one atomic objective. "
+            "Choose one interview move; do not combine a design choice, trade-off, "
+            "failure response, metric, test, or explanation with another move. "
             "Test reasoning rather than recall of a source heading, and include only "
             "private expected points that the audible question explicitly requests. "
             "The screen instruction may change the response format but must not add "
@@ -677,6 +818,7 @@ def generate_question(
                     candidate_answer=candidate_answer,
                     purpose=adaptive_purpose or None,
                     recent_questions=recent_questions,
+                    planned_move=planned_move,
                 ),
                 InterviewQuestion,
             )
@@ -736,6 +878,10 @@ def generate_question(
             target_level=target_level,
             kind=kind,
             recent_questions=recent_questions,
+            planned_move=planned_move,
+            scope_title=inventory.title,
+            candidate_probe=fallback_probe,
+            interview_format=interview_format,
         ),
         total_cost,
     )

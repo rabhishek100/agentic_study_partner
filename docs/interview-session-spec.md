@@ -47,14 +47,31 @@ The source is classified before the interview:
 The deterministic topic inventory establishes coverage before any generation
 call. Luna writes one question or follow-up at a time. A deterministic focus
 guard limits the candidate-facing question to one atomic objective and a short
-spoken-turn budget. It rejects compound questions, multiple prompts, and
-overloaded screen instructions, then gives generation one repair attempt. Two strong answers
-increase depth. A topic receives one primary question and, only when useful,
-at most one materially different clarifying or diagnostic follow-up; the graph
-then records remaining gaps for revision and moves forward. Before a question
-is shown, a deterministic similarity guard compares it with the recent turn
-history and gives generation one repair attempt if it is a restatement. Hints
-reduce independence, not correctness.
+spoken-turn budget. It permits one short declarative scenario before the sole
+technical question, but rejects compound objectives, multiple questions, and
+overloaded screen instructions, then gives generation one repair attempt.
+
+First-pass questions follow a level-aware interview arc. Entry concept sessions
+move from fundamentals through mechanism, application, and diagnosis. Mid-level
+sessions move from fundamentals into application, diagnosis, and trade-offs.
+Senior concept sessions start with application and emphasize architecture,
+trade-offs, and failure diagnosis. System-design and source-led sessions move
+from requirements through architecture, trade-offs, failure handling, and
+evaluation. The active evidence may override a planned move when it cannot
+ground that question shape.
+
+The source remains private interview evidence. Candidate-facing questions must
+stand alone and never ask what a book, chapter, lecture, section, source, or
+author says. A topic receives one primary question and, only when useful, at
+most one materially different clarifying or diagnostic follow-up. Ordinary
+verbal concept interviews remain breadth-first. Code, architecture work, and
+system-design discussions stay on the active problem for one warranted probe
+of an assumption, changed constraint, failure mode, or verification step before
+moving forward. This preserves the continuity seen in public technical mock
+interviews without allowing an interview to over-drill one source heading.
+Before a question is shown, a deterministic similarity guard compares it with
+the recent turn history and gives generation one repair attempt if it is a
+restatement. Hints reduce independence, not correctness.
 
 Realistic mode gives only natural acknowledgements and probes during the
 session. Guided mode adds concise correction after each turn. Exact questions
@@ -90,14 +107,15 @@ audio cannot be mistaken for the candidate. Every new interviewer question is
 spoken automatically, with a one-click replay/unlock fallback where browser
 autoplay policy requires a gesture.
 
-After every submitted answer, the evaluation produces a one- or two-sentence
-candidate-facing reaction. The interface writes and speaks that reaction while
-the next question remains hidden and microphone capture remains paused. Only
-after reaction playback settles does the next question appear and play. In
-realistic mode this transition communicates what was sound or needs precision
-without exposing scores, rubric fields, citations, or the complete model
-answer; guided mode additionally retains its detailed live coaching. The final
-answer receives the same reaction before the report opens.
+After every submitted answer, the evaluation produces a candidate-facing
+transition. The interface writes and speaks that transition while the next
+question remains hidden and microphone capture remains paused. Only after
+reaction playback settles does the next question appear and play. Realistic
+mode uses a neutral acknowledgement that reveals no correctness verdict;
+guided mode may communicate what was sound or needs correction while retaining
+its detailed live coaching. Neither mode exposes scores, private rubric fields,
+citations, or the complete model answer. The final answer receives the same
+mode-appropriate transition before the report opens.
 
 The interface exposes the current media or server operation in a persistent
 ARIA live region. Source preflight, session creation, first-question

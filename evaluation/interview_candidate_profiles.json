@@ -1,0 +1,126 @@
+{
+  "dataset_id": "interview-candidate-calibration-v1",
+  "version": 1,
+  "review_status": "human_authored_frozen",
+  "methodology": "Six deliberately different candidate answers test evaluator calibration without a candidate model. Broad score bands and route expectations are specified before running the grader. The suite requires weak < mixed <= strong within each scenario, but does not require exact model scores.",
+  "scenarios": [
+    {
+      "id": "proximity-service-clarification",
+      "source_title": "System Design Interview – An Insider's Guide, Volume 2",
+      "scope_title": "Proximity Service",
+      "topic_key": "proximity-requirements",
+      "topic_label": "Proximity-service requirements and scale",
+      "evidence": "[N29293:P10] The service returns nearby businesses from a user's latitude, longitude, and optional radius. Business owners can add, delete, or update businesses; those changes do not need to appear in real time and next-day visibility is acceptable. Important non-functional requirements include low latency, privacy, high availability, scalability, and handling peak-hour traffic spikes.\n[N29293:P11] An example scale is 100 million daily active users and 200 million businesses. The nearby-search API accepts latitude, longitude, and radius.\n[N29293:P12] The system is read-heavy. A relational store can hold business records while a geo index supports location search.",
+      "allowed_markers": ["[N29293:P10]", "[N29293:P11]", "[N29293:P12]"],
+      "question": {
+        "topic_key": "proximity-requirements",
+        "topic_label": "Proximity-service requirements and scale",
+        "kind": "primary",
+        "text": "You are designing a proximity service. What would you clarify before proposing an architecture?",
+        "expected_points": [
+          "Clarify the search contract, including location and radius.",
+          "Clarify traffic scale, peak skew, and latency or availability goals.",
+          "Clarify business-update freshness and location privacy constraints."
+        ],
+        "suggested_answer": "I would clarify the location-and-radius search contract, expected traffic and peak skew, latency and availability goals, business-update freshness, and location privacy. The source makes next-day business updates acceptable and describes a large, read-heavy service [N29293:P10] [N29293:P11] [N29293:P12].",
+        "citation_markers": ["[N29293:P10]", "[N29293:P11]", "[N29293:P12]"],
+        "difficulty": "senior",
+        "interviewer_note": "Candidate-led requirements opening.",
+        "work_sample": "none",
+        "work_sample_prompt": null,
+        "coding_exercise": null,
+        "clarifications": []
+      }
+    },
+    {
+      "id": "rag-system-clarification",
+      "source_title": "AI Engineering Guidebook",
+      "scope_title": "Retrieval-Augmented Generation",
+      "topic_key": "rag-requirements",
+      "topic_label": "RAG requirements and retrieval workflow",
+      "evidence": "[N14279:P107] Retrieval-augmented generation gives a model access to information outside its training data by retrieving relevant information and adding it to the prompt.\n[N14279:P108] RAG can supply recent or private information without retraining the model.\n[N14281:P110] Embeddings and a vector database can support semantic retrieval.\n[N14282:P114] A RAG workflow retrieves relevant document chunks and uses them as context for generation.\n[N14283:P119] Chunking affects what can be retrieved and placed in the model context.",
+      "allowed_markers": ["[N14279:P107]", "[N14279:P108]", "[N14281:P110]", "[N14282:P114]", "[N14283:P119]"],
+      "question": {
+        "topic_key": "rag-requirements",
+        "topic_label": "RAG requirements and retrieval workflow",
+        "kind": "primary",
+        "text": "You are designing knowledge access for an assistant over frequently changing private documents. What would you clarify before proposing an architecture?",
+        "expected_points": [
+          "Clarify document types, corpus size, and update cadence.",
+          "Clarify query types and what useful retrieval means.",
+          "Clarify freshness, latency, context-budget, and failure behavior."
+        ],
+        "suggested_answer": "I would clarify the corpus and update cadence, expected query types, retrieval-quality and freshness targets, latency and context limits, and how the assistant should behave when retrieval is insufficient. RAG is useful for recent or private information and depends on retrieving suitable chunks into the generation context [N14279:P107] [N14279:P108] [N14282:P114] [N14283:P119].",
+        "citation_markers": ["[N14279:P107]", "[N14279:P108]", "[N14282:P114]", "[N14283:P119]"],
+        "difficulty": "senior",
+        "interviewer_note": "Candidate-led requirements opening.",
+        "work_sample": "none",
+        "work_sample_prompt": null,
+        "coding_exercise": null,
+        "clarifications": []
+      }
+    }
+  ],
+  "profiles": [
+    {
+      "id": "proximity-weak",
+      "scenario_id": "proximity-service-clarification",
+      "level": "weak",
+      "answer": "Low latency.",
+      "minimum_score": 1.0,
+      "maximum_score": 3.25,
+      "question_complete": false,
+      "allowed_routes": ["clarifying", "continue"]
+    },
+    {
+      "id": "proximity-mixed",
+      "scenario_id": "proximity-service-clarification",
+      "level": "mixed",
+      "answer": "First I'd clarify the maximum search radius and whether users can change it. I'd also ask about expected traffic and how fresh business updates must be. I'll assume location searches are latency-sensitive and business changes can be asynchronous.",
+      "minimum_score": 3.5,
+      "maximum_score": 5.0,
+      "question_complete": true,
+      "allowed_routes": ["depth_follow_up", "advance"]
+    },
+    {
+      "id": "proximity-strong",
+      "scenario_id": "proximity-service-clarification",
+      "level": "strong",
+      "answer": "I'd clarify the search contract: input location, allowed radius, pagination, business details, and whether results update as a user moves. Then scale and SLOs—traffic, peak geographic skew, latency, and availability. For writes, I'd ask whether owner edits must be real time; if next-day visibility is acceptable, I can separate write ingestion from a read-optimized geo index. I'd also establish privacy and retention expectations for precise location.",
+      "minimum_score": 4.0,
+      "maximum_score": 5.0,
+      "question_complete": true,
+      "allowed_routes": ["depth_follow_up", "advance"]
+    },
+    {
+      "id": "rag-weak",
+      "scenario_id": "rag-system-clarification",
+      "level": "weak",
+      "answer": "I would use a vector database.",
+      "minimum_score": 1.0,
+      "maximum_score": 3.25,
+      "question_complete": false,
+      "allowed_routes": ["clarifying", "continue"]
+    },
+    {
+      "id": "rag-mixed",
+      "scenario_id": "rag-system-clarification",
+      "level": "mixed",
+      "answer": "I'd clarify the document types, corpus size, and how often content changes. I'd ask what kinds of questions users submit, how fresh answers need to be, and the latency target. I would also confirm how much retrieved context can fit in the model prompt.",
+      "minimum_score": 3.5,
+      "maximum_score": 5.0,
+      "question_complete": true,
+      "allowed_routes": ["depth_follow_up", "advance"]
+    },
+    {
+      "id": "rag-strong",
+      "scenario_id": "rag-system-clarification",
+      "level": "strong",
+      "answer": "I'd clarify the corpus, formats, scale, and update cadence; the query types; and what counts as relevant retrieval. Then I'd establish freshness and latency targets, the context and cost budget, and how the assistant should respond when retrieval is empty or contradictory. I would ask for offline retrieval and grounded-answer success criteria before choosing chunking, embeddings, or a vector store.",
+      "minimum_score": 4.0,
+      "maximum_score": 5.0,
+      "question_complete": true,
+      "allowed_routes": ["depth_follow_up", "advance"]
+    }
+  ]
+}

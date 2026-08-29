@@ -43,6 +43,10 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
         model=model_name(),
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
+        # Candidate-facing structured turns are intentionally compact. A
+        # bounded output budget avoids provider defaults sized for long-form
+        # generation and makes cost/failure behavior predictable.
+        max_tokens=int(os.getenv("OPENROUTER_INTERVIEW_MAX_TOKENS", "4096")),
         # Interview turns are synchronous user interactions. Hidden retries on
         # a 120-second timeout can lock the composer for minutes, so this path
         # has a deliberately short independent deadline and fails once.
