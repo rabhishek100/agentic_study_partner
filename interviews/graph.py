@@ -28,6 +28,12 @@ from .question_generation import (
     MAX_QUESTIONS_PER_TOPIC,
     generate_question,
 )
+from .realism import (
+    design_question_target,
+    interview_move_purpose,
+    planned_interview_move,
+    topic_for_design_move,
+)
 
 DURATION_SOFT_STOP_SECONDS = 30
 
@@ -232,6 +238,11 @@ def adapt(state: AnswerGraphState) -> dict:
     checkpoint.strong_streak = 0
 
     checkpoint.questions_asked += 1
+    if (
+        session.interview_format == "system_design"
+        and state["current_turn"].question.kind == "primary"
+    ):
+        checkpoint.design_moves_completed += 1
     checkpoint.screen_observation = None
     checkpoint.active_topic_key = topic.key
     return {"checkpoint": checkpoint}
@@ -250,6 +261,26 @@ def next_route(state: AnswerGraphState) -> str:
         if item.key == state["current_turn"].question.topic_key
     )
     if current.completed and next_topic(state["inventory"], checkpoint) is None:
+        if session.interview_format == "system_design":
+            target = design_question_target(
+                planned_area_count=len(checkpoint.required_topics),
+                maximum_duration_minutes=session.maximum_duration_minutes,
+            )
+            if checkpoint.design_moves_completed < target:
+                plan = planned_interview_move(
+                    state["inventory"],
+                    interview_format=session.interview_format,
+                    target_level=session.target_level,
+                    areas_visited=checkpoint.design_moves_completed,
+                    planned_area_count=target,
+                )
+                attempts = {item.key: item.attempts for item in checkpoint.topics}
+                if topic_for_design_move(
+                    state["inventory"],
+                    move=plan.move,
+                    attempts_by_key=attempts,
+                ) is not None:
+                    return "compose_next"
         return "finish"
     return "compose_next"
 
@@ -309,28 +340,110 @@ def compose_next(
                 f"{evaluation.clarifying_probe}. Do not give a hint or introduce "
                 "an unasked topic. The private rubric must cover only this probe."
             ),
+            fallback_probe=evaluation.clarifying_probe,
+            model=runtime.context.question_model,
+        )
+    elif (
+        not current_state.completed
+        and current_state.attempts == 1
+        and evaluation.needs_depth_follow_up
+        and (
+            session.interview_format in {"system_design", "source_led"}
+            or state["current_turn"].question.work_sample != "none"
+        )
+    ):
+        topic = current_topic
+        question, cost = generate_question(
+            inventory=state["inventory"],
+            topic=topic,
+            interview_format=session.interview_format,
+            target_level=session.target_level,
+            kind="follow_up",
+            recent_questions=recent_questions,
+            prior_question=state["current_turn"].question,
+            candidate_answer=state["answer_text"],
+            purpose=(
+                "Continue the candidate's current work sample or system-design "
+                "problem with one neutral, self-contained probe. Ask only about: "
+                f"{evaluation.depth_follow_up_focus}. Frame it as a changed "
+                "constraint, failure mode, design consequence, or verification "
+                "step when that is natural. Do not imply the completed answer was "
+                "deficient, give a hint, or introduce a different source topic."
+            ),
             model=runtime.context.question_model,
         )
     else:
         topic = next_topic(state["inventory"], checkpoint)
+        design_reuse = False
+        planned_count = len(checkpoint.required_topics)
+        if session.interview_format == "system_design":
+            planned_count = design_question_target(
+                planned_area_count=planned_count,
+                maximum_duration_minutes=session.maximum_duration_minutes,
+            )
+        if topic is None and session.interview_format == "system_design":
+            move = planned_interview_move(
+                state["inventory"],
+                interview_format=session.interview_format,
+                target_level=session.target_level,
+                areas_visited=checkpoint.design_moves_completed,
+                planned_area_count=planned_count,
+            )
+            topic = topic_for_design_move(
+                state["inventory"],
+                move=move.move,
+                attempts_by_key={item.key: item.attempts for item in checkpoint.topics},
+            )
+            design_reuse = topic is not None
         assert topic is not None
         checkpoint.active_topic_key = topic.key
         selected_state = next(
             item for item in checkpoint.topics if item.key == topic.key
         )
-        if selected_state.attempts == 0:
+        if selected_state.attempts == 0 or design_reuse:
             kind = "primary"
             covered = sum(item.attempts > 0 for item in checkpoint.required_topics)
-            purpose = (
-                "Continue the breadth-first chapter plan. Ask the most central "
-                "reasoning question supported by this area, not a narrow detail. "
-                f"{covered} of {len(checkpoint.required_topics)} planned areas have "
-                "already been visited."
+            progress = (
+                checkpoint.design_moves_completed
+                if session.interview_format == "system_design"
+                else covered
             )
-            prior_question = None
-            candidate_answer = None
+            move = planned_interview_move(
+                state["inventory"],
+                interview_format=session.interview_format,
+                target_level=session.target_level,
+                areas_visited=progress,
+                planned_area_count=planned_count,
+            )
+            purpose = (
+                (
+                    "Continue the same system-design problem established by the "
+                    "previous exchange. Build on the candidate's stated decisions "
+                    "without starting a new scenario or referring to a source "
+                    "heading. "
+                    if session.interview_format == "system_design"
+                    else "Continue the breadth-first chapter plan. "
+                )
+                + "Ask the most central reasoning question supported by this area, "
+                "not a narrow detail. "
+                f"{progress} of {planned_count} planned interview moves have "
+                "already been visited. "
+                + interview_move_purpose(move)
+            )
+            planned_move = move.move
+            prior_question = (
+                state["current_turn"].question
+                if session.interview_format == "system_design"
+                else None
+            )
+            candidate_answer = (
+                state["answer_text"]
+                if session.interview_format == "system_design"
+                else None
+            )
         else:
             kind = "follow_up"
+            planned_move = None
             if topic.key == current_topic.key:
                 prior_turn = None
                 prior_question = state["current_turn"].question
@@ -374,6 +487,7 @@ def compose_next(
             prior_question=prior_question,
             candidate_answer=candidate_answer,
             purpose=purpose,
+            planned_move=planned_move,
             model=runtime.context.question_model,
         )
 

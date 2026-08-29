@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+import re
 
 from decks.topics import Topic
 from decks.validate import ANY_MARKER, parse_marker
@@ -11,6 +12,7 @@ from .contracts import (
     AnswerEvaluation,
     InterviewCheckpoint,
     InterviewCitation,
+    InterviewMode,
     InterviewMetrics,
     InterviewQuestion,
     InterviewTurn,
@@ -43,8 +45,57 @@ SCOPED_COMPLETE_FEEDBACK = (
     "level deeper."
 )
 
+REALISTIC_REACTIONS = {
+    "clarifying": (
+        "Thanks. I want to clarify one part of that.",
+        "Let me make one part of that more precise.",
+        "I want to check what you mean by one part of that.",
+    ),
+    "depth": (
+        "Okay. Let's stay with this problem for one more step.",
+        "Let's build on that decision.",
+        "Got it. Now let's apply one more constraint.",
+    ),
+    "advance": (
+        "Okay, thank you. Let's move on.",
+        "Got it. Let's take the next part.",
+        "Thanks. Let's continue with the design.",
+    ),
+    "continue": (
+        "Okay. Let's examine one part of that more closely.",
+        "Let's stay there and make one point more concrete.",
+        "I want to understand one part of that reasoning better.",
+    ),
+}
 
-def interviewer_reaction(evaluation: AnswerEvaluation) -> str:
+PROBE_SECOND_OBJECTIVE = re.compile(
+    r"(?:[,;]\s*|\s+and\s+)"
+    r"(?:also\s+)?(?:what|how|why|which|describe|explain|identify|compare|"
+    r"justify|show|handle|evaluate|test|validate)\b",
+    re.IGNORECASE,
+)
+
+
+def atomic_clarifying_probe(value: str | None) -> str | None:
+    """Keep an evaluator-authored clarification to one audible objective."""
+
+    cleaned = " ".join((value or "").split()).strip()
+    if not cleaned:
+        return None
+    appended = PROBE_SECOND_OBJECTIVE.search(cleaned)
+    if appended:
+        cleaned = cleaned[: appended.start()].rstrip(" ,;:.?")
+    if cleaned and "?" in (value or ""):
+        cleaned = cleaned.rstrip(".?") + "?"
+    return cleaned or None
+
+
+def interviewer_reaction(
+    evaluation: AnswerEvaluation,
+    *,
+    mode: InterviewMode = "guided",
+    turn_index: int = 0,
+) -> str:
     """Return a concise candidate-facing transition that is safe to speak.
 
     The full rubric, scores, citations, and recommended answer remain private
@@ -52,6 +103,18 @@ def interviewer_reaction(evaluation: AnswerEvaluation) -> str:
     between questions is unnatural even when the written feedback included
     one by mistake.
     """
+
+    if mode == "realistic":
+        if evaluation.needs_clarifying_probe:
+            route = "clarifying"
+        elif evaluation.needs_depth_follow_up:
+            route = "depth"
+        elif evaluation.question_complete:
+            route = "advance"
+        else:
+            route = "continue"
+        variants = REALISTIC_REACTIONS[route]
+        return variants[turn_index % len(variants)]
 
     reaction = ANY_MARKER.sub("", evaluation.concise_feedback)
     reaction = " ".join(reaction.split()).strip()
@@ -106,6 +169,10 @@ def sanitize_evaluation(
         "recommended_answer": answer.strip(),
         "citation_markers": sorted(valid),
     }
+    if evaluation.needs_clarifying_probe:
+        updates["clarifying_probe"] = atomic_clarifying_probe(
+            evaluation.clarifying_probe
+        )
     if evaluation.question_complete:
         # The model explicitly found that the candidate answered the audible
         # scope. Extra source detail belongs in a new question, never in this

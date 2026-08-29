@@ -1,0 +1,277 @@
+{
+  "dataset_id": "interview-realism-v1",
+  "version": 1,
+  "review_status": "research-derived synthetic seed; generated sequences require human review before release claims",
+  "methodology": "The cases are role-varied, source-grounded stimuli rather than copied employer questions. Expected moves encode public first-party interview behavior: clarify and communicate, establish a core solution, apply it, examine trade-offs and failures, and validate the result. Deterministic gates test atomicity, citations, source independence, repetition, breadth, progression, and work-sample cadence; an optional independent model judge scores the semantic experience.",
+  "sources": [
+    {
+      "title": "OpenAI interview guide",
+      "url": "https://openai.com/interview-guide/",
+      "supports": [
+        "Engineering interviews assess problem approach and communicated reasoning.",
+        "Engineering work samples may include pair coding, technical tests, and take-home projects.",
+        "Solutions are assessed for design quality, code quality, performance, and test coverage."
+      ]
+    },
+    {
+      "title": "Meta Software Engineer Full Loop Interview Guide",
+      "url": "https://d3no4ktch0fdq4.cloudfront.net/public/course/files/Meta_SWE_full_loop_guide.pdf",
+      "supports": [
+        "Coding interviews are conversational and assess communication, problem solving, executable code, and verification.",
+        "Design interviews examine complex systems, trade-offs, technical depth, risks, and failure points.",
+        "Candidates are expected to progress from requirements to a high-level design and precise details."
+      ]
+    },
+    {
+      "title": "Amazon SDE II interview preparation",
+      "url": "https://amazon.jobs/content/en/how-we-hire/sde-ii-interview-prep",
+      "supports": [
+        "System-design interviews are interactive: candidates ask questions and interviewers probe the design.",
+        "Design signals include practicality, accuracy, efficiency, reliability, optimization, and scalability.",
+        "Coding is expected to be syntactically correct, robust, tested, and checked against edge cases."
+      ]
+    },
+    {
+      "title": "Microsoft technical interview guidance",
+      "url": "https://news.microsoft.com/life/how-to-ace-a-technical-interview-at-microsoft/",
+      "supports": [
+        "Candidates should clarify assumptions, narrate their reasoning, diagram when useful, and check their work.",
+        "A technical interview should feel like a conversation rather than a disconnected question-and-answer test.",
+        "Interviewers look for adaptation to changing requirements and response to feedback."
+      ]
+    },
+    {
+      "title": "Machine Learning Interviews",
+      "url": "https://github.com/chiphuyen/ml-interviews-book",
+      "supports": [
+        "ML interview loops commonly mix ML theory, coding or implementation, systems design, and behavioral assessment.",
+        "Difficulty should vary by level, with ML systems-design questions more common for senior candidates.",
+        "Open-ended practical questions test problem solving and experience implementing and deploying models."
+      ]
+    },
+    {
+      "title": "OpenAI o1 System Card",
+      "url": "https://cdn.openai.com/o1-system-card-20241205.pdf",
+      "supports": [
+        "A real research-engineer interview bank combines short-horizon ML knowledge questions with self-contained coding tasks.",
+        "Unit tests can be part of an interview coding problem statement."
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "real-ml-mid",
+      "role": "machine learning engineer",
+      "source_title": "Practical Machine Learning",
+      "scope_title": "Building and validating classifiers",
+      "interview_format": "concept",
+      "target_level": "mid",
+      "expected_moves": [
+        "fundamentals",
+        "application",
+        "diagnosis",
+        "tradeoff"
+      ],
+      "topics": [
+        {
+          "key": "ml:bias-variance",
+          "label": "Bias and variance",
+          "marker": "[N101:P10]",
+          "evidence": "High bias can underfit systematic structure, while high variance makes a model sensitive to the sampled training data. Model capacity, regularization, and data volume influence this balance."
+        },
+        {
+          "key": "ml:validation",
+          "label": "Validation and data leakage",
+          "marker": "[N102:P18]",
+          "evidence": "Validation data should represent unseen use and remain isolated from training decisions. Time-dependent problems often require chronological splits so future information cannot leak into earlier predictions."
+        },
+        {
+          "key": "ml:imbalance",
+          "label": "Metrics for imbalanced classification",
+          "marker": "[N103:P27]",
+          "evidence": "Accuracy can hide poor minority-class performance. Precision and recall expose different error costs, and decision thresholds should reflect the operational cost of false positives and false negatives."
+        },
+        {
+          "key": "ml:drift",
+          "label": "Production drift and retraining",
+          "marker": "[N104:P36]",
+          "evidence": "Production inputs and outcomes can change after deployment. Monitoring feature distributions, prediction quality, and delayed labels helps distinguish drift from service incidents and guides retraining decisions."
+        }
+      ]
+    },
+    {
+      "id": "real-ai-mid",
+      "role": "AI engineer",
+      "source_title": "Applied AI Engineering",
+      "scope_title": "Reliable retrieval-augmented applications",
+      "interview_format": "concept",
+      "target_level": "mid",
+      "expected_moves": [
+        "fundamentals",
+        "application",
+        "diagnosis",
+        "tradeoff"
+      ],
+      "topics": [
+        {
+          "key": "ai:retrieval",
+          "label": "Retrieval and grounding",
+          "marker": "[N201:P12]",
+          "evidence": "A retrieval-augmented system selects evidence before generation so answers can be grounded in inspectable context. Retrieval quality and answer faithfulness are separate failure surfaces."
+        },
+        {
+          "key": "ai:evaluation",
+          "label": "End-to-end AI evaluation",
+          "marker": "[N202:P22]",
+          "evidence": "Evaluation should include representative answerable and unanswerable requests. Retrieval recall, citation correctness, unsupported claims, latency, and cost measure different aspects of an AI application's behavior."
+        },
+        {
+          "key": "ai:failure",
+          "label": "Diagnosing retrieval failures",
+          "marker": "[N203:P31]",
+          "evidence": "A missing answer can result from parsing, indexing, query formulation, retrieval ranking, or generation. Inspecting intermediate evidence and traces helps localize the failing stage before changing models."
+        },
+        {
+          "key": "ai:serving",
+          "label": "Quality latency and cost",
+          "marker": "[N204:P41]",
+          "evidence": "Larger context and more model calls may improve some answers but increase latency and cost. A production design should choose budgets against measured quality gains and user-facing response requirements."
+        }
+      ]
+    },
+    {
+      "id": "real-swe-entry",
+      "role": "software engineer",
+      "source_title": "Software Engineering Fundamentals",
+      "scope_title": "Algorithms and reliable code",
+      "interview_format": "concept",
+      "target_level": "entry",
+      "expected_moves": [
+        "fundamentals",
+        "mechanism",
+        "application",
+        "diagnosis"
+      ],
+      "topics": [
+        {
+          "key": "swe:complexity",
+          "label": "Time and space complexity",
+          "marker": "[N301:P8]",
+          "evidence": "Asymptotic analysis describes how runtime and memory grow with input size. Two solutions with the same broad complexity can still differ in constants, allocation behavior, and suitability for expected inputs."
+        },
+        {
+          "key": "swe:hashing",
+          "label": "Hash table behavior",
+          "marker": "[N302:P16]",
+          "evidence": "Hash tables use a hash function to map keys into storage locations. Collisions must be resolved, and excessive collisions or resizing can change expected constant-time behavior."
+        },
+        {
+          "key": "swe:interfaces",
+          "label": "Small interface design",
+          "marker": "[N303:P24]",
+          "evidence": "A useful interface makes inputs, outputs, error behavior, and ownership clear while hiding implementation details. Small contracts are easier to test and change than interfaces that expose internal state."
+        },
+        {
+          "key": "swe:testing",
+          "label": "Tests and edge cases",
+          "marker": "[N304:P33]",
+          "evidence": "Tests should cover ordinary behavior, boundaries, invalid inputs, and prior regressions. When a test fails, reducing the case and tracing state changes can separate a faulty assumption from an implementation defect."
+        }
+      ]
+    },
+    {
+      "id": "real-ml-system-senior",
+      "role": "senior machine learning engineer",
+      "source_title": "Machine Learning Systems",
+      "scope_title": "Designing a ranking service",
+      "interview_format": "system_design",
+      "target_level": "senior",
+      "expected_moves": [
+        "requirements",
+        "architecture",
+        "tradeoff",
+        "diagnosis",
+        "evaluation"
+      ],
+      "topics": [
+        {
+          "key": "mlsd:goals",
+          "label": "Product goals and constraints",
+          "marker": "[N401:P11]",
+          "evidence": "A ranking system needs a defined user action, candidate population, traffic scale, freshness target, and latency budget. The product objective and harmful side effects determine what the system should optimize."
+        },
+        {
+          "key": "mlsd:architecture",
+          "label": "Candidate generation and ranking",
+          "marker": "[N402:P21]",
+          "evidence": "A common architecture retrieves a manageable candidate set and applies a more expensive ranker afterward. Features needed online must be available consistently between training and serving."
+        },
+        {
+          "key": "mlsd:data",
+          "label": "Labels and feedback loops",
+          "marker": "[N403:P30]",
+          "evidence": "Interaction logs provide abundant but biased labels because the deployed policy controls what users see. Exploration can improve learning but may reduce short-term user experience."
+        },
+        {
+          "key": "mlsd:reliability",
+          "label": "Serving failures and fallbacks",
+          "marker": "[N404:P39]",
+          "evidence": "Online feature outages, stale data, or model-server timeouts should not take down the product. Bounded timeouts, observable fallbacks, and a simpler safe ranker limit the impact of failures."
+        },
+        {
+          "key": "mlsd:experiments",
+          "label": "Offline and online evaluation",
+          "marker": "[N405:P48]",
+          "evidence": "Offline ranking metrics speed iteration but do not fully predict user impact. Guardrailed online experiments measure product outcomes while monitoring latency, reliability, and harmful distribution shifts."
+        }
+      ]
+    },
+    {
+      "id": "real-swe-system-senior",
+      "role": "senior software engineer",
+      "source_title": "Scalable Software Systems",
+      "scope_title": "Designing a notification service",
+      "interview_format": "system_design",
+      "target_level": "senior",
+      "expected_moves": [
+        "requirements",
+        "architecture",
+        "tradeoff",
+        "diagnosis",
+        "evaluation"
+      ],
+      "topics": [
+        {
+          "key": "sd:requirements",
+          "label": "Delivery semantics and scale",
+          "marker": "[N501:P9]",
+          "evidence": "A notification design must establish channels, traffic, latency, ordering, duplication tolerance, user preferences, and durability. Different products may choose at-most-once or at-least-once delivery."
+        },
+        {
+          "key": "sd:architecture",
+          "label": "Queue and worker architecture",
+          "marker": "[N502:P18]",
+          "evidence": "A durable queue separates request handling from channel-specific workers. Partitioning, retry scheduling, provider adapters, and preference checks form explicit component boundaries."
+        },
+        {
+          "key": "sd:storage",
+          "label": "State and idempotency",
+          "marker": "[N503:P28]",
+          "evidence": "Idempotency keys and delivery state reduce duplicate effects during retries. Retention, query patterns, write volume, and consistency requirements influence the storage choice."
+        },
+        {
+          "key": "sd:failure",
+          "label": "Backpressure and provider outages",
+          "marker": "[N504:P38]",
+          "evidence": "A slow downstream provider can grow queues and exhaust workers. Rate limits, circuit breakers, bounded retries, dead-letter handling, and per-channel isolation contain the failure."
+        },
+        {
+          "key": "sd:operations",
+          "label": "Operational validation",
+          "marker": "[N505:P47]",
+          "evidence": "Delivery latency, success rate, retry volume, queue age, and dead-letter counts reveal different operational failures. Load tests and failure injection validate behavior before incidents occur."
+        }
+      ]
+    }
+  ]
+}

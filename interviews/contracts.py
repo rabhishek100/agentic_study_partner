@@ -227,6 +227,10 @@ class InterviewCheckpoint(ContractModel):
     active_topic_key: str | None = None
     strong_streak: int = Field(default=0, ge=0)
     questions_asked: int = Field(default=0, ge=0)
+    # System-design phases are independent of source-node coverage. A compact
+    # chapter may still support requirements, architecture, failure, and
+    # validation questions even when ingestion stored it as one or two nodes.
+    design_moves_completed: int = Field(default=0, ge=0)
     screen_observation: ScreenObservation | None = None
     closing_reason: str | None = None
 

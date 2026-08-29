@@ -148,6 +148,9 @@ def _public(session: InterviewSession) -> InterviewSession:
         if not settled:
             question = question.model_copy(
                 update={
+                    "topic_label": (
+                        "Hidden interview topic" if realistic_live else question.topic_label
+                    ),
                     "expected_points": [],
                     "suggested_answer": "",
                     "citation_markers": [],
@@ -158,7 +161,15 @@ def _public(session: InterviewSession) -> InterviewSession:
         observation = turn.screen_observation
         if realistic_live and observation is not None:
             observation = ScreenObservation(summary="Screen checkpoint received.")
-        reaction = interviewer_reaction(turn.evaluation) if turn.evaluation else ""
+        reaction = (
+            interviewer_reaction(
+                turn.evaluation,
+                mode=session.feedback_mode,
+                turn_index=turn.turn_index,
+            )
+            if turn.evaluation
+            else ""
+        )
         public_turn = turn.model_copy(
             update={
                 "question": question,
@@ -184,6 +195,7 @@ def _public(session: InterviewSession) -> InterviewSession:
                     topic.model_copy(update={"label": f"Hidden topic {index + 1}"})
                     for index, topic in enumerate(checkpoint.topics)
                 ],
+                "design_moves_completed": 0,
                 "screen_observation": (
                     ScreenObservation(summary="Screen checkpoint received.")
                     if checkpoint.screen_observation is not None
@@ -591,7 +603,11 @@ async def reaction_speech(
             if turn is None or turn.evaluation is None:
                 raise store.InterviewStateError("interview reaction not found")
             audio = synthesize_interviewer_speech(
-                interviewer_reaction(turn.evaluation)
+                interviewer_reaction(
+                    turn.evaluation,
+                    mode=session.feedback_mode,
+                    turn_index=turn.turn_index,
+                )
             )
             store.add_cost(
                 connection,

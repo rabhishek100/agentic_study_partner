@@ -34,6 +34,11 @@ from .planning import (
 )
 from .prompts import build_candidate_clarification_messages, prompt_version
 from .question_generation import generate_question
+from .realism import (
+    design_question_target,
+    interview_move_purpose,
+    planned_interview_move,
+)
 from . import store
 
 
@@ -160,9 +165,23 @@ def _generate_question(
     model: Any | None = None,
 ) -> tuple[InterviewQuestion, float]:
     planned_count = len(session.checkpoint.required_topics)
+    if session.interview_format == "system_design":
+        planned_count = design_question_target(
+            planned_area_count=planned_count,
+            maximum_duration_minutes=session.maximum_duration_minutes,
+        )
+    visited = sum(item.attempts > 0 for item in session.checkpoint.required_topics)
+    move = planned_interview_move(
+        inventory,
+        interview_format=session.interview_format,
+        target_level=session.target_level,
+        areas_visited=visited,
+        planned_area_count=planned_count,
+    )
     require_coding = session.coding_exercise_requested and not any(
         turn.question.coding_exercise is not None for turn in session.turns
     )
+    opening = not session.turns and session.interview_format == "system_design"
     return generate_question(
         inventory=inventory,
         topic=topic,
@@ -171,11 +190,21 @@ def _generate_question(
         kind="primary",
         recent_questions=[turn.question for turn in session.turns],
         purpose=(
-            "This is the first-pass chapter coverage plan. Ask the most central "
-            "reasoning question supported by this topic, not a narrow detail. "
-            f"This topic is one of {planned_count} planned chapter areas."
+            (
+                "Open one coherent system-design problem with a concise product "
+                "capability, then invite the candidate to clarify requirements "
+                "before proposing architecture. Keep later turns inside this same "
+                "problem. "
+                if opening
+                else "This is the first-pass chapter coverage plan. "
+            )
+            + "Ask the most central reasoning question supported by this topic, "
+            "not a narrow detail. "
+            f"This topic is one of {planned_count} planned chapter areas. "
+            + interview_move_purpose(move)
         ),
         require_coding_exercise=require_coding,
+        planned_move=move.move,
         model=model,
     )
 

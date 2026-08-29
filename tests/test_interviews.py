@@ -26,6 +26,7 @@ from interviews.contracts import (
     TopicState,
 )
 from interviews.evaluation import (
+    atomic_clarifying_probe,
     InterviewValidationError,
     interviewer_reaction,
     resolve_citations,
@@ -54,6 +55,7 @@ from interviews.question_generation import (
     validate_question_focus,
     validate_question_progression,
 )
+from interviews.realism import question_is_source_dependent
 from interviews.service import clarify_interview_question, reveal_coding_hint
 from interviews.speech import (
     DEFAULT_TTS_MODEL,
@@ -185,8 +187,10 @@ class RawResponse:
 class FakeStructuredModel:
     def __init__(self, value) -> None:
         self.value = value
+        self.messages = None
 
     def invoke(self, messages):
+        self.messages = messages
         return {"parsed": self.value, "raw": RawResponse()}
 
 
@@ -318,6 +322,18 @@ class GroundingTests(unittest.TestCase):
         instruction = " ".join(str(messages[-1].content).split())
         self.assertIn("answerable through reasoning", instruction)
         self.assertIn("directly solicited by the audible question", instruction)
+        self.assertIn("Do not mention a book, chapter, lecture", instruction)
+
+    def test_source_dependent_question_is_rejected(self) -> None:
+        leaked = question().model_copy(
+            update={"text": "According to the chapter, what does logistic regression model?"}
+        )
+
+        self.assertTrue(question_is_source_dependent(leaked.text))
+        with self.assertRaisesRegex(
+            InterviewValidationError, "source recall|study source"
+        ):
+            validate_question_focus(leaked)
 
     def test_evaluation_prompt_scores_only_the_audible_scope(self) -> None:
         messages = build_evaluation_messages(
@@ -470,6 +486,18 @@ class GroundingTests(unittest.TestCase):
         with self.assertRaisesRegex(InterviewValidationError, "multiple objectives"):
             validate_question_focus(overloaded)
 
+    def test_one_declarative_scenario_may_precede_the_question(self) -> None:
+        realistic = question().model_copy(
+            update={
+                "text": (
+                    "A classifier is accurate offline but unstable after launch. "
+                    "How would you diagnose the regression?"
+                )
+            }
+        )
+
+        self.assertIs(validate_question_focus(realistic), realistic)
+
     def test_overlong_question_is_rejected(self) -> None:
         overloaded = question().model_copy(
             update={"text": " ".join(["detail"] * 33) + "?"}
@@ -586,6 +614,70 @@ class GroundingTests(unittest.TestCase):
         self.assertIn("[N7:P42]", generated.suggested_answer)
         self.assertEqual(generated.work_sample, "none")
         self.assertEqual(cost, 0.002)
+
+    def test_planned_fallback_uses_the_session_scenario_not_a_topic_template(self) -> None:
+        leakage = replace(topic(), label="Validation and data leakage")
+
+        generated = grounded_fallback_question(
+            topic=leakage,
+            target_level="mid",
+            kind="primary",
+            recent_questions=[],
+            planned_move="application",
+            scope_title="Building and validating classifiers",
+        )
+
+        self.assertEqual(
+            generated.text,
+            "What production decision about validation and data leakage would you make first?",
+        )
+        self.assertNotIn("choose Validation", generated.text)
+
+    def test_planned_fallback_strips_a_printed_chapter_number_from_scope(self) -> None:
+        generated = grounded_fallback_question(
+            topic=replace(topic(), label="Chapter 1 Proximity Service"),
+            target_level="senior",
+            kind="primary",
+            recent_questions=[],
+            planned_move="requirements",
+            scope_title="Chapter 1 Proximity Service",
+        )
+
+        self.assertEqual(
+            generated.text,
+            "You are designing Proximity Service. What would you clarify before proposing architecture?",
+        )
+        self.assertFalse(question_is_source_dependent(generated.text))
+
+    def test_printed_chapter_number_is_source_dependent(self) -> None:
+        self.assertTrue(
+            question_is_source_dependent(
+                "Which requirement for Chapter 1 Proximity Service matters most?"
+            )
+        )
+
+    def test_clarifying_probe_keeps_one_audible_objective(self) -> None:
+        self.assertEqual(
+            atomic_clarifying_probe(
+                "What design change would reduce latency, and what trade-off would it introduce?"
+            ),
+            "What design change would reduce latency?",
+        )
+
+    def test_clarifying_fallback_preserves_the_candidate_specific_probe(self) -> None:
+        generated = grounded_fallback_question(
+            topic=topic(),
+            target_level="senior",
+            kind="clarifying",
+            recent_questions=[],
+            candidate_probe="What specific design change would reduce latency?",
+        )
+
+        self.assertEqual(
+            generated.text,
+            "What specific design change would reduce latency?",
+        )
+        self.assertEqual(generated.kind, "clarifying")
 
     def test_one_grounded_decision_may_request_its_justification(self) -> None:
         grounded = question().model_copy(
@@ -1189,8 +1281,25 @@ class ClarificationTests(unittest.TestCase):
 
         self.assertEqual(public.turns[0].question.expected_points, [])
         self.assertEqual(
+            public.turns[0].question.topic_label,
+            "Hidden interview topic",
+        )
+        self.assertEqual(
             public.turns[0].question.clarifications[0].candidate_question,
             "Which relationship?",
+        )
+
+    def test_realistic_reactions_vary_without_revealing_correctness(self) -> None:
+        complete = evaluation(complete=True)
+
+        reactions = {
+            interviewer_reaction(complete, mode="realistic", turn_index=index)
+            for index in range(3)
+        }
+
+        self.assertEqual(len(reactions), 3)
+        self.assertFalse(
+            any("correct" in reaction.casefold() for reaction in reactions)
         )
 
     @patch("interviews.service.store.use_coding_hint")
@@ -1267,6 +1376,65 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(output["checkpoint"].coverage_ratio, 1.0)
         self.assertIn("covered", output["finish_reason"])
         self.assertEqual(output["evaluation_cost_usd"], 0.001)
+
+    def test_compact_system_design_scope_continues_through_supported_phases(self) -> None:
+        design_topic = replace(
+            topic(
+                evidence=(
+                    "[N7:P42]\nA low-latency proximity service accepts an API "
+                    "request, queries a geographic index, caches common reads, "
+                    "and monitors latency and availability. Stale index entries "
+                    "must be detected after business deletes."
+                )
+            ),
+            label="Proximity service design",
+        )
+        scope = replace(
+            inventory(title="Proximity Service"),
+            topics=(design_topic,),
+            outline="- Proximity service design",
+        )
+        live = session().model_copy(
+            update={
+                "interview_format": "system_design",
+                "checkpoint": InterviewCheckpoint(
+                    topics=[TopicState(key="node:7", label=design_topic.label)],
+                    active_topic_key="node:7",
+                ),
+            }
+        )
+        architecture = question().model_copy(
+            update={
+                "topic_label": design_topic.label,
+                "text": "Draw the API-to-index data flow for this proximity service.",
+                "expected_points": ["Show the request and lookup boundaries."],
+                "work_sample": "architecture_diagram",
+                "work_sample_prompt": "Draw components and the lookup data flow.",
+            }
+        )
+        question_model = FakeStructuredModel(architecture)
+
+        output = answer_graph.invoke(
+            {
+                "session": live,
+                "inventory": scope,
+                "current_turn": InterviewTurn(turn_index=0, question=question()),
+                "answer_text": "Latency is the primary requirement.",
+            },
+            context=AnswerGraphContext(
+                evaluation_model=FakeStructuredModel(evaluation(complete=True)),
+                question_model=question_model,
+            ),
+        )
+
+        self.assertEqual(output["checkpoint"].design_moves_completed, 1)
+        self.assertEqual(output["next_question"].kind, "primary")
+        self.assertEqual(output["next_question"].topic_key, "node:7")
+        self.assertIn("data flow", output["next_question"].text)
+        authored_context = question_model.messages[-1].content
+        self.assertIn(question().text, authored_context)
+        self.assertIn("Latency is the primary requirement", authored_context)
+        self.assertIn("same system-design problem", authored_context)
 
     def test_ambiguous_weak_answer_gets_one_clarifying_probe(self) -> None:
         current = InterviewTurn(turn_index=0, question=question())
@@ -1400,6 +1568,62 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(output["next_question"].kind, "primary")
         self.assertFalse(output["checkpoint"].topics[0].completed)
 
+    def test_system_design_depth_stays_on_the_active_problem_before_breadth(self) -> None:
+        second = Topic(
+            key="node:8",
+            ordinal=1,
+            label="Model calibration",
+            required=True,
+            evidence_text="[N8:P50]\nCalibration aligns predicted and observed rates.",
+            allowed_markers=frozenset({"[N8:P50]"}),
+            node_id=8,
+            start_page=50,
+            end_page=52,
+        )
+        scope = replace(inventory(), topics=(topic(), second))
+        live = session().model_copy(
+            update={
+                "interview_format": "system_design",
+                "checkpoint": InterviewCheckpoint(
+                    topics=[
+                        TopicState(key="node:7", label="Logistic regression"),
+                        TopicState(key="node:8", label="Model calibration"),
+                    ],
+                    active_topic_key="node:7",
+                ),
+            }
+        )
+        scoped = evaluation(complete=False).model_copy(
+            update={
+                "question_complete": True,
+                "needs_depth_follow_up": True,
+                "depth_follow_up_focus": "handling a stale feature value",
+                "gaps": [],
+            }
+        )
+        follow_up = question().model_copy(
+            update={
+                "text": "How would the design handle a stale feature value?",
+                "expected_points": ["Describe one bounded failure response."],
+            }
+        )
+
+        output = answer_graph.invoke(
+            {
+                "session": live,
+                "inventory": scope,
+                "current_turn": InterviewTurn(turn_index=0, question=question()),
+                "answer_text": "The service scores a validated feature vector.",
+            },
+            context=AnswerGraphContext(
+                evaluation_model=FakeStructuredModel(scoped),
+                question_model=FakeStructuredModel(follow_up),
+            ),
+        )
+
+        self.assertEqual(output["next_question"].topic_key, "node:7")
+        self.assertEqual(output["next_question"].kind, "follow_up")
+
     def test_no_new_question_starts_near_the_duration_ceiling(self) -> None:
         timed = session().model_copy(update={"elapsed_seconds": 30 * 60 - 20})
         output = answer_graph.invoke(
@@ -1512,7 +1736,10 @@ class SpeechTests(unittest.TestCase):
         public = _public(live)
 
         self.assertIsNone(public.turns[0].evaluation)
-        self.assertEqual(public.turns[0].interviewer_reaction, "Grounded feedback.")
+        self.assertEqual(
+            public.turns[0].interviewer_reaction,
+            "Okay, thank you. Let's move on.",
+        )
         self.assertEqual(public.turns[0].question.expected_points, [])
 
     def test_interviewer_reaction_is_spoken_and_hides_source_markers(self) -> None:
@@ -1527,6 +1754,16 @@ class SpeechTests(unittest.TestCase):
         )
 
         self.assertIn("right track", interviewer_reaction(incomplete))
+
+    def test_realistic_reaction_is_neutral_about_correctness(self) -> None:
+        result = interviewer_reaction(
+            evaluation(complete=True),
+            mode="realistic",
+        )
+
+        self.assertEqual(result, "Okay, thank you. Let's move on.")
+        self.assertNotIn("strong", result.casefold())
+        self.assertNotIn("correct", result.casefold())
 
     def test_voxtral_is_the_default_and_cost_is_character_bounded(self) -> None:
         requests: list[httpx.Request] = []
