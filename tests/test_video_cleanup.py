@@ -8,6 +8,7 @@ its retry window, and objects whose rows are gone.
 """
 
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -17,14 +18,16 @@ from uuid import uuid4
 from psycopg.types.json import Jsonb
 
 from storage.database import connection, resolve_database_url
+from tests.test_video_media_store import FakeS3Client
 from video.cleanup import (
     MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP,
+    dry_run_requested,
     VideoRetentionLimits,
     load_retention_limits,
     run_video_cleanup,
 )
 from video.jobs import get_job
-from video.media_store import FilesystemMediaStore
+from video.media_store import FilesystemMediaStore, S3MediaStore
 from video.repository import initialize_video_upload, list_job_events
 from video.states import Status
 
@@ -357,11 +360,11 @@ class VideoCleanupTests(unittest.TestCase):
         self.assertEqual(summary.orphaned_objects_deleted, 0)
         self.assertFalse(partial.exists())
 
-    def test_one_sweep_deletes_a_bounded_number_of_orphans(self) -> None:
-        """A worker pointed at the wrong database must not empty a volume."""
+    def orphan_frames(self, count: int, *, start: int = 0) -> list[str]:
+        """`count` aged frame objects no row will ever name."""
 
-        limit = MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP
-        for index in range(limit + 3):
+        keys = []
+        for index in range(start, start + count):
             digest = f"{index:064x}"
             key = (
                 f"{self.owner}/canonical/frames/sha256/"
@@ -369,9 +372,76 @@ class VideoCleanupTests(unittest.TestCase):
             )
             self.write(key, payload=b"x")
             self.age(key)
+            keys.append(key)
+        return keys
+
+    def test_deleting_is_the_thing_an_operator_has_to_ask_for(self) -> None:
+        """An unset environment variable must cost a log line, not a corpus.
+
+        The old default deleted unless told not to, which is the wrong way
+        round for an unattended pass over storage that has no undo.
+        """
+
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(dry_run_requested())
+        for value in ("1", "true", "yes", "", "  "):
+            with patch.dict(os.environ, {"VIDEO_CLEANUP_DRY_RUN": value}, clear=False):
+                self.assertTrue(dry_run_requested(), value)
+        for value in ("0", "false", "no", "NO"):
+            with patch.dict(os.environ, {"VIDEO_CLEANUP_DRY_RUN": value}, clear=False):
+                self.assertFalse(dry_run_requested(), value)
+
+    def test_a_mostly_unreferenced_volume_is_refused(self) -> None:
+        """Most of an owner's media missing its rows means the rows are missing."""
+
+        self.orphan_frames(30)
+        with connection(self.database_url) as database:
+            live = self.upload_job(database, created_interval="1 hour")
+            self.write(live.upload_storage_key)
+            self.age(live.upload_storage_key)
+            summary = self.sweep(database)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+        self.assertTrue(self.exists(live.upload_storage_key))
+
+    def test_a_volume_no_row_explains_is_refused_rather_than_emptied(self) -> None:
+        """A worker pointed at the wrong database must not empty a volume.
+
+        This is the failure that cost 995 frame images on 2026-09-01: the
+        sweep ran against a database that had been rolled back, found nothing
+        referenced, and deleted objects R2 could not give back. A per-pass
+        budget only made that take longer. The sweep now has to believe the
+        database before it may act on it, and a database naming none of an
+        owner's media has not earned that.
+        """
+
+        self.orphan_frames(MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP + 3)
 
         with connection(self.database_url) as database:
             summary = self.sweep(database)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+        self.assertEqual(summary.bytes_reclaimed, 0)
+
+    def test_one_sweep_deletes_a_bounded_number_of_orphans(self) -> None:
+        """Even a believed orphan set is drained a bounded amount at a time.
+
+        The ceiling is lifted here on purpose so the budget is what the
+        assertion is about; the guard's own refusal is covered above.
+        """
+
+        limit = MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP
+        self.orphan_frames(limit + 3)
+
+        with connection(self.database_url) as database:
+            # A live job row, so the database is not one that has simply
+            # forgotten this owner.
+            live = self.upload_job(database, created_interval="1 hour")
+            self.write(live.upload_storage_key)
+            with patch.dict(
+                os.environ, {"VIDEO_CLEANUP_MAX_ORPHAN_FRACTION": "1.0"}, clear=False
+            ):
+                summary = self.sweep(database)
 
         self.assertEqual(summary.orphaned_objects_deleted, limit)
 
@@ -413,6 +483,37 @@ class VideoCleanupTests(unittest.TestCase):
                 database.execute(
                     "delete from auth.users where id = %s", (stranger,)
                 )
+
+    def test_r2_orphan_sweep_is_grace_aware_and_preserves_references(self) -> None:
+        client = FakeS3Client()
+        store = S3MediaStore(
+            bucket="private-video-media",
+            client=client,
+            cache_root=Path(self.directory.name) / "r2-cache",
+        )
+        orphan = f"{self.owner}/canonical/videos/sha256/aa/bb/orphan.mp4"
+        recent = f"{self.owner}/canonical/videos/sha256/cc/dd/recent.mp4"
+        with connection(self.database_url) as database:
+            live = self.upload_job(database, created_interval="1 hour")
+            for key in (live.upload_storage_key, orphan, recent):
+                payload = key.encode()
+                writer = store.writer(
+                    owner_id=self.owner, storage_key=key, maximum_bytes=256
+                )
+                writer.write(payload)
+                writer.finish(expected_size=len(payload))
+            old = datetime.now(timezone.utc) - timedelta(days=3)
+            client.modified[(store.bucket, live.upload_storage_key)] = old
+            client.modified[(store.bucket, orphan)] = old
+
+            summary = run_video_cleanup(
+                database, store=store, limits=LIMITS, dry_run=False
+            )
+
+        self.assertEqual(summary.orphaned_objects_deleted, 1)
+        self.assertNotIn((store.bucket, orphan), client.objects)
+        self.assertIn((store.bucket, recent), client.objects)
+        self.assertIn((store.bucket, live.upload_storage_key), client.objects)
 
     # --- one object, several jobs ---------------------------------------
 

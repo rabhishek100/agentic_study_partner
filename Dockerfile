@@ -38,6 +38,7 @@ COPY worker ./worker
 # Operational commands the runbook refers to, and the parse benchmark, need
 # to be runnable inside the deployed image rather than only from a laptop.
 COPY scripts/__init__.py scripts/benchmark_parse.py scripts/compare_extraction.py \
+    scripts/migrate_video_media_to_s3.py scripts/upgrade_video_course.py \
     scripts/serve.py ./scripts/
 
 ENV PATH="/app/.venv/bin:$PATH"
