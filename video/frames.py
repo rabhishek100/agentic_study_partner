@@ -27,6 +27,7 @@ DEFAULT_SAMPLE_SECONDS = 2.0
 DEFAULT_CHANGE_THRESHOLD = 0.115
 DEFAULT_SAFEGUARD_SECONDS = 30.0
 DEFAULT_MAXIMUM_PER_HOUR = 260
+MAXIMUM_CAPPED_TIMELINE_GAP_MS = 240_000
 DEFAULT_OCR_TIMEOUT_SECONDS = 60
 MAXIMUM_TSV_CHARACTERS = 10 * 1024 * 1024
 LANGUAGE = re.compile(r"^[A-Za-z0-9_+.-]{1,64}$")
@@ -381,8 +382,79 @@ def _apply_hourly_limit(
     for index, candidate in enumerate(candidates):
         by_hour.setdefault(candidate.timestamp_ms // 3_600_000, []).append(index)
     for indexes in by_hour.values():
+        capacity = min(maximum_per_hour, len(indexes))
+        if capacity == 0:
+            continue
+
+        # The cap must preserve the two user-visible coverage promises before
+        # it optimizes for visually interesting frames: every chapter has an
+        # anchor, and no quiet timeline stretch disappears. Starting with
+        # chapter boundaries lets those frames do double duty as timeline
+        # anchors instead of reserving a separate evenly-spaced set that can
+        # crowd short chapters out of a small budget.
+        anchors: set[int] = {
+            index
+            for index in indexes
+            if "chapter_boundary" in candidates[index].selection_reasons
+        }
+        anchors.update({indexes[0], indexes[-1]})
+        if len(anchors) > capacity:
+            # A caller can configure a cap smaller than the number of chapters
+            # in one hour. Keep the cap hard and deterministic; the quality
+            # gate will make the uncovered chapters explicit.
+            chapter_anchors = sorted(
+                anchors,
+                key=lambda index: (
+                    index not in {indexes[0], indexes[-1]},
+                    candidates[index].timestamp_ms,
+                ),
+            )
+            anchors = set(chapter_anchors[:capacity])
+
+        while len(anchors) < capacity:
+            ordered_anchors = sorted(
+                anchors, key=lambda index: candidates[index].timestamp_ms
+            )
+            gaps = [
+                (
+                    candidates[right].timestamp_ms
+                    - candidates[left].timestamp_ms,
+                    left,
+                    right,
+                )
+                for left, right in zip(
+                    ordered_anchors, ordered_anchors[1:], strict=False
+                )
+            ]
+            largest_gap, left, right = max(gaps, default=(0, 0, 0))
+            if largest_gap <= MAXIMUM_CAPPED_TIMELINE_GAP_MS:
+                break
+            available = [
+                index
+                for index in indexes
+                if index not in anchors
+                and candidates[left].timestamp_ms
+                < candidates[index].timestamp_ms
+                < candidates[right].timestamp_ms
+            ]
+            if not available:
+                break
+            midpoint_ms = (
+                candidates[left].timestamp_ms + candidates[right].timestamp_ms
+            ) // 2
+            anchors.add(
+                min(
+                    available,
+                    key=lambda index: (
+                        abs(candidates[index].timestamp_ms - midpoint_ms),
+                        candidates[index].timestamp_ms,
+                    ),
+                )
+            )
+        selected.update(anchors)
+
         ranked = sorted(
-            indexes,
+            (index for index in indexes if index not in anchors),
             key=lambda index: (
                 "chapter_boundary" in candidates[index].selection_reasons,
                 "first_frame" in candidates[index].selection_reasons,
@@ -391,7 +463,7 @@ def _apply_hourly_limit(
             ),
             reverse=True,
         )
-        selected.update(ranked[:maximum_per_hour])
+        selected.update(ranked[: capacity - len(anchors)])
     retained: list[FrameCandidate] = []
     for index, candidate in enumerate(candidates):
         if index in selected:

@@ -150,6 +150,61 @@ class PersistedVisualObservation:
     replaced: bool
 
 
+def visual_group_is_complete(
+    connection: Connection,
+    *,
+    job_id: str | UUID,
+    worker_id: str,
+    attempt_count: int,
+    frame_ids: tuple[int, ...],
+    model_name: str,
+    prompt_version: str,
+    input_hash: str,
+) -> bool:
+    """Report whether an exact paid visual group is already durable.
+
+    The lease-fenced read deliberately happens before the provider call. A
+    worker that died after committing one frame pair can therefore resume at
+    the next pair without buying the same analysis again.
+    """
+
+    group = tuple(frame_ids)
+    if not group or len(group) > 2 or len(set(group)) != len(group):
+        raise ValueError("visual analysis group must contain one or two frames")
+    if CONTENT_HASH.fullmatch(input_hash) is None:
+        raise ValueError("input_hash must be a SHA-256 digest")
+    scope = _locked_scope(
+        connection,
+        job_id=job_id,
+        worker_id=worker_id,
+        attempt_count=attempt_count,
+        stage=Stage.VISUAL_ANALYSIS,
+    )
+    rows = connection.execute(
+        """
+        select frame_id, technical_details_json
+        from video.visual_observations
+        where owner_id = %s and video_id = %s and ingestion_version_id = %s
+          and frame_id = any(%s) and status = 'success'
+          and model_name = %s and prompt_version = %s and input_hash = %s
+        """,
+        (
+            scope["owner_id"],
+            scope["video_id"],
+            scope["version_id"],
+            list(group),
+            model_name.strip(),
+            prompt_version.strip(),
+            input_hash,
+        ),
+    ).fetchall()
+    return len(rows) == len(group) and all(
+        tuple(row["technical_details_json"].get("analysis_group_frame_ids", ()))
+        == group
+        for row in rows
+    )
+
+
 def _clean_required(value: str, *, field: str) -> str:
     clean = value.strip()
     if not clean:

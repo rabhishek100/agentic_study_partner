@@ -18,6 +18,7 @@ from video.visual_store import (
     persist_ocr_results,
     persist_selected_frames,
     persist_visual_observation,
+    visual_group_is_complete,
 )
 
 
@@ -299,6 +300,67 @@ class VideoVisualStoreTests(unittest.TestCase):
             row["technical_details_json"]["region_proposals"][0]["bbox"],
             [0.11, 0.22, 0.73, 0.51],
         )
+
+    def test_paid_group_preflight_requires_every_exact_observation(self) -> None:
+        with connection(self.database_url) as database:
+            _, claimed = self.create_claim(database)
+            selected = self.store_frames(database, claimed)
+            self.set_stage(database, claimed.id, Stage.VISUAL_ANALYSIS)
+            frame_ids = tuple(frame.id for frame in selected.frames)
+            first = self.observation(frame_ids)
+            persist_visual_observation(
+                database,
+                job_id=claimed.id,
+                worker_id="visual-worker",
+                attempt_count=claimed.attempt_count,
+                observation=first,
+            )
+            self.assertFalse(
+                visual_group_is_complete(
+                    database,
+                    job_id=claimed.id,
+                    worker_id="visual-worker",
+                    attempt_count=claimed.attempt_count,
+                    frame_ids=frame_ids,
+                    model_name=first.model_name,
+                    prompt_version=first.prompt_version,
+                    input_hash=first.input_hash,
+                )
+            )
+            persist_visual_observation(
+                database,
+                job_id=claimed.id,
+                worker_id="visual-worker",
+                attempt_count=claimed.attempt_count,
+                observation=self.observation(
+                    frame_ids,
+                    frame_id=frame_ids[1],
+                    cost_usd="0",
+                ),
+            )
+            exact = visual_group_is_complete(
+                database,
+                job_id=claimed.id,
+                worker_id="visual-worker",
+                attempt_count=claimed.attempt_count,
+                frame_ids=frame_ids,
+                model_name=first.model_name,
+                prompt_version=first.prompt_version,
+                input_hash=first.input_hash,
+            )
+            changed_model = visual_group_is_complete(
+                database,
+                job_id=claimed.id,
+                worker_id="visual-worker",
+                attempt_count=claimed.attempt_count,
+                frame_ids=frame_ids,
+                model_name="a/different-model",
+                prompt_version=first.prompt_version,
+                input_hash=first.input_hash,
+            )
+
+        self.assertTrue(exact)
+        self.assertFalse(changed_model)
 
     def test_observation_drift_replaces_row_and_cascades_stale_regions(self) -> None:
         with connection(self.database_url) as database:

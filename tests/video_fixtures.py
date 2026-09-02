@@ -23,11 +23,11 @@ from video.vision import (
     VisualProvenance,
     VisualRegion,
     VisualTransition,
+    visual_input_hash,
 )
 
 from tests.test_video_embeddings import FakeRegionEmbedder, FakeTextEmbedder
 from video.evidence_store import rebuild_evidence
-from video.jobs import claim_next_job
 from video.repository import create_youtube_video
 from video.transcript_store import persist_transcript
 from video.transcripts import parse_webvtt
@@ -213,16 +213,31 @@ def publish_video_with_evidence(
             ),
         )
 
-    claimed = claim_next_job(database, worker_id="fixture-worker")
-    database.execute(
-        "update video.ingestion_jobs set stage = 'indexing' where id = %s",
-        (created.job_id,),
-    )
+    # Claim this fixture's job explicitly.  The shared local database can
+    # legitimately contain queued ingestion work from a manual rehearsal;
+    # claiming the globally oldest job would steal that work and hand the
+    # fixture's attempt number to a different video.
+    claimed = database.execute(
+        """
+        update video.ingestion_jobs
+        set status = 'running', stage = 'indexing',
+            attempt_count = attempt_count + 1,
+            lease_owner = 'fixture-worker',
+            lease_expires_at = now() + interval '5 minutes',
+            heartbeat_at = now(),
+            started_at = coalesce(started_at, now())
+        where id = %s and owner_id = %s and status = 'queued'
+        returning attempt_count
+        """,
+        (created.job_id, owner_id),
+    ).fetchone()
+    if claimed is None:
+        raise RuntimeError("fixture ingestion job could not be claimed")
     rebuild_evidence(
         database,
         job_id=created.job_id,
         worker_id="fixture-worker",
-        attempt_count=claimed.attempt_count,
+        attempt_count=claimed["attempt_count"],
         transcript_source_id=transcript.id,
     )
     database.execute(
@@ -305,9 +320,13 @@ class FakeYouTubeAcquirer:
 
 
 def select_two_frames(
-    video_path: Path, staging_dir: Path, *, chapters
+    video_path: Path,
+    staging_dir: Path,
+    *,
+    chapters,
+    maximum_per_hour: int | None = None,
 ) -> tuple[FrameCandidate, ...]:
-    del video_path, chapters
+    del video_path, chapters, maximum_per_hour
     root = Path(staging_dir)
     root.mkdir(parents=True, exist_ok=True)
     candidates = []
@@ -395,7 +414,7 @@ def analyze_two_frames(frames) -> VisualAnalysis:
             input_tokens=100,
             output_tokens=50,
             cost_usd=0.001,
-            input_hash="f" * 64,
+            input_hash=visual_input_hash("openai/gpt-5.6-luna", frames),
             prompt_version="technical-lecture-visual-v1",
             attempt=1,
         ),

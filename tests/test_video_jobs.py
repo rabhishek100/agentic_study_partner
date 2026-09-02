@@ -217,6 +217,38 @@ class VideoJobTests(unittest.TestCase):
         self.assertIsNone(version["completed_at"])
         self.assertIsNone(version["error_code"])
 
+    def test_manual_retry_rechecks_a_previously_unavailable_source(self) -> None:
+        with connection(self.database_url) as database:
+            created = self.create(database)
+            database.execute(
+                """
+                update video.ingestion_jobs
+                set status = 'failed', completed_at = now(), attempt_count = 1,
+                    last_error_code = 'source_unavailable',
+                    last_error_message = 'Source was unavailable',
+                    last_error_retryable = false
+                where id = %s
+                """,
+                (created.job_id,),
+            )
+            database.execute(
+                """
+                update video.ingestion_versions
+                set status = 'failed', completed_at = now(),
+                    error_code = 'source_unavailable',
+                    error_message = 'Source was unavailable'
+                where id = %s
+                """,
+                (created.version_id,),
+            )
+            retried = retry_job(
+                database, owner_id=self.owner, job_id=created.job_id
+            )
+
+        self.assertEqual(retried.status, Status.RETRY_SCHEDULED)
+        self.assertEqual(retried.attempt_count, 0)
+        self.assertIsNone(retried.last_error_code)
+
     def test_checkpoint_completion_is_idempotent_costed_and_stage_guarded(self) -> None:
         dependency = "a" * 64
         with connection(self.database_url) as database:
@@ -321,6 +353,7 @@ class VideoJobTests(unittest.TestCase):
 
         self.assertEqual(released.status, Status.QUEUED)
         self.assertEqual(released.stage, Stage.MEDIA_METADATA)
+        self.assertEqual(released.attempt_count, 0)
         self.assertIsNone(released.lease_owner)
 
     def test_running_cancellation_closes_checkpoint_version_and_claim(self) -> None:
@@ -424,6 +457,13 @@ class VideoJobTests(unittest.TestCase):
         self.assertNotIn("secret", failed.last_error_message.lower())
         self.assertEqual(version["status"], "failed")
         self.assertEqual(version["error_code"], "attempts_exhausted")
+
+        with connection(self.database_url) as database:
+            manually_retried = retry_job(
+                database, owner_id=self.owner, job_id=created.job_id
+            )
+        self.assertEqual(manually_retried.status, Status.RETRY_SCHEDULED)
+        self.assertEqual(manually_retried.attempt_count, 0)
 
     def test_quality_gated_publication_atomically_exposes_the_version(self) -> None:
         dependency = "7" * 64

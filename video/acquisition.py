@@ -26,6 +26,7 @@ DEFAULT_MAXIMUM_BYTES = 2 * 1024 * 1024 * 1024
 MAXIMUM_METADATA_BYTES = 10 * 1024 * 1024
 DOWNLOAD_TIMEOUT_SECONDS = 2 * 60 * 60
 PROBE_TIMEOUT_SECONDS = 30
+DEFAULT_HTTP_CHUNK_SIZE_BYTES = 5 * 1024 * 1024
 # H.264 first, deliberately. "Best video under 1080p" resolves to AV1 on
 # modern YouTube, which the deployed image cannot decode; the later branches
 # keep older or unusual uploads reachable rather than refusing them outright.
@@ -136,12 +137,25 @@ def acquire_youtube(
         raise AcquisitionError("acquisition destination must be a real directory")
     root = root.resolve()
     output_template = root / "source.%(ext)s"
+    try:
+        http_chunk_size = int(
+            os.getenv(
+                "VIDEO_YTDLP_HTTP_CHUNK_SIZE_BYTES",
+                str(DEFAULT_HTTP_CHUNK_SIZE_BYTES),
+            )
+        )
+    except ValueError as error:
+        raise ValueError("VIDEO_YTDLP_HTTP_CHUNK_SIZE_BYTES must be an integer") from error
+    if http_chunk_size <= 0:
+        raise ValueError("VIDEO_YTDLP_HTTP_CHUNK_SIZE_BYTES must be positive")
 
     argv = [
         os.getenv("VIDEO_YTDLP_BINARY", "yt-dlp").strip() or "yt-dlp",
         "--no-playlist",
-        "--max-downloads",
-        "1",
+        "--continue",
+        "--part",
+        "--http-chunk-size",
+        str(http_chunk_size),
         "--format",
         VIDEO_FORMAT,
         "--max-filesize",

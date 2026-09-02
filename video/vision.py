@@ -201,6 +201,8 @@ lecture evidence, not visual attractiveness.
 
 Return a normalized region only for a substantive diagram or drawing. Do not
 return regions for text, equations, charts, code, terminals, UI, or people.
+When a region is returned, include its region_type in visual_types for that
+frame as well.
 Coordinates are fractions of the full image: x and y are the top-left corner,
 and x + width and y + height must not exceed 1.
 
@@ -386,9 +388,15 @@ class _FramePayload(_StrictPayload):
     def types_and_regions_are_consistent(self) -> _FramePayload:
         if len(set(self.visual_types)) != len(self.visual_types):
             raise ValueError("visual types must be unique")
-        types = set(self.visual_types)
-        if any(region.region_type not in types for region in self.regions):
-            raise ValueError("region type is absent from visual types")
+        # A diagram/drawing region is stronger evidence for the frame's type
+        # than the model's parallel visual_types list. Structured-output
+        # providers cannot express this cross-field invariant in JSON Schema,
+        # and otherwise valid analyses frequently omit the duplicate label.
+        # Reconcile the redundant fields deterministically instead of paying
+        # for an identical retry and discarding all earlier frame groups.
+        for region in self.regions:
+            if region.region_type not in self.visual_types:
+                self.visual_types.append(region.region_type)
         return self
 
 
@@ -623,6 +631,20 @@ def _input_hash(
     }
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return sha256(encoded).hexdigest()
+
+
+def visual_input_hash(
+    model: str, frames: list[VisualFrame] | tuple[VisualFrame, ...]
+) -> str:
+    """Return the exact paid-request identity without contacting the provider.
+
+    The worker uses this before a resumed visual group. Keeping validation,
+    prompt construction, and hashing here guarantees that the preflight key is
+    identical to the provenance written by :class:`OpenRouterVisualClient`.
+    """
+
+    validated_frames = _validate_frames(frames)
+    return _input_hash(model, _analysis_prompt(validated_frames), validated_frames)
 
 
 def _parse_response(

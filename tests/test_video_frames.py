@@ -171,6 +171,58 @@ class VideoFrameTests(unittest.TestCase):
         self.assertEqual(len(list((self.root / "limited/frames").glob("*.jpg"))), 2)
         self.assertEqual(len(list((self.root / "limited/previews").glob("*.jpg"))), 2)
 
+    def test_hourly_limit_preserves_timeline_coverage_and_the_tail(self) -> None:
+        frame = np.zeros((90, 160, 3), dtype=np.uint8)
+        duration_seconds = 60 * 60
+
+        candidates = select_frames(
+            self.video,
+            self.root / "coverage-limited",
+            maximum_per_hour=20,
+            capture_factory=lambda _: FakeCapture(
+                [frame] * (duration_seconds // 30),
+                fps=1 / 30,
+            ),
+        )
+
+        timestamps = [item.timestamp_ms for item in candidates]
+        self.assertEqual(len(timestamps), 20)
+        self.assertEqual(timestamps[0], 0)
+        self.assertLessEqual(duration_seconds * 1000 - timestamps[-1], 30_000)
+        self.assertLessEqual(
+            max(right - left for left, right in zip(timestamps, timestamps[1:])),
+            300_000,
+        )
+
+    def test_hourly_limit_preserves_each_chapter_before_visual_rank(self) -> None:
+        frame = np.zeros((90, 160, 3), dtype=np.uint8)
+        duration_seconds = 60 * 60
+        chapters = tuple(
+            Chapter(index, f"Chapter {index + 1}", index * 200_000, (index + 1) * 200_000)
+            for index in range(18)
+        )
+
+        candidates = select_frames(
+            self.video,
+            self.root / "chapter-limited",
+            chapters=chapters,
+            maximum_per_hour=20,
+            capture_factory=lambda _: FakeCapture(
+                [frame] * (duration_seconds // 30),
+                fps=1 / 30,
+            ),
+        )
+
+        self.assertEqual(len(candidates), 20)
+        self.assertEqual(
+            {candidate.chapter_index for candidate in candidates}, set(range(18))
+        )
+        timestamps = [candidate.timestamp_ms for candidate in candidates]
+        self.assertLessEqual(
+            max(right - left for left, right in zip(timestamps, timestamps[1:])),
+            300_000,
+        )
+
     def test_invalid_source_and_closed_capture_are_rejected(self) -> None:
         with self.assertRaisesRegex(FrameExtractionError, "regular video"):
             select_frames(self.root / "missing.mp4", self.root / "missing-output")

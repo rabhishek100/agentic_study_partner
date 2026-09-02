@@ -7,7 +7,7 @@ have different stages, checkpoints, and publication rules.
 import re
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -54,6 +54,10 @@ class StageCheckpoint:
     attempt_count: int
     reused: bool = False
 
+
+# The lease a claiming worker takes, named once so the presence window and
+# the claim agree about how long a healthy worker may go quiet.
+DEFAULT_LEASE_SECONDS = 300
 
 def _checkpoint(row: dict[str, Any], *, reused: bool = False) -> StageCheckpoint:
     return StageCheckpoint(
@@ -164,7 +168,7 @@ def claim_next_job(
     connection: Connection,
     *,
     worker_id: str,
-    lease_seconds: int = 300,
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
     supported_stages: Collection[Stage] | None = None,
 ) -> VideoIngestionJob | None:
     if not worker_id.strip() or lease_seconds <= 0:
@@ -330,7 +334,17 @@ def retry_job(
     owner, identifier = parse_owner_id(owner_id), UUID(str(job_id))
     with connection.transaction():
         current = get_job(connection, owner_id=owner, job_id=identifier)
-        if current.status is not Status.FAILED or not current.last_error_retryable:
+        exhausted_retry_budget = (
+            current.last_error_code == str(VideoErrorCode.ATTEMPTS_EXHAUSTED)
+        )
+        source_may_now_exist = (
+            current.last_error_code == str(VideoErrorCode.SOURCE_UNAVAILABLE)
+        )
+        if current.status is not Status.FAILED or not (
+            current.last_error_retryable
+            or exhausted_retry_budget
+            or source_may_now_exist
+        ):
             raise VideoJobConflictError("only a retryable failed video ingestion can retry")
         connection.execute(
             """
@@ -619,6 +633,7 @@ def release_claim(
             f"""
             update video.ingestion_jobs
             set status = 'queued', next_attempt_at = now(),
+                attempt_count = 0,
                 lease_owner = null, lease_expires_at = null,
                 heartbeat_at = null
             where id = %s and owner_id = %s and status = 'running'
@@ -943,6 +958,56 @@ def publish_job(
             },
         )
         return published
+
+
+# How long after a worker's last heartbeat we stop believing one is there.
+# Comfortably longer than the renewal interval, so a slow stage does not read
+# as an absent worker, and short enough that a stopped worker is noticed
+# before a reader has watched a countdown for several minutes.
+WORKER_PRESENCE_SECONDS = 180
+
+
+def worker_last_seen(connection: Connection) -> datetime | None:
+    """When a video worker last held or renewed a lease, across all owners.
+
+    Whether anything is going to pick a job up is a fact about the
+    deployment, not about the job: a queued lecture looks identical whether a
+    worker is about to claim it or nobody has run one for a day. Progress
+    could not tell those apart, so it counted down either way — which is the
+    one thing an estimate must never do, because a countdown that cannot
+    complete reads as the system working right up until it obviously is not.
+    """
+
+    row = connection.execute(
+        """
+        select max(greatest(
+            coalesce(heartbeat_at, 'epoch'::timestamptz),
+            coalesce(lease_expires_at, 'epoch'::timestamptz)
+                - make_interval(secs => %s)
+        )) as seen
+        from video.ingestion_jobs
+        where heartbeat_at is not null or lease_expires_at is not null
+        """,
+        (DEFAULT_LEASE_SECONDS,),
+    ).fetchone()
+    seen = row["seen"] if row else None
+    if seen is None or seen.year <= 1970:
+        return None
+    return seen
+
+
+def worker_is_present(
+    connection: Connection, *, now: datetime | None = None
+) -> bool:
+    """Whether a worker has been seen recently enough to promise an ETA."""
+
+    seen = worker_last_seen(connection)
+    if seen is None:
+        return False
+    moment = now or datetime.now(timezone.utc)
+    if seen.tzinfo is None:
+        seen = seen.replace(tzinfo=timezone.utc)
+    return (moment - seen).total_seconds() <= WORKER_PRESENCE_SECONDS
 
 
 def reclaim_expired_leases(

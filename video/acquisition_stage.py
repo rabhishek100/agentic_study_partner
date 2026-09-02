@@ -32,7 +32,7 @@ from video.jobs import (
     get_job,
     release_claim,
 )
-from video.media_store import FilesystemMediaStore, StoredMedia
+from video.media_store import MediaStore, StoredMedia
 from video.source_store import load_acquisition_target, record_acquired_media
 from video.states import Stage
 
@@ -47,7 +47,7 @@ MediaProbe = Callable[..., MediaMetadata]
 
 @dataclass(frozen=True)
 class AcquisitionDependencies:
-    media_store: FilesystemMediaStore
+    media_store: MediaStore
     youtube_acquirer: YouTubeAcquirer = acquire_youtube
     media_probe: MediaProbe = probe_media
     maximum_bytes: int = DEFAULT_MAXIMUM_BYTES
@@ -108,6 +108,7 @@ def run_acquire_source(
         raise ValueError("video job is not at the acquire-source stage")
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    failed = False
     try:
         cancelled = _finish_if_cancelled(connection, job=job, worker_id=worker_id)
         if cancelled is not None:
@@ -132,6 +133,11 @@ def run_acquire_source(
             stage=Stage.ACQUIRE_SOURCE,
             dependency_hash=dependency_hash,
         )
+        # Starting the checkpoint locks the job row. Downloads and multipart
+        # uploads can outlive a lease interval, so release that transaction
+        # before doing network and media work; the renewal thread owns lease
+        # liveness while the stage runs.
+        connection.commit()
         if checkpoint.reused:
             _verify_manifest(
                 dependencies.media_store,
@@ -253,6 +259,7 @@ def run_acquire_source(
             provider=provider,
             acquisition_version=acquisition_version,
             media_type=media_type,
+            storage_backend=dependencies.media_store.backend,
         )
         cancelled = _finish_if_cancelled(connection, job=job, worker_id=worker_id)
         if cancelled is not None:
@@ -272,8 +279,17 @@ def run_acquire_source(
                 acquisition_version=acquisition_version,
                 provenance={
                     "stage_version": STAGE_VERSION,
-                    "metadata": _stored_manifest(info) if info else None,
-                    "captions": [_stored_manifest(item) for item in caption_objects],
+                    "metadata": (
+                        _stored_manifest(info, backend=dependencies.media_store.backend)
+                        if info
+                        else None
+                    ),
+                    "captions": [
+                        _stored_manifest(
+                            item, backend=dependencies.media_store.backend
+                        )
+                        for item in caption_objects
+                    ],
                 },
             )
             complete_stage_checkpoint(
@@ -298,8 +314,16 @@ def run_acquire_source(
                 worker_id=worker_id,
                 attempt_count=job.attempt_count,
             )
+    except BaseException:
+        # A retryable worker failure keeps yt-dlp's job-scoped `.part` file so
+        # the next attempt can continue the same large download. The worker
+        # decides whether the failed job will retry and removes exhausted or
+        # terminal work directories.
+        failed = True
+        raise
     finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
+        if not failed:
+            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 def _finish_if_cancelled(
@@ -345,9 +369,9 @@ def _upload_media_type(connection: Connection, *, job: VideoIngestionJob) -> str
     return str(row["declared_media_type"])
 
 
-def _stored_manifest(value: StoredMedia) -> dict[str, Any]:
+def _stored_manifest(value: StoredMedia, *, backend: str) -> dict[str, Any]:
     return {
-        "storage_backend": "filesystem",
+        "storage_backend": backend,
         "storage_key": value.storage_key,
         "content_hash": value.content_hash,
         "size_bytes": value.size_bytes,
@@ -366,12 +390,20 @@ def _manifest(
     provider: str,
     acquisition_version: str,
     media_type: str,
+    storage_backend: str,
 ) -> dict[str, Any]:
     return {
         "stage_version": STAGE_VERSION,
-        "source": {**_stored_manifest(canonical_video), "media_type": media_type},
-        "metadata": _stored_manifest(info) if info else None,
-        "captions": [_stored_manifest(item) for item in captions],
+        "source": {
+            **_stored_manifest(canonical_video, backend=storage_backend),
+            "media_type": media_type,
+        },
+        "metadata": (
+            _stored_manifest(info, backend=storage_backend) if info else None
+        ),
+        "captions": [
+            _stored_manifest(item, backend=storage_backend) for item in captions
+        ],
         "media": asdict(media),
         "title": title,
         "description": description,
@@ -384,7 +416,7 @@ def _manifest(
 
 
 def _verify_manifest(
-    store: FilesystemMediaStore,
+    store: MediaStore,
     *,
     owner_id: Any,
     manifest: dict[str, Any],

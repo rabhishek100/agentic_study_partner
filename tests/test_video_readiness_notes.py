@@ -72,6 +72,18 @@ class ReadinessNotesTests(unittest.TestCase):
 
         self.assertEqual(notes, ["190 of 258 captured frames could be interpreted."])
 
+    def test_course_visual_cap_reports_only_frames_selected_for_analysis(self) -> None:
+        notes = readiness_notes(
+            {
+                "gates": gates(visual_analysis_success=False),
+                "frame_count": 258,
+                "visual_analysis_target_count": 200,
+                "successful_visual_observation_count": 190,
+            }
+        )
+
+        self.assertEqual(notes, ["190 of 200 selected frames could be interpreted."])
+
     def test_a_visual_gap_is_reported_in_minutes(self) -> None:
         notes = readiness_notes(
             {

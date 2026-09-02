@@ -11,7 +11,6 @@ from video.evidence_store import (
     persist_quality_gates,
     rebuild_evidence,
 )
-from video.jobs import claim_next_job
 from video.retrieval import retrieve_video_evidence
 from video.repository import create_youtube_video
 from video.transcript_store import persist_transcript
@@ -106,42 +105,71 @@ class VideoEvidenceStoreTests(unittest.TestCase):
                     ),
                 ).fetchone()["id"]
                 frame_ids.append(frame_id)
-                database.execute(
-                    """
-                    insert into video.visual_observations (
-                        owner_id, video_id, ingestion_version_id, frame_id,
-                        status, visual_types, summary, visible_text,
-                        technical_details_json, importance, confidence,
-                        model_name, model_revision, prompt_version, input_hash
-                    ) values (
-                        %s, %s, %s, %s, 'success', array['diagram'],
-                        %s, %s, %s, 0.9, 0.95,
-                        'openai/gpt-5.6-luna', 'openai/gpt-5.6-luna',
-                        'video-visual-v1', %s
+                if index == 0:
+                    database.execute(
+                        """
+                        insert into video.visual_observations (
+                            owner_id, video_id, ingestion_version_id, frame_id,
+                            status, visual_types, summary, visible_text,
+                            technical_details_json, importance, confidence,
+                            model_name, model_revision, prompt_version, input_hash
+                        ) values (
+                            %s, %s, %s, %s, 'success', array['diagram'],
+                            %s, %s, %s, 0.9, 0.95,
+                            'openai/gpt-5.6-luna', 'openai/gpt-5.6-luna',
+                            'video-visual-v1', %s
+                        )
+                        """,
+                        (
+                            self.owner,
+                            created.video_id,
+                            created.version_id,
+                            frame_id,
+                            "Query, key, and value vectors are connected",
+                            "Scaled dot-product attention",
+                            Jsonb({"items": ["Q", "K", "V"]}),
+                            f"{index + 7:064x}",
+                        ),
                     )
-                    """,
-                    (
-                        self.owner,
-                        created.video_id,
-                        created.version_id,
-                        frame_id,
-                        "Query, key, and value vectors are connected",
-                        "Scaled dot-product attention",
-                        Jsonb({"items": ["Q", "K", "V"]}),
-                        f"{index + 7:064x}",
-                    ),
-                )
 
-            claimed = claim_next_job(database, worker_id="video-worker")
+            # Course ingestion deliberately caps the frames sent to the model.
+            # Quality is measured against that selected set, while all frames
+            # remain captured for OCR and timestamp coverage.
             database.execute(
-                "update video.ingestion_jobs set stage = 'indexing' where id = %s",
-                (created.job_id,),
+                """
+                insert into video.ingestion_stage_checkpoints (
+                    owner_id, video_id, ingestion_version_id, stage, status,
+                    dependency_hash, output_manifest_json, completed_at
+                ) values (%s, %s, %s, 'visual_analysis', 'complete', %s, %s, now())
+                """,
+                (
+                    self.owner,
+                    created.video_id,
+                    created.version_id,
+                    "f" * 64,
+                    Jsonb({"frame_count": 1}),
+                ),
             )
+
+            claimed = database.execute(
+                """
+                update video.ingestion_jobs
+                set status = 'running', stage = 'indexing',
+                    attempt_count = attempt_count + 1,
+                    lease_owner = 'video-worker',
+                    lease_expires_at = now() + interval '5 minutes',
+                    heartbeat_at = now()
+                where id = %s and owner_id = %s and status = 'queued'
+                returning attempt_count
+                """,
+                (created.job_id, self.owner),
+            ).fetchone()
+            self.assertIsNotNone(claimed)
             built = rebuild_evidence(
                 database,
                 job_id=created.job_id,
                 worker_id="video-worker",
-                attempt_count=claimed.attempt_count,
+                attempt_count=claimed["attempt_count"],
                 transcript_source_id=transcript.id,
             )
             evidence = database.execute(
@@ -160,14 +188,14 @@ class VideoEvidenceStoreTests(unittest.TestCase):
                 database,
                 job_id=created.job_id,
                 worker_id="video-worker",
-                attempt_count=claimed.attempt_count,
+                attempt_count=claimed["attempt_count"],
                 transcript_source_id=transcript.id,
             )
             persist_quality_gates(
                 database,
                 job_id=created.job_id,
                 worker_id="video-worker",
-                attempt_count=claimed.attempt_count,
+                attempt_count=claimed["attempt_count"],
                 result=quality,
             )
             stored_quality = database.execute(
@@ -225,6 +253,9 @@ class VideoEvidenceStoreTests(unittest.TestCase):
         )
         self.assertEqual(evidence[1]["start_ms"], evidence[1]["end_ms"])
         self.assertIn("Attention diagram", evidence[1]["retrieval_text"])
+        self.assertEqual(quality.metrics["frame_count"], 2)
+        self.assertEqual(quality.metrics["visual_analysis_target_count"], 1)
+        self.assertEqual(quality.metrics["visual_success_ratio"], 1.0)
         # Lexical evidence alone publishes as degraded: every other gate holds,
         # and only the missing semantic index keeps it from full readiness.
         self.assertEqual(quality.readiness, "degraded")

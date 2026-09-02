@@ -2,7 +2,9 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import cv2
@@ -29,7 +31,12 @@ from video.audio import (
 )
 from video.jobs import claim_next_job, get_job, request_cancellation
 from video.media_store import FilesystemMediaStore
-from video.pipeline import VideoPipelineDependencies, run_video_stage
+from video.pipeline import (
+    VideoPipelineDependencies,
+    _bounded_course_visual_frames,
+    run_video_stage,
+)
+from video.course_repository import create_youtube_course
 from video.repository import (
     complete_video_upload,
     create_url_resource,
@@ -48,6 +55,12 @@ from video.vision import (
     VisualRegion,
     VisualTransition,
 )
+
+
+class S3NamedFilesystemMediaStore(FilesystemMediaStore):
+    """Exercise backend provenance without requiring an object-store service."""
+
+    backend = "s3"
 
 
 class VideoAcquisitionStageTests(unittest.TestCase):
@@ -121,6 +134,69 @@ class VideoAcquisitionStageTests(unittest.TestCase):
             expected_size=len(encoded_video_bytes()),
             expected_hash=source["content_hash"],
         )
+
+    def test_manifest_records_the_selected_media_store_backend(self) -> None:
+        store = S3NamedFilesystemMediaStore(self.root / "s3-named-media")
+        with connection(self.database_url) as database:
+            created = create_youtube_video(
+                database,
+                owner_id=self.owner,
+                idempotency_key=uuid4(),
+                url="https://youtu.be/abcdefghijk",
+            )
+            claimed = claim_next_job(database, worker_id="video-worker")
+            run_acquire_source(
+                database,
+                job=claimed,
+                worker_id="video-worker",
+                work_dir=self.root / "work" / "s3-manifest",
+                dependencies=AcquisitionDependencies(
+                    media_store=store,
+                    youtube_acquirer=FakeYouTubeAcquirer(),
+                ),
+            )
+            checkpoint = database.execute(
+                """
+                select output_manifest_json
+                from video.ingestion_stage_checkpoints
+                where ingestion_version_id = %s and stage = 'acquire_source'
+                """,
+                (created.version_id,),
+            ).fetchone()["output_manifest_json"]
+
+        self.assertEqual(checkpoint["source"]["storage_backend"], "s3")
+        self.assertEqual(checkpoint["metadata"]["storage_backend"], "s3")
+        self.assertTrue(checkpoint["captions"])
+        self.assertTrue(
+            all(item["storage_backend"] == "s3" for item in checkpoint["captions"])
+        )
+
+    def test_course_visual_budget_keeps_paid_prefix_and_samples_the_rest(self) -> None:
+        database = MagicMock()
+        course = MagicMock()
+        course.fetchone.return_value = {"metadata_json": {}}
+        duration = MagicMock()
+        duration.fetchone.return_value = {"duration_ms": 3_600_000}
+        observations = MagicMock()
+        observations.fetchall.return_value = [
+            {"frame_id": index} for index in range(1, 21)
+        ]
+        database.execute.side_effect = [course, duration, observations]
+        frames = tuple(SimpleNamespace(id=index) for index in range(1, 101))
+        job = SimpleNamespace(
+            id=uuid4(),
+            owner_id=self.owner,
+            video_id=uuid4(),
+            target_version_id=uuid4(),
+        )
+
+        bounded = _bounded_course_visual_frames(
+            database, job=job, frames=frames
+        )
+
+        self.assertEqual(len(bounded), 60)
+        self.assertEqual([frame.id for frame in bounded[:20]], list(range(1, 21)))
+        self.assertEqual(bounded[-1].id, 100)
 
     def test_uploaded_object_is_verified_probed_and_promoted(self) -> None:
         payload = encoded_video_bytes()
@@ -370,6 +446,91 @@ class VideoAcquisitionStageTests(unittest.TestCase):
         self.assertTrue(gates["gates"]["semantic_index_complete"])
         self.assertTrue(gates["gates"]["required_resources_ready"])
         self.assertEqual(gates["resource_page_evidence_count"], 3)
+
+    def test_course_job_stays_lexical_and_buys_no_embeddings(self) -> None:
+        frame_limits: list[int | None] = []
+
+        def select_course_frames(
+            video_path: Path,
+            staging_dir: Path,
+            *,
+            chapters,
+            maximum_per_hour: int | None = None,
+        ):
+            frame_limits.append(maximum_per_hour)
+            return select_two_frames(
+                video_path,
+                staging_dir,
+                chapters=chapters,
+                maximum_per_hour=maximum_per_hour,
+            )
+
+        def probe(path: Path) -> MediaMetadata:
+            return MediaMetadata(
+                duration_ms=10_000,
+                width=1920,
+                height=1080,
+                video_codec="h264",
+                audio_codec="aac",
+                format_name="mov,mp4",
+                size_bytes=path.stat().st_size,
+            )
+
+        dependencies = VideoPipelineDependencies(
+            media_store=self.store,
+            youtube_acquirer=FakeYouTubeAcquirer(),
+            media_probe=probe,
+            frame_selector=select_course_frames,
+            frame_ocr=lambda path: OcrResult(
+                text="Attention diagram", confidence=0.96, word_count=2
+            ),
+            visual_analyzer=analyze_two_frames,
+        )
+        with connection(self.database_url) as database:
+            course = create_youtube_course(
+                database,
+                owner_id=self.owner,
+                creation_key=uuid4(),
+                title="Lexical course",
+                lectures=[
+                    {"url": "https://youtu.be/abcdefghijk", "title": "One"}
+                ],
+            )
+            for expected_stage in tuple(Stage):
+                claimed = claim_next_job(
+                    database,
+                    worker_id="video-worker",
+                    supported_stages={expected_stage},
+                )
+                outcome = run_video_stage(
+                    database,
+                    job=claimed,
+                    worker_id="video-worker",
+                    work_dir=self.root / "work-course" / str(expected_stage),
+                    dependencies=dependencies,
+                )
+            video_id = course.lectures[0].video_id
+            stored = database.execute(
+                """
+                select video.readiness_status,
+                       (select count(*) from video.evidence_embeddings
+                        where owner_id = video.owner_id
+                          and video_id = video.id) as embedding_count,
+                       checkpoint.output_manifest_json
+                from video.videos as video
+                join video.ingestion_stage_checkpoints as checkpoint
+                  on checkpoint.video_id = video.id
+                 and checkpoint.stage = 'embeddings'
+                where video.id = %s
+                """,
+                (video_id,),
+            ).fetchone()
+
+        self.assertEqual(outcome.status, Status.READY)
+        self.assertEqual(stored["readiness_status"], "degraded")
+        self.assertEqual(stored["embedding_count"], 0)
+        self.assertFalse(stored["output_manifest_json"]["semantic_embeddings"])
+        self.assertEqual(frame_limits, [60])
 
     def test_upload_without_captions_uses_budgeted_openrouter_audio(self) -> None:
         payload = encoded_video_bytes()

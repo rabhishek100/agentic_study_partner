@@ -173,6 +173,24 @@ class OpenRouterVisualClientTests(unittest.TestCase):
 
         self.assertEqual(result.provenance.requested_model, "test/cheap-vision")
         self.assertEqual(len(result.frames), 1)
+
+    def test_region_type_is_reconciled_into_visual_types_without_retry(self) -> None:
+        attempts = 0
+        payload = _valid_result(second_index=None)
+        payload["frames"][0]["visual_types"] = ["slide"]
+
+        def handler(_: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(200, json=_provider_body(payload))
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+            result = OpenRouterVisualClient(client=http_client).analyze(
+                [_frame(11, 1_000)]
+            )
+
+        self.assertEqual(attempts, 1)
+        self.assertEqual(result.frames[0].visual_types, ("slide", "diagram"))
         self.assertIsNone(result.frames[0].transition_after)
 
     def test_retries_invalid_structured_output_once(self) -> None:
@@ -259,6 +277,24 @@ class OpenRouterVisualClientTests(unittest.TestCase):
 
         self.assertEqual(hashes[0], hashes[1])
         self.assertNotEqual(hashes[0], hashes[2])
+
+    def test_public_preflight_hash_matches_provider_provenance(self) -> None:
+        from video.vision import visual_input_hash
+
+        frame = _frame(11, 1_000, b"one")
+
+        def handler(_: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200, json=_provider_body(_valid_result(second_index=None))
+            )
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+            client = OpenRouterVisualClient(client=http_client)
+            analysis = client.analyze([frame])
+
+        self.assertEqual(
+            visual_input_hash(client.model, [frame]), analysis.provenance.input_hash
+        )
 
     def test_rejects_invalid_frame_batches_before_any_request(self) -> None:
         requests = 0
