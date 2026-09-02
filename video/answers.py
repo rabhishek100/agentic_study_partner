@@ -18,7 +18,7 @@ from video.contracts import (
     VisualCard,
 )
 from video.embeddings import ImageEmbedder, TextEmbedder
-from video.media_store import FilesystemMediaStore, MediaStoreError
+from video.media_store import MediaStore, MediaStoreError
 from video.models import ChatModel, answer_model, reported_cost_usd
 from video.prompts import (
     INSUFFICIENT_EVIDENCE_MARKER,
@@ -43,7 +43,7 @@ EXCERPT_CHARACTERS = 700
 class VideoAnswerDependencies:
     """Everything answering needs that is not the database."""
 
-    media_store: FilesystemMediaStore | None = None
+    media_store: MediaStore | None = None
     text_embedder: TextEmbedder | None = None
     image_embedder: ImageEmbedder | None = None
     model: ChatModel | None = None
@@ -175,7 +175,7 @@ def synthesize_answer(
             cost_usd=0.0,
             image_count=0,
         )
-    images = _frame_images(
+    images = frame_images(
         connection,
         owner_id=owner_id,
         evidence=evidence,
@@ -294,7 +294,7 @@ def _resource_identity(
     }
 
 
-def _frame_images(
+def frame_images(
     connection: Connection,
     *,
     owner_id: str | UUID,
@@ -343,6 +343,7 @@ __all__ = [
     "extract_citations",
     "RetrievedTurn",
     "VideoAnswerDependencies",
+    "frame_images",
     "VideoNotReadyError",
     "retrieve_turn_evidence",
     "synthesize_answer",
