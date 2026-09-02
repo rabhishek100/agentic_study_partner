@@ -32,21 +32,20 @@ through `scripts/staging.sh`; its variables point at Supabase project
 `agentic-study-partner-staging`. Never use the production project reference in
 staging variables.
 
-The `api` service runs *both halves*: `python -m scripts.serve` supervises
-uvicorn and the ingestion worker in one container and exits if either of them
-does. The name is left over from the books-only split, when the API and the
-worker were separate services; it has run the combined container since video
-shipped.
+The `api` service normally runs *both halves*: `python -m scripts.serve`
+supervises uvicorn and the ingestion worker in one container and exits if
+either of them does. `VIDEO_WORKER_STAGES` can narrow that worker to a
+comma-separated stage allowlist. The first 1080p course excludes
+`acquire_source` in Railway because YouTube challenges the datacenter IP; a
+checkpointed laptop worker handles only acquisition and uploads directly to
+R2. Railway continues every job from `media_metadata` through `publish`.
 
-**Why they share a container.** Video ingestion writes canonical sources,
-frames, and diagram crops to a filesystem media root, and the API reads those
-same bytes back to serve frame images and linked PDFs. A Railway volume mounts
-to exactly one service, so two services cannot share one media root — an
-upload accepted by a separate API would be invisible to the worker. Supabase
-Storage is not an alternative here: the free plan caps an object at 50 MB and
-the project at 1 GB, while a 1080p lecture is 1–3 GB. One service with one
-volume is the arrangement that actually works, and it is the tradeoff
-`AGENTS.md` asks for by name.
+**Why they currently share a container.** The deployed video path predates the
+course feature and writes canonical sources, frames, and diagram crops to a
+filesystem media root. A Railway volume mounts to exactly one service, so the
+API and worker currently share one container. The course rollout replaces
+that canonical media boundary with private Cloudflare R2; Supabase remains
+Auth/Postgres and Railway keeps only a disposable read-through cache.
 
 Books alone do not need the volume — their sources live in Supabase Storage —
 so `railway.api.json` and `railway.worker.json` remain valid for a books-only
@@ -56,7 +55,47 @@ which is why the `worker` service currently has nothing deployed to it.
 The `api` and `web` services share nothing but the API URL: `api` builds from
 the repository-root `Dockerfile`, `web` from `frontend/Dockerfile`.
 
-## The media volume
+## R2 media for the course rollout
+
+Create one private R2 Standard bucket with no public development URL. Give the
+API/worker an object read/write token scoped only to that bucket, then set:
+
+| Variable | Value |
+|---|---|
+| `VIDEO_MEDIA_BACKEND` | `r2` |
+| `VIDEO_S3_BUCKET` | private bucket name |
+| `VIDEO_S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `VIDEO_S3_ACCESS_KEY_ID` | bucket-scoped token access-key ID |
+| `VIDEO_S3_SECRET_ACCESS_KEY` | bucket-scoped token secret |
+| `VIDEO_S3_REGION` | `auto` |
+| `VIDEO_MEDIA_CACHE_ROOT` | `/tmp/study-partner-r2-cache` |
+
+Database rows continue to store owner-prefixed relative object keys and the
+backend value `s3`. Every downloaded cache miss is checked against the remote
+size and SHA-256 metadata before ffmpeg, OpenCV, Tesseract, or the API sees the
+file. Cache bytes are not canonical and may disappear on every deploy.
+
+The source video, captions, selected frames, previews, and diagram crops live
+in R2. Normal lecture playback stays on YouTube; R2 is the private ingestion
+archive and evidence store, not a streaming CDN. The measured 20-lecture
+playlist contains 15.25 GiB of 1080p source media and projects about 18.7 GiB
+including derived artifacts. At $0.015/GB-month that is about $0.28 per month
+or $3.37 for twelve months without relying on the included allowance; the
+allowance can only reduce that figure. Confirm current provider prices before
+deployment.
+
+The media backend is a deployment-wide setting. Do not switch an existing
+filesystem deployment to R2 until its named objects have been copied and
+verified; changing the variable alone does not migrate old objects.
+
+The ordinary video cleanup pass also lists R2 with pagination. It builds each
+owner's live reference set from canonical rows and checkpoint manifests,
+ignores objects inside the 24-hour grace window, and deletes at most 500 old
+orphans per pass. Use `VIDEO_CLEANUP_DRY_RUN=1` for the first R2 deployment as
+well; bucket listing or deletion failures are logged and retried on the next
+pass.
+
+## Legacy filesystem media volume
 
 Attach a Railway volume to the `api` service and point the media root at it:
 
@@ -192,7 +231,13 @@ The same service, plus the variables only the worker reads:
 
 | Variable | Value |
 |---|---|
-| `VIDEO_MEDIA_ROOT` | the volume mount path |
+| `VIDEO_MEDIA_BACKEND` | `r2` for the course production target |
+| `VIDEO_S3_BUCKET`, `VIDEO_S3_ENDPOINT` | private R2 bucket and S3 endpoint |
+| `VIDEO_S3_ACCESS_KEY_ID`, `VIDEO_S3_SECRET_ACCESS_KEY` | bucket-scoped credentials |
+| `VIDEO_S3_REGION` | `auto` |
+| `VIDEO_MEDIA_CACHE_ROOT` | `/tmp/study-partner-r2-cache` |
+| `VIDEO_WORKER_STAGES` | optional comma-separated allowlist; production excludes `acquire_source` while residential acquisition is required |
+| `VIDEO_YTDLP_HTTP_CHUNK_SIZE_BYTES` | `5242880` for resilient YouTube range requests |
 | `OPENROUTER_VIDEO_VISION_MODEL`, `OPENROUTER_AUDIO_MODEL` | copy from `.env` |
 | `OPENROUTER_VIDEO_TEXT_EMBEDDING_MODEL`, `OPENROUTER_VIDEO_IMAGE_EMBEDDING_MODEL` | copy from `.env` |
 | `INGESTION_MAX_PAGES` | `1000` |
