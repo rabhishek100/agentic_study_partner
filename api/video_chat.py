@@ -75,11 +75,11 @@ from video.embeddings import (
     OpenRouterTextEmbedder,
     VideoEmbeddingProviderError,
 )
-from video.media_store import FilesystemMediaStore, MediaStoreError
+from video.media_store import MediaStoreError, configured_media_store
 from video.models import VideoModelError
 from video.playback import PlaybackTokenError, verify_playback
 from video.prompts import prompt_snapshot
-from video.repository import load_standalone_video
+from video.repository import load_video
 from video.side_context import parent_turns as video_parent_turns
 from video.retrieval import VideoNotReadyError
 
@@ -318,7 +318,7 @@ def _answer_dependencies() -> VideoAnswerDependencies:
         logger.warning("Video answers running without semantic retrieval")
         text_embedder = image_embedder = None
     try:
-        store = FilesystemMediaStore()
+        store = configured_media_store()
     except MediaStoreError:
         logger.warning("Video answers running without frame images")
         store = None
@@ -330,7 +330,7 @@ def _answer_dependencies() -> VideoAnswerDependencies:
 
 
 def _require_video(connection, video_id: UUID, owner_id: UUID) -> dict[str, Any]:
-    video = load_standalone_video(connection, video_id, owner_id=owner_id)
+    video = load_video(connection, video_id, owner_id=owner_id)
     if video is None:
         raise VIDEO_NOT_FOUND
     return video
@@ -681,7 +681,7 @@ async def rename(
             )
             if record is None:
                 raise CONVERSATION_NOT_FOUND
-            video = load_standalone_video(
+            video = load_video(
                 connection, record["video_id"], owner_id=owner_id
             )
             return {**record, "video_title": video["title"] if video else ""}
@@ -1315,7 +1315,7 @@ async def stream_source(video_id: UUID, request: Request, token: str = "") -> Re
         if row is None or not row["storage_key"]:
             raise VIDEO_NOT_FOUND
         try:
-            path = FilesystemMediaStore().open_path(
+            path = configured_media_store().open_path(
                 owner_id=owner_id, storage_key=row["storage_key"]
             )
             return path, path.stat().st_size
@@ -1389,7 +1389,7 @@ async def resource_content(
             raise HTTPException(status_code=404, detail="resource not found")
         try:
             return (
-                FilesystemMediaStore()
+                configured_media_store()
                 .open_path(owner_id=owner_id, storage_key=row["storage_key"])
                 .read_bytes()
             )
@@ -1452,7 +1452,7 @@ async def resource_page_image(
                 status_code=404, detail="page is outside this document"
             )
         try:
-            path = FilesystemMediaStore().open_path(
+            path = configured_media_store().open_path(
                 owner_id=owner_id, storage_key=row["storage_key"]
             )
         except (MediaStoreError, OSError) as error:
@@ -1516,7 +1516,7 @@ async def frame_image(
         if row is None:
             raise IMAGE_NOT_FOUND
         try:
-            path = FilesystemMediaStore().open_path(
+            path = configured_media_store().open_path(
                 owner_id=owner_id, storage_key=row["preview_storage_key"]
             )
             payload = path.read_bytes()
