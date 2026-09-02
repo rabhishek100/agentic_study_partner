@@ -33,6 +33,7 @@ import { signOut, useSession } from "@/hooks/use-session";
 import { useWatchSessions } from "@/hooks/use-source-sessions";
 import { timecode } from "@/lib/timecode";
 import { apiFetch } from "@/lib/api";
+import { isActiveVideoJob } from "@/lib/ingestion-progress";
 import {
   latestByVideo,
   matchesQuery,
@@ -167,6 +168,9 @@ export default function VideosPage() {
     processing: matching(processing),
     attention: matching(attention),
   };
+  const activeProcessing = matching(
+    videos.filter((video) => isActiveVideoJob(video.latest_ingestion)),
+  );
   const nothingMatches =
     searchable && query.trim().length > 0 &&
     shown.library.length + shown.processing.length + shown.attention.length === 0;
@@ -174,17 +178,19 @@ export default function VideosPage() {
   const counts: Record<Filter, number> = {
     all: videos.length,
     library: library.length,
-    processing: processing.length,
+    processing: videos.filter((video) =>
+      isActiveVideoJob(video.latest_ingestion),
+    ).length,
     attention: attention.length,
   };
 
   const shows = (key: Exclude<Filter, "all">) => filter === "all" || filter === key;
 
   useEffect(() => {
-    if (!session || processing.length === 0) return;
+    if (!session || counts.processing === 0) return;
     const timer = setInterval(load, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [session, processing.length, load]);
+  }, [session, counts.processing, load]);
 
   if (sessionLoading) {
     return (
@@ -212,7 +218,7 @@ export default function VideosPage() {
         <span>
           {/* What the page is for: lectures that can answer, not rows. */}
           {library.length} ready
-          {processing.length > 0 ? ` · ${processing.length} processing` : ""}
+          {counts.processing > 0 ? ` · ${counts.processing} processing` : ""}
           {attention.length > 0 ? ` · ${attention.length} need attention` : ""}
         </span>
       }
@@ -344,7 +350,7 @@ export default function VideosPage() {
           ) : (
             <>
               {shows("processing") ? (
-                <ProcessingBand videos={shown.processing} />
+                <ProcessingBand videos={activeProcessing} />
               ) : null}
 
               {shows("library") && shown.library.length > 0 ? (

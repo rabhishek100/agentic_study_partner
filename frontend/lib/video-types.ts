@@ -51,6 +51,24 @@ export interface VideoIngestion {
   actual_cost_usd: string;
   cost_cap_usd: string;
   error: { code: string; message: string } | null;
+  /** Server-derived estimate from durable stage/checkpoint state. */
+  timing?: {
+    percent: number;
+    estimated_total_seconds: number;
+    estimated_remaining_seconds: number | null;
+    overrunning: boolean;
+    stages: {
+      stage: string;
+      label: string;
+      state: "done" | "active" | "pending";
+      expected_seconds: number;
+      elapsed_seconds: number | null;
+    }[];
+  };
+  created_at?: string;
+  started_at?: string | null;
+  updated_at?: string;
+  completed_at?: string | null;
 }
 
 export interface VideoSummary {

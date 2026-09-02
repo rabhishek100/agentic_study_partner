@@ -50,6 +50,7 @@ import { signOut, useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import { takeQuestion } from "@/lib/deck-handoff";
 import { cn } from "@/lib/utils";
+import { isActiveVideoJob } from "@/lib/ingestion-progress";
 import type { SideChatTurn } from "@/lib/side-chat";
 import type {
   VideoConversationDetail,
@@ -169,7 +170,9 @@ export default function VideoWorkspace() {
     if (session && ready) loadTimeline().catch(() => undefined);
   }, [session, ready, loadTimeline]);
 
-  const processing = video?.readiness_status === "processing";
+  const processing =
+    video?.readiness_status === "processing" ||
+    isActiveVideoJob(video?.latest_ingestion);
   useEffect(() => {
     if (!session || !processing) return;
     const timer = setInterval(loadVideo, POLL_INTERVAL_MS);
@@ -260,6 +263,23 @@ export default function VideoWorkspace() {
       openDocument({ resourceId: resource.resource_id, page: page ?? 1 }),
     [openDocument],
   );
+
+  // Course citations can land directly on a linked document page, just as a
+  // timestamp citation lands on the player above. Resolve only after lecture
+  // resources are loaded, then clear the query so refresh does not reopen it.
+  const resourceFromLink = useRef(false);
+  useEffect(() => {
+    if (!video || resourceFromLink.current) return;
+    const query = new URLSearchParams(window.location.search);
+    const resourceId = query.get("resource");
+    if (!resourceId) return;
+    resourceFromLink.current = true;
+    openDocument({
+      resourceId,
+      page: Math.max(1, Number(query.get("page")) || 1),
+    });
+    window.history.replaceState(null, "", window.location.pathname);
+  }, [video, openDocument]);
 
   const handleAsk = useCallback(
     async (question: string) => {
@@ -574,7 +594,10 @@ export default function VideoWorkspace() {
               </div>
               {/* A lecture that answers but missed a quality gate still owes
                   the reader the reason, where they are working. */}
-              {video.ready_for_qa && video.readiness_notes.length === 0 ? null : (
+              {video.ready_for_qa &&
+              video.readiness_notes.length === 0 &&
+              !isActiveVideoJob(video.latest_ingestion) &&
+              video.latest_ingestion?.status !== "failed" ? null : (
                 <IngestionStatus
                   readiness={video.readiness_status}
                   ingestion={video.latest_ingestion}

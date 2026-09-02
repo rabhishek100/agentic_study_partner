@@ -51,6 +51,9 @@ describe("IngestionStatus", () => {
 
     expect(screen.getByText(/Interpreting what is shown/i)).toBeTruthy();
     expect(screen.getByText(/step 7 of 12/i)).toBeTruthy();
+    expect(screen.getByText("What you’ll get")).toBeTruthy();
+    expect(screen.getByText("Steps remaining")).toBeTruthy();
+    expect(screen.getByText("Technical details")).toBeTruthy();
   });
 
   it("surfaces a failure instead of an endless spinner", () => {
