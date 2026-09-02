@@ -1,6 +1,7 @@
 """Owner-scoped PostgreSQL repository for standalone video material."""
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import os
@@ -15,9 +16,12 @@ from psycopg.types.json import Jsonb
 from storage.database import parse_owner_id
 from video.resources import maximum_resource_bytes
 from video.sources import display_filename, parse_youtube_url, upload_extension
+from video.states import Stage
 
 
 DEFAULT_INGESTION_CAP_USD = "0.500000"
+FULL_QUALITY_PROFILE = "course-full-quality-v1"
+FULL_QUALITY_TEXT_EMBEDDING_DIMENSION = 768
 DEFAULT_MAXIMUM_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 INGESTION_CONFIG = {
     "format": "video-ingestion-v1",
@@ -331,6 +335,9 @@ def reingest_video(
     owner_id: str | UUID,
     video_id: str | UUID,
     idempotency_key: str | UUID,
+    quality_profile: str | None = None,
+    cost_cap_usd: str | Decimal = DEFAULT_INGESTION_CAP_USD,
+    rebuild_frames: bool = False,
 ) -> VideoCreation:
     """Build a replacement version, reusing every compatible earlier stage.
 
@@ -343,6 +350,17 @@ def reingest_video(
     The published version stays queryable throughout: the swap happens once,
     atomically, when the replacement passes its own quality gates.
     """
+
+    if quality_profile not in {None, FULL_QUALITY_PROFILE}:
+        raise ValueError("unsupported video re-ingestion quality profile")
+    if rebuild_frames and quality_profile != FULL_QUALITY_PROFILE:
+        raise ValueError("frame rebuilding requires the full-quality profile")
+    try:
+        selected_cost_cap = Decimal(str(cost_cap_usd)).quantize(Decimal("0.000001"))
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError("video re-ingestion cost cap must be a valid amount") from error
+    if not selected_cost_cap.is_finite() or selected_cost_cap <= 0:
+        raise ValueError("video re-ingestion cost cap must be positive")
 
     owner, video, key = (
         parse_owner_id(owner_id),
@@ -402,6 +420,12 @@ def reingest_video(
 
         source_version = current["current_ingestion_version_id"]
         version_id, job_id = uuid4(), uuid4()
+        full_quality = quality_profile == FULL_QUALITY_PROFILE
+        version_config = {
+            **INGESTION_CONFIG,
+            **({"quality_profile": FULL_QUALITY_PROFILE} if full_quality else {}),
+            **({"rebuild_frames": True} if rebuild_frames else {}),
+        }
         connection.execute(
             """
             insert into video.ingestion_versions (
@@ -418,9 +442,13 @@ def reingest_video(
                 owner,
                 video,
                 current["source_id"],
-                Jsonb(INGESTION_CONFIG),
-                _config_hash(),
-                DEFAULT_INGESTION_CAP_USD,
+                Jsonb(version_config),
+                hashlib.sha256(
+                    json.dumps(
+                        version_config, sort_keys=True, separators=(",", ":")
+                    ).encode()
+                ).hexdigest(),
+                selected_cost_cap,
                 owner,
                 video,
             ),
@@ -431,6 +459,58 @@ def reingest_video(
             video=video,
             source_version=source_version,
             target_version=version_id,
+            checkpoint_stages=(
+                (
+                    "acquire_source",
+                    "media_metadata",
+                    "transcript",
+                    "resources",
+                )
+                if rebuild_frames
+                else (
+                    "acquire_source",
+                    "media_metadata",
+                    "transcript",
+                    "resources",
+                    "frame_selection",
+                    "ocr",
+                )
+                if full_quality
+                else CARRIED_STAGES
+            ),
+        )
+        if rebuild_frames:
+            # _carry_forward copies visual rows so ordinary re-ingestion can
+            # stay cheap. A timeline repair deliberately replaces those rows;
+            # deleting the copied frames cascades through observations,
+            # regions, and events while the published source version remains
+            # untouched and queryable.
+            connection.execute(
+                """
+                delete from video.frames
+                where owner_id = %s and video_id = %s
+                  and ingestion_version_id = %s
+                """,
+                (owner, video, version_id),
+            )
+        start_stage = (
+            Stage.FRAME_SELECTION
+            if rebuild_frames
+            else Stage.VISUAL_ANALYSIS
+            if full_quality
+            else Stage.ACQUIRE_SOURCE
+        )
+        profile_provenance = (
+            {
+                "quality_profile": FULL_QUALITY_PROFILE,
+                "analyze_all_selected_frames": True,
+                "reuse_visual_observations": not rebuild_frames,
+                "rebuild_frames": rebuild_frames,
+                "semantic_embeddings": True,
+                "text_embedding_dimension": FULL_QUALITY_TEXT_EMBEDDING_DIMENSION,
+            }
+            if full_quality
+            else {}
         )
         connection.execute(
             """
@@ -441,7 +521,7 @@ def reingest_video(
                 declared_size_bytes, declared_media_type, cost_cap_usd,
                 provenance_json
             ) values (
-                %s, %s, %s, %s, %s, 'queued', 'acquire_source', %s, %s, %s,
+                %s, %s, %s, %s, %s, 'queued', %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s
             )
             """,
@@ -451,6 +531,7 @@ def reingest_video(
                 video,
                 version_id,
                 key,
+                str(start_stage),
                 # The acquire stage identifies an uploaded source by the bytes
                 # that were staged for it. Without carrying that identity the
                 # inherited checkpoint does not match, and the rebuild tries to
@@ -464,17 +545,34 @@ def reingest_video(
                 (previous or {}).get("upload_completed_at"),
                 (previous or {}).get("declared_size_bytes"),
                 (previous or {}).get("declared_media_type"),
-                DEFAULT_INGESTION_CAP_USD,
-                Jsonb({"reingest_of_version": str(source_version), **carried}),
+                selected_cost_cap,
+                Jsonb(
+                    {
+                        "reingest_of_version": str(source_version),
+                        **profile_provenance,
+                        **carried,
+                    }
+                ),
             ),
         )
         connection.execute(
             """
             insert into video.ingestion_job_events (
                 owner_id, job_id, event_type, status, stage, message
-            ) values (%s, %s, 'created', 'queued', 'acquire_source', %s)
+            ) values (%s, %s, 'created', 'queued', %s, %s)
             """,
-            (owner, job_id, "Rebuilding with the current linked documents"),
+            (
+                owner,
+                job_id,
+                str(start_stage),
+                (
+                    "Rebuilding timeline frames and every downstream index"
+                    if rebuild_frames
+                    else "Upgrading every retained frame and semantic index"
+                    if full_quality
+                    else "Rebuilding with the current linked documents"
+                ),
+            ),
         )
     return VideoCreation(
         video_id=video,
@@ -495,6 +593,7 @@ def _carry_forward(
     video: UUID,
     source_version: UUID,
     target_version: UUID,
+    checkpoint_stages: Sequence[str] = CARRIED_STAGES,
 ) -> dict[str, int]:
     """Copy version-scoped derived rows and their completed checkpoints.
 
@@ -558,6 +657,12 @@ def _carry_forward(
         """,
         (owner, video, source_version),
     ).fetchall():
+        details = dict(row["technical_details_json"] or {})
+        old_group = details.get("analysis_group_frame_ids") or []
+        if old_group:
+            details["analysis_group_frame_ids"] = [
+                frames[int(frame_id)] for frame_id in old_group
+            ]
         observations[row["id"]] = connection.execute(
             """
             insert into video.visual_observations (
@@ -578,7 +683,7 @@ def _carry_forward(
                 row["visual_types"],
                 row["summary"],
                 row["visible_text"],
-                Jsonb(row["technical_details_json"]),
+                Jsonb(details),
                 row["importance"],
                 row["confidence"],
                 row["model_name"],
@@ -694,7 +799,7 @@ def _carry_forward(
             owner,
             video,
             source_version,
-            list(CARRIED_STAGES),
+            list(checkpoint_stages),
         ),
     ).fetchall()
     return {
@@ -796,6 +901,26 @@ VIDEO_SELECT = """
                as latest_job_cancellation_requested_at,
            latest_job.created_at as latest_job_created_at,
            latest_job.started_at as latest_job_started_at,
+           coalesce(
+               (
+                   select checkpoint.started_at
+                   from video.ingestion_stage_checkpoints as checkpoint
+                   where checkpoint.owner_id = latest_job.owner_id
+                     and checkpoint.ingestion_version_id = latest_job.target_version_id
+                     and checkpoint.stage = latest_job.stage
+                   limit 1
+               ),
+               (
+                   select event.created_at
+                   from video.ingestion_job_events as event
+                   where event.owner_id = latest_job.owner_id
+                     and event.job_id = latest_job.id
+                     and event.stage = latest_job.stage
+                     and event.event_type in ('stage_started', 'claimed')
+                   order by event.id desc limit 1
+               ),
+               latest_job.started_at
+           ) as latest_job_stage_started_at,
            latest_job.updated_at as latest_job_updated_at,
            latest_job.completed_at as latest_job_completed_at,
            -- Mirrors `delete_video`, so the interface offers removal only
@@ -879,6 +1004,22 @@ def list_standalone_videos(
         """,
         (parse_owner_id(owner_id), min(limit, 100)),
     ).fetchall()
+
+
+def load_video(
+    connection: Connection, video_id: str | UUID, *, owner_id: str | UUID
+) -> dict[str, Any] | None:
+    """Load one lecture regardless of whether a course currently groups it.
+
+    Public standalone routes deliberately use ``load_standalone_video``. The
+    course aggregation layer needs the same canonical lecture view without
+    pretending a course membership makes it a different kind of video.
+    """
+
+    return connection.execute(
+        VIDEO_SELECT + " where v.owner_id = %s and v.id = %s",
+        (parse_owner_id(owner_id), UUID(str(video_id))),
+    ).fetchone()
 
 
 def load_standalone_video(
@@ -1086,13 +1227,41 @@ def load_ingestion_job(
 ) -> dict[str, Any] | None:
     return connection.execute(
         """
-        select id, video_id, target_version_id, status, stage,
-               progress_completed, progress_total, progress_unit,
-               attempt_count, max_attempts, cancellation_requested_at,
-               last_error_code, last_error_retryable, actual_cost_usd,
-               cost_cap_usd, created_at, started_at, updated_at, completed_at
-        from video.ingestion_jobs
-        where owner_id = %s and id = %s
+        select job.id, job.video_id, job.target_version_id, job.status, job.stage,
+               job.progress_completed, job.progress_total, job.progress_unit,
+               job.attempt_count, job.max_attempts, job.cancellation_requested_at,
+               -- last_error_message is deliberately absent: it is only ever
+               -- SAFE_MESSAGES[last_error_code], so a reader gains nothing
+               -- from it that the code does not already say, and this read is
+               -- the one a client sees.
+               job.last_error_code,
+               job.last_error_retryable, job.actual_cost_usd,
+               job.cost_cap_usd, job.created_at, job.started_at,
+               job.updated_at, job.completed_at, source.duration_ms,
+               coalesce(
+                   (
+                       select checkpoint.started_at
+                       from video.ingestion_stage_checkpoints as checkpoint
+                       where checkpoint.owner_id = job.owner_id
+                         and checkpoint.ingestion_version_id = job.target_version_id
+                         and checkpoint.stage = job.stage
+                       limit 1
+                   ),
+                   (
+                       select event.created_at
+                       from video.ingestion_job_events as event
+                       where event.owner_id = job.owner_id
+                         and event.job_id = job.id
+                         and event.stage = job.stage
+                         and event.event_type in ('stage_started', 'claimed')
+                       order by event.id desc limit 1
+                   ),
+                   job.started_at
+               ) as stage_started_at
+        from video.ingestion_jobs as job
+        join video.videos as source
+          on source.owner_id = job.owner_id and source.id = job.video_id
+        where job.owner_id = %s and job.id = %s
         """,
         (parse_owner_id(owner_id), UUID(str(job_id))),
     ).fetchone()
@@ -1238,7 +1407,7 @@ def complete_video_upload(
 def list_video_chapters(
     connection: Connection, video_id: str | UUID, *, owner_id: str | UUID
 ) -> list[dict[str, Any]] | None:
-    if load_standalone_video(connection, video_id, owner_id=owner_id) is None:
+    if load_video(connection, video_id, owner_id=owner_id) is None:
         return None
     return connection.execute(
         """
@@ -1271,7 +1440,7 @@ def create_url_resource(
     origin: str = "url",
 ) -> dict[str, Any]:
     owner, video = parse_owner_id(owner_id), UUID(str(video_id))
-    if load_standalone_video(connection, video, owner_id=owner) is None:
+    if load_video(connection, video, owner_id=owner) is None:
         raise VideoNotFoundError("video does not exist")
     _validate_resource_values(resource_kind, role)
     clean_title, clean_url = title.strip(), source_url.strip()
@@ -1384,7 +1553,7 @@ def initialize_resource_upload(
     """Reserve one uploaded PDF; the worker parses it into pages later."""
 
     owner, video = parse_owner_id(owner_id), UUID(str(video_id))
-    if load_standalone_video(connection, video, owner_id=owner) is None:
+    if load_video(connection, video, owner_id=owner) is None:
         raise VideoNotFoundError("video does not exist")
     _validate_resource_values("pdf", role)
     filename = display_filename(original_filename)
@@ -1564,7 +1733,7 @@ def list_video_resources(
     connection: Connection, video_id: str | UUID, *, owner_id: str | UUID
 ) -> list[dict[str, Any]] | None:
     owner, video = parse_owner_id(owner_id), UUID(str(video_id))
-    if load_standalone_video(connection, video, owner_id=owner) is None:
+    if load_video(connection, video, owner_id=owner) is None:
         return None
     return connection.execute(
         """
@@ -1588,7 +1757,7 @@ def detach_video_resource(
     owner_id: str | UUID,
 ) -> bool:
     owner, video = parse_owner_id(owner_id), UUID(str(video_id))
-    if load_standalone_video(connection, video, owner_id=owner) is None:
+    if load_video(connection, video, owner_id=owner) is None:
         raise VideoNotFoundError("video does not exist")
     row = connection.execute(
         """
@@ -1605,7 +1774,7 @@ def list_resource_suggestions(
     connection: Connection, video_id: str | UUID, *, owner_id: str | UUID
 ) -> list[dict[str, Any]] | None:
     owner, video = parse_owner_id(owner_id), UUID(str(video_id))
-    if load_standalone_video(connection, video, owner_id=owner) is None:
+    if load_video(connection, video, owner_id=owner) is None:
         return None
     return connection.execute(
         """
