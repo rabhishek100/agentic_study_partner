@@ -175,10 +175,25 @@ Or run both under one supervisor, the way the deployed service does:
 uv run python -m scripts.serve
 ```
 
-Video needs that arrangement rather than the two-service split: the worker
-writes frames and diagram crops to `VIDEO_MEDIA_ROOT` and the API serves those
-same bytes back, so both processes must see one media root. See
+Local video uses `VIDEO_MEDIA_ROOT`. Production course media can instead use a
+private S3-compatible Cloudflare R2 bucket with a disposable verified local
+cache, so the API and worker do not depend on a paid shared media volume. See
 [`docs/deployment.md`](docs/deployment.md).
+
+## Video courses
+
+The Courses area groups the existing canonical lecture records into an ordered
+curriculum; it does not duplicate video files or run a second ingestion
+pipeline. Create a course in `/courses` from one YouTube playlist URL, or paste
+one lecture per line (optionally `Title | URL`). Each lecture enters the
+ordinary video queue, and ready lectures can then be searched together from
+the course workspace. Course
+citations identify both the lecture and its timestamp or linked-document page.
+
+Course creation and membership are also available at `/api/courses`; grounded
+multi-lecture conversations live under `/api/course-conversations`. The full
+contract and evaluation boundary are in
+[`docs/video-course-feature-spec.md`](docs/video-course-feature-spec.md).
 
 It claims one job at a time with `FOR UPDATE SKIP LOCKED`, holds a lease it
 renews while working, and stops at a safe boundary on `SIGTERM`. A crashed
