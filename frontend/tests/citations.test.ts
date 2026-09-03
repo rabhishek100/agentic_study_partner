@@ -305,3 +305,37 @@ describe("ambiguousCitationPages", () => {
     expect(shown.size).toBe(0);
   });
 });
+
+describe("bracket glyphs", () => {
+  it("resolves a marker written with fullwidth brackets", () => {
+    // The 2026-09-04 failure: an interview answer came back with 【S1】
+    // rather than [S1]. The pattern did not match, so the markers rendered
+    // as literal text and none of the retrieved sources were reachable.
+    const sources = [evidence({ rank: 1 }), evidence({ rank: 2 })];
+
+    const resolved = resolveMarker("\u3010S2\u3011", sources, []);
+
+    expect(resolved.index).toBe(2);
+    expect(resolved.evidence).toBe(sources[1]);
+  });
+
+  it("splits an answer that mixes bracket styles", () => {
+    const sources = [evidence({ rank: 1 }), evidence({ rank: 6 })];
+
+    const segments = splitOnCitations(
+      "Exact search is impractical. \u3010S6\u3011 Ranking matters. [S1]",
+      sources,
+      [],
+    );
+
+    const citations = segments.filter((segment) => segment.type === "citation");
+    expect(citations).toHaveLength(2);
+    expect(citations.every((segment) => segment.index !== null)).toBe(true);
+  });
+
+  it("leaves a marker nobody retrieved unresolved", () => {
+    // A model inventing 【S9】 must not become a chip pointing nowhere.
+    const resolved = resolveMarker("\u3010S9\u3011", [evidence({ rank: 1 })], []);
+    expect(resolved.index).toBeNull();
+  });
+});

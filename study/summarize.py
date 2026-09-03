@@ -21,6 +21,19 @@ CITATION = re.compile(r"\[N(\d+):P(\d+)]")
 GROUPED_CITATION = re.compile(r"\[((?:N\d+:P\d+)(?:\s*;\s*N\d+:P\d+)+)]")
 OPENAI_CITATION = re.compile(r"\ue200cite((?:\ue202[^\ue200-\ue203]+)+)\ue201")
 OPENAI_CITATION_TARGET = re.compile(r"\ue202((?:S\d+)|(?:N\d+:P\d+))")
+
+# Bracket glyphs a model may substitute for plain ASCII. Translated before any
+# marker is parsed; see `normalize_citation_syntax`.
+BRACKET_GLYPHS = str.maketrans(
+    {
+        "\u3010": "[",  # 【 CJK left black lenticular
+        "\u3011": "]",  # 】
+        "\uff3b": "[",  # ［ fullwidth left square
+        "\uff3d": "]",  # ］
+        "\u301a": "[",  # 〚 left white square
+        "\u301b": "]",  # 〛
+    }
+)
 OPTIONAL_RECAP_TITLES = frozenset({"summary", "conclusion"})
 OPTIONAL_INTERVIEW_SECTION = re.compile(
     r"^(?:\d+(?:\.\d+)*\s+)?(?:lab\b|exercises?\b)",
@@ -323,7 +336,22 @@ def validate_summary(
 
 
 def normalize_citation_syntax(text: str) -> str:
-    """Normalize provider-rendered and grouped markers to the app contract."""
+    """Normalize provider-rendered and grouped markers to the app contract.
+
+    Bracket glyphs come first, because a model that reaches for a fullwidth
+    bracket breaks grounding silently rather than loudly. On 2026-09-04 an
+    interview answer came back with twenty-five `\u3010S1\u3011` markers and not
+    one `[S1]`: the extractor below matched none of them, the turn was stored
+    with an empty citation list, and the interface rendered the markers as
+    literal text because there was nothing to link them to. The answer looked
+    complete and was ungrounded.
+
+    Which bracket a model picks is not part of the contract, so the glyph is
+    normalised rather than the parsers being taught every variant. CJK corner
+    brackets and fullwidth square brackets are the two that turn up.
+    """
+
+    text = text.translate(BRACKET_GLYPHS)
 
     provider_normalized = OPENAI_CITATION.sub(
         lambda match: " ".join(
