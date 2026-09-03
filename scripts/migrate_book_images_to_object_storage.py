@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 from base64 import b64decode, b64encode
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import logging
 import sys
@@ -45,6 +46,44 @@ SELECT_PENDING = """
 """
 
 
+def _upload(store, row) -> tuple[str, str, int, str] | None:
+    """Store one figure and verify it, touching no database.
+
+    Returns what the row should record, or None when the figure could not be
+    stored — the row is then left exactly as it was, so a rerun retries it and
+    nothing half-migrated is ever named.
+    """
+
+    try:
+        payload = b64decode(row["base64_content"], validate=True)
+    except Exception:
+        logger.warning("figure %s is not valid base64", row["block_id"])
+        return None
+
+    # Recorded as the captions were keyed, so existing captions and
+    # boilerplate detection survive the column being dropped.
+    base64_hash = hashlib.sha256(b64encode(payload)).hexdigest()
+
+    try:
+        key, content_hash, size = store_figure(
+            store,
+            owner_id=row["owner_id"],
+            payload=payload,
+            mime_type=row["mime_type"],
+        )
+        # Read back before the row is allowed to name it.
+        stored = store.open_path(
+            owner_id=row["owner_id"], storage_key=key
+        ).read_bytes()
+        if digest(stored) != content_hash:
+            raise MediaStoreError("stored object does not match its source")
+    except MediaStoreError as error:
+        logger.warning("figure %s could not be stored: %s", row["block_id"], error)
+        return None
+
+    return key, content_hash, size, base64_hash
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database-url")
@@ -52,6 +91,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--batch", type=int, default=100)
     parser.add_argument(
         "--limit", type=int, default=0, help="Stop after this many figures (0 = all)"
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=16,
+        help=(
+            "Figures uploaded at once. The work is one PUT plus a verifying "
+            "read per row and the bucket is a continent away, so this is "
+            "latency-bound rather than CPU-bound and threads are the whole win."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -108,64 +157,37 @@ def main() -> int:
             if not rows:
                 break
 
-            for row in rows:
-                try:
-                    payload = b64decode(row["base64_content"], validate=True)
-                except Exception:
-                    logger.warning("figure %s is not valid base64", row["block_id"])
-                    failed += 1
-                    continue
-
-                # Recorded as the captions were keyed, so existing captions
-                # and boilerplate detection survive the column being dropped.
-                base64_hash = hashlib.sha256(
-                    b64encode(payload)
-                ).hexdigest()
-
-                if arguments.dry_run:
-                    skipped += 1
-                    total_bytes += len(payload)
-                    continue
-
-                try:
-                    key, content_hash, size = store_figure(
-                        store,
-                        owner_id=row["owner_id"],
-                        payload=payload,
-                        mime_type=row["mime_type"],
+            # Uploads run in parallel and rows are written from this thread
+            # only, so the database sees one writer and each figure is still
+            # verified before anything names it.
+            with ThreadPoolExecutor(max_workers=arguments.concurrency) as pool:
+                pending = {pool.submit(_upload, store, row): row for row in rows}
+                for future in as_completed(pending):
+                    row = pending[future]
+                    result = future.result()
+                    if result is None:
+                        failed += 1
+                        continue
+                    key, content_hash, size, base64_hash = result
+                    database.execute(
+                        """
+                        update image_blocks
+                        set storage_backend = %s, storage_key = %s,
+                            content_hash = %s, size_bytes = %s, base64_hash = %s
+                        where block_id = %s and owner_id = %s
+                        """,
+                        (
+                            getattr(store, "backend", "filesystem"),
+                            key,
+                            content_hash,
+                            size,
+                            base64_hash,
+                            row["block_id"],
+                            row["owner_id"],
+                        ),
                     )
-                    # Read back before the row is allowed to name it.
-                    stored = store.open_path(
-                        owner_id=row["owner_id"], storage_key=key
-                    ).read_bytes()
-                    if digest(stored) != content_hash:
-                        raise MediaStoreError("stored object does not match its source")
-                except MediaStoreError as error:
-                    logger.warning(
-                        "figure %s could not be stored: %s", row["block_id"], error
-                    )
-                    failed += 1
-                    continue
-
-                database.execute(
-                    """
-                    update image_blocks
-                    set storage_backend = %s, storage_key = %s,
-                        content_hash = %s, size_bytes = %s, base64_hash = %s
-                    where block_id = %s and owner_id = %s
-                    """,
-                    (
-                        getattr(store, "backend", "filesystem"),
-                        key,
-                        content_hash,
-                        size,
-                        base64_hash,
-                        row["block_id"],
-                        row["owner_id"],
-                    ),
-                )
-                moved += 1
-                total_bytes += size
+                    moved += 1
+                    total_bytes += size
 
         done = moved + skipped + failed
         logger.info("%s figures processed (%.1f MB)", done, total_bytes / 1e6)
