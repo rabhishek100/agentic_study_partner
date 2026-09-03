@@ -314,6 +314,29 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             any("out-of-scope citations" in error for error in validation.errors)
         )
 
+    def test_fullwidth_brackets_are_normalised_to_the_marker_contract(self):
+        """The 2026-09-04 failure: grounding lost to a bracket glyph.
+
+        An interview answer came back with twenty-five `\u3010S1\u3011` markers and
+        no `[S1]`. The extractor matched none, the turn was stored with an
+        empty citation list, and the interface showed the markers as literal
+        text. The answer read as complete and was ungrounded — which is the
+        worst shape this failure could take.
+        """
+
+        normalized = normalize_citation_syntax(
+            "Exact search is impractical. \u3010S6\u3011 Ranking matters. \uff3bS2\uff3d"
+        )
+
+        self.assertEqual(
+            normalized,
+            "Exact search is impractical. [S6] Ranking matters. [S2]",
+        )
+
+    def test_ascii_markers_are_left_exactly_as_they_are(self):
+        text = "Already correct. [S1] And a node marker. [N81:P153]"
+        self.assertEqual(normalize_citation_syntax(text), text)
+
     def test_grouped_citation_syntax_is_split_without_changing_values(self):
         normalized = normalize_citation_syntax(
             "Two claims. [N81:P153; N81:P154] Third. [N82:P155]"

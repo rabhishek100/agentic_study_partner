@@ -13,7 +13,29 @@ import type { CitationRef, EvidenceRef, FigureRef } from "./types";
  * render them as numbered chips instead of leaving raw brackets in prose.
  */
 
-export const CITATION_PATTERN = /\[S(\d+)]|\[N(\d+):P(\d+)]/g;
+/**
+ * Bracket glyphs a model may substitute for plain ASCII.
+ *
+ * The server normalises these before storing an answer, so new turns arrive
+ * with `[S1]`. Turns written before that normalisation existed did not, and
+ * they are still in the database: an interview answer stored on 2026-09-04
+ * carries twenty-five `\u3010S1\u3011` markers. Matching them here means those
+ * answers render as chips rather than as literal brackets, with no backfill.
+ */
+const BRACKET_OPEN = "[\\[\u3010\uff3b\u301a]";
+const BRACKET_CLOSE = "[\\]\u3011\uff3d\u301b]";
+
+export const CITATION_PATTERN = new RegExp(
+  `${BRACKET_OPEN}S(\\d+)${BRACKET_CLOSE}|${BRACKET_OPEN}N(\\d+):P(\\d+)${BRACKET_CLOSE}`,
+  "g",
+);
+
+/** The ASCII spelling of a marker, whatever brackets it arrived in. */
+export function canonicalMarker(marker: string): string {
+  return marker
+    .replace(/[\u3010\uff3b\u301a]/g, "[")
+    .replace(/[\u3011\uff3d\u301b]/g, "]");
+}
 
 export interface CitationMarker {
   /** The literal text matched, e.g. "[S1]" or "[N123:P45]". */
@@ -40,9 +62,13 @@ export function resolveMarker(
   evidence: EvidenceRef[],
   citations: CitationRef[],
 ): CitationMarker {
-  const citation = citations.find((entry) => entry.marker === marker) ?? null;
+  // Compare in the canonical spelling: the answer text may carry a fullwidth
+  // bracket while the recorded citation carries an ASCII one, or the reverse.
+  const ascii = canonicalMarker(marker);
+  const citation =
+    citations.find((entry) => canonicalMarker(entry.marker) === ascii) ?? null;
 
-  const sourceMatch = /^\[S(\d+)]$/.exec(marker);
+  const sourceMatch = /^\[S(\d+)]$/.exec(ascii);
   if (sourceMatch) {
     const rank = Number(sourceMatch[1]);
     const position = evidence.findIndex((entry) => entry.rank === rank);
@@ -56,7 +82,7 @@ export function resolveMarker(
         };
   }
 
-  const nodeMatch = /^\[N(\d+):P(\d+)]$/.exec(marker);
+  const nodeMatch = /^\[N(\d+):P(\d+)]$/.exec(ascii);
   if (nodeMatch) {
     const nodeId = Number(nodeMatch[1]);
     const page = Number(nodeMatch[2]);
