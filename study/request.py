@@ -75,12 +75,22 @@ LIST_CHAPTERS = (
         re.IGNORECASE,
     ),
 )
+# A bare "@[Title]" mention is itself an unambiguous whole-document
+# reference, so the determiner and noun ("this paper") are optional when one
+# is present. Without this branch "summarize @[Title]" parsed as a *named*
+# scope, sent the title to the hierarchy resolver as if it were a section,
+# matched nothing, and failed the turn with "hierarchy route requires a
+# canonical scope".
 WHOLE_DOCUMENT_SUMMARY = re.compile(
     r"^(?:explain|summari[sz]e|review)\s+"
     r"(?:all\s+of\s+)?"
+    r"(?:"
     r"(?:this|the(?:\s+(?:selected|current|whole))?|selected|current)\s+"
     r"(?:pdf|paper|document|book)"
-    r"(?:\s+(?P<book_reference>@\[[^\]]+\]))?\s*[?.]?$",
+    r"(?:\s+(?P<book_reference>@\[[^\]]+\]))?"
+    r"|"
+    r"(?P<mentioned_document>@\[[^\]]+\])"
+    r")\s*[?.]?$",
     re.IGNORECASE,
 )
 SUMMARIZE_SECTION = re.compile(
@@ -169,7 +179,11 @@ def parse_study_request(query: str) -> StudyRequest:
             # are part of its stored title.
             scope_reference="",
             book_reference=(
-                _clean_book_reference(match.group("book_reference")) or None
+                _clean_book_reference(
+                    match.group("book_reference")
+                    or match.group("mentioned_document")
+                )
+                or None
             ),
         )
     for pattern in LIST_CHAPTERS:

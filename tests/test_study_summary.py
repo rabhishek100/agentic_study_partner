@@ -150,6 +150,41 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         with self.assertRaises(UnsupportedStudyRequestError):
             parse_study_request("Tell me something interesting")
 
+    def test_a_bare_mention_summarizes_the_whole_document(self) -> None:
+        """A reader who writes "summarize @[Title]" means the whole document.
+
+        Without the mention-only branch this parsed as a *named* scope, so the
+        title was resolved as if it were a section, nothing matched, and the
+        turn died with "hierarchy route requires a canonical scope" instead of
+        summarizing the paper.
+        """
+
+        for question in (
+            "summarize @[Attention Is All You Need]",
+            "Explain @[Attention Is All You Need]",
+            "review @[Attention Is All You Need].",
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(
+                    parse_study_request(question),
+                    StudyRequest(
+                        "summarize",
+                        "book",
+                        "",
+                        book_reference="Attention Is All You Need",
+                    ),
+                )
+        # The explicit noun forms keep working and still win over the bare
+        # branch, and a mention inside a question is still a retrieval query.
+        self.assertEqual(
+            parse_study_request("summarize this paper @[Attention Is All You Need]"),
+            StudyRequest(
+                "summarize", "book", "", book_reference="Attention Is All You Need"
+            ),
+        )
+        with self.assertRaises(UnsupportedStudyRequestError):
+            parse_study_request("what does @[Attention Is All You Need] say about heads?")
+
     def test_maps_named_request_to_the_exact_section_subtree(self) -> None:
         request = parse_study_request("Summarize Core idea")
         scope = resolve_study_request(
