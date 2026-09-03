@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import { formatAdded, isUsable, videoState } from "@/lib/video-state";
+import { etaWindow, progressPercent } from "@/lib/ingestion-progress";
 import { formatTimestamp, type VideoSummary } from "@/lib/video-types";
 import { cn } from "@/lib/utils";
 
@@ -173,13 +174,18 @@ function StateLine({ video }: { video: VideoSummary }) {
         <div className="flex items-center gap-2 text-xs">
           <Loader2 aria-hidden className="size-3.5 animate-spin" />
           <span>{stageLabel(stage)}</span>
+          <span className="font-medium text-action">
+            {job?.timing?.overrunning
+              ? "Taking longer than usual"
+              : etaWindow(job?.timing?.estimated_remaining_seconds)}
+          </span>
           {step > 0 ? (
             <span className="text-muted-foreground">
               step {step} of {STAGE_COUNT}
             </span>
           ) : null}
         </div>
-        <Progress value={percent} />
+        <Progress value={progressPercent(job) || percent} />
       </div>
     );
   }

@@ -2,15 +2,26 @@
 
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
+  Circle,
   CircleSlash,
   Loader2,
+  SearchCheck,
   Upload,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  etaWindow,
+  INGESTION_PHASES,
+  isActiveVideoJob,
+  phaseState,
+  progressPercent,
+  technicalDuration,
+} from "@/lib/ingestion-progress";
 import type { VideoIngestion, VideoReadiness } from "@/lib/video-types";
 
 /** The pipeline, in the reader's words rather than the worker's. */
@@ -88,21 +99,7 @@ export function IngestionStatus({
   /** Measured reasons a published version is short of complete. */
   notes?: string[];
 }) {
-  if (readiness === "ready" || readiness === "degraded") {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <CheckCircle2 aria-hidden className="size-4 text-positive" />
-          Ready to answer questions.
-        </div>
-        {notes.map((note) => (
-          <p key={note} className="pl-6 text-xs text-muted-foreground">
-            {note}
-          </p>
-        ))}
-      </div>
-    );
-  }
+  const active = isActiveVideoJob(ingestion);
 
   if (ingestion?.error) {
     return (
@@ -117,6 +114,22 @@ export function IngestionStatus({
           </AlertDescription>
         ) : null}
       </Alert>
+    );
+  }
+
+  if ((readiness === "ready" || readiness === "degraded") && !active) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <CheckCircle2 aria-hidden className="size-4 text-positive" />
+          Ready to answer questions.
+        </div>
+        {notes.map((note) => (
+          <p key={note} className="pl-6 text-xs text-muted-foreground">
+            {note}
+          </p>
+        ))}
+      </div>
     );
   }
 
@@ -145,24 +158,130 @@ export function IngestionStatus({
   }
 
   const stage = ingestion?.stage ?? null;
-  const { step, percent } = stagePercent(stage, ingestion?.progress.percent);
+  const { step } = stagePercent(stage, ingestion?.progress.percent);
+  const percent = progressPercent(ingestion);
+  const remaining = ingestion?.timing?.estimated_remaining_seconds;
+  const upgrading = readiness === "ready" || readiness === "degraded";
 
   return (
-    <div className="space-y-2" role="status" aria-live="polite">
-      <div className="flex items-center gap-2 text-sm">
-        <Loader2 aria-hidden className="size-4 animate-spin" />
-        <span>{stageLabel(stage)}</span>
-        {step > 0 ? (
-          <Badge variant="outline">
-            step {step} of {STAGE_COUNT}
-          </Badge>
-        ) : null}
+    <section
+      className="space-y-4 rounded-xl border border-primary bg-wash p-4"
+      role="status"
+      aria-live="polite"
+      aria-labelledby="video-ingestion-title"
+    >
+      <div className="flex items-start gap-3">
+        <span className="mt-1 grid size-8 shrink-0 place-items-center rounded-full bg-wash text-action">
+          <Loader2 aria-hidden className="size-4 animate-spin motion-reduce:animate-none" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="video-ingestion-title" className="text-sm font-semibold">
+              {upgrading
+                ? "Improving this lecture’s answers"
+                : "Preparing this lecture for questions"}
+            </h2>
+            {step > 0 ? (
+              <Badge variant="outline">Step {step} of {STAGE_COUNT}</Badge>
+            ) : null}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {ingestion?.status === "queued"
+              ? `Next: ${stageLabel(stage).toLowerCase()}.`
+              : stageLabel(stage)}
+            {" · "}
+            {ingestion?.timing?.overrunning
+              ? "Taking longer than usual; completed work is saved."
+              : etaWindow(remaining)}
+          </p>
+        </div>
       </div>
-      <Progress value={percent} />
+
+      <Progress value={percent} aria-label="Lecture ingestion progress" />
+
+      <div className="rounded-lg border border-divider bg-surface p-3">
+        <div className="flex items-start gap-2">
+          <SearchCheck aria-hidden className="mt-1 size-4 shrink-0 text-action" />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              What you’ll get
+            </p>
+            <p className="mt-1 text-sm leading-5">
+              Ask about what was said or shown, jump to cited timestamps, and
+              browse a searchable chapter and visual timeline.
+            </p>
+            {upgrading ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                The current lecture remains available while this better version is built.
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Steps remaining
+        </p>
+        <ol className="grid gap-2 sm:grid-cols-2">
+          {INGESTION_PHASES.map((phase, index) => {
+            const state = phaseState(ingestion, index);
+            const Icon = state === "done" ? Check : state === "active" ? Loader2 : Circle;
+            return (
+              <li key={phase.id} className="flex items-start gap-2 text-xs">
+                <Icon
+                  aria-hidden
+                  className={`mt-1 size-3.5 shrink-0 ${
+                    state === "done"
+                      ? "text-positive"
+                      : state === "active"
+                        ? "animate-spin text-action motion-reduce:animate-none"
+                        : "text-muted-foreground"
+                  }`}
+                />
+                <span>
+                  <span className={state === "active" ? "font-semibold" : "font-medium"}>
+                    {phase.label}
+                  </span>
+                  <span className="block leading-5 text-muted-foreground">
+                    {state === "done" ? "Done" : state === "active" ? phase.detail : "Still to come"}
+                  </span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
       <p className="text-xs text-muted-foreground">
-        Questions unlock when coverage checks pass. Processing continues if you
-        leave this page.
+        You can close this page. Processing and checkpointed recovery continue in the background.
       </p>
-    </div>
+
+      <details className="rounded-lg border border-divider bg-surface px-3 py-2 text-xs">
+        <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+          Technical details
+        </summary>
+        <dl className="mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-[auto_1fr]">
+          <dt className="text-muted-foreground">Internal stage</dt>
+          <dd className="font-mono">{stage ?? "queued"}</dd>
+          <dt className="text-muted-foreground">Worker state</dt>
+          <dd>{ingestion?.status ?? "queued"}</dd>
+          <dt className="text-muted-foreground">Attempt</dt>
+          <dd>{ingestion?.attempt ?? 0} of {ingestion?.max_attempts ?? 0}</dd>
+          <dt className="text-muted-foreground">Estimated work left</dt>
+          <dd>{technicalDuration(remaining)}</dd>
+          {ingestion?.progress.total != null ? (
+            <>
+              <dt className="text-muted-foreground">Stage progress</dt>
+              <dd>{ingestion.progress.completed} / {ingestion.progress.total} {ingestion.progress.unit ?? "items"}</dd>
+            </>
+          ) : null}
+          <dt className="text-muted-foreground">Provider spend</dt>
+          <dd>${Number(ingestion?.actual_cost_usd ?? 0).toFixed(2)} of ${Number(ingestion?.cost_cap_usd ?? 0).toFixed(2)} cap</dd>
+          <dt className="text-muted-foreground">Recovery</dt>
+          <dd>Completed stages are checkpointed; retries resume from the last valid checkpoint.</dd>
+        </dl>
+      </details>
+    </section>
   );
 }
