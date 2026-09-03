@@ -70,7 +70,11 @@ Against the live API at `53bd382`, signed in as the real owner:
   object, `base64_content` gone.
 - **Backup** 193 MB custom-format dump in ~2.5 min; restore and verify into a
   scratch PostgreSQL 18 cluster in **9 seconds**. Measured RTO for the database
-  is therefore minutes; RPO is the age of the last dump.
+  is therefore minutes; RPO is the age of the last dump. Two dumps have been
+  taken and both drilled: the second was checked for *current* state rather
+  than merely restoring, and carries the post-incident row counts (14,332
+  evidence units, 5,942 transcript segments), all ten parked jobs with their
+  `last_error_message` intact, and the renamed owner account.
 - **Tests** 1,748 passing.
 
 ## Deliberately not finished
