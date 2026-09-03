@@ -129,3 +129,44 @@ delete the old Supabase project until it has either run or been waived.
 - Local `video.ingestion_jobs` holds 3 `queued` and 14 `retry_scheduled` rows
   that reference lectures whose derived data is not in the local clone. They
   must not be handed to a worker after cutover.
+
+## What the inherited video jobs actually did
+
+This document warned, before the cutover, that the local
+`video.ingestion_jobs` rows in claimable states "must not be handed to a worker
+after cutover". They were, and this is what happened, recorded because the
+warning existing and not being acted on is the more useful lesson.
+
+The API container runs the ingestion worker alongside the API. Pointing it at
+the loaded Railway database was therefore also starting a worker against ten
+claimable video jobs whose lectures' media and derived data had not migrated.
+Within about fifteen minutes it had:
+
+- failed six jobs on `video media object not found`, correctly and harmlessly;
+- claimed one job for lecture `91adf9c5` and run it through frame selection,
+  OCR, visual analysis, spatial regions, indexing, embeddings, quality gates
+  and publish — re-deriving a lecture at model cost.
+
+The remaining ten claimable jobs were then parked as `cancelled` with an
+explicit `last_error_message`, and the worker has claimed nothing since:
+zero claimable, zero leased, row counts stable across a subsequent minute.
+
+Net effect on the target, measured by `copy_database --verify-only` against
+the frozen source: 251,306 rows against 247,425, a forward divergence of
+3,881. Of these, roughly 3,800 are the re-derived lecture (evidence units,
+transcript segments, frames, visual observations and regions, chapters) and
+the rest are this session's own smoke tests plus the parked jobs' events.
+Embedding counts and dimensions are unchanged and still match exactly, on both
+the book and video sides.
+
+Nothing was lost, and the added rows are real derived data for a lecture that
+previously had none. But it was unplanned work, it cost model calls, and it
+means the target is no longer digest-identical to the frozen source — so the
+frozen dump is the rollback point for *pre-cutover* state only, and the
+post-cutover backups in `artifacts/db-backups/` are the ones that matter from
+here.
+
+`scripts/copy_database.py` now reports claimable jobs in both schemas at the
+end of every run, with an explicit instruction to park them before deploying a
+worker. A copy is not finished when the rows match; it is finished when
+nothing is about to act on them.

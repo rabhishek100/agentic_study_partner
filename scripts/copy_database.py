@@ -81,6 +81,7 @@ class CopyReport:
     tables: list[TableReport] = field(default_factory=list)
     identity_rows: int = 0
     notes: list[str] = field(default_factory=list)
+    claimable: dict[str, int] = field(default_factory=dict)
 
     @property
     def failures(self) -> list[TableReport]:
@@ -487,6 +488,42 @@ def target_is_empty(target: psycopg.Connection, tables: list[str]) -> bool:
     return True
 
 
+CLAIMABLE_STATES = ("queued", "retry_scheduled", "running", "awaiting_upload")
+
+
+def claimable_jobs(target: psycopg.Connection) -> dict[str, int]:
+    """Jobs a worker will pick up the moment one points at this database.
+
+    Reported loudly because ignoring it cost real money on 2026-09-03. The
+    copied database inherited ten claimable video jobs from a partial clone.
+    Their lectures' media had not been migrated, so when the production worker
+    came up it claimed them: six failed on `video media object not found`, and
+    one ran an entire lecture back through frame selection, OCR, visual
+    analysis, embeddings and publish, adding 1,822 evidence rows and spending
+    model calls on work nobody asked for.
+
+    A copy is not finished when the rows match. It is finished when nothing is
+    about to act on them.
+    """
+
+    counts: dict[str, int] = {}
+    for table in ("public.ingestion_jobs", "video.ingestion_jobs"):
+        exists = target.execute(
+            "select to_regclass(%s) is not null", (table,)
+        ).fetchone()
+        if not (exists and exists[0]):
+            continue
+        row = target.execute(
+            sql.SQL("select count(*) from {} where status = any(%s)").format(
+                sql.SQL(table)
+            ),
+            (list(CLAIMABLE_STATES),),
+        ).fetchone()
+        if row and int(row[0]):
+            counts[table] = int(row[0])
+    return counts
+
+
 def verify(
     source: psycopg.Connection, target: psycopg.Connection, tables: list[str]
 ) -> CopyReport:
@@ -545,6 +582,15 @@ def print_report(report: CopyReport, *, verbose: bool) -> None:
         f"\n{len(report.tables) - len(report.failures)}/{len(report.tables)} tables match; "
         f"{total_source} source rows, {total_target} target rows"
     )
+    if report.claimable:
+        print("\n*** claimable ingestion jobs in the target ***")
+        for table, count in report.claimable.items():
+            print(f"    {table}: {count}")
+        print(
+            "    A worker pointed at this database will claim these. If their\n"
+            "    media did not migrate they will fail or re-derive at model cost.\n"
+            "    Park them before deploying a worker."
+        )
 
 
 def resolve(url: str | None, env: str | None, label: str) -> str:
@@ -628,6 +674,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.verify_only:
                 report = verify(source, target, tables)
                 report.identity_rows = exact_count(target, IDENTITY_TABLE)
+                report.claimable = claimable_jobs(target)
                 print_report(report, verbose=args.verbose)
                 return 1 if (report.failures or any("differ" in n for n in report.notes)) else 0
 
@@ -685,6 +732,7 @@ def main(argv: list[str] | None = None) -> int:
 
             report = verify(source, target, tables)
             report.identity_rows = exact_count(target, IDENTITY_TABLE)
+            report.claimable = claimable_jobs(target)
             print_report(report, verbose=args.verbose)
             if report.failures or any("differ" in n for n in report.notes):
                 print("\nerror: the target does not match the source", file=sys.stderr)
