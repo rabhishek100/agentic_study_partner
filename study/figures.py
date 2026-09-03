@@ -18,13 +18,21 @@ version of this gallery.
 """
 
 from collections.abc import Iterable, Sequence
+import logging
 from uuid import UUID
 
 from psycopg import Connection
 
+from base64 import b64encode
+
+from storage.book_images import load_figure
 from storage.database import parse_owner_id
+from video.media_store import MediaStoreError
 
 from .contracts import CitationRef, EvidenceRef, FigureRef
+
+
+logger = logging.getLogger("study_partner.study.figures")
 
 
 # Measured across the real corpus (`scripts.evaluate_figures`, 810 figures in
@@ -218,7 +226,7 @@ def load_figure_images(
     owner = parse_owner_id(owner_id)
     rows = connection.execute(
         """
-        select block_id, mime_type, base64_content
+        select block_id, owner_id, mime_type, base64_content, storage_key
         from image_blocks
         where owner_id = %s and block_id = any(%s)
         """,
@@ -228,8 +236,16 @@ def load_figure_images(
     images: list[tuple[str, str]] = []
     for figure in wanted:
         row = by_block.get(figure.block_id)
+        if row is None:
+            continue
         # A figure whose bytes are missing is skipped rather than sent as an
-        # empty image: the label positions would shift under the model.
-        if row and row["base64_content"]:
-            images.append((row["mime_type"], row["base64_content"]))
+        # empty image: the label positions would shift under the model. The
+        # model wants base64, so a stored object is re-encoded on the way out
+        # rather than being kept that way at rest.
+        try:
+            payload = load_figure(row)
+        except MediaStoreError as error:
+            logger.warning("figure %s could not be read: %s", row["block_id"], error)
+            continue
+        images.append((row["mime_type"], b64encode(payload).decode("ascii")))
     return images

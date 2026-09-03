@@ -1,6 +1,9 @@
 """Captioning figures at ingest, and what it deliberately skips."""
 
 from base64 import b64encode
+from hashlib import sha256
+
+from storage.book_images import configured_book_image_store, store_figure
 import unittest
 
 from ingestion.captions import (
@@ -61,10 +64,36 @@ class CaptionTests(PostgresOwnerMixin, unittest.TestCase):
         self.tearDownPostgresOwner()
 
     def set_image(self, payload: bytes, *, block_id: int | None = None) -> None:
+        """Replace a figure the way the product stores one.
+
+        Figures live in object storage and the row names them, so writing only
+        the legacy column would leave the row pointing at the figure it had
+        before — which is what a reader would then be served.
+        """
+
+        target = block_id or self.block_id
+        store = configured_book_image_store()
+        key, content_hash, size = store_figure(
+            store, owner_id=self.owner_id, payload=payload, mime_type="image/png"
+        )
+        encoded = b64encode(payload).decode()
         with database_connection(self.database_url) as connection:
             connection.execute(
-                "update image_blocks set base64_content = %s where block_id = %s",
-                (b64encode(payload).decode(), block_id or self.block_id),
+                """
+                update image_blocks
+                set base64_content = %s, storage_backend = %s, storage_key = %s,
+                    content_hash = %s, size_bytes = %s, base64_hash = %s
+                where block_id = %s
+                """,
+                (
+                    encoded,
+                    store.backend,
+                    key,
+                    content_hash,
+                    size,
+                    sha256(encoded.encode("ascii")).hexdigest(),
+                    target,
+                ),
             )
 
     def run_captioner(self, captioner, **kwargs):
