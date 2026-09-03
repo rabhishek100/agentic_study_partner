@@ -426,7 +426,9 @@ def _source_pdf_question_topics(
         row = connection.execute(
             """
             select source_path, source_storage_bucket, source_storage_path,
-                   viewer_storage_bucket, viewer_storage_path
+                   source_storage_backend,
+                   viewer_storage_bucket, viewer_storage_path,
+                   viewer_storage_backend
             from books where id = %s and owner_id = %s
             """,
             (book_id, owner_id),
@@ -439,13 +441,22 @@ def _source_pdf_question_topics(
         if row["source_path"] and local_path.is_file():
             document = fitz.open(local_path)
         else:
-            bucket = row["viewer_storage_bucket"] or row["source_storage_bucket"]
-            object_path = row["viewer_storage_path"] or row["source_storage_path"]
+            viewer = row["viewer_storage_path"]
+            bucket = row["viewer_storage_bucket"] if viewer else row["source_storage_bucket"]
+            object_path = viewer or row["source_storage_path"]
+            # Same rule as the API's signing path: the backend must come from
+            # whichever half of the row supplied the path.
+            backend = (
+                row["viewer_storage_backend"] if viewer
+                else row["source_storage_backend"]
+            )
             if not bucket or not object_path:
                 return topics
             from ingestion.storage_objects import signed_object_url
 
-            url = signed_object_url(bucket, object_path, expires_in=300)
+            url = signed_object_url(
+                bucket, object_path, expires_in=300, backend=backend
+            )
             if not url:
                 return topics
             response = httpx.get(url, timeout=60, follow_redirects=True)

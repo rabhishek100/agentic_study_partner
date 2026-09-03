@@ -2118,7 +2118,9 @@ async def book_source(
             details = connection.execute(
                 """
                 select source_storage_bucket, source_storage_path,
-                       viewer_storage_bucket, viewer_storage_path, page_count
+                       source_storage_backend,
+                       viewer_storage_bucket, viewer_storage_path,
+                       viewer_storage_backend, page_count
                 from books where id = %s and owner_id = %s
                 """,
                 (book_id, owner_id),
@@ -2129,14 +2131,25 @@ async def book_source(
         # it is a rendering of the same pages, so a citation still lands where
         # it should. The source stays the hash-identified original everywhere
         # else in the system.
-        bucket = details["viewer_storage_bucket"] or details["source_storage_bucket"]
-        path = details["viewer_storage_path"] or details["source_storage_path"]
+        viewer = details["viewer_storage_path"]
+        bucket = details["viewer_storage_bucket"] if viewer else details["source_storage_bucket"]
+        path = viewer or details["source_storage_path"]
+        # The backend has to come from the same half of the row as the path.
+        # While the migration runs a book's viewer copy can be on R2 and its
+        # source still on Supabase, so taking the backend from the wrong one
+        # signs a URL against a store that has never held the object.
+        backend = (
+            details["viewer_storage_backend"] if viewer
+            else details["source_storage_backend"]
+        )
         if not bucket or not path:
             # Books imported by the manual CLI path never had a stored object.
             raise SOURCE_UNAVAILABLE
 
         try:
-            url = signed_object_url(bucket, path, expires_in=SOURCE_URL_TTL_SECONDS)
+            url = signed_object_url(
+                bucket, path, expires_in=SOURCE_URL_TTL_SECONDS, backend=backend
+            )
         except IngestionError as error:
             logger.warning("signing book %s failed: %s", book_id, error.code)
             raise HTTPException(

@@ -384,7 +384,9 @@ async def complete_upload(
                 # its own second call, sees the job as it currently stands.
                 return job
 
-            stored = object_info(job.storage_bucket, job.storage_path)
+            stored = object_info(
+                job.storage_bucket, job.storage_path, backend=job.storage_backend
+            )
             if stored is None:
                 raise IngestionError(
                     ErrorCode.SOURCE_MISSING,

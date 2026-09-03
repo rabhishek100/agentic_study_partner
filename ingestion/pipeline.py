@@ -384,7 +384,7 @@ def _acquire_stored(
 ) -> tuple[Path, _Acquired, IngestionJob]:
     """Verify and download the source object this job reserved in Storage."""
 
-    stored = object_info(job.storage_bucket, job.storage_path)
+    stored = object_info(job.storage_bucket, job.storage_path, backend=job.storage_backend)
     if stored is None:
         raise IngestionError(
             ErrorCode.SOURCE_MISSING, detail="source object is gone at parse time"
@@ -420,6 +420,7 @@ def _acquire_stored(
         job.storage_path,
         source,
         maximum_bytes=limits.max_source_bytes,
+        backend=job.storage_backend,
     )
     if download.size_bytes != stored.size_bytes:
         raise IngestionError(
