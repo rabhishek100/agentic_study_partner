@@ -42,6 +42,7 @@ from video.repository import (
     list_standalone_videos,
     list_video_chapters,
     list_video_resources,
+    load_video,
     load_standalone_video,
     load_caption_target,
     load_ingestion_job,
@@ -53,15 +54,16 @@ from video.repository import (
     update_video_metadata,
 )
 from video.playback import playback_url
+from video.progress import estimate as estimate_video_progress
 from video.resources import maximum_resource_bytes
 from video.transcripts import parse_webvtt, transcript_coverage
 from video.sources import InvalidVideoSource, display_filename
 from video.media_store import (
-    FilesystemMediaStore,
     MediaConflict,
     MediaSizeMismatch,
     MediaStoreError,
     MediaTooLarge,
+    configured_media_store,
 )
 
 
@@ -156,6 +158,24 @@ class JobErrorView(ContractModel):
     message: str = "Video ingestion failed"
 
 
+class VideoStageTimingView(ContractModel):
+    stage: str
+    label: str
+    state: Literal["done", "active", "pending"]
+    expected_seconds: float
+    elapsed_seconds: float | None
+
+
+class VideoJobTimingView(ContractModel):
+    """Best-effort timing derived from durable stage/checkpoint state."""
+
+    percent: float
+    estimated_total_seconds: float
+    estimated_remaining_seconds: float | None
+    overrunning: bool
+    stages: list[VideoStageTimingView]
+
+
 class VideoIngestionView(ContractModel):
     job_id: UUID
     video_id: UUID
@@ -170,6 +190,7 @@ class VideoIngestionView(ContractModel):
     actual_cost_usd: Decimal
     cost_cap_usd: Decimal
     error: JobErrorView | None
+    timing: VideoJobTimingView
     created_at: datetime
     started_at: datetime | None
     updated_at: datetime
@@ -343,7 +364,9 @@ def _progress(row) -> ProgressView:
     )
 
 
-def _job(row, *, prefix: str = "") -> VideoIngestionView | None:
+def _job(
+    row, *, prefix: str = "", duration_ms: int | None = None
+) -> VideoIngestionView | None:
     def value(name):
         return row.get(prefix + name)
 
@@ -357,6 +380,14 @@ def _job(row, *, prefix: str = "") -> VideoIngestionView | None:
     }
     error_code = value("last_error_code")
     error_message = value("last_error_message")
+    progress = estimate_video_progress(
+        status=value("status"),
+        stage=value("stage"),
+        duration_ms=duration_ms if duration_ms is not None else row.get("duration_ms"),
+        stage_started_at=value("stage_started_at"),
+        progress_completed=value("progress_completed") or 0,
+        progress_total=value("progress_total"),
+    )
     return VideoIngestionView(
         job_id=identifier,
         video_id=value("video_id"),
@@ -378,6 +409,22 @@ def _job(row, *, prefix: str = "") -> VideoIngestionView | None:
             if error_code
             else None
         ),
+        timing=VideoJobTimingView(
+            percent=progress.percent,
+            estimated_total_seconds=progress.estimated_total_seconds,
+            estimated_remaining_seconds=progress.estimated_remaining_seconds,
+            overrunning=progress.overrunning,
+            stages=[
+                VideoStageTimingView(
+                    stage=stage.stage,
+                    label=stage.label,
+                    state=stage.state,
+                    expected_seconds=stage.expected_seconds,
+                    elapsed_seconds=stage.elapsed_seconds,
+                )
+                for stage in progress.stages
+            ],
+        ),
         created_at=value("created_at"),
         started_at=value("started_at"),
         updated_at=value("updated_at"),
@@ -394,7 +441,11 @@ def _summary(row) -> VideoSummary:
                 "latest_job_video_id": row["id"],
             }
         )
-        latest = _job(mapped, prefix="latest_job_")
+        latest = _job(
+            mapped,
+            prefix="latest_job_",
+            duration_ms=row.get("duration_ms"),
+        )
     return VideoSummary(
         video_id=row["id"],
         title=row["title"],
@@ -527,7 +578,7 @@ async def list_videos(
 
 def _load_detail(owner_id: UUID, video_id: UUID) -> VideoDetail:
     with database_connection(readonly=True) as database:
-        row = load_standalone_video(database, video_id, owner_id=owner_id)
+        row = load_video(database, video_id, owner_id=owner_id)
         if row is None:
             raise VIDEO_NOT_FOUND
         chapters = list_video_chapters(database, video_id, owner_id=owner_id) or []
@@ -616,7 +667,7 @@ def _unlink_media(owner_id: UUID, storage_keys: tuple[str, ...]) -> None:
     """
 
     try:
-        store = FilesystemMediaStore()
+        store = configured_media_store()
     except MediaStoreError:
         logger.warning("No media root configured; %s objects left on disk", len(storage_keys))
         return
@@ -674,7 +725,7 @@ async def upload_captions(
         raise HTTPException(status_code=422, detail=str(error)) from error
 
     def store() -> dict:
-        media_store = FilesystemMediaStore()
+        media_store = configured_media_store()
         with NamedTemporaryFile(suffix=".vtt", delete=False) as handle:
             handle.write(bytes(payload))
             staged = Path(handle.name)
@@ -863,7 +914,7 @@ async def upload_resource_content(
 
     storage_key = f"{owner_id}/staging/resources/{resource_id}/original.pdf"
     try:
-        store = FilesystemMediaStore()
+        store = configured_media_store()
         writer = store.writer(
             owner_id=owner_id, storage_key=storage_key, maximum_bytes=limit
         )
@@ -1040,7 +1091,7 @@ async def upload_video_source(
             )
 
     try:
-        store = FilesystemMediaStore()
+        store = configured_media_store()
         writer = store.writer(
             owner_id=owner_id,
             storage_key=target.storage_key,

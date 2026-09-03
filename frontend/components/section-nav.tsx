@@ -1,6 +1,13 @@
 "use client";
 
-import { BookOpen, FileText, Layers, MessagesSquare, Video } from "lucide-react";
+import {
+  BookOpen,
+  FileText,
+  GraduationCap,
+  Layers,
+  MessagesSquare,
+  Video,
+} from "lucide-react";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -16,12 +23,25 @@ export function SectionNav({
   // "prompts" names a screen that is reachable from the sections but is not
   // one of them: nothing highlights, and the switcher still gets the reader
   // back to a library in one click.
-  active: "books" | "papers" | "videos" | "decks" | "interviews" | "prompts";
+  active:
+    | "books"
+    | "papers"
+    | "videos"
+    | "courses"
+    | "decks"
+    | "interviews"
+    | "prompts";
 }) {
   const sections = [
     { key: "books" as const, href: "/", label: "Books", icon: BookOpen },
     { key: "papers" as const, href: "/papers", label: "Papers", icon: FileText },
     { key: "videos" as const, href: "/videos", label: "Videos", icon: Video },
+    {
+      key: "courses" as const,
+      href: "/courses",
+      label: "Courses",
+      icon: GraduationCap,
+    },
     {
       key: "interviews" as const,
       href: "/interviews",
