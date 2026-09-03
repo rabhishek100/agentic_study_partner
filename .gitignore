@@ -53,6 +53,7 @@ artifacts/local-db-backups/
 
 # Provider-migration evidence, manifests and frozen dumps (never commit)
 artifacts/migration/
+artifacts/db-backups/
 
 # R2 read-through media cache
 data/r2-media-cache/
