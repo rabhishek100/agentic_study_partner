@@ -189,6 +189,62 @@ class CleanupTests(unittest.TestCase):
         # The live job's object must survive.
         self.assertNotIn(live_path, self.deleted_objects)
 
+    def test_a_database_that_names_nothing_deletes_nothing(self):
+        """The 2026-09-02 loss, as a test.
+
+        The worker sweeps on a timer, so a test run — or a worker pointed at a
+        restored dump, or a half-migrated copy — executes this against
+        whatever database is configured while Storage still serves the real
+        bucket. Every object then looks orphaned. That deleted 52 of 54 book
+        and paper sources; the only survivors were viewer copies this sweep's
+        path shape cannot reach, which is luck rather than protection.
+
+        A database that references none of an owner's objects has not earned
+        the right to condemn them.
+        """
+
+        library = [f"{self.owner}/{uuid4()}/original.pdf" for _ in range(30)]
+
+        with connection(self.database_url) as database:
+            # No job rows and no books: the database knows nothing about this
+            # owner, exactly as an empty test schema does.
+            self.bucket_contains(library)
+            summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+        self.assertEqual(self.deleted_objects, [])
+
+    def test_a_mostly_unreferenced_owner_is_refused(self):
+        """Most of an owner's objects missing their rows means the rows are missing."""
+
+        with connection(self.database_url) as database:
+            live = self.job(database, status="queued", age_interval="1 hour")
+            paths = [f"{self.owner}/{live}/original.pdf"]
+            paths += [f"{self.owner}/{uuid4()}/original.pdf" for _ in range(29)]
+            self.bucket_contains(paths)
+
+            summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 0)
+        self.assertEqual(self.deleted_objects, [])
+
+    def test_a_few_strays_beside_a_healthy_library_are_still_reclaimed(self):
+        """The guard must not stop the sweep doing the job it exists for."""
+
+        with connection(self.database_url) as database:
+            referenced = [
+                f"{self.owner}/{self.job(database, status='queued', age_interval='1 hour')}"
+                f"/original.pdf"
+                for _ in range(24)
+            ]
+            strays = [f"{self.owner}/{uuid4()}/original.pdf" for _ in range(2)]
+            self.bucket_contains(referenced + strays)
+
+            summary = run_cleanup(database, limits=LIMITS)
+
+        self.assertEqual(summary.orphaned_objects_deleted, 2)
+        self.assertCountEqual(self.deleted_objects, strays)
+
     def test_a_ready_books_source_survives_a_sweep_that_cannot_see_its_job(self):
         """A book referencing an object is enough to keep it.
 
