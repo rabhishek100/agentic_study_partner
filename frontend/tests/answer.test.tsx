@@ -58,6 +58,43 @@ describe("Answer", () => {
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 
+  it("shows the page when one chapter is cited at several of them", () => {
+    // The reported case: a chapter summary of a book whose table of contents
+    // stops at the chapter. Every marker names the same node, so every chip
+    // read "1" and three different pages were indistinguishable.
+    const chapter = evidence({
+      node_id: 2531,
+      pages: [5, 22, 32],
+      path: "CHAPTER 1: SCALE FROM ZERO TO MILLIONS OF USERS",
+      rank: null,
+    });
+    const { container } = renderAnswer(
+      "Cache eviction [N2531:P22]. Sharding keys [N2531:P32]. Scaling [N2531:P5].",
+      [chapter],
+      [
+        { marker: "[N2531:P22]", node_id: 2531, page: 22, book_id: 7, evidence_rank: null },
+        { marker: "[N2531:P32]", node_id: 2531, page: 32, book_id: 7, evidence_rank: null },
+        { marker: "[N2531:P5]", node_id: 2531, page: 5, book_id: 7, evidence_rank: null },
+      ],
+    );
+
+    expect(container.textContent).not.toContain("[N2531");
+    expect(screen.getByText("1\u00b722")).toBeInTheDocument();
+    expect(screen.getByText("1\u00b732")).toBeInTheDocument();
+    expect(screen.getByText("1\u00b75")).toBeInTheDocument();
+  });
+
+  it("leaves a chapter cited once with its bare number", () => {
+    const { container } = renderAnswer(
+      "One place only [N2531:P5].",
+      [evidence({ node_id: 2531, pages: [5], rank: null })],
+      [{ marker: "[N2531:P5]", node_id: 2531, page: 5, book_id: 7, evidence_rank: null }],
+    );
+
+    expect(container.textContent).not.toContain("[N2531");
+    expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
   it("numbers chips by position in the reference list", () => {
     const { container } = renderAnswer(
       "First [S1] then second [S2].",

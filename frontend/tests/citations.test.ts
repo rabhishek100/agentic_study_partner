@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ambiguousCitationPages,
   figuresForMarker,
   formatPages,
   formatPath,
@@ -240,5 +241,67 @@ describe("markerPage", () => {
 
   it("returns null when nothing resolves", () => {
     expect(markerPage(resolveMarker("[S9]", [], []))).toBeNull();
+  });
+});
+
+
+describe("ambiguousCitationPages", () => {
+  it("shows the page when one source is cited at several of them", () => {
+    // A chapter summary of a book whose table of contents stops at the
+    // chapter: every citation names the same node, so every chip was "1".
+    const citations = [
+      citation({ marker: "[N2531:P5]", node_id: 2531, page: 5 }),
+      citation({ marker: "[N2531:P22]", node_id: 2531, page: 22 }),
+      citation({ marker: "[N2531:P32]", node_id: 2531, page: 32 }),
+    ];
+
+    const shown = ambiguousCitationPages(citations);
+
+    expect(shown.get("[N2531:P5]")).toBe(5);
+    expect(shown.get("[N2531:P22]")).toBe(22);
+    expect(shown.get("[N2531:P32]")).toBe(32);
+  });
+
+  it("leaves a source cited once with its bare number", () => {
+    const citations = [
+      citation({ marker: "[N10:P3]", node_id: 10, page: 3 }),
+      citation({ marker: "[N11:P9]", node_id: 11, page: 9 }),
+    ];
+
+    expect(ambiguousCitationPages(citations).size).toBe(0);
+  });
+
+  it("disambiguates only the source that needs it", () => {
+    const citations = [
+      citation({ marker: "[N10:P3]", node_id: 10, page: 3 }),
+      citation({ marker: "[N11:P9]", node_id: 11, page: 9 }),
+      citation({ marker: "[N11:P14]", node_id: 11, page: 14 }),
+    ];
+
+    const shown = ambiguousCitationPages(citations);
+
+    expect(shown.has("[N10:P3]")).toBe(false);
+    expect(shown.get("[N11:P9]")).toBe(9);
+    expect(shown.get("[N11:P14]")).toBe(14);
+  });
+
+  it("treats one page cited repeatedly as unambiguous", () => {
+    const citations = [
+      citation({ marker: "[N7:P4]", node_id: 7, page: 4 }),
+      citation({ marker: "[N7:P4]", node_id: 7, page: 4 }),
+    ];
+
+    expect(ambiguousCitationPages(citations).size).toBe(0);
+  });
+
+  it("ignores retrieval markers, which carry no node or page", () => {
+    // [S1] markers are ordinals into the retrieved evidence; their number is
+    // the locator, so there is nothing to disambiguate.
+    const shown = ambiguousCitationPages([
+      citation({ marker: "[S1]", node_id: undefined as never, page: undefined as never }),
+      citation({ marker: "[S2]", node_id: undefined as never, page: undefined as never }),
+    ]);
+
+    expect(shown.size).toBe(0);
   });
 });
