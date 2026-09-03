@@ -93,7 +93,12 @@ def _short(table: str) -> str:
 
 
 def derived_owner(email: str) -> UUID:
-    """A guest's owner id, derived from its email so a rerun is idempotent."""
+    """A guest's owner id, derived from its email so a rerun is idempotent.
+
+    Derivation is by address, so renaming a guest moves what this function
+    would return. The identity itself does not move — the owner id is what
+    holds the rows — so a renamed guest must be addressed by `--guest-owner`.
+    """
 
     return uuid5(GUEST_NAMESPACE, email.strip().lower())
 
@@ -353,6 +358,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--books", help="comma-separated book ids to include")
     parser.add_argument("--guest-email", help="the guest's login address")
     parser.add_argument("--slot", type=int, default=1, help="which guest id block to use")
+    parser.add_argument(
+        "--guest-owner",
+        help=(
+            "use this owner id instead of deriving one from the email. Needed "
+            "whenever a guest has been renamed: the derivation is by email, so "
+            "a renamed guest would otherwise resolve to a fresh, empty library "
+            "while its real one sits under the old address's id."
+        ),
+    )
     parser.add_argument("--list", action="store_true", help="list candidate documents")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--replace", action="store_true", help="delete this guest's rows first")
@@ -390,7 +404,10 @@ def main(argv: list[str] | None = None) -> int:
 
             books = [int(v) for v in args.books.split(",") if v.strip()]
             plan = Plan(
-                guest_owner=derived_owner(args.guest_email),
+                guest_owner=(
+                    UUID(args.guest_owner) if args.guest_owner
+                    else derived_owner(args.guest_email)
+                ),
                 offset=next_offset(connection, args.slot),
                 slot=args.slot,
                 books=books,

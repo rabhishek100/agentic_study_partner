@@ -177,6 +177,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--database-url-env", default="DATABASE_URL")
     parser.add_argument("--guest-email", required=True)
+    parser.add_argument(
+        "--guest-owner",
+        help="use this owner id instead of deriving one from the email; see "
+             "clone_guest_library for why a renamed guest needs it",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--verify-only", action="store_true")
     args = parser.parse_args(argv)
@@ -187,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(f"database host class: {host_class(url)}")
 
-    guest = derived_owner(args.guest_email)
+    guest = UUID(args.guest_owner) if args.guest_owner else derived_owner(args.guest_email)
     clients = {"figure": _client("BOOK_IMAGE_S3"), "pdf": _client("SOURCE_S3")}
 
     copied = verified = missing = failed = skipped = 0
