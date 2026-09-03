@@ -75,8 +75,10 @@ class LoadFigureImagesTests(unittest.TestCase):
         # [F2] has to mean the second one.
         connection = self.connection(
             [
-                {"block_id": 2, "mime_type": "image/png", "base64_content": "SECOND"},
-                {"block_id": 1, "mime_type": "image/png", "base64_content": "FIRST"},
+                {"block_id": 2, "mime_type": "image/png", "owner_id": OWNER,
+                 "storage_key": None, "base64_content": "U0VDT05E"},
+                {"block_id": 1, "mime_type": "image/png", "owner_id": OWNER,
+                 "storage_key": None, "base64_content": "RklSU1Q="},
             ]
         )
 
@@ -86,12 +88,15 @@ class LoadFigureImagesTests(unittest.TestCase):
             figures=[figure(1), figure(2)],
         )
 
-        self.assertEqual([payload for _, payload in images], ["FIRST", "SECOND"])
+        self.assertEqual(
+            [payload for _, payload in images], ["RklSU1Q=", "U0VDT05E"]
+        )
 
     def test_a_figure_with_no_bytes_is_skipped_rather_than_sent_empty(self):
         # An empty image would shift every label after it under the model.
         connection = self.connection(
-            [{"block_id": 2, "mime_type": "image/png", "base64_content": "SECOND"}]
+            [{"block_id": 2, "mime_type": "image/png", "owner_id": OWNER,
+              "storage_key": None, "base64_content": "U0VDT05E"}]
         )
 
         images = load_figure_images(
@@ -100,12 +105,13 @@ class LoadFigureImagesTests(unittest.TestCase):
             figures=[figure(1), figure(2)],
         )
 
-        self.assertEqual(images, [("image/png", "SECOND")])
+        self.assertEqual(images, [("image/png", "U0VDT05E")])
 
     def test_only_the_first_few_are_sent(self):
         connection = self.connection(
             [
-                {"block_id": index, "mime_type": "image/png", "base64_content": "X"}
+                {"block_id": index, "mime_type": "image/png", "owner_id": OWNER,
+                 "storage_key": None, "base64_content": "WA=="}
                 for index in range(1, 6)
             ]
         )

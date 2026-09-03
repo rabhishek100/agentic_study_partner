@@ -5,6 +5,8 @@ also stores papers.  A paper uses the same lossless hierarchy and content
 blocks as a book while assigning paper-native structural roles to its outline.
 """
 
+from base64 import b64decode, b64encode
+from hashlib import sha256
 import json
 import re
 from collections.abc import Mapping
@@ -26,6 +28,9 @@ from parsing.outline_roles import (
     outline_roles,
 )
 
+from video.media_store import MediaStore
+
+from .book_images import configured_book_image_store, load_figure, store_figure
 from .database import parse_owner_id
 
 TABLE_MARKER = re.compile(r"^\[TABLE (\d+)]$")
@@ -395,6 +400,7 @@ def _insert_payloads(
     book_id: int,
     blocks: list[tuple],
     payloads: list[tuple | None],
+    image_store: MediaStore | None = None,
 ) -> None:
     """Insert every content block and its payload in batched statements.
 
@@ -428,6 +434,7 @@ def _insert_payloads(
             f"stored {len(block_ids)} content blocks for {len(blocks)} parsed blocks"
         )
 
+    image_store = image_store or configured_book_image_store()
     tables: list[tuple] = []
     images: list[tuple] = []
     for block_id, payload in zip(block_ids, payloads, strict=True):
@@ -447,7 +454,27 @@ def _insert_payloads(
             )
         else:
             image = section.images[index]
-            images.append((block_id, owner, book_id, image.mime, image.base64))
+            # Figures go to object storage and the row names them. Held inline
+            # as base64, they made this table 52% of the database.
+            payload = b64decode(image.base64, validate=True)
+            key, content_hash, size_bytes = store_figure(
+                image_store, owner_id=owner, payload=payload, mime_type=image.mime
+            )
+            images.append(
+                (
+                    block_id,
+                    owner,
+                    book_id,
+                    image.mime,
+                    image_store.backend,
+                    key,
+                    content_hash,
+                    size_bytes,
+                    # Recorded now so figure captions keep the identity they
+                    # were keyed on once base64_content is dropped.
+                    sha256(image.base64.encode("ascii")).hexdigest(),
+                )
+            )
 
     for rows_to_insert, table_name, columns in (
         (
@@ -458,12 +485,14 @@ def _insert_payloads(
         (
             images,
             "image_blocks",
-            "block_id, owner_id, book_id, mime_type, base64_content",
+            "block_id, owner_id, book_id, mime_type, storage_backend, "
+            "storage_key, content_hash, size_bytes, base64_hash",
         ),
     ):
         for start in range(0, len(rows_to_insert), INSERT_BATCH_SIZE):
             batch = rows_to_insert[start : start + INSERT_BATCH_SIZE]
-            values = ", ".join(["(%s, %s, %s, %s, %s)"] * len(batch))
+            placeholders = "(" + ", ".join(["%s"] * len(batch[0])) + ")"
+            values = ", ".join([placeholders] * len(batch))
             connection.execute(
                 f"insert into {table_name} ({columns}) values {values}",
                 [field for row in batch for field in row],
@@ -720,7 +749,9 @@ def restore_book(
                 table_blocks.html_content,
                 table_blocks.flat_text,
                 image_blocks.mime_type,
-                image_blocks.base64_content
+                image_blocks.base64_content,
+                image_blocks.storage_key,
+                image_blocks.content_hash as image_content_hash
             from content_blocks
             left join table_blocks
               on table_blocks.block_id = content_blocks.id
@@ -759,11 +790,15 @@ def restore_book(
                     marker is None
                     or marker[0] != "image"
                     or row["mime_type"] is None
-                    or row["base64_content"] is None
+                    or (row["base64_content"] is None and row["storage_key"] is None)
                 ):
                     raise InvalidBookError(f"image block {row['id']} is inconsistent")
+                # ImageBlock is the parser's shape and carries base64, so a
+                # stored figure is re-encoded here rather than kept that way
+                # at rest. This path rebuilds a parsed book from canonical
+                # rows and is not on any request.
                 images[marker[1]] = ImageBlock(
-                    base64=row["base64_content"],
+                    base64=b64encode(load_figure(row)).decode("ascii"),
                     mime=row["mime_type"],
                     page=row["page_number"],
                 )

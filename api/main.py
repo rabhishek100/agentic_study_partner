@@ -27,6 +27,8 @@ from starlette.concurrency import run_in_threadpool
 load_dotenv()
 
 from api.auth import current_owner
+from storage.book_images import load_figure
+from video.media_store import MediaStoreError
 from api.courses import router as course_router
 from api.course_chat import router as course_chat_router
 from api.version import build_revision, build_time
@@ -2040,7 +2042,8 @@ async def block_image(
         with database_connection(readonly=True) as connection:
             row = connection.execute(
                 """
-                select image_blocks.mime_type, image_blocks.base64_content
+                select image_blocks.mime_type, image_blocks.base64_content,
+                       image_blocks.storage_key, image_blocks.owner_id
                 from image_blocks
                 join content_blocks
                   on content_blocks.id = image_blocks.block_id
@@ -2054,9 +2057,9 @@ async def block_image(
         if row is None:
             raise IMAGE_NOT_FOUND
         try:
-            payload = base64.b64decode(row["base64_content"], validate=True)
-        except (ValueError, binascii.Error) as error:
-            logger.warning("Figure %s has undecodable content", block_id)
+            payload = load_figure(row)
+        except MediaStoreError as error:
+            logger.warning("Figure %s could not be read: %s", block_id, error)
             raise IMAGE_NOT_FOUND from error
         if len(payload) > MAXIMUM_IMAGE_BYTES:
             logger.warning("Figure %s exceeds the response ceiling", block_id)

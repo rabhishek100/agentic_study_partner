@@ -19,7 +19,7 @@ diagram. Those are recorded as skipped, with a reason, rather than captioned
 or silently dropped.
 """
 
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 import hashlib
@@ -31,7 +31,9 @@ from uuid import UUID
 import httpx
 from psycopg import Connection
 
+from storage.book_images import load_figure
 from storage.database import parse_owner_id
+from video.media_store import MediaStoreError
 
 
 logger = logging.getLogger("study_partner.ingestion.captions")
@@ -195,7 +197,10 @@ def _boilerplate_hashes(
         """
         select content_hash, count(*) as occurrences
         from (
-            select encode(sha256(base64_content::bytea), 'hex') as content_hash
+            select coalesce(
+                       base64_hash,
+                       encode(sha256(base64_content::bytea), 'hex')
+                   ) as content_hash
             from image_blocks
             where owner_id = %s
         ) hashed
@@ -261,8 +266,11 @@ def caption_book_figures(
         """
         select
             image_blocks.block_id,
+            image_blocks.owner_id,
             image_blocks.mime_type,
             image_blocks.base64_content,
+            image_blocks.storage_key,
+            image_blocks.base64_hash,
             image_captions.block_id as captioned
         from image_blocks
         left join image_captions
@@ -301,7 +309,17 @@ def caption_book_figures(
             reused += 1
             continue
 
-        digest = content_hash(row["base64_content"])
+        # Read once, hashed the way the existing captions were keyed. The
+        # base64 text is reproduced from the bytes rather than kept at rest;
+        # Python's encoder emits exactly what was stored.
+        try:
+            payload = load_figure(row)
+        except MediaStoreError:
+            payload = None
+        encoded = b64encode(payload).decode("ascii") if payload is not None else None
+        digest = row["base64_hash"] or (
+            content_hash(encoded) if encoded is not None else ""
+        )
 
         if digest in boilerplate:
             _record(
@@ -317,7 +335,8 @@ def caption_book_figures(
             continue
 
         try:
-            payload = b64decode(row["base64_content"], validate=True)
+            if payload is None:
+                raise ValueError("figure content unavailable")
         except Exception:
             _record(
                 connection,

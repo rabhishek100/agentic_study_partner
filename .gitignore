@@ -56,3 +56,7 @@ data/r2-media-cache/
 
 # API/worker runtime logs and pidfiles
 .runtime/
+
+# Book figures and video media held as objects locally, never in git
+data/book-images/
+data/book-image-cache/
