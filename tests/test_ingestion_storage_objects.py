@@ -27,7 +27,7 @@ def _client_returning(response: httpx.Response):
     def factory(*args, **kwargs):
         yield fake
 
-    return patch("ingestion.storage_objects.storage_client", factory), fake
+    return patch("ingestion.source_store.SupabaseSourceStore.client", factory), fake
 
 
 class DeleteObjectTests(unittest.TestCase):

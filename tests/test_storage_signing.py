@@ -20,7 +20,7 @@ def client_returning(status: int, payload: dict) -> httpx.Client:
 
 class SignedUrlTests(unittest.TestCase):
     def sign(self, status: int, payload: dict):
-        with patch("ingestion.storage_objects.storage_client") as factory:
+        with patch("ingestion.source_store.SupabaseSourceStore.client") as factory:
             factory.return_value.__enter__.return_value = client_returning(
                 status, payload
             )

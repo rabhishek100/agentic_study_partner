@@ -73,10 +73,10 @@ class CleanupTests(unittest.TestCase):
             f"""
             insert into ingestion_jobs (
                 id, owner_id, idempotency_key, status, storage_bucket,
-                storage_path, original_filename, book_id, created_at,
-                completed_at
+                storage_path, storage_backend, original_filename, book_id,
+                created_at, completed_at
             ) values (
-                %s, %s, %s, %s, 'book-sources', %s, 'book.pdf', %s,
+                %s, %s, %s, %s, 'book-sources', %s, 'supabase', 'book.pdf', %s,
                 now() - interval '{age_interval}',
                 {"now() - interval '" + completed_interval + "'" if completed_interval else "null"}
             )

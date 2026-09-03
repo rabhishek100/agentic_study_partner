@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 from storage.database import parse_owner_id
 from .config import IngestionLimits, load_limits
 from .errors import ErrorCode, IngestionError, classify_failure, safe_message
+from .source_store import configured_backend
 from .states import (
     CLAIMABLE_STATUSES,
     PIPELINE,
@@ -36,7 +37,8 @@ from .states import (
 
 COLUMNS = """
     id, owner_id, idempotency_key, status, stage, document_class,
-    storage_bucket, storage_path, original_filename, declared_content_type,
+    storage_bucket, storage_path, storage_backend, original_filename,
+    declared_content_type,
     declared_size_bytes, verified_size_bytes, file_hash, page_count, book_id,
     progress_completed, progress_total, progress_unit, attempt_count,
     max_attempts, next_attempt_at, lease_owner, lease_expires_at,
@@ -78,6 +80,7 @@ class IngestionJob:
     document_class: str | None
     storage_bucket: str
     storage_path: str
+    storage_backend: str
     original_filename: str
     declared_content_type: str | None
     declared_size_bytes: int | None
@@ -121,6 +124,7 @@ class IngestionJob:
             document_class=row["document_class"],
             storage_bucket=row["storage_bucket"],
             storage_path=row["storage_path"],
+            storage_backend=row["storage_backend"],
             original_filename=row["original_filename"],
             declared_content_type=row["declared_content_type"],
             declared_size_bytes=row["declared_size_bytes"],
@@ -323,9 +327,12 @@ def create_job(
             f"""
             insert into ingestion_jobs (
                 id, owner_id, idempotency_key, status, storage_bucket,
-                storage_path, original_filename, declared_content_type,
+                storage_path, storage_backend, original_filename,
+                declared_content_type,
                 declared_size_bytes, max_attempts, document_type
-            ) values (%s, %s, %s, 'awaiting_upload', %s, %s, %s, %s, %s, %s, %s)
+            ) values (
+                %s, %s, %s, 'awaiting_upload', %s, %s, %s, %s, %s, %s, %s, %s
+            )
             returning {COLUMNS}
             """,
             (
@@ -334,6 +341,10 @@ def create_job(
                 key,
                 limits.source_bucket,
                 limits.storage_path(owner, job_id),
+                # New jobs use whatever the runtime is configured with. Older
+                # rows keep the backend they were written against, which is
+                # what lets both providers be live during the migration.
+                configured_backend(),
                 filename,
                 content_type,
                 content_length,
