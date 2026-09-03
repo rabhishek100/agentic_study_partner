@@ -197,10 +197,10 @@ def _boilerplate_hashes(
         """
         select content_hash, count(*) as occurrences
         from (
-            select coalesce(
-                       base64_hash,
-                       encode(sha256(base64_content::bytea), 'hex')
-                   ) as content_hash
+            -- base64_hash is now the only form of this identity: the text it
+            -- was derived from has been dropped, and image_captions is keyed
+            -- on it, so it is what boilerplate must still be grouped by.
+            select base64_hash as content_hash
             from image_blocks
             where owner_id = %s
         ) hashed
@@ -268,7 +268,6 @@ def caption_book_figures(
             image_blocks.block_id,
             image_blocks.owner_id,
             image_blocks.mime_type,
-            image_blocks.base64_content,
             image_blocks.storage_key,
             image_blocks.base64_hash,
             image_captions.block_id as captioned

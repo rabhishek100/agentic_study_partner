@@ -81,12 +81,11 @@ class CaptionTests(PostgresOwnerMixin, unittest.TestCase):
             connection.execute(
                 """
                 update image_blocks
-                set base64_content = %s, storage_backend = %s, storage_key = %s,
+                set storage_backend = %s, storage_key = %s,
                     content_hash = %s, size_bytes = %s, base64_hash = %s
                 where block_id = %s
                 """,
                 (
-                    encoded,
                     store.backend,
                     key,
                     content_hash,
@@ -157,6 +156,12 @@ class CaptionTests(PostgresOwnerMixin, unittest.TestCase):
 
         payload = b"x" * (MINIMUM_FIGURE_BYTES + 1)
         encoded = b64encode(payload).decode()
+        # Every copy is the same bytes, so content addressing gives them one
+        # object — which is exactly the shape publisher furniture has.
+        store = configured_book_image_store()
+        key, content_hash, size = store_figure(
+            store, owner_id=self.owner_id, payload=payload, mime_type="image/png"
+        )
         with database_connection(self.database_url) as connection:
             # Give the same bytes to enough blocks to cross the threshold.
             for index in range(BOILERPLATE_REPEAT_THRESHOLD):
@@ -180,15 +185,22 @@ class CaptionTests(PostgresOwnerMixin, unittest.TestCase):
                 connection.execute(
                     """
                     insert into image_blocks (
-                        block_id, owner_id, book_id, mime_type, base64_content
-                    ) values (%s, %s, %s, 'image/png', %s)
+                        block_id, owner_id, book_id, mime_type, storage_backend,
+                        storage_key, content_hash, size_bytes, base64_hash
+                    ) values (%s, %s, %s, 'image/png', %s, %s, %s, %s, %s)
                     """,
-                    (new_id, self.owner_id, self.book_id, encoded),
+                    (
+                        new_id,
+                        self.owner_id,
+                        self.book_id,
+                        store.backend,
+                        key,
+                        content_hash,
+                        size,
+                        sha256(encoded.encode("ascii")).hexdigest(),
+                    ),
                 )
-            connection.execute(
-                "update image_blocks set base64_content = %s where block_id = %s",
-                (encoded, self.block_id),
-            )
+            self.set_image(payload)
 
         captioner = RecordingCaptioner()
         summary = self.run_captioner(captioner)

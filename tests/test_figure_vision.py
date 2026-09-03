@@ -6,8 +6,12 @@ asked about the diagram in front of them got an answer asking to be shown it.
 """
 
 import unittest
-from unittest.mock import MagicMock
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import MagicMock, patch
 
+from storage.book_images import load_figure, store_figure
+from video.media_store import FilesystemMediaStore
 from study.figures import load_figure_images
 from study.contracts import FigureRef, PromptProfile
 from study.prompts import DEFAULT_PROMPT_PROFILE, FIGURE_GROUNDING, build_answer_messages
@@ -66,6 +70,30 @@ class BuildMessagesTests(unittest.TestCase):
 
 
 class LoadFigureImagesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.store = FilesystemMediaStore(Path(self.temporary.name))
+        patcher = patch(
+            "study.figures.load_figure",
+            side_effect=lambda row, store=None: load_figure(row, store=self.store),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def row(self, block_id: int, payload: bytes) -> dict:
+        """One figure row naming a real object, as the query now returns."""
+
+        key, _, _ = store_figure(
+            self.store, owner_id=OWNER, payload=payload, mime_type="image/png"
+        )
+        return {
+            "block_id": block_id,
+            "mime_type": "image/png",
+            "owner_id": OWNER,
+            "storage_key": key,
+        }
+
     def connection(self, rows):
         connection = MagicMock()
         connection.execute.return_value.fetchall.return_value = rows
@@ -74,12 +102,7 @@ class LoadFigureImagesTests(unittest.TestCase):
     def test_bytes_come_back_in_the_order_the_labels_name(self):
         # [F2] has to mean the second one.
         connection = self.connection(
-            [
-                {"block_id": 2, "mime_type": "image/png", "owner_id": OWNER,
-                 "storage_key": None, "base64_content": "U0VDT05E"},
-                {"block_id": 1, "mime_type": "image/png", "owner_id": OWNER,
-                 "storage_key": None, "base64_content": "RklSU1Q="},
-            ]
+            [self.row(2, b"SECOND"), self.row(1, b"FIRST")]
         )
 
         images = load_figure_images(
@@ -95,8 +118,7 @@ class LoadFigureImagesTests(unittest.TestCase):
     def test_a_figure_with_no_bytes_is_skipped_rather_than_sent_empty(self):
         # An empty image would shift every label after it under the model.
         connection = self.connection(
-            [{"block_id": 2, "mime_type": "image/png", "owner_id": OWNER,
-              "storage_key": None, "base64_content": "U0VDT05E"}]
+            [self.row(2, b"SECOND")]
         )
 
         images = load_figure_images(
@@ -109,11 +131,7 @@ class LoadFigureImagesTests(unittest.TestCase):
 
     def test_only_the_first_few_are_sent(self):
         connection = self.connection(
-            [
-                {"block_id": index, "mime_type": "image/png", "owner_id": OWNER,
-                 "storage_key": None, "base64_content": "WA=="}
-                for index in range(1, 6)
-            ]
+            [self.row(index, b"X" * index) for index in range(1, 6)]
         )
 
         images = load_figure_images(

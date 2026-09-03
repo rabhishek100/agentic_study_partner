@@ -1,6 +1,5 @@
 """Book figures live in object storage, addressed by their own content."""
 
-from base64 import b64encode
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -57,11 +56,7 @@ class BookImageStoreTests(unittest.TestCase):
         key, content_hash, size = store_figure(
             self.store, owner_id=OWNER, payload=payload, mime_type="image/jpeg"
         )
-        row = {
-            "owner_id": OWNER,
-            "storage_key": key,
-            "base64_content": None,
-        }
+        row = {"owner_id": OWNER, "storage_key": key}
 
         self.assertEqual(size, len(payload))
         self.assertEqual(content_hash, digest(payload))
@@ -87,40 +82,10 @@ class BookImageStoreTests(unittest.TestCase):
                 self.store, owner_id=OWNER, payload=b"", mime_type="image/jpeg"
             )
 
-    def test_a_row_still_holding_base64_is_read_from_it(self) -> None:
-        """Both shapes stay readable for as long as the column survives."""
 
-        payload = b"inline figure"
-        row = {
-            "owner_id": OWNER,
-            "storage_key": None,
-            "base64_content": b64encode(payload).decode("ascii"),
-        }
 
-        self.assertEqual(load_figure(row, store=self.store), payload)
-
-    def test_a_migrated_row_never_falls_back_to_the_column(self) -> None:
-        """A row that has been migrated reads the object, not the leftover copy.
-
-        During the migration both are present and they must agree; if they ever
-        do not, the object is the one the row now points at, and silently
-        preferring the column would hide that.
-        """
-
-        stored = b"the object"
-        key, _, _ = store_figure(
-            self.store, owner_id=OWNER, payload=stored, mime_type="image/png"
-        )
-        row = {
-            "owner_id": OWNER,
-            "storage_key": key,
-            "base64_content": b64encode(b"the stale column").decode("ascii"),
-        }
-
-        self.assertEqual(load_figure(row, store=self.store), stored)
-
-    def test_a_row_naming_nothing_is_an_error_not_an_empty_image(self) -> None:
-        row = {"owner_id": OWNER, "storage_key": None, "base64_content": None}
+    def test_a_row_naming_no_object_is_an_error_not_an_empty_image(self) -> None:
+        row = {"owner_id": OWNER, "storage_key": None}
 
         with self.assertRaises(MediaStoreError):
             load_figure(row, store=self.store)

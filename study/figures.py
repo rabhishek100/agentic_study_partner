@@ -226,7 +226,7 @@ def load_figure_images(
     owner = parse_owner_id(owner_id)
     rows = connection.execute(
         """
-        select block_id, owner_id, mime_type, base64_content, storage_key
+        select block_id, owner_id, mime_type, storage_key
         from image_blocks
         where owner_id = %s and block_id = any(%s)
         """,
