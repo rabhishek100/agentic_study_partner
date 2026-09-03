@@ -459,6 +459,14 @@ export interface CreateIngestionRequest {
   document_type?: "book" | "paper";
 }
 
+/** A single-object, short-lived write credential issued by the API. */
+export interface PresignedUpload {
+  url: string;
+  method: "PUT";
+  headers: Record<string, string>;
+  expires_in: number;
+}
+
 /** The create response is deliberately narrower than a polled job. */
 export interface CreateIngestionResponse {
   job_id: string;
@@ -466,7 +474,13 @@ export interface CreateIngestionResponse {
   storage_bucket: string;
   storage_path: string;
   maximum_bytes: number;
-  upload_method: "tus";
+  /**
+   * `tus` is Supabase Storage's resumable protocol, still used by the local
+   * development stack. Production stores source PDFs in R2, which has no TUS
+   * endpoint, and sends a presigned PUT instead.
+   */
+  upload_method: "tus" | "presigned_put";
+  upload?: PresignedUpload | null;
 }
 
 export interface IngestionLimitsResponse {

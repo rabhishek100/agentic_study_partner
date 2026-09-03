@@ -34,6 +34,7 @@ from ingestion.outlines import MAXIMUM_PROPOSED_ENTRIES, normalize_title
 from ingestion.preflight import validate_table_of_contents
 from ingestion.progress import estimate
 from ingestion.states import Status
+from ingestion.source_store import R2_BACKEND, configured_source_store
 from ingestion.storage_objects import object_info, object_uploader
 from storage.database import connection as database_connection
 from study.contracts import ContractModel
@@ -64,13 +65,34 @@ class CreateIngestionRequest(ContractModel):
     document_type: Literal["book", "paper"] = "book"
 
 
+class PresignedUploadResponse(ContractModel):
+    """A single-object, short-lived write credential for the browser.
+
+    Bound to the exact bucket, key, content type and expiry, all of which are
+    part of the signature — so a holder cannot retarget it at another key or
+    upload something that is not a PDF. It is still a bearer credential, which
+    is why the expiry is minutes and why the key it names was reserved
+    server-side under the owner's own prefix.
+    """
+
+    url: str
+    method: Literal["PUT"] = "PUT"
+    headers: dict[str, str]
+    expires_in: int
+
+
 class CreateIngestionResponse(ContractModel):
     job_id: UUID
     status: Status
     storage_bucket: str
     storage_path: str
     maximum_bytes: int
-    upload_method: Literal["tus"] = "tus"
+    # `tus` is Supabase Storage's resumable protocol and is what the local
+    # development stack still uses. Production stores source PDFs in R2, which
+    # has no TUS endpoint, so it hands back a presigned PUT instead and the
+    # browser uploads with XMLHttpRequest to keep progress and abort.
+    upload_method: Literal["tus", "presigned_put"] = "tus"
+    upload: PresignedUploadResponse | None = None
 
 
 class IngestionLimitsResponse(ContractModel):
@@ -323,6 +345,33 @@ def _represent_outline_review(job: IngestionJob) -> OutlineReviewResponse:
         ) from error
 
 
+def _presigned_upload_for(job: IngestionJob) -> PresignedUploadResponse | None:
+    """A presigned PUT for this job's reserved key, when the backend has one.
+
+    Returns None rather than raising when the configured store cannot sign —
+    the local filesystem and Supabase stores both say so by raising — because
+    "no presigned upload available" is a routine answer that puts the browser
+    on TUS, not an error that should fail the reservation.
+    """
+
+    if job.storage_backend != R2_BACKEND:
+        return None
+    try:
+        signed = configured_source_store().presigned_put(
+            job.storage_bucket, job.storage_path
+        )
+    except IngestionError:
+        logger.warning(
+            "could not presign an upload for job %s; falling back to tus", job.id
+        )
+        return None
+    return PresignedUploadResponse(
+        url=signed.url,
+        headers=signed.headers,
+        expires_in=signed.expires_in,
+    )
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_ingestion(
     request: CreateIngestionRequest,
@@ -357,12 +406,19 @@ async def create_ingestion(
     # minting a second path for the same upload.
     if not created:
         response.status_code = status.HTTP_200_OK
+    # A store that can presign gets a presigned PUT; one that cannot — the
+    # local Supabase stack — leaves the browser on TUS. Deciding here rather
+    # than in the browser keeps the choice with the side that knows where the
+    # object is actually going.
+    upload = await run_in_threadpool(_presigned_upload_for, job)
     return CreateIngestionResponse(
         job_id=job.id,
         status=job.status,
         storage_bucket=job.storage_bucket,
         storage_path=job.storage_path,
         maximum_bytes=limits.max_source_bytes,
+        upload_method="presigned_put" if upload else "tus",
+        upload=upload,
     )
 
 

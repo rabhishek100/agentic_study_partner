@@ -3,7 +3,7 @@
     {
       "allowed": {
         "origins": ["https://web-production-8529e.up.railway.app"],
-        "methods": ["GET", "HEAD"],
+        "methods": ["GET", "HEAD", "PUT"],
         "headers": ["range", "content-type"]
       },
       "exposeHeaders": [
