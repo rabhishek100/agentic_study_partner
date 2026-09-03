@@ -165,6 +165,31 @@ working read, and the only reason that was a ten-minute problem rather than a
 silent one is that the endpoint was actually called afterwards. The migration
 now sets bucket and backend together.
 
+**And CORS, which curl cannot see.** The viewer failed in the browser with
+"The document could not be read" while every command-line check passed, because
+curl does not enforce CORS and a browser does. Supabase Storage answered
+permissively; a new R2 bucket has no CORS configuration at all, so R2 returned
+the bytes and the browser discarded them. The runbook says to configure CORS
+before browser testing and that step was skipped.
+
+The policy is in `ops/r2/book-sources-cors.json` and is deliberately narrow:
+the production web origin only, GET and HEAD only, `range` and `content-type`
+in, and `content-range`/`content-length`/`accept-ranges`/`etag` exposed because
+that is what pdf.js needs to range-request a 49 MB document. Verified both
+directions — the production origin gets `Access-Control-Allow-Origin`, an
+unrelated origin gets none, and the preflight returns 204 with the right
+methods.
+
+Apply it with:
+
+```bash
+wrangler r2 bucket cors set agentic-study-partner-book-sources-prod \
+    --file ops/r2/book-sources-cors.json
+```
+
+Note the file uses the R2 API's `{"rules": [...]}` shape, not the S3
+`[{"AllowedOrigins": ...}]` one; wrangler rejects the latter.
+
 The mixed state is real and worth knowing: books 536 and 540 have a
 `filesystem` source and an `r2` viewer copy, because they were ingested from
 disk and only their viewer rendering was ever stored. Both serve correctly,
