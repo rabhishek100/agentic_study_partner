@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from hashlib import sha256
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -15,6 +16,7 @@ import cv2
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from storage.database import connection as database_connection
 from video.acquisition import Chapter, MediaMetadata, probe_media
 from video.acquisition_stage import (
     AcquisitionDependencies,
@@ -51,7 +53,7 @@ from video.evidence_store import (
     rebuild_evidence,
 )
 from video.frames import OcrResult, select_frames, run_tesseract
-from video.media_store import FilesystemMediaStore, MediaStoreError
+from video.media_store import MediaStore, MediaStoreError
 from video.resource_store import (
     PendingResource,
     load_linked_pdfs,
@@ -82,15 +84,18 @@ from video.vision import (
     OpenRouterVisualClient,
     VisualAnalysis,
     VisualFrame,
+    visual_input_hash,
 )
 from video.visual_store import (
     OCRResultInput,
     SelectedFrameInput,
+    StoredFrame,
     VisualObservationInput,
     load_stage_frames,
     persist_ocr_results,
     persist_selected_frames,
     persist_visual_observation,
+    visual_group_is_complete,
 )
 
 
@@ -107,13 +112,13 @@ from video.visual_store import (
 METADATA_STAGE_VERSION = "video-media-metadata-v1"
 TRANSCRIPT_STAGE_VERSION = "video-transcript-prefer-caption-v2"
 RESOURCES_STAGE_VERSION = "video-resource-pdf-pages-v1"
-FRAME_STAGE_VERSION = "video-frame-selection-v1"
+FRAME_STAGE_VERSION = "video-frame-selection-v4"
 OCR_STAGE_VERSION = "video-frame-ocr-v1"
-VISUAL_STAGE_VERSION = "video-visual-analysis-v1"
+VISUAL_STAGE_VERSION = "video-visual-analysis-v2"
 SPATIAL_STAGE_VERSION = "video-spatial-regions-v1"
 INDEX_STAGE_VERSION = "video-evidence-index-v2"
 EMBEDDING_STAGE_VERSION = "video-evidence-embeddings-v1"
-QUALITY_STAGE_VERSION = "video-quality-gates-v2"
+QUALITY_STAGE_VERSION = "video-quality-gates-v3"
 PUBLISH_STAGE_VERSION = "video-publish-v1"
 MediaProbe = Callable[[Path], MediaMetadata]
 FrameSelector = Callable[..., tuple[Any, ...]]
@@ -123,6 +128,7 @@ AudioTranscriber = Callable[..., AudioTranscription]
 PdfDownloader = Callable[..., DownloadedResource]
 MINIMUM_CAPTION_COVERAGE = 0.90
 MAXIMUM_TRANSCRIPT_ARTIFACT_BYTES = 50 * 1024 * 1024
+COURSE_MAXIMUM_FRAMES_PER_HOUR = 60
 
 
 def _configured_model(name: str, fallback: str) -> str:
@@ -135,7 +141,7 @@ class MissingVideoTranscript(RuntimeError):
 
 @dataclass(frozen=True)
 class VideoPipelineDependencies:
-    media_store: FilesystemMediaStore
+    media_store: MediaStore
     youtube_acquirer: YouTubeAcquirer
     media_probe: MediaProbe = probe_media
     maximum_bytes: int = 2 * 1024 * 1024 * 1024
@@ -300,6 +306,9 @@ def _run_media_metadata(
         stage=Stage.MEDIA_METADATA,
         dependency_hash=dependency_hash,
     )
+    # The checkpoint start locks the job row. Release it before a potentially
+    # multi-gigabyte R2 cache fill and ffprobe so lease renewal stays live.
+    connection.commit()
     if not checkpoint.reused:
         if (
             target.source_storage_key is None
@@ -438,6 +447,7 @@ def _run_transcript(
         stage=Stage.TRANSCRIPT,
         dependency_hash=dependency_hash,
     )
+    connection.commit()
     work_dir = Path(work_dir)
     try:
         if not checkpoint.reused:
@@ -495,6 +505,10 @@ def _run_transcript(
                 if target.source_storage_key is None:
                     raise MissingVideoTranscript(
                         "canonical media is unavailable for audio transcription"
+                    )
+                if not _course_allows_audio_fallback(connection, job=job):
+                    raise MissingVideoTranscript(
+                        "course audio transcription is disabled; retry caption acquisition"
                     )
                 remaining = _remaining_job_budget(connection, job=job)
                 # Same rule as the visual stage: never hold a read transaction
@@ -656,6 +670,8 @@ def _run_resources(
         stage=Stage.RESOURCES,
         dependency_hash=dependency_hash,
     )
+    # Resource downloads and parsing can take longer than one lease interval.
+    connection.commit()
     work_dir = Path(work_dir)
     try:
         if not checkpoint.reused:
@@ -882,6 +898,9 @@ def _run_frame_selection(
             (job.owner_id, job.video_id),
         ).fetchall()
     )
+    course_maximum_per_hour = _course_maximum_frames_per_hour(
+        connection, job=job
+    )
     dependency_hash = _stable_hash(
         {
             "stage_version": FRAME_STAGE_VERSION,
@@ -895,6 +914,7 @@ def _run_frame_selection(
                 }
                 for value in chapters
             ],
+            "maximum_per_hour": course_maximum_per_hour,
         }
     )
     checkpoint = begin_stage_checkpoint(
@@ -905,6 +925,8 @@ def _run_frame_selection(
         stage=Stage.FRAME_SELECTION,
         dependency_hash=dependency_hash,
     )
+    # Full-lecture frame selection can take longer than one lease interval.
+    connection.commit()
     work_dir = Path(work_dir)
     try:
         if not checkpoint.reused:
@@ -914,8 +936,16 @@ def _run_frame_selection(
                 owner_id=job.owner_id,
                 storage_key=target.source_storage_key,
             )
+            selector_options = (
+                {"maximum_per_hour": course_maximum_per_hour}
+                if course_maximum_per_hour is not None
+                else {}
+            )
             candidates = dependencies.frame_selector(
-                source_path, work_dir / "selected", chapters=chapters
+                source_path,
+                work_dir / "selected",
+                chapters=chapters,
+                **selector_options,
             )
             selected: list[SelectedFrameInput] = []
             for candidate in candidates:
@@ -949,28 +979,54 @@ def _run_frame_selection(
                         height=candidate.height,
                     )
                 )
-            with connection.transaction():
-                persisted = persist_selected_frames(
-                    connection,
-                    job_id=job.id,
-                    worker_id=worker_id,
-                    attempt_count=job.attempt_count,
-                    frames=selected,
-                )
-                complete_stage_checkpoint(
-                    connection,
-                    job_id=job.id,
-                    worker_id=worker_id,
-                    attempt_count=job.attempt_count,
-                    stage=Stage.FRAME_SELECTION,
-                    dependency_hash=dependency_hash,
-                    output_manifest={
-                        "stage_version": FRAME_STAGE_VERSION,
-                        "frame_count": len(persisted.frames),
-                        "first_timestamp_ms": persisted.frames[0].timestamp_ms,
-                        "last_timestamp_ms": persisted.frames[-1].timestamp_ms,
-                    },
-                )
+            # Frame selection can spend tens of minutes scanning a lecture and
+            # uploading its selected images. Hosted Postgres proxies may close
+            # an otherwise healthy connection while it is idle for that long,
+            # so finalize the durable manifest on a fresh pooled connection.
+            # The job/attempt/lease checks below still make this atomic and
+            # reject a worker that lost ownership while it was scanning.
+            # The runtime DATABASE_URL is intentionally used instead of
+            # ``connection.info.dsn``: libpq redacts the password from that
+            # diagnostic DSN, so it cannot be used to establish a new session.
+            with database_connection() as final_connection:
+                with final_connection.transaction():
+                    persisted = persist_selected_frames(
+                        final_connection,
+                        job_id=job.id,
+                        worker_id=worker_id,
+                        attempt_count=job.attempt_count,
+                        frames=selected,
+                    )
+                    complete_stage_checkpoint(
+                        final_connection,
+                        job_id=job.id,
+                        worker_id=worker_id,
+                        attempt_count=job.attempt_count,
+                        stage=Stage.FRAME_SELECTION,
+                        dependency_hash=dependency_hash,
+                        output_manifest={
+                            "stage_version": FRAME_STAGE_VERSION,
+                            "frame_count": len(persisted.frames),
+                            "first_timestamp_ms": persisted.frames[0].timestamp_ms,
+                            "last_timestamp_ms": persisted.frames[-1].timestamp_ms,
+                        },
+                    )
+                with final_connection.transaction():
+                    advance_stage(
+                        final_connection,
+                        job_id=job.id,
+                        worker_id=worker_id,
+                        attempt_count=job.attempt_count,
+                        next_stage=Stage.OCR,
+                    )
+                    return release_claim(
+                        final_connection,
+                        job_id=job.id,
+                        worker_id=worker_id,
+                        attempt_count=job.attempt_count,
+                    )
+        # A reused checkpoint performs no long-running work, so the original
+        # connection is still suitable for the small stage transition.
         with connection.transaction():
             advance_stage(
                 connection,
@@ -1018,6 +1074,7 @@ def _run_ocr(
         stage=Stage.OCR,
         dependency_hash=dependency_hash,
     )
+    connection.commit()
     if not checkpoint.reused:
         results = []
         for frame in frames:
@@ -1081,12 +1138,15 @@ def _run_visual_analysis(
     worker_id: str,
     dependencies: VideoPipelineDependencies,
 ) -> VideoIngestionJob:
-    frames = load_stage_frames(
+    selected_frames = load_stage_frames(
         connection,
         job_id=job.id,
         worker_id=worker_id,
         attempt_count=job.attempt_count,
         stage=Stage.VISUAL_ANALYSIS,
+    )
+    frames = _bounded_course_visual_frames(
+        connection, job=job, frames=selected_frames
     )
     dependency_hash = _stable_hash(
         {
@@ -1106,23 +1166,38 @@ def _run_visual_analysis(
         stage=Stage.VISUAL_ANALYSIS,
         dependency_hash=dependency_hash,
     )
+    connection.commit()
     if not checkpoint.reused:
+        pending_frames = frames
+        if getattr(job, "provenance", {}).get("reuse_visual_observations"):
+            completed = connection.execute(
+                """
+                select frame_id from video.visual_observations
+                where owner_id = %s and video_id = %s
+                  and ingestion_version_id = %s and status = 'success'
+                  and model_name = %s and prompt_version = %s
+                """,
+                (
+                    job.owner_id,
+                    job.video_id,
+                    job.target_version_id,
+                    dependencies.visual_model,
+                    PROMPT_VERSION,
+                ),
+            ).fetchall()
+            completed_ids = {int(row["frame_id"]) for row in completed}
+            pending_frames = tuple(
+                frame for frame in frames if frame.id not in completed_ids
+            )
+            connection.commit()
         analyzer = dependencies.visual_analyzer
         owned_client: OpenRouterVisualClient | None = None
         if analyzer is None:
             owned_client = OpenRouterVisualClient(model=dependencies.visual_model)
             analyzer = owned_client.analyze
         try:
-            for start in range(0, len(frames), 2):
-                group = frames[start : start + 2]
-                _ensure_visual_budget(connection, job=job, estimated_cost="0.002")
-                # The budget check reads, and a bare read opens a transaction
-                # that psycopg holds until something commits. Left open across
-                # a model call it keeps FOR UPDATE locks on the job and its
-                # version, which blocks lease renewal on the worker's other
-                # connection: the lease dies mid-stage and every paid result
-                # rolls back. Commit before spending money.
-                connection.commit()
+            for start in range(0, len(pending_frames), 2):
+                group = pending_frames[start : start + 2]
                 inputs = tuple(
                     VisualFrame(
                         frame_index=frame.frame_index,
@@ -1136,7 +1211,31 @@ def _run_visual_analysis(
                     )
                     for frame in group
                 )
+                input_hash = visual_input_hash(dependencies.visual_model, inputs)
+                if visual_group_is_complete(
+                    connection,
+                    job_id=job.id,
+                    worker_id=worker_id,
+                    attempt_count=job.attempt_count,
+                    frame_ids=tuple(frame.id for frame in group),
+                    model_name=dependencies.visual_model,
+                    prompt_version=PROMPT_VERSION,
+                    input_hash=input_hash,
+                ):
+                    connection.commit()
+                    continue
+                _ensure_visual_budget(connection, job=job, estimated_cost="0.002")
+                # The preflight and budget checks read, and a bare read opens a
+                # transaction that psycopg holds until something commits. Left
+                # open across a model call it keeps FOR UPDATE locks on the job
+                # and its version, which blocks lease renewal on the worker's
+                # other connection. Commit before spending money.
+                connection.commit()
                 analysis = analyzer(inputs)
+                if analysis.provenance.input_hash != input_hash:
+                    raise ValueError(
+                        "visual analyzer provenance does not match its frame inputs"
+                    )
                 by_index = {item.frame_index: item for item in analysis.frames}
                 with connection.transaction():
                     for offset, frame in enumerate(group):
@@ -1192,6 +1291,7 @@ def _run_visual_analysis(
             output_manifest={
                 "stage_version": VISUAL_STAGE_VERSION,
                 "frame_count": len(frames),
+                "new_frame_count": len(pending_frames),
                 "model": dependencies.visual_model,
             },
             cost_usd=cost,
@@ -1258,6 +1358,7 @@ def _run_spatial_regions(
         stage=Stage.SPATIAL_REGIONS,
         dependency_hash=dependency_hash,
     )
+    connection.commit()
     work_dir = Path(work_dir)
     try:
         if not checkpoint.reused:
@@ -1445,6 +1546,7 @@ def _run_indexing(
         stage=Stage.INDEXING,
         dependency_hash=dependency_hash,
     )
+    connection.commit()
     if not checkpoint.reused:
         with connection.transaction():
             built = rebuild_evidence(
@@ -1495,12 +1597,66 @@ def _run_embeddings(
     dependencies: VideoPipelineDependencies,
 ) -> VideoIngestionJob:
     indexing = _completed_manifest(connection, job=job, stage=Stage.INDEXING)
+    if not _course_allows_semantic_embeddings(connection, job=job):
+        dependency_hash = _stable_hash(
+            {
+                "stage_version": EMBEDDING_STAGE_VERSION,
+                "indexing": indexing,
+                "semantic_embeddings": False,
+            }
+        )
+        checkpoint = begin_stage_checkpoint(
+            connection,
+            job_id=job.id,
+            worker_id=worker_id,
+            attempt_count=job.attempt_count,
+            stage=Stage.EMBEDDINGS,
+            dependency_hash=dependency_hash,
+        )
+        connection.commit()
+        if not checkpoint.reused:
+            complete_stage_checkpoint(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+                stage=Stage.EMBEDDINGS,
+                dependency_hash=dependency_hash,
+                output_manifest={
+                    "stage_version": EMBEDDING_STAGE_VERSION,
+                    "semantic_embeddings": False,
+                    "text_embedding_count": 0,
+                    "image_embedding_count": 0,
+                    "reused_count": 0,
+                    "deleted_count": 0,
+                    "retrieval": "postgres-simple-fts",
+                },
+            )
+        with connection.transaction():
+            advance_stage(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+                next_stage=Stage.QUALITY_GATES,
+            )
+            return release_claim(
+                connection,
+                job_id=job.id,
+                worker_id=worker_id,
+                attempt_count=job.attempt_count,
+            )
     text_embedder = dependencies.text_embedder
     image_embedder = dependencies.image_embedder
     owned: list[Any] = []
     try:
         if text_embedder is None:
-            text_embedder = OpenRouterTextEmbedder()
+            dimension = getattr(job, "provenance", {}).get(
+                "text_embedding_dimension", 3072
+            )
+            if isinstance(dimension, bool) or not isinstance(dimension, int):
+                raise ValueError("text embedding dimension is invalid")
+            text_embedder = OpenRouterTextEmbedder(dimension=dimension)
             owned.append(text_embedder)
         if image_embedder is None:
             image_embedder = OpenRouterRegionEmbedder()
@@ -1531,7 +1687,10 @@ def _run_embeddings(
             stage=Stage.EMBEDDINGS,
             dependency_hash=dependency_hash,
         )
+        connection.commit()
         if not checkpoint.reused:
+            remaining_budget = _remaining_job_budget(connection, job=job)
+            connection.commit()
             built = rebuild_evidence_embeddings(
                 connection,
                 job_id=job.id,
@@ -1544,7 +1703,7 @@ def _run_embeddings(
                         owner_id=owner_id, storage_key=storage_key
                     ).read_bytes()
                 ),
-                remaining_budget_usd=_remaining_job_budget(connection, job=job),
+                remaining_budget_usd=remaining_budget,
             )
             complete_stage_checkpoint(
                 connection,
@@ -1611,6 +1770,7 @@ def _run_quality_gates(
         stage=Stage.QUALITY_GATES,
         dependency_hash=dependency_hash,
     )
+    connection.commit()
     if not checkpoint.reused:
         with connection.transaction():
             quality = evaluate_quality_gates(
@@ -1679,6 +1839,7 @@ def _run_publish(
         stage=Stage.PUBLISH,
         dependency_hash=dependency_hash,
     )
+    connection.commit()
     if not checkpoint.reused:
         complete_stage_checkpoint(
             connection,
@@ -1761,6 +1922,12 @@ def _ensure_visual_budget(
     )
     if remaining < Decimal(estimated_cost):
         raise VideoBudgetExceeded()
+    course_remaining = _remaining_course_budget(connection, job=job)
+    if (
+        course_remaining is not None
+        and course_remaining < Decimal(estimated_cost)
+    ):
+        raise VideoBudgetExceeded()
 
 
 def _remaining_job_budget(
@@ -1777,9 +1944,202 @@ def _remaining_job_budget(
     if row is None:
         raise RuntimeError("video budget is unavailable")
     remaining = row["cost_cap_usd"] - row["actual_cost_usd"]
+    course_remaining = _remaining_course_budget(connection, job=job)
+    if course_remaining is not None:
+        remaining = min(remaining, course_remaining)
     if remaining <= 0:
         raise VideoBudgetExceeded()
     return remaining
+
+
+def _remaining_course_budget(
+    connection: Connection, *, job: VideoIngestionJob
+) -> Decimal | None:
+    """Lock and calculate the shared cap for the course that created a job."""
+
+    course = connection.execute(
+        """
+        select course.id, course.ingestion_cost_cap_usd,
+               course.actual_ingestion_cost_usd
+        from video.course_lectures as lecture
+        join video.courses as course
+          on course.id = lecture.course_id and course.owner_id = lecture.owner_id
+        where lecture.owner_id = %s and lecture.ingestion_job_id = %s
+        for update of course
+        """,
+        (job.owner_id, job.id),
+    ).fetchone()
+    if course is None:
+        return None
+    pending = connection.execute(
+        """
+        select coalesce(sum(observation.cost_usd), 0) as cost
+        from video.course_lectures as lecture
+        join video.ingestion_jobs as linked_job
+          on linked_job.id = lecture.ingestion_job_id
+         and linked_job.owner_id = lecture.owner_id
+        join video.visual_observations as observation
+          on observation.owner_id = linked_job.owner_id
+         and observation.video_id = linked_job.video_id
+         and observation.ingestion_version_id = linked_job.target_version_id
+        left join video.ingestion_stage_checkpoints as checkpoint
+          on checkpoint.owner_id = linked_job.owner_id
+         and checkpoint.ingestion_version_id = linked_job.target_version_id
+         and checkpoint.stage = 'visual_analysis'
+        where lecture.owner_id = %s and lecture.course_id = %s
+          and coalesce(checkpoint.status, 'pending') <> 'complete'
+        """,
+        (job.owner_id, course["id"]),
+    ).fetchone()["cost"]
+    return (
+        course["ingestion_cost_cap_usd"]
+        - course["actual_ingestion_cost_usd"]
+        - pending
+    )
+
+
+def _course_allows_audio_fallback(
+    connection: Connection, *, job: VideoIngestionJob
+) -> bool:
+    """Individual videos may use Whisper; playlist courses opt in explicitly."""
+
+    row = connection.execute(
+        """
+        select course.metadata_json
+        from video.course_lectures as lecture
+        join video.courses as course
+          on course.id = lecture.course_id and course.owner_id = lecture.owner_id
+        where lecture.owner_id = %s and lecture.ingestion_job_id = %s
+        """,
+        (job.owner_id, job.id),
+    ).fetchone()
+    if row is None:
+        return True
+    metadata = row["metadata_json"]
+    return bool(metadata.get("allow_audio_fallback", False))
+
+
+def _course_maximum_frames_per_hour(
+    connection: Connection, *, job: VideoIngestionJob
+) -> int | None:
+    """Bound paid visual work for jobs created by a course.
+
+    Standalone lectures keep the detailed selector's existing ceiling. Course
+    questions are transcript-first, so sixty best frames per hour preserves
+    periodic and change evidence without letting a long playlist spend its
+    entire shared budget on a single visually busy lecture.
+    """
+
+    row = connection.execute(
+        """
+        select course.metadata_json
+        from video.course_lectures as lecture
+        join video.courses as course
+          on course.id = lecture.course_id and course.owner_id = lecture.owner_id
+        where lecture.owner_id = %s and lecture.ingestion_job_id = %s
+        """,
+        (job.owner_id, job.id),
+    ).fetchone()
+    if row is None:
+        return None
+    configured = row["metadata_json"].get(
+        "maximum_visual_frames_per_hour", COURSE_MAXIMUM_FRAMES_PER_HOUR
+    )
+    if (
+        isinstance(configured, bool)
+        or not isinstance(configured, int)
+        or not 1 <= configured <= 260
+    ):
+        raise ValueError("course maximum visual frames per hour is invalid")
+    return configured
+
+
+def _bounded_course_visual_frames(
+    connection: Connection,
+    *,
+    job: VideoIngestionJob,
+    frames: tuple[StoredFrame, ...],
+) -> tuple[StoredFrame, ...]:
+    """Keep paid prefix groups, then sample later course frames evenly."""
+
+    if getattr(job, "provenance", {}).get("analyze_all_selected_frames") is True:
+        return frames
+    maximum_per_hour = _course_maximum_frames_per_hour(connection, job=job)
+    if maximum_per_hour is None:
+        return frames
+    duration = connection.execute(
+        """
+        select duration_ms from video.videos
+        where id = %s and owner_id = %s
+        """,
+        (job.video_id, job.owner_id),
+    ).fetchone()
+    if duration is None or not duration["duration_ms"]:
+        raise RuntimeError("video duration is unavailable for visual budgeting")
+    limit = max(
+        2,
+        math.ceil(int(duration["duration_ms"]) * maximum_per_hour / 3_600_000),
+    )
+    if len(frames) <= limit:
+        return frames
+
+    observed = connection.execute(
+        """
+        select observation.frame_id
+        from video.visual_observations as observation
+        where observation.owner_id = %s
+          and observation.video_id = %s
+          and observation.ingestion_version_id = %s
+          and observation.status = 'success'
+        """,
+        (job.owner_id, job.video_id, job.target_version_id),
+    ).fetchall()
+    observed_ids = {int(row["frame_id"]) for row in observed}
+    # Visual analysis is chronological and stores complete pairs. Retaining
+    # the whole prefix through the last paid frame preserves those exact pair
+    # hashes, so retries reuse them rather than pairing old frames differently.
+    paid_prefix = 0
+    for index, frame in enumerate(frames):
+        if frame.id in observed_ids:
+            paid_prefix = index + 1
+    if paid_prefix >= limit:
+        return frames[:paid_prefix]
+
+    remainder = frames[paid_prefix:]
+    slots = min(limit - paid_prefix, len(remainder))
+    if slots == len(remainder):
+        sampled = remainder
+    elif slots == 1:
+        sampled = (remainder[-1],)
+    else:
+        indexes = tuple(
+            round(index * (len(remainder) - 1) / (slots - 1))
+            for index in range(slots)
+        )
+        sampled = tuple(remainder[index] for index in indexes)
+    return (*frames[:paid_prefix], *sampled)
+
+
+def _course_allows_semantic_embeddings(
+    connection: Connection, *, job: VideoIngestionJob
+) -> bool:
+    """Course-created jobs are lexical-first unless explicitly opted in."""
+
+    if getattr(job, "provenance", {}).get("semantic_embeddings") is True:
+        return True
+    row = connection.execute(
+        """
+        select course.metadata_json
+        from video.course_lectures as lecture
+        join video.courses as course
+          on course.id = lecture.course_id and course.owner_id = lecture.owner_id
+        where lecture.owner_id = %s and lecture.ingestion_job_id = %s
+        """,
+        (job.owner_id, job.id),
+    ).fetchone()
+    if row is None:
+        return True
+    return bool(row["metadata_json"].get("semantic_embeddings", False))
 
 
 def _write_transcript_artifact(
