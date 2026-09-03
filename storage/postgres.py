@@ -749,7 +749,6 @@ def restore_book(
                 table_blocks.html_content,
                 table_blocks.flat_text,
                 image_blocks.mime_type,
-                image_blocks.base64_content,
                 image_blocks.storage_key,
                 image_blocks.content_hash as image_content_hash
             from content_blocks
@@ -790,7 +789,7 @@ def restore_book(
                     marker is None
                     or marker[0] != "image"
                     or row["mime_type"] is None
-                    or (row["base64_content"] is None and row["storage_key"] is None)
+                    or row["storage_key"] is None
                 ):
                     raise InvalidBookError(f"image block {row['id']} is inconsistent")
                 # ImageBlock is the parser's shape and carries base64, so a

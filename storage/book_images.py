@@ -156,27 +156,16 @@ def store_figure(
 
 
 def load_figure(row, *, store: MediaStore | None = None) -> bytes:
-    """The bytes of one figure, from wherever that row says they live.
+    """The bytes of one figure, from the object its row names.
 
-    Rows carry a storage key once migrated and inline base64 before that, and
-    both shapes are readable for as long as the column survives. The key is
-    preferred: a row that has been migrated should never silently fall back to
-    a copy that is on its way out.
+    Rows carried inline base64 until 2026-09-03 and this read both shapes
+    during the migration. The column is gone and `storage_key` is now NOT
+    NULL, so there is one place a figure lives and no fallback to a copy that
+    no longer exists.
     """
 
     key = row["storage_key"] if "storage_key" in row.keys() else None
-    if key:
-        selected = store or configured_book_image_store()
-        path = selected.open_path(owner_id=row["owner_id"], storage_key=key)
-        return path.read_bytes()
-
-    inline = row["base64_content"] if "base64_content" in row.keys() else None
-    if not inline:
-        raise MediaStoreError("book image row names no content")
-    from base64 import b64decode
-    import binascii
-
-    try:
-        return b64decode(inline, validate=True)
-    except (ValueError, binascii.Error) as error:
-        raise MediaStoreError("book image content is not valid base64") from error
+    if not key:
+        raise MediaStoreError("book image row names no object")
+    selected = store or configured_book_image_store()
+    return selected.open_path(owner_id=row["owner_id"], storage_key=key).read_bytes()

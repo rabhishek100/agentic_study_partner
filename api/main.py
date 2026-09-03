@@ -2042,7 +2042,7 @@ async def block_image(
         with database_connection(readonly=True) as connection:
             row = connection.execute(
                 """
-                select image_blocks.mime_type, image_blocks.base64_content,
+                select image_blocks.mime_type,
                        image_blocks.storage_key, image_blocks.owner_id
                 from image_blocks
                 join content_blocks
