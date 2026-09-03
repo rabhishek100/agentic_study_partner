@@ -48,6 +48,11 @@ from uuid import UUID
 from psycopg import Connection
 
 from storage.database import parse_owner_id
+from storage.retention_guard import (
+    database_is_authoritative,
+    max_orphan_fraction,
+    orphan_guard_minimum,
+)
 from video.jobs import append_event
 from video.media_store import (
     FilesystemMediaStore,
@@ -110,99 +115,20 @@ def dry_run_requested() -> bool:
     }
 
 
-DEFAULT_MAX_ORPHAN_FRACTION = 0.25
-DEFAULT_ORPHAN_GUARD_MINIMUM = 20
-
-
-def max_orphan_fraction() -> float:
-    """The orphan share past which the sweep suspects the database, not the volume."""
-
-    raw = os.getenv("VIDEO_CLEANUP_MAX_ORPHAN_FRACTION", "").strip()
-    if not raw:
-        return DEFAULT_MAX_ORPHAN_FRACTION
-    try:
-        value = float(raw)
-    except ValueError as error:
-        raise ValueError(
-            "VIDEO_CLEANUP_MAX_ORPHAN_FRACTION must be a number"
-        ) from error
-    if not 0.0 <= value <= 1.0:
-        raise ValueError("VIDEO_CLEANUP_MAX_ORPHAN_FRACTION must be between 0 and 1")
-    return value
-
-
-def orphan_guard_minimum() -> int:
-    """How many eligible objects an owner needs before the guard can judge them.
-
-    Below a handful of objects the orphan share says nothing — one stranded
-    frame beside one referenced one is 50%, and a healthy owner mid-ingest
-    looks identical to a catastrophe. The guard exists to stop a stale
-    database deleting a library, and a library is not four files, so under
-    this floor the sweep proceeds and the per-pass budget remains the bound.
-    """
-
-    raw = os.getenv("VIDEO_CLEANUP_ORPHAN_GUARD_MINIMUM", "").strip()
-    if not raw:
-        return DEFAULT_ORPHAN_GUARD_MINIMUM
-    try:
-        value = int(raw)
-    except ValueError as error:
-        raise ValueError(
-            "VIDEO_CLEANUP_ORPHAN_GUARD_MINIMUM must be an integer"
-        ) from error
-    if value < 0:
-        raise ValueError("VIDEO_CLEANUP_ORPHAN_GUARD_MINIMUM must not be negative")
-    return value
-
-
 def _database_is_authoritative(
     *, owner: UUID, referenced: int, candidates: int, orphans: int
 ) -> bool:
-    """Whether the connected database may be trusted to condemn these objects.
+    """Video's view of the shared rule in `storage.retention_guard`.
 
-    The orphan sweep's whole argument is that an object no row names is an
-    object nothing will ever read again. That holds only while the database it
-    asks is the database those objects were written for. Restore an older
-    dump, point a worker at a half-migrated copy, or connect to rows that have
-    been rolled back, and every surviving object looks unreferenced — at which
-    point the sweep is not reclaiming stranded bytes, it is deleting the
-    library. That is not hypothetical here: it is how 995 frame images were
-    lost on 2026-09-01.
-
-    Two cheap questions separate a real orphan set from that failure. An owner
-    with objects in the store and no rows whatsoever is not an owner who
-    deleted everything; it is a database that has never heard of them. And a
-    healthy store strands a few objects, not most of them, so an orphan share
-    past the configured ceiling means the rows are missing rather than the
-    objects stale.
+    Kept as a named function because the reason it exists is a video incident
+    — 995 frame images deleted out of R2 on 2026-09-01 — and the call site
+    reads better for saying so. The rule itself is shared with the book-source
+    sweep, which lost 52 PDFs to the same mistake a day later.
     """
 
-    if candidates < orphan_guard_minimum():
-        return True
-    if referenced == 0:
-        logger.error(
-            "orphan sweep refused for owner %s: the database names no media at "
-            "all, yet the store holds %s eligible objects for them. A database "
-            "that does not know this owner cannot be treated as authoritative.",
-            owner,
-            candidates,
-        )
-        return False
-    share = orphans / candidates
-    ceiling = max_orphan_fraction()
-    if share > ceiling:
-        logger.error(
-            "orphan sweep refused for owner %s: %s of %s eligible objects (%.0f%%) "
-            "are unreferenced, past the %.0f%% ceiling. A database missing this "
-            "many rows is likelier to be stale than the objects are.",
-            owner,
-            orphans,
-            candidates,
-            share * 100,
-            ceiling * 100,
-        )
-        return False
-    return True
+    return database_is_authoritative(
+        scope=owner, referenced=referenced, candidates=candidates, orphans=orphans
+    )
 
 
 def _hours(name: str, fallback: int) -> int:

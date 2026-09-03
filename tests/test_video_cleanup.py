@@ -439,7 +439,7 @@ class VideoCleanupTests(unittest.TestCase):
             live = self.upload_job(database, created_interval="1 hour")
             self.write(live.upload_storage_key)
             with patch.dict(
-                os.environ, {"VIDEO_CLEANUP_MAX_ORPHAN_FRACTION": "1.0"}, clear=False
+                os.environ, {"STORAGE_CLEANUP_MAX_ORPHAN_FRACTION": "1.0"}, clear=False
             ):
                 summary = self.sweep(database)
 

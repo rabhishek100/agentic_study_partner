@@ -25,6 +25,8 @@ from .config import IngestionLimits, load_limits
 from .errors import ErrorCode, IngestionError
 from .jobs import append_event
 from .states import Status
+from storage.retention_guard import database_is_authoritative
+
 from .storage_objects import delete_object, list_prefix
 
 
@@ -280,6 +282,11 @@ def delete_orphaned_sources(
                 "orphan sweep examined the first %s job prefixes for one owner",
                 MAXIMUM_JOBS_PER_OWNER,
             )
+        # Gathered before anything is deleted, because the guard below needs
+        # this owner's whole picture to tell a few stranded objects apart from
+        # a database that has lost the rows for all of them.
+        condemned: list[str] = []
+        eligible = 0
         for job in jobs:
             if not _JOB_PREFIX.fullmatch(job):
                 # Not a job's directory. Book-scoped prefixes hold the derived
@@ -288,8 +295,20 @@ def delete_orphaned_sources(
                 # every sweep then counts as a failure.
                 continue
             path = f"{owner}/{job}/original.pdf"
+            eligible += 1
             if path in known or path in protected:
                 continue
+            condemned.append(path)
+
+        if not database_is_authoritative(
+            scope=owner,
+            referenced=eligible - len(condemned),
+            candidates=eligible,
+            orphans=len(condemned),
+        ):
+            continue
+
+        for path in condemned:
             try:
                 removed = delete_object(limits.source_bucket, path)
             except IngestionError as error:
