@@ -25,7 +25,7 @@ depends on the old bytes still being there.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from hashlib import sha256
 import json
@@ -234,10 +234,17 @@ def build_manifest(
 # Row updates
 # ---------------------------------------------------------------------------
 
+# The bucket moves with the backend. "book-sources" is Supabase's bucket name
+# and means nothing to R2, whose bucket is
+# "agentic-study-partner-book-sources-prod" — so a row that flipped backend
+# but kept its old bucket name sends the API looking for a bucket that does
+# not exist, and every PDF 503s with "the document store is unavailable".
+# The row has to name the bucket that actually holds the object.
 _UPDATES = {
     "books.source": """
         update public.books
-           set source_storage_backend = %(to_backend)s
+           set source_storage_backend = %(to_backend)s,
+               source_storage_bucket = %(target_bucket)s
          where id = %(row_key)s::bigint
            and source_storage_bucket = %(bucket)s
            and source_storage_path = %(path)s
@@ -245,7 +252,8 @@ _UPDATES = {
     """,
     "books.viewer": """
         update public.books
-           set viewer_storage_backend = %(to_backend)s
+           set viewer_storage_backend = %(to_backend)s,
+               viewer_storage_bucket = %(target_bucket)s
          where id = %(row_key)s::bigint
            and viewer_storage_bucket = %(bucket)s
            and viewer_storage_path = %(path)s
@@ -253,7 +261,8 @@ _UPDATES = {
     """,
     "ingestion_jobs": """
         update public.ingestion_jobs
-           set storage_backend = %(to_backend)s
+           set storage_backend = %(to_backend)s,
+               storage_bucket = %(target_bucket)s
          where id = %(row_key)s::uuid
            and storage_bucket = %(bucket)s
            and storage_path = %(path)s
@@ -268,6 +277,7 @@ def flip_rows(
     *,
     from_backend: str,
     to_backend: str,
+    target_bucket: str,
 ) -> int:
     """Point only the rows naming this exact object at the new backend.
 
@@ -286,6 +296,7 @@ def flip_rows(
                 {
                     "to_backend": to_backend,
                     "from_backend": from_backend,
+                    "target_bucket": target_bucket,
                     "row_key": row_key,
                     "bucket": entry.bucket,
                     "path": entry.path,
@@ -515,21 +526,32 @@ def main(argv: list[str] | None = None) -> int:
 
             for start in range(0, len(selected), args.batch):
                 chunk = selected[start : start + args.batch]
+                # `pool.map` was the obvious shape and the wrong one: it
+                # collects every result before yielding the first, so nothing
+                # is printed and no row is flipped until the whole batch is
+                # done. A crash partway through then loses the record of
+                # everything that had already been copied. `as_completed`
+                # reports and commits each object as it lands, which is what
+                # makes an interrupted run genuinely resumable rather than
+                # merely re-runnable.
                 with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-                    outcomes = list(
-                        pool.map(
-                            lambda entry: migrate_one(
-                                entry,
-                                legacy=legacy,
-                                target=target,
-                                target_bucket=args.target_bucket,
-                                maximum_bytes=args.maximum_bytes,
-                                verify_only=args.verify_only,
-                            ),
-                            chunk,
-                        )
-                    )
-                for entry, outcome in zip(chunk, outcomes):
+                    pending = {
+                        pool.submit(
+                            migrate_one,
+                            entry,
+                            legacy=legacy,
+                            target=target,
+                            target_bucket=args.target_bucket,
+                            maximum_bytes=args.maximum_bytes,
+                            verify_only=args.verify_only,
+                        ): entry
+                        for entry in chunk
+                    }
+                    finished = [
+                        (pending[future], future.result())
+                        for future in as_completed(pending)
+                    ]
+                for entry, outcome in finished:
                     report.add(outcome)
                     marker = {
                         "migrated": "copied",
@@ -548,6 +570,7 @@ def main(argv: list[str] | None = None) -> int:
                             entry,
                             from_backend=args.from_backend,
                             to_backend=args.to_backend,
+                            target_bucket=args.target_bucket,
                         )
                         if changed != len(entry.references):
                             print(
