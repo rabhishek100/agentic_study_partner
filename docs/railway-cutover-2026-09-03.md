@@ -18,8 +18,7 @@ Browser
   |                               v
   |                            Railway Postgres 18.6 + pgvector 0.8.6
   |
-  `-- signed URLs ------------> Cloudflare R2 (figures, video) and, for now,
-                                Supabase Storage (source PDFs)
+  `-- signed URLs ------------> Cloudflare R2 (source PDFs, figures, video)
 ```
 
 | | Before | After |
@@ -29,6 +28,7 @@ Browser
 | API health | `503`, `canonical_database_ready: false` | `200 ok` |
 | Build | `249f62d-dirty` | `53bd382` |
 | Book figures | inline base64 / unconfigured in prod | R2 `book-media-prod`, 4,342 objects |
+| Source PDFs | Supabase Storage | R2 `book-sources-prod`, 54 objects, 464 MB |
 | Auth account | `rabhishek100@gmail.com` | `human@rockfortrobotics.com`, same UUID |
 | Backups | none | 193 MB off-provider dump + verified drill |
 
@@ -75,20 +75,20 @@ Against the live API at `53bd382`, signed in as the real owner:
   than merely restoring, and carries the post-incident row counts (14,332
   evidence units, 5,942 transcript segments), all ten parked jobs with their
   `last_error_message` intact, and the renamed owner account.
-- **Tests** 1,748 passing.
+- **Source PDFs** 54 objects migrated to R2 and verified, 486,497,284 bytes,
+  matching an independent export taken before the migration began, byte for
+  byte. Zero missing, zero failed, zero collisions, zero left on Supabase. Five
+  failed or cancelled jobs' objects were deliberately left behind: they are
+  21-34 days past the seven-day retention window and already eligible for
+  deletion, so copying them would have been work in the wrong direction.
+- **Tests** 1,751 passing.
 
 ## Deliberately not finished
 
-**Source PDFs are still on Supabase Storage.** The R2 bucket
-`agentic-study-partner-book-sources-prod` exists, and
-`scripts/migrate_source_pdfs.py` is written and its manifest verified against
-the live database — 54 distinct objects, 106 referring rows, 52 with a recorded
-sha256, matching an independent export taken before any of this began. It is
-blocked on an R2 API token whose scope includes the new bucket; the existing
-token is scoped to the older buckets and returns 403. Until that runs,
-`SUPABASE_SERVICE_ROLE_KEY` remains a runtime dependency and the frontend keeps
-its Supabase Storage upload path — two definition-of-done items deferred, not
-met.
+**The frontend still uploads through Supabase Storage.** Reads are entirely on
+R2, and new ingestion jobs reserve R2 keys, but the browser's upload path has
+not yet moved to a presigned R2 PUT. `SUPABASE_SERVICE_ROLE_KEY` therefore
+remains a runtime dependency. That is the last piece of the storage move.
 
 **Auth is on the old project rather than a new one.** Supabase Free caps a user
 at two active projects and the Management API cannot create organizations, so
@@ -141,3 +141,32 @@ DATABASE_URL=... uv run python -m scripts.migrate_source_pdfs --dry-run
 Take a dump daily and drill monthly. Deleting a Railway volume deletes its
 volume backups with it, which is why the off-provider copy is the one that
 matters.
+
+## The source-PDF migration, and what it cost to get right
+
+Three things went wrong, all caught by checking rather than by assuming.
+
+**`pool.map` collected every result before yielding the first.** So nothing
+printed and no row was flipped until a whole batch finished — and when the
+first run died partway through, it had already uploaded all 54 objects and
+recorded none of them. The work was not lost, but only because the command is
+idempotent: the rerun found each object already present, verified size and
+hash, and flipped the rows without re-uploading. It now reports and commits
+each object as it lands, via `as_completed`, which is what makes an interrupted
+run genuinely resumable rather than merely re-runnable.
+
+**A second run died on `No route to host`** partway through — a network drop,
+not a data problem. It resumed cleanly for the same reason.
+
+**The bucket did not move with the backend.** Rows flipped to `r2` kept
+`book-sources`, which is Supabase's bucket name and means nothing to R2. Every
+PDF returned 503 `the document store is unavailable`. A verified copy is not a
+working read, and the only reason that was a ten-minute problem rather than a
+silent one is that the endpoint was actually called afterwards. The migration
+now sets bucket and backend together.
+
+The mixed state is real and worth knowing: books 536 and 540 have a
+`filesystem` source and an `r2` viewer copy, because they were ingested from
+disk and only their viewer rendering was ever stored. Both serve correctly,
+which is the pairing rule — path and backend must come from the same half of
+the row — working in production.
