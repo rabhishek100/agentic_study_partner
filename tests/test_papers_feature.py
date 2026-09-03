@@ -32,45 +32,58 @@ class ScientificPapersFeatureTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-    def test_whole_paper_request_accepts_a_mention_inside_the_phrase(self) -> None:
-        """The word order the interface actually produces.
+    def test_whole_document_summary_accepts_every_word_order(self) -> None:
+        """Determiner, mention and noun, in the orders readers actually write.
 
-        A reader types "summarize the ", picks the document from the mention
-        menu, then types " paper" — putting the mention between the determiner
-        and the noun. That reached production unmatched, was parsed as a
-        *named* scope, sent the title to the hierarchy resolver as if it were a
-        section, and failed the turn with "hierarchy route requires a canonical
-        scope" — the very error this pattern exists to prevent.
+        Enumerated rather than sampled because this failed twice in
+        production, each time as a different unlisted phrasing: "the @[Title]
+        paper" and then "@[Title] paper". Each was parsed as a *named* scope,
+        sent to the hierarchy resolver as if the title were a section, matched
+        nothing, and failed the turn with "hierarchy route requires a
+        canonical scope".
         """
 
+        for determiner in ("", "the ", "this ", "the whole "):
+            for noun in ("", " paper", " document", " book", " pdf"):
+                query = f"summarize {determiner}@[Attention Is All You Need]{noun}"
+                with self.subTest(query=query):
+                    self.assertEqual(
+                        parse_study_request(query),
+                        StudyRequest(
+                            "summarize",
+                            "book",
+                            "",
+                            book_reference="Attention Is All You Need",
+                        ),
+                    )
+
+    def test_whole_document_summary_without_a_mention(self) -> None:
+        """The reader is already looking at the document."""
+
         for query in (
-            "summarize the @[Attention Is All You Need] paper",
-            "explain the @[Attention Is All You Need] paper",
-            "summarize the @[Attention Is All You Need] document",
-            "summarize the whole @[Attention Is All You Need] paper",
+            "summarize the paper",
+            "summarize this document",
+            "explain the whole pdf",
+            "review the book",
         ):
             with self.subTest(query=query):
-                self.assertEqual(
-                    parse_study_request(query),
-                    StudyRequest(
-                        "summarize",
-                        "book",
-                        "",
-                        book_reference="Attention Is All You Need",
-                    ),
-                )
+                parsed = parse_study_request(query)
+                self.assertEqual(parsed.scope_kind, "book")
+                self.assertEqual(parsed.scope_reference, "")
+                self.assertIsNone(parsed.book_reference)
 
-    def test_a_section_request_is_not_read_as_a_whole_document_one(self) -> None:
-        """The widened pattern must not swallow scoped requests.
+    def test_a_scoped_request_is_not_read_as_a_whole_document_one(self) -> None:
+        """The distinction the whole feature rests on.
 
-        Both kinds are `summarize`; what separates them is the scope. A
-        whole-document request carries an empty scope reference and names the
-        document, while a scoped one names the part.
+        Both kinds are `summarize`; the scope is what separates them. A
+        widened pattern that swallowed these would silently turn "summarize
+        chapter 1" into a summary of the entire book.
         """
 
         for query, kind, reference in (
             ("summarize chapter 1 of @[ML System Design]", "chapter", "1"),
             ("summarize the Introduction section", "named", "Introduction section"),
+            ("summarize section 2 of the paper", "section", "2 of the paper"),
         ):
             with self.subTest(query=query):
                 parsed = parse_study_request(query)

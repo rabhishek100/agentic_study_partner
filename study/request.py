@@ -75,28 +75,41 @@ LIST_CHAPTERS = (
         re.IGNORECASE,
     ),
 )
-# A bare "@[Title]" mention is itself an unambiguous whole-document
-# reference, so the determiner and noun ("this paper") are optional when one
-# is present. Without this branch "summarize @[Title]" parsed as a *named*
-# scope, sent the title to the hierarchy resolver as if it were a section,
-# matched nothing, and failed the turn with "hierarchy route requires a
-# canonical scope".
-# The mention may also sit *between* the determiner and the noun — "summarize
-# the @[Title] paper" — which is what the interface actually produces, because
-# a reader types "summarize the ", picks the document from the mention menu,
-# and then types " paper". That phrasing reached production unmatched and
-# failed with the very error this pattern exists to prevent.
+# "Summarise the whole of this document", in the many shapes a reader writes
+# it. The parts are a determiner ("the", "this", "the whole"), a mention
+# ("@[Title]") and a noun ("paper", "document"), and a reader may use any two
+# of the three in either order.
+#
+# This was previously spelled as a list of the shapes that had been reported,
+# which meant each new phrasing failed the same way: parsed as a *named*
+# scope, the title sent to the hierarchy resolver as if it were a section,
+# nothing matched, and the turn failed with "hierarchy route requires a
+# canonical scope". Two separate reports of that error were two different
+# unlisted word orders — "the @[Title] paper" and "@[Title] paper" — so the
+# grammar is now written once rather than enumerated.
+#
+# What must NOT match is a request that names a *part*: "summarize chapter 1
+# of @[Title]" and "summarize the Introduction section" are scoped requests
+# and are resolved against the hierarchy, which is the whole point of the
+# distinction.
+_DETERMINER = r"(?:this|the(?:\s+(?:selected|current|whole))?|selected|current)"
+_MENTION = r"@\[[^\]]+\]"
+_DOCUMENT_NOUN = r"(?:pdf|paper|document|book)"
+
 WHOLE_DOCUMENT_SUMMARY = re.compile(
     r"^(?:explain|summari[sz]e|review)\s+"
     r"(?:all\s+of\s+)?"
+    rf"(?:{_DETERMINER}\s+)?"
     r"(?:"
-    r"(?:this|the(?:\s+(?:selected|current|whole))?|selected|current)\s+"
-    r"(?:(?P<leading_document>@\[[^\]]+\])\s+)?"
-    r"(?:pdf|paper|document|book)"
-    r"(?:\s+(?P<book_reference>@\[[^\]]+\]))?"
+    # The mention leads, and the noun after it is optional: "@[Title]",
+    # "@[Title] paper", "the @[Title] paper".
+    rf"(?P<leading_document>{_MENTION})(?:\s+{_DOCUMENT_NOUN})?"
     r"|"
-    r"(?P<mentioned_document>@\[[^\]]+\])"
-    r")\s*[?.]?$",
+    # The noun leads, and the mention after it is optional: "the paper",
+    # "this document", "the paper @[Title]".
+    rf"{_DOCUMENT_NOUN}(?:\s+(?P<book_reference>{_MENTION}))?"
+    r")"
+    r"\s*[?.]?$",
     re.IGNORECASE,
 )
 SUMMARIZE_SECTION = re.compile(
@@ -188,7 +201,6 @@ def parse_study_request(query: str) -> StudyRequest:
                 _clean_book_reference(
                     match.group("book_reference")
                     or match.group("leading_document")
-                    or match.group("mentioned_document")
                 )
                 or None
             ),
