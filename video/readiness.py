@@ -66,10 +66,12 @@ def _transcript_note(metrics: dict[str, Any]) -> str:
 
 def _visual_note(metrics: dict[str, Any]) -> str:
     analysed = _count(metrics, "successful_visual_observation_count")
-    total = _count(metrics, "frame_count")
+    target = _count(metrics, "visual_analysis_target_count")
+    total = target or _count(metrics, "frame_count")
     if analysed is None or not total:
         return "Some captured frames could not be interpreted."
-    return f"{analysed} of {total} captured frames could be interpreted."
+    noun = "selected" if target else "captured"
+    return f"{analysed} of {total} {noun} frames could be interpreted."
 
 
 def _chapter_note(metrics: dict[str, Any]) -> str:

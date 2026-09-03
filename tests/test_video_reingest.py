@@ -232,6 +232,37 @@ class VideoReingestTests(unittest.TestCase):
             still_published["current_ingestion_version_id"], created.version_id
         )
 
+    def test_timeline_repair_keeps_the_published_version_but_rebuilds_frames(self) -> None:
+        with connection(self.database_url) as database:
+            created = self._published_video(database)
+            repair = reingest_video(
+                database,
+                owner_id=self.owner,
+                video_id=created.video_id,
+                idempotency_key=uuid4(),
+                quality_profile="course-full-quality-v1",
+                rebuild_frames=True,
+            )
+            state = database.execute(
+                """
+                select job.stage,
+                       (select count(*) from video.frames
+                        where ingestion_version_id = job.target_version_id) as frames,
+                       (select count(*) from video.visual_observations
+                        where ingestion_version_id = job.target_version_id) as observations,
+                       source.current_ingestion_version_id
+                from video.ingestion_jobs job
+                join video.videos source on source.id = job.video_id
+                where job.id = %s
+                """,
+                (repair.job_id,),
+            ).fetchone()
+
+        self.assertEqual(state["stage"], "frame_selection")
+        self.assertEqual(state["frames"], 0)
+        self.assertEqual(state["observations"], 0)
+        self.assertEqual(state["current_ingestion_version_id"], created.version_id)
+
     def test_the_rebuild_reads_the_new_document_without_repaying(self) -> None:
         with connection(self.database_url) as database:
             created = self._published_video(database)

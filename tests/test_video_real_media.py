@@ -30,6 +30,7 @@ from video.vision import (
     TechnicalDetails,
     VisualAnalysis,
     VisualProvenance,
+    visual_input_hash,
 )
 
 
@@ -112,7 +113,7 @@ def analyze(frames) -> VisualAnalysis:
             input_tokens=1,
             output_tokens=1,
             cost_usd=0.0,
-            input_hash="a" * 64,
+            input_hash=visual_input_hash("local/fake-vision", frames),
             prompt_version="technical-lecture-visual-v1",
             attempt=1,
         ),
@@ -145,6 +146,7 @@ class RealMediaIngestionTests(unittest.TestCase):
             media_store=self.store,
             youtube_acquirer=lambda *args, **kwargs: None,
             visual_analyzer=analyze,
+            visual_model="local/fake-vision",
             text_embedder=FakeEmbedder(),
             image_embedder=FakeEmbedder(),
         )
@@ -239,6 +241,7 @@ class RealMediaIngestionTests(unittest.TestCase):
             media_store=self.store,
             youtube_acquirer=lambda *args, **kwargs: None,
             visual_analyzer=watching_analyzer,
+            visual_model="local/fake-vision",
             text_embedder=FakeEmbedder(),
             image_embedder=FakeEmbedder(),
         )

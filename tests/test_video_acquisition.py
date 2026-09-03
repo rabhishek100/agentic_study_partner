@@ -92,7 +92,12 @@ class VideoAcquisitionTests(unittest.TestCase):
         download, _ = runner.calls[0]
         self.assertEqual(download[0], "yt-dlp")
         self.assertIn("--no-playlist", download)
-        self.assertEqual(download[download.index("--max-downloads") + 1], "1")
+        self.assertNotIn("--max-downloads", download)
+        self.assertIn("--continue", download)
+        self.assertIn("--part", download)
+        self.assertEqual(
+            download[download.index("--http-chunk-size") + 1], "5242880"
+        )
         # H.264 is requested first: the deployed image cannot decode the AV1
         # that "best video under 1080p" now resolves to on YouTube.
         requested_format = download[download.index("--format") + 1]

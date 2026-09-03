@@ -90,7 +90,6 @@ def _owned_stage(
         where j.id = %s and j.status = 'running' and j.stage = %s
           and j.lease_owner = %s and j.attempt_count = %s
           and j.lease_expires_at >= now()
-        for update
         """,
         (UUID(str(job_id)), str(stage), worker_id, attempt_count),
     ).fetchone()
@@ -98,6 +97,11 @@ def _owned_stage(
         raise VideoEvidenceConflictError(
             "video evidence stage is unavailable to this worker attempt"
         )
+    # Do not lock the job row for the full evidence rebuild. Large caption
+    # files can take longer than one heartbeat interval to index, and the
+    # renewal thread must be able to update this row while the derived rows
+    # are rebuilt. The checkpoint completion still revalidates the same
+    # worker, attempt and live lease before the transaction can commit.
     return row
 
 
@@ -474,6 +478,28 @@ def evaluate_quality_gates(
         )
         frame_count = len(frame_rows)
         success_count = len(successful_timestamps)
+        visual_checkpoint = connection.execute(
+            """
+            select output_manifest_json
+            from video.ingestion_stage_checkpoints
+            where owner_id = %s and video_id = %s and ingestion_version_id = %s
+              and stage = 'visual_analysis' and status = 'complete'
+            """,
+            (job["owner_id"], job["video_id"], job["target_version_id"]),
+        ).fetchone()
+        visual_manifest = (
+            visual_checkpoint["output_manifest_json"]
+            if visual_checkpoint is not None
+            else {}
+        ) or {}
+        configured_target = visual_manifest.get("frame_count")
+        visual_target_count = (
+            int(configured_target)
+            if isinstance(configured_target, int)
+            and not isinstance(configured_target, bool)
+            and 0 < configured_target <= frame_count
+            else frame_count
+        )
         first_ms = int(frame_rows[0]["timestamp_ms"]) if frame_rows else None
         last_ms = int(frame_rows[-1]["timestamp_ms"]) if frame_rows else None
         coverage = float(source["coverage_ratio"] or 0.0)
@@ -505,7 +531,9 @@ def evaluate_quality_gates(
                 and duration_ms - last_ms <= 30_000
             ),
             "visual_analysis_success": (
-                success_count / frame_count >= 0.90 if frame_count else False
+                success_count / visual_target_count >= 0.90
+                if visual_target_count
+                else False
             ),
             "every_chapter_visual": (
                 chapter_count == 0 or covered_chapters == chapter_count
@@ -541,8 +569,11 @@ def evaluate_quality_gates(
             "transcript_gap_limit_ms": TRANSCRIPT_GAP_LIMIT_MS,
             "transcript_segment_count": segment_count,
             "frame_count": frame_count,
+            "visual_analysis_target_count": visual_target_count,
             "successful_visual_observation_count": success_count,
-            "visual_success_ratio": round(success_count / max(1, frame_count), 6),
+            "visual_success_ratio": round(
+                success_count / max(1, visual_target_count), 6
+            ),
             "chapter_count": int(chapter_count),
             "chapters_with_visual_evidence": int(covered_chapters),
             "maximum_visual_gap_ms": max(gaps, default=duration_ms),
