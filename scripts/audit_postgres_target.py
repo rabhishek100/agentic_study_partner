@@ -84,11 +84,18 @@ where table_schema::text = any(%s) and table_type = 'BASE TABLE'
 order by 1
 """
 
+# Nullability is recorded here rather than left to the constraint inventory.
+# PostgreSQL 18 materialises NOT NULL as a `pg_constraint` row with
+# contype='n' and 17 does not, so a baseline built on one major version and
+# audited on the other differed by 584 phantom constraints. The substantive
+# property — this column may not be null — is version-independent when read
+# from information_schema, so that is where it is asserted.
 _COLUMNS = """
 select table_schema || '.' || table_name || '.' || column_name
        || ':' || data_type
        || case when udt_schema is not null and data_type = 'USER-DEFINED'
                then '(' || udt_schema || '.' || udt_name || ')' else '' end
+       || case when is_nullable = 'NO' then ' not-null' else '' end
 from information_schema.columns
 where table_schema::text = any(%s)
 order by 1
@@ -101,12 +108,14 @@ where schemaname = any(%s)
 order by 1
 """
 
+# contype='n' is excluded: see the note on _COLUMNS. Primary keys, foreign
+# keys, uniques and checks are all still compared.
 _CONSTRAINTS = """
 select n.nspname || '.' || rel.relname || '.' || con.conname || ':' || con.contype::text
 from pg_constraint con
 join pg_class rel on rel.oid = con.conrelid
 join pg_namespace n on n.oid = rel.relnamespace
-where n.nspname = any(%s)
+where n.nspname = any(%s) and con.contype <> 'n'
 order by 1
 """
 

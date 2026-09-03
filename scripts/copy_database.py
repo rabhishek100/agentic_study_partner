@@ -328,8 +328,14 @@ def copy_table(
 
     COPY in both directions rather than row-by-row inserts: it is the only
     mechanism that moves a 123,000-row `halfvec` table in reasonable time, and
-    it round-trips vectors through their own binary representation rather than
+    it round-trips vectors through their own text representation rather than
     through a Python client that would have to know the type.
+
+    Text format, not binary. Binary COPY is faster and is defined per type by
+    that type's send/recv functions, which makes it a wire format shared
+    between two servers that may not be the same major version — the source
+    here is PostgreSQL 17 and the Railway target is 18. Text format is the
+    portable one, and at a quarter of a million rows the difference is seconds.
 
     Foreign-key checks are already suspended for the session by
     `suspend_referential_integrity`, and `verify_foreign_keys` proves afterwards
@@ -346,12 +352,12 @@ def copy_table(
     with target.cursor() as writer:
         with source.cursor() as reader:
             with reader.copy(
-                sql.SQL("copy (select {} from {}) to stdout (format binary)").format(
+                sql.SQL("copy (select {} from {}) to stdout (format text)").format(
                     column_list, sql.SQL(table)
                 )
             ) as outbound:
                 with writer.copy(
-                    sql.SQL("copy {} ({}) from stdin (format binary)").format(
+                    sql.SQL("copy {} ({}) from stdin (format text)").format(
                         sql.SQL(table), column_list
                     )
                 ) as inbound:
@@ -588,10 +594,20 @@ def main(argv: list[str] | None = None) -> int:
 
             source_major = _major_version(source)
             target_major = _major_version(target)
-            if source_major != target_major:
+            # A newer target is fine and is the actual situation: Railway's
+            # managed Postgres is 18 and the recovered source is 17. An older
+            # target is not — the schema is built from migrations that assume
+            # at least 17, and moving rows backwards across a major version
+            # has no supported path.
+            if target_major < source_major:
                 raise BootstrapError(
-                    f"PostgreSQL major versions differ: source {source_major}, "
-                    f"target {target_major}"
+                    f"target PostgreSQL {target_major} is older than source "
+                    f"{source_major}; rows cannot move backwards across a major version"
+                )
+            if target_major != source_major:
+                print(
+                    f"note: source is PostgreSQL {source_major} and target is "
+                    f"{target_major}; copying in text format"
                 )
             print(
                 f"both PostgreSQL {_server_version_text(source)} / "
@@ -607,7 +623,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
             tables = ordered_tables(source)
-            print(f"{len(tables)} application tables")
+            print(f"{len(tables)} application tables", flush=True)
 
             if args.verify_only:
                 report = verify(source, target, tables)
@@ -629,7 +645,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.dry_run:
                 suspend_referential_integrity(target)
             report.identity_rows = copy_identity_rows(source, target, dry_run=args.dry_run)
-            print(f"identity registry: {report.identity_rows} rows")
+            print(f"identity registry: {report.identity_rows} rows", flush=True)
 
             try:
                 for table in tables:
@@ -640,7 +656,7 @@ def main(argv: list[str] | None = None) -> int:
                         batch_rows=args.batch_rows,
                         dry_run=args.dry_run,
                     )
-                    print(f"  {table}: {copied}")
+                    print(f"  {table}: {copied}", flush=True)
             finally:
                 if not args.dry_run:
                     restore_referential_integrity(target)
