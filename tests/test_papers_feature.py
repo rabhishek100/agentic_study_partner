@@ -32,6 +32,51 @@ class ScientificPapersFeatureTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
+    def test_whole_paper_request_accepts_a_mention_inside_the_phrase(self) -> None:
+        """The word order the interface actually produces.
+
+        A reader types "summarize the ", picks the document from the mention
+        menu, then types " paper" — putting the mention between the determiner
+        and the noun. That reached production unmatched, was parsed as a
+        *named* scope, sent the title to the hierarchy resolver as if it were a
+        section, and failed the turn with "hierarchy route requires a canonical
+        scope" — the very error this pattern exists to prevent.
+        """
+
+        for query in (
+            "summarize the @[Attention Is All You Need] paper",
+            "explain the @[Attention Is All You Need] paper",
+            "summarize the @[Attention Is All You Need] document",
+            "summarize the whole @[Attention Is All You Need] paper",
+        ):
+            with self.subTest(query=query):
+                self.assertEqual(
+                    parse_study_request(query),
+                    StudyRequest(
+                        "summarize",
+                        "book",
+                        "",
+                        book_reference="Attention Is All You Need",
+                    ),
+                )
+
+    def test_a_section_request_is_not_read_as_a_whole_document_one(self) -> None:
+        """The widened pattern must not swallow scoped requests.
+
+        Both kinds are `summarize`; what separates them is the scope. A
+        whole-document request carries an empty scope reference and names the
+        document, while a scoped one names the part.
+        """
+
+        for query, kind, reference in (
+            ("summarize chapter 1 of @[ML System Design]", "chapter", "1"),
+            ("summarize the Introduction section", "named", "Introduction section"),
+        ):
+            with self.subTest(query=query):
+                parsed = parse_study_request(query)
+                self.assertEqual(parsed.scope_kind, kind)
+                self.assertEqual(parsed.scope_reference, reference)
+
     async def test_papers_endpoint_returns_scientific_papers(self) -> None:
         papers_mock = [
             {

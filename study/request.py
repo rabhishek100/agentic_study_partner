@@ -81,11 +81,17 @@ LIST_CHAPTERS = (
 # scope, sent the title to the hierarchy resolver as if it were a section,
 # matched nothing, and failed the turn with "hierarchy route requires a
 # canonical scope".
+# The mention may also sit *between* the determiner and the noun — "summarize
+# the @[Title] paper" — which is what the interface actually produces, because
+# a reader types "summarize the ", picks the document from the mention menu,
+# and then types " paper". That phrasing reached production unmatched and
+# failed with the very error this pattern exists to prevent.
 WHOLE_DOCUMENT_SUMMARY = re.compile(
     r"^(?:explain|summari[sz]e|review)\s+"
     r"(?:all\s+of\s+)?"
     r"(?:"
     r"(?:this|the(?:\s+(?:selected|current|whole))?|selected|current)\s+"
+    r"(?:(?P<leading_document>@\[[^\]]+\])\s+)?"
     r"(?:pdf|paper|document|book)"
     r"(?:\s+(?P<book_reference>@\[[^\]]+\]))?"
     r"|"
@@ -181,6 +187,7 @@ def parse_study_request(query: str) -> StudyRequest:
             book_reference=(
                 _clean_book_reference(
                     match.group("book_reference")
+                    or match.group("leading_document")
                     or match.group("mentioned_document")
                 )
                 or None
