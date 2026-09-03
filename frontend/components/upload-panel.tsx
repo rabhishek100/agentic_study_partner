@@ -16,6 +16,7 @@ import type {
   IngestionJobList,
   IngestionLimitsResponse,
   JobStatus,
+  PresignedUpload,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +115,58 @@ interface TusUpload {
   start: () => void;
   findPreviousUploads: () => Promise<unknown[]>;
   resumeFromPreviousUpload: (previous: unknown) => void;
+}
+
+/**
+ * Send the file straight to object storage with a presigned PUT.
+ *
+ * `XMLHttpRequest` rather than `fetch` for one reason: fetch still cannot
+ * report upload progress, and a 50 MB PDF uploading behind a bar that does not
+ * move is the difference between waiting and giving up. It also gives `abort`
+ * the same shape the TUS path already has, so cancelling works identically on
+ * both.
+ *
+ * There is no resume here. A single PUT is what R2 wants under the current
+ * 50 MB ceiling; raising that ceiling means multipart, not a longer timeout.
+ */
+function putToObjectStorage(
+  file: File,
+  upload: PresignedUpload,
+  onProgress: (percent: number) => void,
+): { done: Promise<void>; abort: () => Promise<void> } {
+  const request = new XMLHttpRequest();
+  const done = new Promise<void>((resolve, reject) => {
+    request.open(upload.method, upload.url, true);
+    for (const [name, value] of Object.entries(upload.headers)) {
+      request.setRequestHeader(name, value);
+    }
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    request.onload = () =>
+      request.status >= 200 && request.status < 300
+        ? resolve()
+        : reject(
+            new Error(
+              `The upload was rejected by storage (${request.status}).`,
+            ),
+          );
+    // The browser withholds the reason for a cross-origin failure, so this
+    // cannot say more than that it failed. A missing CORS rule on the bucket
+    // looks exactly like a dropped connection from here.
+    request.onerror = () =>
+      reject(new Error("The upload could not reach storage."));
+    request.onabort = () => reject(new Error("The upload was cancelled."));
+    request.send(file);
+  });
+  return {
+    done,
+    abort: async () => {
+      request.abort();
+    },
+  };
 }
 
 export function UploadPanel({
@@ -301,36 +354,46 @@ export function UploadPanel({
         filename: file.name,
       });
 
-      await new Promise<void>((resolve, reject) => {
-        const upload = new tus.Upload(file, {
-          endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
-          chunkSize: TUS_CHUNK_BYTES,
-          retryDelays: [0, 1000, 3000, 5000],
-          removeFingerprintOnSuccess: true,
-          headers: {
-            authorization: `Bearer ${token}`,
-            "x-upsert": "false",
-          },
-          metadata: {
-            bucketName: created.storage_bucket,
-            objectName: created.storage_path,
-            contentType: "application/pdf",
-          },
-          onProgress: (sent: number, total: number) => {
-            setUploadPercent(Math.round((sent / total) * 100));
-          },
-          onError: reject,
-          onSuccess: () => resolve(),
-        }) as unknown as TusUpload;
-        uploadRef.current = upload;
-        // Resume an interrupted upload of this same file when one exists.
-        upload.findPreviousUploads().then((previous) => {
-          if (previous.length > 0) {
-            upload.resumeFromPreviousUpload(previous[0]);
-          }
-          upload.start();
+      if (created.upload_method === "presigned_put" && created.upload) {
+        const transfer = putToObjectStorage(
+          file,
+          created.upload,
+          setUploadPercent,
+        );
+        uploadRef.current = { abort: transfer.abort } as TusUpload;
+        await transfer.done;
+      } else {
+        await new Promise<void>((resolve, reject) => {
+          const upload = new tus.Upload(file, {
+            endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
+            chunkSize: TUS_CHUNK_BYTES,
+            retryDelays: [0, 1000, 3000, 5000],
+            removeFingerprintOnSuccess: true,
+            headers: {
+              authorization: `Bearer ${token}`,
+              "x-upsert": "false",
+            },
+            metadata: {
+              bucketName: created.storage_bucket,
+              objectName: created.storage_path,
+              contentType: "application/pdf",
+            },
+            onProgress: (sent: number, total: number) => {
+              setUploadPercent(Math.round((sent / total) * 100));
+            },
+            onError: reject,
+            onSuccess: () => resolve(),
+          }) as unknown as TusUpload;
+          uploadRef.current = upload;
+          // Resume an interrupted upload of this same file when one exists.
+          upload.findPreviousUploads().then((previous) => {
+            if (previous.length > 0) {
+              upload.resumeFromPreviousUpload(previous[0]);
+            }
+            upload.start();
+          });
         });
-      });
+      }
       uploadRef.current = null;
 
       setJob(

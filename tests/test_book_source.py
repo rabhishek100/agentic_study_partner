@@ -22,15 +22,24 @@ def stored_book(
     pages=386,
     viewer_bucket=None,
     viewer_path=None,
+    backend="supabase",
+    viewer_backend=None,
 ):
-    """A ready book with, or without, a stored source and a viewer copy."""
+    """A ready book with, or without, a stored source and a viewer copy.
+
+    Carries the backend columns because the real row always does: they are
+    what lets a book whose object has moved to R2 still be signed while its
+    neighbours are on Supabase.
+    """
 
     connection = MagicMock()
     connection.execute.return_value.fetchone.return_value = {
         "source_storage_bucket": bucket,
         "source_storage_path": path,
+        "source_storage_backend": backend if path else None,
         "viewer_storage_bucket": viewer_bucket,
         "viewer_storage_path": viewer_path,
+        "viewer_storage_backend": viewer_backend if viewer_path else None,
         "page_count": pages,
     }
     with (
@@ -167,3 +176,110 @@ class ViewerCopyPreferenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             sign.call_args.args, ("book-sources", "owner/book-536/viewer.pdf")
         )
+
+
+class SigningBackendTests(unittest.IsolatedAsyncioTestCase):
+    """The signed URL must be issued against the store that holds the object.
+
+    While the migration runs, a book's viewer copy can be on R2 and its source
+    still on Supabase. Taking the backend from the wrong half of the row signs
+    against a store that has never held the object, which then fails as a
+    missing source rather than as the configuration error it is.
+    """
+
+    async def asyncSetUp(self):
+        self.client = AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        )
+        app.dependency_overrides[current_owner] = lambda: OWNER_ID
+
+    async def asyncTearDown(self):
+        app.dependency_overrides.clear()
+        await self.client.aclose()
+
+    async def test_a_source_on_r2_is_signed_against_r2(self):
+        with stored_book(backend="r2") as sign:
+            await self.client.get("/api/books/7/source")
+        self.assertEqual(sign.call_args.kwargs["backend"], "r2")
+
+    async def test_a_source_still_on_supabase_is_signed_against_supabase(self):
+        with stored_book(backend="supabase") as sign:
+            await self.client.get("/api/books/7/source")
+        self.assertEqual(sign.call_args.kwargs["backend"], "supabase")
+
+    async def test_a_viewer_copy_uses_the_viewer_backend_not_the_source_one(self):
+        """The pairing rule, in the state the migration actually produces."""
+
+        with stored_book(
+            backend="supabase",
+            viewer_bucket="book-sources",
+            viewer_path="owner/book-7/viewer.pdf",
+            viewer_backend="r2",
+        ) as sign:
+            await self.client.get("/api/books/7/source")
+        self.assertEqual(sign.call_args.args[1], "owner/book-7/viewer.pdf")
+        self.assertEqual(sign.call_args.kwargs["backend"], "r2")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class ViewerCopyPreferenceTests(unittest.IsolatedAsyncioTestCase):
+    """Books too large to store their own bytes are read from a rendering."""
+
+    async def asyncSetUp(self):
+        self.client = AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        )
+        app.dependency_overrides[current_owner] = lambda: OWNER_ID
+
+    async def asyncTearDown(self):
+        app.dependency_overrides.clear()
+        await self.client.aclose()
+
+    async def test_a_viewer_copy_is_served_instead_of_the_source(self):
+        with stored_book(
+            viewer_bucket="book-sources", viewer_path="owner/book-536/viewer.pdf"
+        ) as sign:
+            response = await self.client.get(
+                "/api/books/7/source"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            sign.call_args.args, ("book-sources", "owner/book-536/viewer.pdf")
+        )
+
+    async def test_the_source_is_served_when_there_is_no_viewer_copy(self):
+        with stored_book() as sign:
+            response = await self.client.get(
+                "/api/books/7/source"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            sign.call_args.args, ("book-sources", "owner/job/original.pdf")
+        )
+
+    async def test_a_viewer_copy_rescues_a_book_whose_source_was_never_stored(self):
+        """The operator ingest path uploads nothing, so this is its only source."""
+
+        with stored_book(
+            bucket=None,
+            path=None,
+            viewer_bucket="book-sources",
+            viewer_path="owner/book-536/viewer.pdf",
+        ) as sign:
+            response = await self.client.get(
+                "/api/books/7/source"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            sign.call_args.args, ("book-sources", "owner/book-536/viewer.pdf")
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -100,9 +100,13 @@ class IngestionLimits:
 def load_limits() -> IngestionLimits:
     """Read the active limits from the environment."""
 
+    # Via source_store so the "must not be the video or figure bucket" guard
+    # is actually on the path that reserves an upload's key, rather than
+    # sitting in a module nothing on that path calls.
+    from .source_store import source_bucket
+
     return IngestionLimits(
-        source_bucket=os.getenv("INGESTION_SOURCE_BUCKET", "").strip()
-        or DEFAULT_SOURCE_BUCKET,
+        source_bucket=source_bucket(),
         max_source_bytes=_int("INGESTION_MAX_SOURCE_BYTES", DEFAULT_MAX_SOURCE_BYTES),
         max_pages=_int("INGESTION_MAX_PAGES", DEFAULT_MAX_PAGES),
         max_queued_jobs_per_owner=_int(

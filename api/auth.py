@@ -1,10 +1,18 @@
-"""Supabase access-token verification and request-derived ownership.
+"""Access-token verification and request-derived ownership.
 
 The verified ``sub`` claim is the only source of ``owner_id``. Request bodies,
 query strings, filenames, and client state never determine ownership.
+
+Configuration is named ``AUTH_*`` rather than ``SUPABASE_*``. Those used to be
+the same thing; since the database moved to Railway and source PDFs to R2 they
+are not, and a single ``SUPABASE_URL`` shared between the token issuer and an
+object store is a variable that means two things and can only be set to one.
+The old names still work for one release, with a warning that names the
+variable and never its value.
 """
 
 from dataclasses import dataclass
+import logging
 import os
 import threading
 import time
@@ -15,8 +23,17 @@ import httpx
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 
-from storage.database import parse_owner_id
+from storage.application_users import (
+    IdentityConflict,
+    VerifiedIdentity,
+    ensure_application_user,
+)
+from storage.database import connection, parse_owner_id
+
+
+logger = logging.getLogger(__name__)
 
 
 ASYMMETRIC_ALGORITHMS = ("ES256", "RS256", "EdDSA")
@@ -45,20 +62,64 @@ class AuthenticatedIdentity:
     role: str
 
 
-def supabase_url() -> str:
-    configured = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+_DEPRECATED_NAMES = {
+    "AUTH_SUPABASE_URL": "SUPABASE_URL",
+    "AUTH_JWT_ISSUER": "SUPABASE_JWT_ISSUER",
+    "AUTH_JWT_AUDIENCE": "SUPABASE_JWT_AUDIENCE",
+    "AUTH_JWT_SECRET": "SUPABASE_JWT_SECRET",
+}
+_WARNED: set[str] = set()
+
+
+def _auth_setting(name: str) -> str:
+    """Read an ``AUTH_*`` variable, falling back to its old ``SUPABASE_*`` name.
+
+    The fallback is a compatibility release, not a permanent alias: it warns
+    once per process per variable so a environment still on the old names is
+    visible in logs without being noisy. Remove it once every environment has
+    moved. The warning names the variable and never its value.
+    """
+
+    value = os.getenv(name, "").strip()
+    if value:
+        return value
+
+    legacy = _DEPRECATED_NAMES.get(name)
+    if not legacy:
+        return ""
+    value = os.getenv(legacy, "").strip()
+    if value and legacy not in _WARNED:
+        _WARNED.add(legacy)
+        logger.warning(
+            "%s is deprecated and will stop being read; set %s instead",
+            legacy,
+            name,
+        )
+    return value
+
+
+def reset_deprecation_warnings() -> None:
+    """Allow the one-shot deprecation warnings to fire again. For tests."""
+
+    _WARNED.clear()
+
+
+def auth_url() -> str:
+    """The identity provider's base URL. No longer the object store's."""
+
+    configured = _auth_setting("AUTH_SUPABASE_URL").rstrip("/")
     if not configured:
-        raise TokenVerificationError("SUPABASE_URL is not configured")
+        raise TokenVerificationError("AUTH_SUPABASE_URL is not configured")
     return configured
 
 
 def token_issuer() -> str:
-    configured = os.getenv("SUPABASE_JWT_ISSUER", "").strip().rstrip("/")
-    return configured or f"{supabase_url()}/auth/v1"
+    configured = _auth_setting("AUTH_JWT_ISSUER").rstrip("/")
+    return configured or f"{auth_url()}/auth/v1"
 
 
 def token_audience() -> str:
-    return os.getenv("SUPABASE_JWT_AUDIENCE", "").strip() or DEFAULT_AUDIENCE
+    return _auth_setting("AUTH_JWT_AUDIENCE") or DEFAULT_AUDIENCE
 
 
 class _JwksCache:
@@ -134,8 +195,7 @@ def reset_signing_keys() -> None:
 
 
 def _symmetric_secret() -> str | None:
-    secret = os.getenv("SUPABASE_JWT_SECRET", "").strip()
-    return secret or None
+    return _auth_setting("AUTH_JWT_SECRET") or None
 
 
 def _decode(token: str) -> dict[str, Any]:
@@ -161,7 +221,7 @@ def _decode(token: str) -> dict[str, Any]:
         key = _symmetric_secret()
         if key is None:
             raise TokenVerificationError(
-                "token is symmetric but SUPABASE_JWT_SECRET is not configured"
+                "token is symmetric but AUTH_JWT_SECRET is not configured"
             )
         algorithms = list(SYMMETRIC_ALGORITHMS)
     else:
@@ -196,7 +256,7 @@ def verify_access_token(token: str) -> AuthenticatedIdentity:
     )
 
 
-_bearer_scheme = HTTPBearer(auto_error=False, description="Supabase access token")
+_bearer_scheme = HTTPBearer(auto_error=False, description="Access token")
 
 UNAUTHENTICATED = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -223,9 +283,40 @@ async def authenticated_identity(
     return identity
 
 
+IDENTITY_CONFLICT = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="this account cannot be reconciled with an existing one",
+)
+
+
+def _register(identity: AuthenticatedIdentity) -> None:
+    """Make the database's identity registry aware of a verified caller.
+
+    On Supabase this row was GoTrue's and always existed. On Railway the Auth
+    project is a separate system, so the first authenticated request from a
+    new account would otherwise fail on the `owner_id` foreign key. Done here
+    because `current_owner` is the single gate every tenant-owned write passes
+    through — 134 call sites, and nothing reaches a repository without it.
+
+    A registry that is unreachable must not read as an authentication failure:
+    the token was fine, the database was not, so that surfaces as a 503 from
+    the handler rather than a 401 that tells the reader to sign in again.
+    """
+
+    with connection() as database:
+        ensure_application_user(
+            database,
+            VerifiedIdentity(owner_id=identity.owner_id, email=identity.email),
+        )
+
+
 async def current_owner(
     identity: AuthenticatedIdentity = Depends(authenticated_identity),
 ) -> UUID:
     """The only supported source of ``owner_id`` in a request handler."""
 
+    try:
+        await run_in_threadpool(_register, identity)
+    except IdentityConflict as error:
+        raise IDENTITY_CONFLICT from error
     return identity.owner_id

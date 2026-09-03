@@ -5,6 +5,7 @@ Supabase, so every rejection reason can be exercised deterministically.
 """
 
 import json
+import logging
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -17,7 +18,11 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from api.auth import (
     AuthenticatedIdentity,
     TokenVerificationError,
+    auth_url,
+    reset_deprecation_warnings,
     reset_signing_keys,
+    token_audience,
+    token_issuer,
     verify_access_token,
 )
 
@@ -195,6 +200,72 @@ class AccessTokenTests(unittest.TestCase):
         with patch("api.auth.httpx.get", side_effect=OSError("network down")):
             reset_signing_keys()
             self.assert_rejected(self.token())
+
+
+class AuthVariableNamingTests(unittest.TestCase):
+    """`AUTH_*` is authoritative; `SUPABASE_*` still works, once, with a warning.
+
+    Auth and object storage were the same provider and shared one `SUPABASE_URL`.
+    They are no longer the same provider, so the variable had to split. Every
+    environment cannot move in the same deploy, hence the fallback — and hence
+    a test that the fallback actually falls back rather than silently reading
+    an empty string.
+    """
+
+    def setUp(self):
+        reset_deprecation_warnings()
+        self.addCleanup(reset_deprecation_warnings)
+
+    def clear(self, **overrides):
+        names = {
+            "AUTH_SUPABASE_URL": "",
+            "AUTH_JWT_ISSUER": "",
+            "AUTH_JWT_AUDIENCE": "",
+            "SUPABASE_URL": "",
+            "SUPABASE_JWT_ISSUER": "",
+            "SUPABASE_JWT_AUDIENCE": "",
+        }
+        names.update(overrides)
+        return patch.dict(os.environ, names)
+
+    def test_the_new_name_is_read(self):
+        with self.clear(AUTH_SUPABASE_URL="https://auth.example.test"):
+            self.assertEqual(auth_url(), "https://auth.example.test")
+            self.assertEqual(token_issuer(), "https://auth.example.test/auth/v1")
+
+    def test_the_old_name_still_works_and_warns_once(self):
+        with self.clear(SUPABASE_URL="https://legacy.example.test"):
+            with self.assertLogs("api.auth", level="WARNING") as captured:
+                self.assertEqual(auth_url(), "https://legacy.example.test")
+            self.assertIn("SUPABASE_URL", captured.output[0])
+            # The warning names the variable; it must not carry its value.
+            self.assertNotIn("legacy.example.test", captured.output[0])
+
+            # Second read is silent, so a busy process does not flood its logs.
+            with patch.object(logging.getLogger("api.auth"), "warning") as warn:
+                auth_url()
+                warn.assert_not_called()
+
+    def test_the_new_name_wins_over_the_old_one(self):
+        with self.clear(
+            AUTH_SUPABASE_URL="https://new.example.test",
+            SUPABASE_URL="https://old.example.test",
+        ):
+            self.assertEqual(auth_url(), "https://new.example.test")
+
+    def test_a_missing_issuer_is_a_verification_error_not_a_crash(self):
+        with self.clear():
+            with self.assertRaises(TokenVerificationError):
+                auth_url()
+
+    def test_the_audience_falls_back_to_the_default(self):
+        with self.clear(AUTH_SUPABASE_URL="https://auth.example.test"):
+            self.assertEqual(token_audience(), "authenticated")
+        with self.clear(
+            AUTH_SUPABASE_URL="https://auth.example.test",
+            AUTH_JWT_AUDIENCE="custom",
+        ):
+            self.assertEqual(token_audience(), "custom")
 
 
 if __name__ == "__main__":

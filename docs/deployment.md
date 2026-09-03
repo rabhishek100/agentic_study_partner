@@ -1,23 +1,105 @@
-# Deployment: Railway + hosted Supabase
+# Deployment: Railway Postgres, Cloudflare R2, Supabase Auth
 
-Two Railway services against one hosted Supabase project per deployed tier.
-This document describes production internals; the isolated local/staging
-contracts and commands are in [`environments.md`](environments.md).
+Production's application database is Railway Postgres as of 2026-09-03.
+Supabase holds identities, and — until the source-PDF move finishes — the
+private `book-sources` bucket. This document describes production internals;
+the isolated local/staging contracts and commands are in
+[`environments.md`](environments.md).
 
 ```text
 Railway project
-  web      Next.js standalone                    public
-  api      FastAPI + ingestion worker, one       public
-           container, one attached volume        no sleep
-  worker   vestigial: no deployment. Kept from
-           the books-only split; deploy nothing
-           to it while video needs one volume.
+  web       Next.js standalone                    public
+  api       FastAPI + ingestion worker, one       public
+            container, one attached volume        no sleep
+  Postgres  PostgreSQL 18.6 + pgvector 0.8.6      private
+            5 GB volume, ~281 MB used
+  worker    vestigial: no deployment. Kept from
+            the books-only split; deploy nothing
+            to it while video needs one volume.
 
 Supabase project (usuulfckhbeypjxwjpfn)
-  Auth (ES256 access tokens, JWKS)
-  Postgres + pgvector
-  private book-sources bucket
+  Auth only: ES256 access tokens, published JWKS
+  private book-sources bucket (source PDFs, pending the R2 move)
+  its application tables are dead weight; see "Retiring the old database"
+
+Cloudflare R2
+  agentic-study-partner-video-media-prod   video media and evidence frames
+  agentic-study-partner-book-media-prod    4,342 book figures
+  agentic-study-partner-book-sources-prod  created, awaiting a scoped token
 ```
+
+## Why the database is not on Supabase any more
+
+The Free-plan disk filled on 2026-09-01 and took production down; there are no
+managed backups on that plan, so a local clone was the only copy. Railway
+Postgres removes the two properties that made that unrecoverable: the volume is
+sized independently of a plan's shared allowance, and this project owns its own
+backup and restore path (see [Backups](#backups)).
+
+Two things about the target differ from what the migration runbook assumed, and
+both are deliberate:
+
+**It is PostgreSQL 18.6, not 17.** Railway's managed template provisions 18,
+and 18 carries pgvector 0.8.6 with `halfvec`, which is what the schema needs.
+Pinning a 17 image would have meant owning SSL termination, the volume wiring
+and upgrades by hand, for a version number. The consequences are handled rather
+than ignored: the row copy uses text-format COPY because binary COPY is a wire
+format defined per type and shared between two servers, and the backup script
+refuses to run with mismatched client tools, because a `pg_dump` 17 against an
+18 server fails in a way that reads as a corrupt archive.
+
+**The runtime role is not the superuser.** `app_runtime` can read and write
+rows and insert into the identity registry, and nothing else — it is denied
+CREATE on `public`. The superuser URL stays with the operator and is not set on
+any service.
+
+## Row-level security is off, on purpose
+
+The migrations attach RLS policies comparing `owner_id` to `auth.uid()`, which
+reads JWT claims PostgREST used to set on the connection. There is no PostgREST
+here: the browser never connects to Postgres, the API does, and it sets no
+claims. `auth.uid()` therefore returns NULL and those policies match no rows at
+all.
+
+That combination is a trap. `postgres` is superuser and bypasses RLS silently,
+so the application worked while it was superuser and would have gone blank the
+moment it stopped being one. A least-privilege role plus enforced `auth.uid()`
+policies is not a stricter deployment, it is an empty library.
+
+So `ops/postgres/harden_runtime_role.sql` drops the 54 policies and disables
+RLS on all 55 application tables, rather than leaving them present and inert
+where they would read as a second line of defence that does not exist. Owner
+scoping in this deployment is enforced in application SQL — every
+request-serving query filters on the verified JWT subject — and that is what
+`tests/test_multi_user_isolation.py` asserts. Local Supabase keeps its policies
+and keeps testing them, because there they are real.
+
+## Building and loading the database
+
+```bash
+# Schema, from the repository's own migrations rather than a restore.
+TARGET_DATABASE_URL=... uv run python -m scripts.bootstrap_postgres
+
+# Assert the shape, not just the migration head.
+TARGET_DATABASE_URL=... uv run python -m scripts.audit_postgres_target
+
+# Least-privilege runtime role, and take the inert RLS off.
+psql "$OPERATOR_URL" -v ON_ERROR_STOP=1 \
+    -v runtime_password="$(...)" -v DBNAME=railway \
+    -f ops/postgres/harden_runtime_role.sql
+
+# Rows only. Never pg_restore from a Supabase dump; see the script's header.
+uv run python -m scripts.copy_database \
+    --source-env SOURCE_DATABASE_URL --target-env TARGET_DATABASE_URL
+```
+
+The public TCP proxy on the Postgres service exists only for operator
+import/restore and should be removed once the rollback window closes. It is
+also not reliable for sustained transfers: a `pg_dump` over it failed twice
+with `server closed the connection unexpectedly` partway through
+`chunk_embeddings` while the server was demonstrably healthy and still
+checkpointing. Retrying works; treat a failure as transient and check the
+server's own logs before believing the client.
 
 **Nothing here deploys itself.** No Railway service is connected to a GitHub
 repository — `railway status --json` reports `source: {image: null, repo: null}`
@@ -178,10 +260,22 @@ only trustworthy answer — `main` moving does not move it.
 
 ## Connection choice
 
-Use the Supabase **session pooler** connection string as `DATABASE_URL`. The direct connection is IPv6-only, and the transaction
-pooler does not support the prepared statements psycopg uses by default. Keep
-the direct connection for migrations only (`MIGRATION_DATABASE_URL`, run from
-a laptop, never set on a Railway service).
+`DATABASE_URL` on the `api` and `worker` services is Railway's **private**
+domain, as `app_runtime`:
+
+```text
+postgresql://app_runtime:<password>@postgres.railway.internal:5432/railway
+```
+
+Not a Railway reference variable (`${{Postgres.DATABASE_URL}}`), because that
+resolves to the superuser. Not the public proxy, because nothing at runtime
+should reach the database over the internet. `MIGRATION_DATABASE_URL` must
+never be set on a Railway service; migrations run from a laptop against the
+operator URL.
+
+The old Supabase advice — use the session pooler, the direct connection is
+IPv6-only, the transaction pooler breaks psycopg's prepared statements — now
+applies only to reading the legacy database during the rollback window.
 
 ## Service configuration
 

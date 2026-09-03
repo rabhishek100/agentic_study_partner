@@ -226,8 +226,10 @@ class RowLevelSecurityTests(unittest.TestCase, TwoOwnerFixture):
                 """
                 insert into ingestion_jobs (
                     owner_id, idempotency_key, status, storage_bucket,
-                    storage_path, original_filename
-                ) values (%s, %s, 'queued', 'book-sources', %s, 'b.pdf')
+                    storage_path, storage_backend, original_filename
+                ) values (
+                    %s, %s, 'queued', 'book-sources', %s, 'supabase', 'b.pdf'
+                )
                 returning id
                 """,
                 (self.owner_b, uuid4(), f"{self.owner_b}/job/original.pdf"),
@@ -330,8 +332,11 @@ class RowLevelSecurityTests(unittest.TestCase, TwoOwnerFixture):
                         """
                         insert into ingestion_jobs (
                             owner_id, idempotency_key, status, storage_bucket,
-                            storage_path, original_filename
-                        ) values (%s, %s, 'queued', 'book-sources', %s, 'x.pdf')
+                            storage_path, storage_backend, original_filename
+                        ) values (
+                            %s, %s, 'queued', 'book-sources', %s, 'supabase',
+                            'x.pdf'
+                        )
                         """,
                         (self.owner_a, uuid4(), f"{self.owner_a}/x/original.pdf"),
                     )
