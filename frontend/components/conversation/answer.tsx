@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { InlineFigure } from "@/components/conversation/figures";
 import {
+  ambiguousCitationPages,
   figuresForMarker,
   formatPages,
   formatPath,
@@ -117,12 +118,15 @@ function CitationChip({
   index,
   reference,
   page,
+  shownPage,
   onOpen,
 }: {
   index: number;
   reference: EvidenceRef | undefined;
   /** The page this marker names, which can differ from the reference's first. */
   page?: number | null;
+  /** Shown beside the number only when the number alone is ambiguous. */
+  shownPage?: number | null;
   onOpen?: (reference: EvidenceRef, page?: number) => void;
 }) {
   const chip = (
@@ -154,7 +158,7 @@ function CitationChip({
           "cursor-pointer transition-colors hover:bg-citation hover:text-citation-foreground",
       )}
     >
-      {index}
+      {shownPage == null ? index : `${index}\u00b7${shownPage}`}
     </span>
   );
 
@@ -189,6 +193,8 @@ interface AnswerRenderState {
   figures: FigureRef[];
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
   renderedFigures: Set<number>;
+  /** Markers whose page is shown because their number no longer separates them. */
+  ambiguousPages: Map<string, number>;
 }
 
 const AnswerRenderContext = createContext<AnswerRenderState | null>(null);
@@ -208,7 +214,8 @@ function useAnswerRenderState(): AnswerRenderState {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function MarkdownCitation({ node }: any) {
-  const { evidence, citations, onOpenReference } = useAnswerRenderState();
+  const { evidence, citations, onOpenReference, ambiguousPages } =
+    useAnswerRenderState();
   const index = Number(node?.properties?.dataIndex ?? 0);
   const marker = String(node?.properties?.dataMarker ?? "");
   const resolved = resolveMarker(marker, evidence, citations);
@@ -217,6 +224,7 @@ function MarkdownCitation({ node }: any) {
       index={index}
       reference={evidence[index - 1]}
       page={markerPage(resolved)}
+      shownPage={ambiguousPages.get(marker) ?? null}
       onOpen={onOpenReference}
     />
   );
@@ -277,12 +285,17 @@ export function Answer({
   // Each markdown pass needs a fresh set so the first mention wins again. The
   // renderer *types* above stay static, which is what preserves their DOM and
   // hook state while this context value updates.
+  const ambiguousPages = useMemo(
+    () => ambiguousCitationPages(citations),
+    [citations],
+  );
   const renderState: AnswerRenderState = {
     evidence,
     citations,
     figures,
     onOpenReference,
     renderedFigures: new Set<number>(),
+    ambiguousPages,
   };
 
   return (

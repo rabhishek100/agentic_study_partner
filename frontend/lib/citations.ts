@@ -176,3 +176,40 @@ export function markerPage(marker: CitationMarker): number | null {
   if (marker.citation) return marker.citation.page;
   return marker.evidence?.pages[0] ?? null;
 }
+
+/**
+ * The markers whose page must be shown, because the chip number alone cannot
+ * tell them apart.
+ *
+ * A chip is numbered by its source's position in the reference list, which
+ * says everything worth saying when an answer cites several sources. It says
+ * nothing at all when one source is cited at twenty-six different pages — and
+ * that is exactly what a chapter summary produces for a book whose table of
+ * contents stops at the chapter, because the whole chapter is a single node.
+ * Every chip then reads "1", consecutive ones read "1 1 1", and three
+ * different pages are indistinguishable from a rendering fault.
+ *
+ * So the page is added only where the number has stopped discriminating:
+ * where one source is cited at more than one page in this answer. A source
+ * cited once keeps its bare number, which is the ordinary case and the one
+ * the numbering was designed for.
+ */
+export function ambiguousCitationPages(
+  citations: CitationRef[],
+): Map<string, number> {
+  const pagesByNode = new Map<number, Set<number>>();
+  for (const citation of citations) {
+    if (typeof citation.node_id !== "number") continue;
+    if (typeof citation.page !== "number") continue;
+    const pages = pagesByNode.get(citation.node_id) ?? new Set<number>();
+    pages.add(citation.page);
+    pagesByNode.set(citation.node_id, pages);
+  }
+
+  const shown = new Map<string, number>();
+  for (const citation of citations) {
+    const pages = pagesByNode.get(citation.node_id);
+    if (pages && pages.size > 1) shown.set(citation.marker, citation.page);
+  }
+  return shown;
+}
