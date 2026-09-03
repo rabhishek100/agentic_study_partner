@@ -25,7 +25,8 @@ dependencies = [
     "torch>=2.10",
     "torchvision",
     "pyjwt[crypto]>=2.10,<3",
-    "yt-dlp>=2025.12.8,<2027",
+    "yt-dlp[default] @ https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.08.29.232711/yt-dlp.tar.gz",
+    "boto3>=1.35,<2",
     "duckduckgo-search>=8.1.1",
     "tzdata>=2025.2",
 ]

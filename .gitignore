@@ -47,3 +47,12 @@ ops/staging/supabase/.temp/
 frontend/public/pdf.worker.min.mjs
 .local-postgres/
 .local-runtime/
+
+# Large local database dumps (never commit)
+artifacts/local-db-backups/
+
+# R2 read-through media cache
+data/r2-media-cache/
+
+# API/worker runtime logs and pidfiles
+.runtime/

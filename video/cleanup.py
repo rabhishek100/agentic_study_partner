@@ -42,13 +42,21 @@ import logging
 import os
 from pathlib import Path
 import time
+from datetime import datetime, timezone
 from uuid import UUID
 
 from psycopg import Connection
 
 from storage.database import parse_owner_id
 from video.jobs import append_event
-from video.media_store import FilesystemMediaStore, MediaStoreError
+from video.media_store import (
+    FilesystemMediaStore,
+    MediaStore,
+    MediaStoreError,
+    S3MediaStore,
+    StoredMediaObject,
+    configured_media_store,
+)
 from video.repository import OWNER_MEDIA_KEYS
 from video.states import Stage, Status
 
@@ -81,20 +89,120 @@ FILESYSTEM_ENTRIES = frozenset({"lost+found"})
 
 
 def dry_run_requested() -> bool:
-    """Whether this deployment wants the sweep to report instead of delete.
+    """Whether this sweep reports what it would remove instead of removing it.
 
-    The first pass on an existing volume is the one nobody can preview: it
-    runs unattended, minutes after a deploy, against bytes no test fixture
-    stands in for. `VIDEO_CLEANUP_DRY_RUN=1` makes that pass log exactly what
-    it would remove and remove nothing, so the answer arrives before the
-    deletions do rather than after.
+    Reporting is the default, and deleting is the thing you have to ask for.
+    That is the opposite of how this started, and the reason it changed is
+    that the old default cost us 995 frame images: the sweep ran unattended
+    against a database that had been rolled back, found almost nothing
+    referenced, and dutifully deleted objects it could not restore. An
+    operator who forgets to set an environment variable should lose a log
+    line, not a corpus.
+
+    So an unset `VIDEO_CLEANUP_DRY_RUN` reports. Deleting requires saying so:
+    `VIDEO_CLEANUP_DRY_RUN=0`.
     """
 
-    return os.getenv("VIDEO_CLEANUP_DRY_RUN", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
+    return os.getenv("VIDEO_CLEANUP_DRY_RUN", "").strip().lower() not in {
+        "0",
+        "false",
+        "no",
     }
+
+
+DEFAULT_MAX_ORPHAN_FRACTION = 0.25
+DEFAULT_ORPHAN_GUARD_MINIMUM = 20
+
+
+def max_orphan_fraction() -> float:
+    """The orphan share past which the sweep suspects the database, not the volume."""
+
+    raw = os.getenv("VIDEO_CLEANUP_MAX_ORPHAN_FRACTION", "").strip()
+    if not raw:
+        return DEFAULT_MAX_ORPHAN_FRACTION
+    try:
+        value = float(raw)
+    except ValueError as error:
+        raise ValueError(
+            "VIDEO_CLEANUP_MAX_ORPHAN_FRACTION must be a number"
+        ) from error
+    if not 0.0 <= value <= 1.0:
+        raise ValueError("VIDEO_CLEANUP_MAX_ORPHAN_FRACTION must be between 0 and 1")
+    return value
+
+
+def orphan_guard_minimum() -> int:
+    """How many eligible objects an owner needs before the guard can judge them.
+
+    Below a handful of objects the orphan share says nothing — one stranded
+    frame beside one referenced one is 50%, and a healthy owner mid-ingest
+    looks identical to a catastrophe. The guard exists to stop a stale
+    database deleting a library, and a library is not four files, so under
+    this floor the sweep proceeds and the per-pass budget remains the bound.
+    """
+
+    raw = os.getenv("VIDEO_CLEANUP_ORPHAN_GUARD_MINIMUM", "").strip()
+    if not raw:
+        return DEFAULT_ORPHAN_GUARD_MINIMUM
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(
+            "VIDEO_CLEANUP_ORPHAN_GUARD_MINIMUM must be an integer"
+        ) from error
+    if value < 0:
+        raise ValueError("VIDEO_CLEANUP_ORPHAN_GUARD_MINIMUM must not be negative")
+    return value
+
+
+def _database_is_authoritative(
+    *, owner: UUID, referenced: int, candidates: int, orphans: int
+) -> bool:
+    """Whether the connected database may be trusted to condemn these objects.
+
+    The orphan sweep's whole argument is that an object no row names is an
+    object nothing will ever read again. That holds only while the database it
+    asks is the database those objects were written for. Restore an older
+    dump, point a worker at a half-migrated copy, or connect to rows that have
+    been rolled back, and every surviving object looks unreferenced — at which
+    point the sweep is not reclaiming stranded bytes, it is deleting the
+    library. That is not hypothetical here: it is how 995 frame images were
+    lost on 2026-09-01.
+
+    Two cheap questions separate a real orphan set from that failure. An owner
+    with objects in the store and no rows whatsoever is not an owner who
+    deleted everything; it is a database that has never heard of them. And a
+    healthy store strands a few objects, not most of them, so an orphan share
+    past the configured ceiling means the rows are missing rather than the
+    objects stale.
+    """
+
+    if candidates < orphan_guard_minimum():
+        return True
+    if referenced == 0:
+        logger.error(
+            "orphan sweep refused for owner %s: the database names no media at "
+            "all, yet the store holds %s eligible objects for them. A database "
+            "that does not know this owner cannot be treated as authoritative.",
+            owner,
+            candidates,
+        )
+        return False
+    share = orphans / candidates
+    ceiling = max_orphan_fraction()
+    if share > ceiling:
+        logger.error(
+            "orphan sweep refused for owner %s: %s of %s eligible objects (%.0f%%) "
+            "are unreferenced, past the %.0f%% ceiling. A database missing this "
+            "many rows is likelier to be stale than the objects are.",
+            owner,
+            orphans,
+            candidates,
+            share * 100,
+            ceiling * 100,
+        )
+        return False
+    return True
 
 
 def _hours(name: str, fallback: int) -> int:
@@ -159,7 +267,7 @@ class VideoCleanupSummary:
 
 def _release_staging(
     connection: Connection,
-    store: FilesystemMediaStore,
+    store: MediaStore,
     row,
     *,
     event_type: str,
@@ -223,7 +331,7 @@ def _release_staging(
 
 
 def _size_of(
-    store: FilesystemMediaStore, *, owner_id: UUID, storage_key: str
+    store: MediaStore, *, owner_id: UUID, storage_key: str
 ) -> int:
     """Bytes an object is about to give back, or zero if it is already gone."""
 
@@ -236,7 +344,7 @@ def _size_of(
 
 def cancel_abandoned_uploads(
     connection: Connection,
-    store: FilesystemMediaStore,
+    store: MediaStore,
     *,
     limits: VideoRetentionLimits,
     dry_run: bool = False,
@@ -340,7 +448,7 @@ def cancel_abandoned_uploads(
 
 def delete_promoted_staging(
     connection: Connection,
-    store: FilesystemMediaStore,
+    store: MediaStore,
     *,
     limits: VideoRetentionLimits,
     released: set[str] | None = None,
@@ -471,7 +579,7 @@ def delete_promoted_staging(
 
 def delete_expired_staging(
     connection: Connection,
-    store: FilesystemMediaStore,
+    store: MediaStore,
     *,
     limits: VideoRetentionLimits,
     released: set[str] | None = None,
@@ -626,6 +734,12 @@ def delete_orphaned_media(
     for owner_directory in _owner_directories(root):
         owner = parse_owner_id(owner_directory.name)
         referenced = _referenced_keys(connection, owner_id=owner)
+        # Collected before anything is deleted, because the guard below needs
+        # the whole owner's picture to tell a few stranded objects apart from
+        # a database that has lost the rows for all of them.
+        condemned: list[tuple[Path, str, bool, int]] = []
+        eligible = 0
+        orphans = 0
         for path in sorted(owner_directory.rglob("*")):
             if path.is_symlink() or not path.is_file():
                 continue
@@ -640,12 +754,30 @@ def delete_orphaned_media(
                 PARTIAL_SUFFIX
             )
             key = path.relative_to(root).as_posix()
-            if not is_partial and key in referenced:
+            if not is_partial:
+                eligible += 1
+                if key in referenced:
+                    continue
+                orphans += 1
+            try:
+                size = path.stat().st_size
+            except OSError:
                 continue
+            condemned.append((path, key, is_partial, size))
+        if orphans and not _database_is_authoritative(
+            owner=owner,
+            referenced=len(referenced),
+            candidates=eligible,
+            orphans=orphans,
+        ):
+            # A partial upload is never a storage key, so no row names one even
+            # when the database is complete. Those stay collectable; the
+            # objects whose only accuser is an untrustworthy database do not.
+            condemned = [item for item in condemned if item[2]]
+        for path, key, is_partial, size in condemned:
             if budget <= 0:
                 skipped += 1
                 continue
-            size = path.stat().st_size if path.exists() else 0
             if dry_run:
                 logger.warning(
                     "would delete %s video object %s (%s bytes; no row "
@@ -710,6 +842,104 @@ def delete_orphaned_media(
     return deleted, partials, reclaimed, failed
 
 
+def delete_orphaned_s3_media(
+    connection: Connection,
+    store: S3MediaStore,
+    *,
+    limits: VideoRetentionLimits,
+    dry_run: bool = False,
+) -> tuple[int, int, int, int]:
+    """Remove old unreferenced R2/S3 objects under the same safeguards.
+
+    Grouped by owner before anything is condemned, because the guard that
+    keeps a stale database from deleting a live bucket can only ask its
+    question once it can see how much of one owner's media the rows account
+    for. Remote storage is also where getting this wrong is unrecoverable:
+    the volume has snapshots, R2 has whatever we did not delete.
+    """
+
+    deleted = reclaimed = failed = skipped = 0
+    budget = MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP
+    cutoff = limits.orphan_grace_hours * 3600
+    try:
+        objects = store.iter_objects()
+    except MediaStoreError as error:
+        logger.warning("S3 orphan sweep could not list media: %s", error)
+        return 0, 0, 0, 1
+
+    by_owner: dict[UUID, list[StoredMediaObject]] = {}
+    for item in objects:
+        parts = item.storage_key.split("/", 1)
+        try:
+            owner = parse_owner_id(parts[0])
+        except (ValueError, IndexError):
+            logger.warning(
+                "S3 video bucket holds a non-owner object: %s", item.storage_key
+            )
+            continue
+        modified = item.last_modified
+        if modified.tzinfo is None:
+            modified = modified.replace(tzinfo=timezone.utc)
+        age = max(0.0, (datetime.now(timezone.utc) - modified).total_seconds())
+        if age < cutoff:
+            continue
+        by_owner.setdefault(owner, []).append(item)
+
+    for owner, owned in by_owner.items():
+        referenced = _referenced_keys(connection, owner_id=owner)
+        condemned = [item for item in owned if item.storage_key not in referenced]
+        if not condemned:
+            continue
+        if not _database_is_authoritative(
+            owner=owner,
+            referenced=len(referenced),
+            candidates=len(owned),
+            orphans=len(condemned),
+        ):
+            continue
+        for item in condemned:
+            if budget <= 0:
+                skipped += 1
+                continue
+            if dry_run:
+                logger.warning(
+                    "would delete orphaned S3 video object %s (%s bytes; no row "
+                    "references it)",
+                    item.storage_key,
+                    item.size_bytes,
+                )
+                deleted += 1
+                reclaimed += item.size_bytes
+                budget -= 1
+                continue
+            try:
+                removed = store.remove(owner_id=owner, storage_key=item.storage_key)
+            except MediaStoreError as error:
+                failed += 1
+                logger.warning(
+                    "S3 orphan sweep could not delete %s: %s", item.storage_key, error
+                )
+                continue
+            if not removed:
+                continue
+            deleted += 1
+            reclaimed += item.size_bytes
+            budget -= 1
+            logger.warning(
+                "deleted orphaned S3 video object %s (%s bytes; no row references it)",
+                item.storage_key,
+                item.size_bytes,
+            )
+
+    if skipped:
+        logger.warning(
+            "S3 orphan sweep stopped after %s deletions; %s more objects remain",
+            MAXIMUM_ORPHAN_DELETIONS_PER_SWEEP,
+            skipped,
+        )
+    return deleted, 0, reclaimed, failed
+
+
 def _age_seconds(path: Path) -> float:
     return max(0.0, time.time() - path.stat().st_mtime)
 
@@ -717,7 +947,7 @@ def _age_seconds(path: Path) -> float:
 def run_video_cleanup(
     connection: Connection,
     *,
-    store: FilesystemMediaStore | None = None,
+    store: MediaStore | None = None,
     limits: VideoRetentionLimits | None = None,
     dry_run: bool | None = None,
 ) -> VideoCleanupSummary:
@@ -730,7 +960,7 @@ def run_video_cleanup(
     """
 
     limits = limits or load_retention_limits()
-    store = store or FilesystemMediaStore()
+    store = store or configured_media_store()
     dry_run = dry_run_requested() if dry_run is None else dry_run
     # One upload can be named by several jobs, and both staging passes can
     # reach the same key. Shared so the object — and its bytes — are counted
@@ -751,9 +981,18 @@ def run_video_cleanup(
         )
     # Runs last so anything the job-driven passes just released is already
     # absent from the rows this sweep compares the volume against.
-    orphans, partials, orphan_bytes, orphan_failures = delete_orphaned_media(
-        connection, store, limits=limits, dry_run=dry_run
-    )
+    if isinstance(store, FilesystemMediaStore):
+        orphans, partials, orphan_bytes, orphan_failures = delete_orphaned_media(
+            connection, store, limits=limits, dry_run=dry_run
+        )
+    elif isinstance(store, S3MediaStore):
+        orphans, partials, orphan_bytes, orphan_failures = (
+            delete_orphaned_s3_media(
+                connection, store, limits=limits, dry_run=dry_run
+            )
+        )
+    else:  # pragma: no cover - protocol extension guard
+        orphans = partials = orphan_bytes = orphan_failures = 0
 
     summary = VideoCleanupSummary(
         abandoned_uploads_cancelled=cancelled,
