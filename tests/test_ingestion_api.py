@@ -311,6 +311,37 @@ class IngestionApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["detail"]["code"], "source_missing")
 
+    async def test_an_r2_object_is_not_checked_against_supabases_uploader_table(self):
+        """The production 500 this replaced.
+
+        `storage.objects` is Supabase's record of who uploaded what. R2 has no
+        equivalent, and the Railway runtime role is deliberately not granted
+        the `storage` schema, so consulting it for an R2 object failed with
+        `permission denied for schema storage` — after the bytes were already
+        safely in the bucket. Ownership for an R2 object rests on the key,
+        which is reserved server-side under the owner's prefix and is the only
+        key the presigned PUT is signed for.
+        """
+
+        created = await self.create()
+        job_id = created.json()["job_id"]
+        with connection(self.database_url) as database:
+            database.execute(
+                "update ingestion_jobs set storage_backend = 'r2' where id = %s",
+                (job_id,),
+            )
+
+        # `uploader` is set to a different owner on purpose: if the check ran
+        # at all, this would be refused.
+        with StoredObject(uploader=str(self.other_owner)) as stored:
+            with patch("api.ingestions.object_uploader") as uploader:
+                response = await self.client.post(
+                    f"/api/ingestions/{job_id}/complete"
+                )
+            uploader.assert_not_called()
+
+        self.assertEqual(response.status_code, 202)
+
     async def test_status_polling_reports_durable_progress(self):
         job_id = await self.create_and_queue()
         with connection(self.database_url) as database:

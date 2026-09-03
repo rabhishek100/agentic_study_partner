@@ -34,7 +34,11 @@ from ingestion.outlines import MAXIMUM_PROPOSED_ENTRIES, normalize_title
 from ingestion.preflight import validate_table_of_contents
 from ingestion.progress import estimate
 from ingestion.states import Status
-from ingestion.source_store import R2_BACKEND, configured_source_store
+from ingestion.source_store import (
+    R2_BACKEND,
+    SUPABASE_BACKEND,
+    configured_source_store,
+)
 from ingestion.storage_objects import object_info, object_uploader
 from storage.database import connection as database_connection
 from study.contracts import ContractModel
@@ -468,14 +472,25 @@ async def complete_upload(
                     detail=f"stored content type {stored.content_type!r}",
                 )
 
-            uploader = object_uploader(
-                connection, job.storage_bucket, job.storage_path
-            )
-            if uploader is not None and UUID(uploader) != job.owner_id:
-                raise IngestionError(
-                    ErrorCode.SOURCE_MISSING,
-                    detail="stored object was uploaded by another user",
+            # Supabase records who uploaded each object in `storage.objects`,
+            # and that is worth checking when the object is there. R2 has no
+            # equivalent and no such table, so asking is not merely useless —
+            # the runtime role is deliberately not granted the `storage`
+            # schema, and the query fails outright.
+            #
+            # What actually establishes ownership either way is the key: it is
+            # reserved server-side under the owner's own prefix and is
+            # immutable, and the presigned PUT is signed for that exact key. A
+            # holder cannot write anywhere else with it.
+            if job.storage_backend == SUPABASE_BACKEND:
+                uploader = object_uploader(
+                    connection, job.storage_bucket, job.storage_path
                 )
+                if uploader is not None and UUID(uploader) != job.owner_id:
+                    raise IngestionError(
+                        ErrorCode.SOURCE_MISSING,
+                        detail="stored object was uploaded by another user",
+                    )
 
             return mark_upload_complete(
                 connection,
