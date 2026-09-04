@@ -35,7 +35,7 @@ function Band({
   return (
     <div
       className={cn(
-        "grid gap-3 border-t border-divider pt-4 first:border-t-0 first:pt-0",
+        "grid grid-cols-1 gap-3 border-t border-divider pt-4 first:border-t-0 first:pt-0",
         className,
       )}
       {...props}
@@ -124,16 +124,28 @@ export function LaunchPanel({
 
   return (
     /*
-      `min-w-0`: the panel sits in a fixed grid track, and a grid item's default
-      `min-width: auto` lets its content push past the track it was given. The
-      panel clipped its own summary values rather than the track holding them.
+      Two separate things keep this panel inside its 20rem track, and it needs
+      both.
+
+      `min-w-0` on the panel: as a grid item its default `min-width: auto`
+      would let content push it past the track it was given.
+
+      `grid-cols-1` on every grid below: a bare `grid` has no explicit column,
+      so the implicit one is sized `auto`, and an `auto` track grows to
+      max-content and overflows a container it cannot fit in. Nothing inside
+      can shrink it, because the track — not the item — is what is too wide.
+      Tailwind's `grid-cols-1` is `repeat(1, minmax(0, 1fr))`, which clamps it.
+
+      Without the second, the panel's own `overflow-hidden` cut every summary
+      value mid-word ("Mid-", "Rea", "Not inclu") whenever a long book title
+      raised the max-content width. `min-w-0` alone does not fix it.
     */
     <Panel className="min-w-0 lg:sticky lg:top-6">
-      <PanelContent className="grid gap-4">
+      <PanelContent className="grid grid-cols-1 gap-4">
         <Band>
           <BandLabel>Your session</BandLabel>
           {sourceChosen ? (
-            <div className="grid gap-1">
+            <div className="grid grid-cols-1 gap-1">
               <p className="font-serif text-base leading-snug font-medium">
                 {summary.sourceTitle}
               </p>
@@ -204,7 +216,7 @@ export function LaunchPanel({
         </Band>
 
         <Band>
-          <dl className="grid gap-2">
+          <dl className="grid grid-cols-1 gap-2">
             <SummaryRow label="Level" value={summary.level} />
             <SummaryRow label="Time" value={summary.duration} />
             <SummaryRow label="Feedback" value={summary.feedback} />
@@ -231,7 +243,7 @@ export function LaunchPanel({
         <Band>
           {codingUnavailable ? (
             <Alert variant="destructive">
-              <AlertDescription className="grid gap-2">
+              <AlertDescription className="grid grid-cols-1 gap-2">
                 <span>
                   This source has no executable material for a grounded coding
                   exercise.
