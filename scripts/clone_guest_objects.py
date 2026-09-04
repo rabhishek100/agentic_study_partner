@@ -24,6 +24,7 @@ owner's storage self-contained.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import os
 import sys
@@ -31,6 +32,7 @@ from uuid import UUID
 
 import boto3
 import psycopg
+from psycopg import sql
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from psycopg.rows import dict_row
@@ -109,6 +111,40 @@ def plan_copies(
             )
         )
 
+    # Video media, all in the video bucket. Five columns across four tables,
+    # every one owner-prefixed — the schema insists on it, e.g. `frames_check`
+    # is `full_storage_key ~~ (owner_id || '/%')` — so the source key is
+    # recoverable by swapping the owner segment back.
+    video_bucket = os.getenv("VIDEO_S3_BUCKET", "").strip()
+    if video_bucket:
+        for table, column in (
+            ("video.video_sources", "storage_key"),
+            ("video.transcript_sources", "storage_key"),
+            ("video.frames", "full_storage_key"),
+            ("video.frames", "preview_storage_key"),
+            ("video.visual_regions", "crop_storage_key"),
+            ("video.resources", "storage_key"),
+            ("video.resource_pages", "render_storage_key"),
+        ):
+            rows = connection.execute(
+                sql.SQL(
+                    "select distinct {col} as key from {tbl}"
+                    " where owner_id = %s and {col} is not null"
+                ).format(col=sql.Identifier(column), tbl=sql.SQL(table)),
+                (guest,),
+            ).fetchall()
+            for row in rows:
+                key = str(row["key"])
+                copies.append(
+                    ObjectCopy(
+                        bucket=video_bucket,
+                        source_key=key.replace(str(guest), str(source_owner), 1),
+                        target_key=key,
+                        expected_bytes=None,
+                        label="video",
+                    )
+                )
+
     # A book's source and viewer copies are separate objects; both, when set,
     # were rewritten to the guest prefix and both need to exist.
     pdfs = connection.execute(
@@ -184,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--verify-only", action="store_true")
+    parser.add_argument("--concurrency", type=int, default=8)
     args = parser.parse_args(argv)
 
     url = os.getenv(args.database_url_env, "").strip()
@@ -193,7 +230,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"database host class: {host_class(url)}")
 
     guest = UUID(args.guest_owner) if args.guest_owner else derived_owner(args.guest_email)
-    clients = {"figure": _client("BOOK_IMAGE_S3"), "pdf": _client("SOURCE_S3")}
+    clients = {
+        "figure": _client("BOOK_IMAGE_S3"),
+        "pdf": _client("SOURCE_S3"),
+        "video": _client("VIDEO_S3"),
+    }
 
     copied = verified = missing = failed = skipped = 0
     total_bytes = 0
@@ -229,33 +270,23 @@ def main(argv: list[str] | None = None) -> int:
             print("\ndry run; nothing was read or written")
             return 0
 
-        for entry in resolved:
+        def place(entry: ObjectCopy) -> tuple[ObjectCopy, str, int, str]:
+            """Copy one object. Returns (entry, status, bytes, detail)."""
+
             client = clients[entry.label]
             existing = head(client, entry.bucket, entry.target_key)
             if existing is not None:
                 size = int(existing.get("ContentLength") or 0)
                 if entry.expected_bytes and size != entry.expected_bytes:
-                    print(
-                        f"  [FAILED] {entry.target_key} is {size}, expected "
-                        f"{entry.expected_bytes}",
-                        flush=True,
-                    )
-                    failed += 1
-                    continue
-                verified += 1
-                total_bytes += size
-                continue
+                    return entry, "failed", size, f"is {size}, expected {entry.expected_bytes}"
+                return entry, "present", size, ""
 
             if args.verify_only:
-                print(f"  [MISSING] {entry.target_key}", flush=True)
-                missing += 1
-                continue
+                return entry, "missing", 0, "not present"
 
             origin = head(client, entry.bucket, entry.source_key)
             if origin is None:
-                print(f"  [MISSING] source gone: {entry.source_key}", flush=True)
-                missing += 1
-                continue
+                return entry, "missing", 0, f"source gone: {entry.source_key}"
             try:
                 client.copy_object(
                     Bucket=entry.bucket,
@@ -264,22 +295,39 @@ def main(argv: list[str] | None = None) -> int:
                     MetadataDirective="COPY",
                 )
             except (ClientError, BotoCoreError) as error:
-                print(f"  [FAILED] {entry.target_key}: {type(error).__name__}", flush=True)
-                failed += 1
-                continue
+                return entry, "failed", 0, type(error).__name__
 
             placed = head(client, entry.bucket, entry.target_key)
             if placed is None:
-                print(f"  [FAILED] {entry.target_key} absent after copy", flush=True)
-                failed += 1
-                continue
+                return entry, "failed", 0, "absent after copy"
             size = int(placed.get("ContentLength") or 0)
             if size != int(origin.get("ContentLength") or 0):
-                print(f"  [FAILED] {entry.target_key} size differs after copy", flush=True)
-                failed += 1
-                continue
-            copied += 1
-            total_bytes += size
+                return entry, "failed", size, "size differs after copy"
+            return entry, "copied", size, ""
+
+        # Reported as each lands rather than collected first: a run over
+        # thousands of small frames that dies partway must leave a legible
+        # record of what it had already done.
+        done = 0
+        with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
+            futures = {pool.submit(place, entry): entry for entry in resolved}
+            for future in as_completed(futures):
+                entry, status, size, detail = future.result()
+                done += 1
+                if status == "copied":
+                    copied += 1
+                    total_bytes += size
+                elif status == "present":
+                    verified += 1
+                    total_bytes += size
+                elif status == "missing":
+                    missing += 1
+                    print(f"  [MISSING] {entry.target_key} {detail}", flush=True)
+                else:
+                    failed += 1
+                    print(f"  [FAILED] {entry.target_key} {detail}", flush=True)
+                if done % 250 == 0:
+                    print(f"  ... {done}/{len(resolved)}", flush=True)
 
     except BootstrapError as error:
         print(f"error: {error}", file=sys.stderr)
