@@ -163,7 +163,7 @@ export function MomentComposer({
             ? "Ask about this moment…"
             : "Ask anything about this lecture…"
         }
-        className="max-h-[160px] resize-none rounded-xl bg-card py-3 pl-4 pr-20 text-xs shadow-sm"
+        className="max-h-[160px] resize-none rounded-xl bg-card py-3 pl-4 pr-20 text-xs shadow-sm max-md:text-base"
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {

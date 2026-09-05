@@ -253,7 +253,7 @@ export function Composer({
         }
         placeholder={placeholder}
         disabled={disabled}
-        className="max-h-[200px] resize-none rounded-xl bg-card py-3 pl-4 pr-24 text-xs shadow-sm"
+        className="max-h-[200px] resize-none rounded-xl bg-card py-3 pl-4 pr-24 text-xs shadow-sm max-md:text-base"
       />
 
       {mention && mention.matches.length > 0 && (
