@@ -54,7 +54,7 @@ conversation the thing that hangs off it.
 | Anchor citability | An answer quote is never evidence; a **resolved** source passage is | The existing rule exists because a prior answer is generated text and citing it would make the system cite itself. A reader's selection in a PDF is canonical book text, so the reason does not apply — but the *client's string* is still untrusted, so only the server-resolved canonical chunk enters the evidence list. |
 | Unresolvable selections | Passed as context, never as evidence, and said so on the turn | Guessing which chunk a fuzzy selection meant would put an unverified span behind a citation marker. Source vs. derived, applied to selections. |
 | Escalation | Automatic and labelled, driven by the LangGraph retry step | Chosen by the product owner over abstain-and-offer. The safety therefore moves out of the default and into the mechanism: the rung is recorded on the turn, rendered as a badge, and grounded and ungrounded content can never appear in one answer body. |
-| Escalation to live web search | Only on the existing recency signal, never as a blind third retry | `execute_external_qa` already searches the web only when the query asks for something current. Making every uncovered question also spend a web search would multiply cost for questions general knowledge answers fine. |
+| Escalation to live web search | An explicit request always searches; otherwise a recency signal or a sufficiency check decides, never a blind third retry | **Revised 2026-09-05.** The original rule was "recency signal only", implemented as a regex requiring the literal adjacency "search web" — which matched none of "use web search", "search the web" or "look it up online", so the feature failed precisely when the reader asked for it by name. An explicit request is now a deterministic route. For everything else the cost argument still holds, so the choice between model knowledge and a live search is made by `assess_model_knowledge_sufficiency` — a cheap control-model call that already existed and was never wired up — rather than by spending a search on every uncovered question. |
 | Library widening | Rung 2, reached by a sufficiency-gated retry, not by one widened first pass | "Open source ranked first, then library" as a single boosted query makes the boost a tuning parameter nobody can defend. As a retry it is a recorded decision with a before and after, and it costs nothing on the majority of turns the open source answers. |
 | Staying in the source | A per-session **Stay in this source** lock, off by default | Automatic escalation is right for study but wrong for verification. One control, one meaning: with it on, an uncovered question abstains. |
 | Ambient context | The current page or moment is always in context, shown as a removable chip | Without it the reader must select something before every question, which reinstates the tax the mode exists to remove. Removable because "ignore the page, answer generally" must not require leaving the mode. |
@@ -80,7 +80,7 @@ check sufficiency → **retry one rung wider** → answer.
 | 1 | The open source: its chapter subtree, or its transcript, frames and linked documents | The first retrieval pass. |
 | 2 | The rest of the reader's ready library | A retry, when rung 1 is judged insufficient. Also reached directly by `@`-mentioning a book, which the chat already supports. |
 | 3 | Model knowledge | A retry, when rung 2 is insufficient. Existing `execute_external_qa`. |
-| 4 | Live web search | Only when the question carries a recency signal. Existing behaviour. |
+| 4 | Live web search | An explicit request ("use web search"), a recency signal, or a sufficiency verdict that model knowledge cannot answer this well. |
 
 Three invariants make this defensible rather than mushy:
 
@@ -94,6 +94,13 @@ Three invariants make this defensible rather than mushy:
    introduces.
 3. **Widening is a retry, not a wider first pass.** Every escalation therefore
    has a recorded reason: the sufficiency verdict that caused it.
+4. **An ungrounded turn is still a turn in a conversation.** Rungs 3 and 4
+   receive the prior turns and answer against them. This is what makes a
+   follow-up like "add more detail on this part" answerable at all — without
+   it the model is handed a sentence with an unresolvable referent and asks
+   the reader to repeat what they already said. The history is context and
+   never evidence, so invariant 2 is unaffected: the answer still cites the
+   web or nothing.
 
 This also happens to be the strongest interview story in the feature. The
 agentic workflow is not decorating a retrieval call — the routing decision is

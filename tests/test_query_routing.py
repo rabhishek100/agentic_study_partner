@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
+from study.contracts import ConversationMessage, ConversationState
 from study.query import answer_query, execute_query
 from tests.fixtures import FILE_HASH, sample_book
 from tests.postgres import PostgresOwnerMixin
@@ -388,6 +389,62 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertEqual(result.route, "external_qa")
         self.assertEqual(result.source_type, "model_knowledge")
+
+    def test_external_fallback_carries_the_conversation(self):
+        """A follow-up that escalates still knows what it is a follow-up to.
+
+        Both fallbacks used to construct an empty `ConversationState`, so a
+        question that reached the model or the web arrived with no history at
+        all — which is why "add more detail on this part" came back asking
+        which part was meant.
+        """
+
+        document = SimpleNamespace(
+            page_content="Low-rank factorization can compress model tensors.",
+            metadata={
+                "book_id": self.book_id,
+                "node_id": 1,
+                "path": "Chapter 1 :: Core idea",
+                "start_page": 2,
+                "end_page": 2,
+            },
+        )
+        conversation = ConversationState(
+            conversation_id="conversation-1",
+            messages=[
+                ConversationMessage(role="user", content="Explain LoRA adapters."),
+                ConversationMessage(
+                    role="assistant",
+                    content="LoRA injects low-rank matrices into attention projections.",
+                ),
+            ],
+            previous_answer="LoRA injects low-rank matrices into attention projections.",
+        )
+        mock_model = MagicMock()
+        mock_model.invoke.side_effect = [
+            MagicMock(content="INSUFFICIENT_EVIDENCE: target modules are not discussed."),
+            MagicMock(content='{"is_sufficient": true, "reason": "General ML concept"}'),
+            MagicMock(content="ℹ️ **General Model Knowledge**: Target modules vary."),
+        ]
+        with patch("study.query.BookRetriever") as retriever:
+            retriever.return_value.invoke.return_value = [document]
+            result = execute_query(
+                "Which target modules should I pick for it?",
+                database_url=self.database_url,
+                book_id=self.book_id,
+                owner_id=self.owner_id,
+                model=mock_model,
+                allow_external_fallback=True,
+                conversation=conversation,
+            )
+
+        self.assertEqual(result.route, "external_qa")
+        replayed = " ".join(
+            str(message.content)
+            for message in mock_model.invoke.call_args_list[-1].args[0]
+        )
+        self.assertIn("Explain LoRA adapters.", replayed)
+        self.assertIn("low-rank matrices into attention projections", replayed)
 
     def test_forced_retrieval_does_not_reparse_query_as_hierarchy(self):
         document = SimpleNamespace(

@@ -20,6 +20,7 @@ from .context import build_scope_context
 from .contracts import (
     AnswerArchetype,
     CitationRef,
+    ConversationState,
     EvidenceRef,
     PromptProfile,
     ResponseDepth,
@@ -93,6 +94,35 @@ def _summary_config() -> SummaryConfig:
         context_window_tokens=int(os.getenv("SUMMARY_CONTEXT_WINDOW_TOKENS", "64000")),
         max_output_tokens=int(os.getenv("SUMMARY_MAX_OUTPUT_TOKENS", "8000")),
         safety_margin_tokens=int(os.getenv("SUMMARY_SAFETY_MARGIN_TOKENS", "1000")),
+    )
+
+
+def control_model() -> ChatModel:
+    """The cheap model for judgement calls that are not answers.
+
+    Routing decisions already run on `OPENROUTER_CONTROL_MODEL` rather than
+    the generation model, for the obvious reason: a yes/no does not need an
+    answer-grade call. External QA makes two decisions of the same kind —
+    whether a question needs a live search, and what to type into the search
+    box — and this is where they go.
+    """
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise QueryExecutionError("OPENROUTER_API_KEY is missing from .env")
+
+    from langchain_openai import ChatOpenAI
+
+    from .analyze import DEFAULT_CONTROL_MODEL
+
+    return ChatOpenAI(
+        model=os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        max_retries=1,
+        timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
+        temperature=0,
+        extra_body={"reasoning": {"effort": "low", "exclude": True}},
     )
 
 
@@ -389,6 +419,11 @@ def _answer_retrieval_question(
     pinned_chunk_ids: Sequence[str] = (),
     request_context: str = "",
     allow_external_fallback: bool = True,
+    # The conversation this question was asked in, carried purely so that an
+    # escalation to external QA can resolve a follow-up's referents. Retrieval
+    # itself is unchanged: the analyser has already rewritten the question into
+    # a standalone one before it reaches here.
+    conversation: ConversationState | None = None,
     # Off by default. Sending pictures costs tokens on every turn that has one
     # nearby, and the main chat's answers are measured against a frozen gold
     # set; a source-first turn asks about a page the reader is looking at,
@@ -450,16 +485,19 @@ def _answer_retrieval_question(
     ]
     if not documents:
         if allow_external_fallback:
-            from .contracts import ConversationState
             from .external_qa import execute_external_qa
 
             return execute_external_qa(
                 question,
-                ConversationState(conversation_id=""),
+                conversation or ConversationState(conversation_id=""),
                 model=model,
                 token_callback=token_callback,
                 response_depth=response_depth,
-                history_dependency="independent",
+                history_dependency=(
+                    "dependent"
+                    if conversation and conversation.previous_answer
+                    else "independent"
+                ),
                 standalone_query=question,
                 routing_reason=routing_reason
                 or (
@@ -573,16 +611,19 @@ def _answer_retrieval_question(
 
     if insufficient:
         if allow_external_fallback:
-            from .contracts import ConversationState
             from .external_qa import execute_external_qa
 
             return execute_external_qa(
                 question,
-                ConversationState(conversation_id=""),
+                conversation or ConversationState(conversation_id=""),
                 model=model,
                 token_callback=token_callback,
                 response_depth=response_depth,
-                history_dependency="independent",
+                history_dependency=(
+                    "dependent"
+                    if conversation and conversation.previous_answer
+                    else "independent"
+                ),
                 standalone_query=question,
                 routing_reason=routing_reason or "Indexed evidence was evaluated as insufficient; falling back to external QA.",
             )
@@ -682,6 +723,10 @@ def execute_query(
     pinned_chunk_ids: Sequence[str] = (),
     request_context: str = "",
     allow_external_fallback: bool = True,
+    # Carried through to external QA so a follow-up that escalates past the
+    # library still knows what it is a follow-up to. Only the escalation reads
+    # it; the retrieval path is self-contained by design.
+    conversation: ConversationState | None = None,
     send_figures: bool = False,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
@@ -733,6 +778,7 @@ def execute_query(
         pinned_chunk_ids=pinned_chunk_ids,
         request_context=request_context,
         allow_external_fallback=allow_external_fallback,
+        conversation=conversation,
         send_figures=send_figures,
     )
 

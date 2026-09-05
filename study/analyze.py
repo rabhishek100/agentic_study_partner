@@ -139,6 +139,35 @@ def _scope_ref(scope: ResolvedScope) -> ScopeRef:
     )
 
 
+def _explicit_web_search_decision(
+    question: str,
+    state: ConversationState,
+) -> TurnDecision | None:
+    """Route a spoken-aloud request for a web search, without asking the model.
+
+    Deterministic for the same reason `LIBRARY_LIST_REQUEST` is: the reader has
+    said what they want in so many words, and a model that has to infer it will
+    sometimes not. Before this existed, "use web search to add more detail"
+    reached the web only if retrieval happened to come up short first — the one
+    turn where the intent was explicit was the one where it was least reliable.
+
+    History dependency is reported honestly rather than assumed: the request
+    itself carries no topic, so on a follow-up the referent lives in the
+    previous turn and `execute_external_qa` resolves it there.
+    """
+
+    from .external_qa import EXPLICIT_WEB_REQUEST
+
+    if not EXPLICIT_WEB_REQUEST.search(question):
+        return None
+    return TurnDecision(
+        route="external_qa",
+        history_dependency="dependent" if state.previous_answer else "independent",
+        standalone_query=question,
+        reason="The reader explicitly asked for a web search.",
+    )
+
+
 def _ordinal_chapter_decision(
     question: str,
     state: ConversationState,
@@ -768,6 +797,9 @@ def analyze_turn(
             history_dependency="independent",
             reason="The request asks for canonical library metadata.",
         )
+    explicit_web = _explicit_web_search_decision(question, state)
+    if explicit_web:
+        return explicit_web
     ordinal = _ordinal_chapter_decision(
         question,
         state,
