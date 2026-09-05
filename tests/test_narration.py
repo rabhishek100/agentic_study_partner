@@ -13,6 +13,7 @@ from narration.figures import (
     FigureRequest,
     MAXIMUM_DESCRIPTION_CHARACTERS,
     spoken_descriptions,
+    without_opener,
 )
 from narration.synthesis import (
     DEFAULT_TTS_MODEL,
@@ -124,6 +125,31 @@ class CacheKeyTests(unittest.TestCase):
             cache.cache_key("text", model="ab", voice="c"),
             cache.cache_key("text", model="a", voice="bc"),
         )
+
+
+class OpenerTests(unittest.TestCase):
+    """The script has already said "Figure, page 257" by the time this is heard."""
+
+    def test_a_preamble_the_model_was_asked_not_to_write_is_removed(self) -> None:
+        # Observed verbatim from gemini-2.5-flash-lite on a real corpus figure,
+        # despite the instruction against it.
+        spoken = without_opener(
+            "This diagram shows a summary of key elements in a machine learning "
+            "project, breaking down tasks from clarifying requirements to serving."
+        )
+
+        self.assertTrue(spoken.startswith("A summary of key elements"))
+
+    def test_a_description_that_starts_with_content_is_left_alone(self) -> None:
+        original = "Training loss falls steeply for ten epochs and then flattens."
+
+        self.assertEqual(without_opener(original), original)
+
+    def test_a_preamble_is_kept_when_removing_it_leaves_a_fragment(self) -> None:
+        # Better a redundant lead-in than a description that is one word long.
+        original = "This chart shows accuracy."
+
+        self.assertEqual(without_opener(original), original)
 
 
 class RecordingNarrator:
@@ -283,6 +309,20 @@ class FigureNarrationTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertEqual(described, {})
         self.assertEqual(narrator.calls, 0)
+
+    def test_the_stored_description_has_its_preamble_stripped(self) -> None:
+        class PreamblingNarrator:
+            model_name = "test/vision-1"
+
+            def narrate(self, payload: bytes, mime_type: str) -> str | None:
+                del payload, mime_type
+                return "This figure shows a curve that flattens after ten epochs."
+
+        described = self.narrate(PreamblingNarrator())
+
+        self.assertEqual(
+            described[self.block_id], "A curve that flattens after ten epochs."
+        )
 
     def test_an_overlong_description_is_truncated_before_storage(self) -> None:
         self.narrate(RecordingNarrator("word " * 1000))

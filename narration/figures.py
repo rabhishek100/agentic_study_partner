@@ -19,6 +19,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 import logging
 import os
+import re
 from typing import Protocol
 from uuid import UUID
 
@@ -63,6 +64,40 @@ NARRATION_INSTRUCTION = (
 )
 
 NOT_A_FIGURE = "NOT_A_FIGURE"
+
+# Asking for no preamble is not the same as getting none. Measured on the real
+# corpus, `google/gemini-2.5-flash-lite` opens with "This diagram shows…"
+# regardless of the instruction — the same thing captioning found, which is why
+# it matches NOT_A_FIGURE anywhere rather than at the start.
+#
+# The preamble matters more here than it did there. The script has already said
+# "Figure, page 257." by the time this is spoken, so "This diagram shows a
+# summary of…" makes the listener wait through a second announcement for the
+# content. Stripping it deterministically is cheaper and more reliable than
+# another round of prompt wording.
+OPENER = re.compile(
+    r"^\s*(?:this|the|that)\s+"
+    r"(?:figure|diagram|image|picture|chart|plot|graph|table|screenshot"
+    r"|illustration|schematic|flowchart|visualization|visualisation)\s+"
+    r"(?:shows|illustrates|depicts|presents|displays|outlines|describes"
+    r"|represents|summari[sz]es|plots|compares|visuali[sz]es)\s+",
+    re.IGNORECASE,
+)
+
+# Below this, removing the opener would leave a fragment rather than a
+# sentence, and a fragment is worse than a redundant lead-in.
+MINIMUM_REMAINDER_CHARACTERS = 20
+
+
+def without_opener(description: str) -> str:
+    """Drop a "This diagram shows" preamble, keeping the sentence readable."""
+
+    remainder = OPENER.sub("", description.strip(), count=1)
+    if remainder == description.strip():
+        return description.strip()
+    if len(remainder) < MINIMUM_REMAINDER_CHARACTERS:
+        return description.strip()
+    return remainder[0].upper() + remainder[1:]
 
 
 class FigureNarrator(Protocol):
@@ -138,7 +173,7 @@ class OpenRouterFigureNarrator:
         # model reaches the right judgement and then explains it first.
         if not text or NOT_A_FIGURE in text.upper():
             return None
-        return text[:MAXIMUM_DESCRIPTION_CHARACTERS]
+        return text
 
 
 def _rows_for(
@@ -266,7 +301,11 @@ def spoken_descriptions(
 
         try:
             payload = load_figure(row)
-            description = (lazy_narrator.narrate(payload, row["mime_type"]) or "").strip()
+            # Sanitised here rather than inside one narrator: what gets stored
+            # and spoken should not depend on which client produced it.
+            description = without_opener(
+                lazy_narrator.narrate(payload, row["mime_type"]) or ""
+            )[:MAXIMUM_DESCRIPTION_CHARACTERS]
         except Exception as error:  # noqa: BLE001 - reported, then degraded
             logger.warning(
                 "figure %s could not be narrated: %s", figure.block_id, error
