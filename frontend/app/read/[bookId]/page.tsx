@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Crosshair,
   Maximize2,
+  MessagesSquare,
   Minimize2,
 } from "lucide-react";
 import Link from "next/link";
@@ -36,6 +37,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCompactViewport } from "@/hooks/use-compact-viewport";
 import { useReadingSession } from "@/hooks/use-reading-session";
 import { useStayInSource } from "@/hooks/use-stay-in-source";
 import { useSession } from "@/hooks/use-session";
@@ -96,7 +98,18 @@ export default function ReadPage() {
     () => recapOf(sideChats.available.map((thread) => thread.anchors), chapters),
     [sideChats.available, chapters],
   );
+  const compact = useCompactViewport();
   const [questionsOpen, setQuestionsOpen] = useState(true);
+  /*
+    Beside the page, the questions panel is company; over the page it is a
+    replacement for it. At `compact` the right region has no column of its own
+    and overlays the reader, so opening by default landed a reader who asked to
+    *read* on an empty questions list with the page nowhere on screen. The
+    masthead's Questions control is still how they get to it, and back.
+  */
+  useEffect(() => {
+    if (compact) setQuestionsOpen(false);
+  }, [compact]);
   const [chromeHidden, setChromeHidden] = useState(false);
   const [regionArmed, setRegionArmed] = useState(false);
   const [region, setRegion] = useState<PageSelection | null>(null);
@@ -425,28 +438,42 @@ export default function ReadPage() {
         </span>
       }
       nav={
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/">
+        <Button variant="ghost" size="sm" className="px-2 md:px-3" asChild>
+          <Link href="/" aria-label="Back to the library">
             <ArrowLeft aria-hidden />
-            Library
+            <span className="hidden md:inline">Library</span>
           </Link>
         </Button>
       }
       account={<AccountMenu email={authSession.user.email} />}
       sideChatControl={
         <>
+          {/*
+            This masthead was asking for eight controls. At 375px the row ran
+            past the right edge of the window and the last of them — the theme,
+            the account, half the notification bell — were simply rendered off
+            the side of the screen with no scroll to reach them. What survives
+            at `compact` is what a phone can act on: the way into the questions
+            and back out to the page, and the way to give the page the whole
+            window.
+          */}
           <Button
             variant="outline"
             size="sm"
+            className="px-2 md:px-3"
             aria-pressed={questionsOpen}
+            aria-label={`Questions in this session: ${sideChats.available.length}`}
             onClick={() => setQuestionsOpen(!questionsOpen)}
           >
-            Questions
+            <MessagesSquare aria-hidden className="md:hidden" />
+            <span className="hidden md:inline">Questions</span>
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
               {sideChats.available.length}
             </span>
           </Button>
-          {regionTool}
+          {/* Dragging a rectangle over a page is a pointer gesture; on touch it
+              fights the scroll it shares a surface with. */}
+          <span className="hidden md:inline-flex">{regionTool}</span>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -455,12 +482,16 @@ export default function ReadPage() {
           >
             <Maximize2 aria-hidden />
           </Button>
-          <SideChatMenu
-          sideChats={sideChats.available}
-          openIds={sideChats.openIds}
-          onOpen={sideChats.show}
-          onDelete={sideChats.remove}
-          />
+          {/* Below `compact` no thread can float, so this menu's only job is
+              listing them — which the questions panel itself does. */}
+          <span className="hidden md:inline-flex">
+            <SideChatMenu
+              sideChats={sideChats.available}
+              openIds={sideChats.openIds}
+              onOpen={sideChats.show}
+              onDelete={sideChats.remove}
+            />
+          </span>
         </>
       }
       rail={

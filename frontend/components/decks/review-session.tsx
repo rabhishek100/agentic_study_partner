@@ -617,7 +617,11 @@ export function ReviewSession({
             >
               <Eye aria-hidden />
               Show answer
-              <kbd className="ml-2 rounded border border-divider px-2 text-xs opacity-70">
+              {/*
+                A keyboard hint on a device with no keyboard is a control that
+                cannot be pressed, taking width from the label that can.
+              */}
+              <kbd className="ml-2 hidden rounded border border-divider px-2 text-xs opacity-70 md:inline">
                 space
               </kbd>
             </Button>

@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ThemeMenuItems } from "@/components/theme-toggle";
 import { signOut } from "@/hooks/use-session";
 
 /**
@@ -43,6 +44,18 @@ export function AccountMenu({ email }: { email?: string | null }) {
           <span className="block max-w-56 truncate">Signed in as {address}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {/*
+          The theme control has its own place in the masthead from `medium` up.
+          At `compact` it lives here instead, so the row does not have to carry
+          a separate button for it.
+        */}
+        <div className="md:hidden">
+          <DropdownMenuLabel className="font-normal text-muted-foreground">
+            Theme
+          </DropdownMenuLabel>
+          <ThemeMenuItems />
+          <DropdownMenuSeparator />
+        </div>
         <DropdownMenuItem onSelect={() => signOut()}>
           <LogOut aria-hidden />
           Sign out

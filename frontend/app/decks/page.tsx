@@ -520,9 +520,12 @@ export default function DecksPage() {
               <div className="min-w-0 space-y-6">
                 <section
                   aria-labelledby="today-heading"
-                  className="grid gap-6 rounded-lg border border-border bg-surface p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center"
+                  // Two columns at compact rather than five stacked blocks:
+                  // the four counts are short, and one per row pushed the deck
+                  // library itself entirely below the fold.
+                  className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-surface p-4 sm:grid-cols-[minmax(13.5rem,1.9fr)_repeat(4,minmax(4.5rem,1fr))] sm:items-center sm:gap-6"
                 >
-              <div className="sm:border-r sm:border-border sm:pr-6">
+              <div className="col-span-2 sm:col-span-1 sm:border-r sm:border-border sm:pr-6">
                 <h2 id="today-heading" className="text-base font-medium">
                   Today
                 </h2>

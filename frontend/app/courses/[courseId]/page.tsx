@@ -357,7 +357,13 @@ export default function CoursePage() {
         ) : (
           <>
             <header className="border-b border-divider bg-surface px-4 py-3 sm:px-6">
-              <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-4 sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
+              {/*
+                Three columns at every size. The details control used to drop to
+                a full-width row of its own below `sm`, which cost a 44px band
+                at the top of a screen where the conversation underneath was
+                already down to 147px.
+              */}
+              <div className="grid grid-cols-[6rem_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:gap-4">
                 <CoursePoster
                   title={course.title}
                   youtubeVideoId={course.preview_youtube_video_id}
@@ -379,7 +385,7 @@ export default function CoursePage() {
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="col-span-2 w-full sm:col-span-1 sm:w-auto">Course details<ChevronDown aria-hidden /></Button>
+                    <Button variant="outline" size="sm" aria-label="Course details"><span className="hidden sm:inline">Course details</span><ChevronDown aria-hidden /></Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild><Link href="/courses"><ArrowLeft aria-hidden />All courses</Link></DropdownMenuItem>

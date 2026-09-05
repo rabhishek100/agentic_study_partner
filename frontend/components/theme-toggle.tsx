@@ -18,6 +18,34 @@ const OPTIONS = [
   { value: "system", label: "System", Icon: Monitor },
 ] as const;
 
+/**
+ * The three choices, as menu items.
+ *
+ * Exported so the account menu can carry them at `compact`, where the masthead
+ * has no room for a control of its own: the reading route alone was asking for
+ * eight, and the ones at the end of the row were rendered off the side of the
+ * screen.
+ */
+export function ThemeMenuItems() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  return (
+    <>
+      {OPTIONS.map(({ value, label, Icon }) => (
+        <DropdownMenuItem key={value} onSelect={() => setTheme(value)}>
+          <Icon aria-hidden />
+          {label}
+          {mounted && theme === value && (
+            <span className="ml-auto text-xs text-muted-foreground">Active</span>
+          )}
+        </DropdownMenuItem>
+      ))}
+    </>
+  );
+}
+
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   // The resolved theme is unknown until the client mounts; rendering the real

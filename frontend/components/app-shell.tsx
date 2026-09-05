@@ -195,7 +195,13 @@ export function AppShell({
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <BrandMark size="sm" />
           <div className="min-w-0">
-            <p className="truncate font-serif text-base font-medium leading-tight tracking-tight">
+            {/*
+              The mark carries the name at `compact`. Spelling it out as well
+              costs about 70px of a 375px row, and it is the one thing in the
+              masthead the reader already knows — where the status line, which
+              it was squeezing into an ellipsis, is the part that changes.
+            */}
+            <p className="hidden truncate font-serif text-base font-medium leading-tight tracking-tight md:block">
               Mugensei
             </p>
             <div className="truncate text-xs text-muted-foreground">
@@ -210,7 +216,10 @@ export function AppShell({
           {sideChatControl}
           {documentControl}
           <NotificationCenter />
-          <ThemeToggle />
+          {/* At `compact` the account menu carries the theme instead. */}
+          <span className="hidden md:inline-flex">
+            <ThemeToggle />
+          </span>
           {account}
         </div>
       </header>

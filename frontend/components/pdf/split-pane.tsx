@@ -31,6 +31,17 @@ export interface RightRegionMode {
    */
   ambient?: boolean;
   /**
+   * At `compact`, cover the lower part of the canvas instead of all of it.
+   *
+   * The design system's compact rule for the right region is "becomes a bottom
+   * sheet", and which regions that suits is a property of what is behind them.
+   * A page or a slide wants the whole screen. A lecture does not: its player is
+   * 16:9 and about a quarter of a portrait phone, so a full overlay hid the
+   * video the questions are about, and closing the panel left most of the
+   * screen empty instead.
+   */
+  compactSheet?: boolean;
+  /**
    * The draggable range for this mode, when it has one.
    *
    * Per mode, not per pane: the design system says as much, and the reason is
@@ -130,6 +141,8 @@ export function SplitPane({
                   region.fixedWidth
                     ? "md:w-[var(--region-width)]"
                     : "md:w-[var(--pane)]",
+                  region.compactSheet &&
+                    "max-md:top-1/3 max-md:border-t max-md:border-border",
                   region.ambient && "max-md:hidden",
                   !isActive && "hidden",
                 )}
