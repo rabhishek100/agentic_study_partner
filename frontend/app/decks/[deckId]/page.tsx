@@ -1,9 +1,9 @@
 "use client";
 
-import { LogOut } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import {
@@ -11,23 +11,14 @@ import {
   type DeckFilter,
 } from "@/components/decks/deck-overview";
 import { ReviewSession } from "@/components/decks/review-session";
-import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCardSideChats } from "@/hooks/use-card-side-chats";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
 import type { ChatTurn } from "@/lib/types";
@@ -140,7 +131,7 @@ export default function DeckDetailPage() {
 
   return (
     <AppShell
-      nav={<SectionNav active="decks" />}
+      section="decks"
       overlay={
         <SideChatLayer
           windows={sideChats.windows}
@@ -166,25 +157,7 @@ export default function DeckDetailPage() {
         />
       }
       status={<span className="truncate">{deck?.title ?? "Deck"}</span>}
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       rail={null}
     >
       <div

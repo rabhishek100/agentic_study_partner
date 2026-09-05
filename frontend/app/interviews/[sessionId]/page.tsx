@@ -6,7 +6,6 @@ import {
   Clock3,
   ExternalLink,
   Loader2,
-  LogOut,
   MessageCircleQuestion,
   Mic,
   MonitorUp,
@@ -21,26 +20,18 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import {
   emptyPythonExecution,
   PythonCodingWorkspace,
 } from "@/components/interviews/python-coding-workspace";
-import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/ui/panel";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -60,7 +51,7 @@ import {
   useInterviewVoice,
 } from "@/hooks/use-interview-voice";
 import { useScreenShare } from "@/hooks/use-screen-share";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { ApiError, apiFetch, errorDetail, uploadUrl } from "@/lib/api";
 import { transcribeInterviewRecording } from "@/lib/dictation";
 import {
@@ -784,10 +775,11 @@ export default function InterviewWorkspace() {
 
   return (
     <AppShell
-      nav={<SectionNav active="interviews" />}
+      section="interviews"
       status={<span>{interview.status === "active" ? (remaining > 0 ? `${clock(remaining)} remaining` : "Finish your current answer") : titleCase(interview.status)}</span>}
-      account={<DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="max-w-44"><span className="truncate">{authSession.user.email}</span></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuLabel className="font-normal text-muted-foreground">Signed in</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => signOut()}><LogOut aria-hidden />Sign out</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}
-      rail={<div className="flex h-full flex-col overflow-y-auto p-4"><div className="mb-6 sm:hidden"><SectionNav active="interviews" /></div><Link href="/interviews" className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4" />All interviews</Link><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scope</p><h2 className="mt-2 font-serif text-base font-medium">{interview.title.replace("Interview · ", "")}</h2><p className="mt-1 text-xs text-muted-foreground">{interview.source_title}</p><div className="mt-6 space-y-3 border-t pt-4"><div className="flex justify-between text-xs"><span className="text-muted-foreground">Format</span><span className="capitalize">{interview.interview_format.replace("_", " ")}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Level</span><span className="capitalize">{interview.target_level}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Mode</span><span className="capitalize">{interview.feedback_mode}</span></div></div><div className="mt-6"><div className="mb-2 flex justify-between text-xs"><span>Source coverage</span><span>{Math.round(coverage)}%</span></div><Progress value={coverage} /></div><p className="mt-4 text-xs leading-5 text-muted-foreground">Topic order and future questions remain hidden. The interview finishes early when meaningful coverage is complete.</p></div>}
+      account={<AccountMenu email={authSession.user.email} />}
+      rail={<div className="flex h-full flex-col overflow-y-auto p-4">
+<Link href="/interviews" className="mb-6 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden className="size-4" />All interviews</Link><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Scope</p><h2 className="mt-2 font-serif text-base font-medium">{interview.title.replace("Interview · ", "")}</h2><p className="mt-1 text-xs text-muted-foreground">{interview.source_title}</p><div className="mt-6 space-y-3 border-t pt-4"><div className="flex justify-between text-xs"><span className="text-muted-foreground">Format</span><span className="capitalize">{interview.interview_format.replace("_", " ")}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Level</span><span className="capitalize">{interview.target_level}</span></div><div className="flex justify-between text-xs"><span className="text-muted-foreground">Mode</span><span className="capitalize">{interview.feedback_mode}</span></div></div><div className="mt-6"><div className="mb-2 flex justify-between text-xs"><span>Source coverage</span><span>{Math.round(coverage)}%</span></div><Progress value={coverage} /></div><p className="mt-4 text-xs leading-5 text-muted-foreground">Topic order and future questions remain hidden. The interview finishes early when meaningful coverage is complete.</p></div>}
     >
       {report ? (
         <div className="min-h-0 flex-1 overflow-y-auto">

@@ -1,8 +1,9 @@
 "use client";
 
-import { AlertCircle, BookOpen, LogOut, Search, Sparkles } from "lucide-react";
+import { AlertCircle, BookOpen, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { CardsSettings } from "@/components/decks/cards-settings";
@@ -11,21 +12,12 @@ import { GenerateDeck } from "@/components/decks/generate-deck";
 import { GenerationActivity } from "@/components/decks/generation-activity";
 import { ReviewSession } from "@/components/decks/review-session";
 import { TodayReviewIntent } from "@/components/decks/today-review-intent";
-import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -36,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCardSideChats } from "@/hooks/use-card-side-chats";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import {
   type AutomaticSetActivationResponse,
@@ -391,7 +383,7 @@ export default function DecksPage() {
 
   return (
     <AppShell
-      nav={<SectionNav active="decks" />}
+      section="decks"
       railMode="drawer-only"
       /*
         Absent until there is work, rather than a permanent column explaining
@@ -401,6 +393,8 @@ export default function DecksPage() {
         {
           key: "activity",
           label: "Deck generation activity",
+          // Appears on its own while decks build; not a panel the reader opened.
+          ambient: true,
           fixedWidth: 340,
           node: (
             <GenerationActivity
@@ -418,7 +412,6 @@ export default function DecksPage() {
       }
       rail={
         <div className="space-y-6 p-4">
-          <SectionNav active="decks" />
           <p className="border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
             Create decks and adjust your daily pace from the Cards workspace.
           </p>
@@ -454,25 +447,7 @@ export default function DecksPage() {
           {dueToday > 0 ? ` · ${dueToday} to review` : " · nothing due"}
         </span>
       }
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
     >
       <TodayReviewIntent onRequested={startTodayReview} />
       <div className="h-full overflow-y-auto">

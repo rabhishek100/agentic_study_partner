@@ -3,7 +3,6 @@
 import {
   AlertCircle,
   ArrowLeft,
-  LogOut,
   Maximize2,
   Minimize2,
 } from "lucide-react";
@@ -11,6 +10,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import {
@@ -31,16 +31,8 @@ import {
 } from "@/components/video/video-player";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { useSideChats } from "@/hooks/use-side-chats";
 import { useWatchSession } from "@/hooks/use-watch-session";
 import { apiFetch } from "@/lib/api";
@@ -388,9 +380,11 @@ export default function WatchPage() {
       // see it, and the questions list is one click away either side of that.
       activeRegion={reading ? "document" : questionsOpen ? "questions" : null}
       status={
-        <span className="flex items-center gap-2">
-          <span aria-hidden className="size-1.5 rounded-full bg-positive" />
-          {session ? `Watching · ${session.title}` : "Opening…"}
+        <span className="flex min-w-0 items-center gap-2">
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-positive" />
+          <span className="truncate">
+            {session ? `Watching · ${session.title}` : "Opening…"}
+          </span>
         </span>
       }
       nav={
@@ -401,25 +395,7 @@ export default function WatchPage() {
           </Link>
         </Button>
       }
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{authSession.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={authSession.user.email} />}
       sideChatControl={
         <>
           <Button

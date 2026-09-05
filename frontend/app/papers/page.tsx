@@ -1,8 +1,9 @@
 "use client";
 
-import { LogOut, PanelRightOpen } from "lucide-react";
+import { PanelRightOpen } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { describeSelection } from "@/components/book-selector";
 import { AuthGate } from "@/components/auth-gate";
@@ -11,27 +12,18 @@ import { EvidencePanel } from "@/components/conversation/evidence-panel";
 import { LibraryRail } from "@/components/library-rail";
 import { sessionDetail } from "@/components/read/continue-sessions";
 import { PdfViewer, type PdfTarget } from "@/components/pdf";
-import { SectionNav } from "@/components/section-nav";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
 import { SideChatTurns } from "@/components/side-chat/side-chat-turns";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChat } from "@/hooks/use-chat";
 import { useConversations } from "@/hooks/use-conversations";
 import { useReadingSessions } from "@/hooks/use-source-sessions";
 import { useSideChats } from "@/hooks/use-side-chats";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import { takeQuestion } from "@/lib/deck-handoff";
 import type {
@@ -282,6 +274,10 @@ export default function PapersPage() {
       key: "evidence",
       label: "Evidence for this answer",
       fixedWidth: 340,
+      // Never asked for — it fills as soon as an answer is grounded — so it
+      // stays out of the way at `compact`, where each answer carries its own
+      // sources beneath it instead.
+      ambient: true,
       node: (
         <EvidencePanel
           turn={sourcesTurn}
@@ -341,39 +337,23 @@ export default function PapersPage() {
 
   return (
     <AppShell
-      nav={<SectionNav active="papers" />}
+      section="papers"
       status={
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           <span
             aria-hidden
             className={
               conversation
-                ? "size-1.5 rounded-full bg-positive"
-                : "size-1.5 rounded-full bg-muted-foreground"
+                ? "size-1.5 shrink-0 rounded-full bg-positive"
+                : "size-1.5 shrink-0 rounded-full bg-muted-foreground"
             }
           />
-          {conversation ? "Conversation active" : "Ready to study"}
+          <span className="truncate">
+            {conversation ? "Conversation active" : "Ready to study"}
+          </span>
         </span>
       }
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       sideChatControl={
         <SideChatMenu
           sideChats={sideChats.available}

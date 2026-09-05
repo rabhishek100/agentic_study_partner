@@ -123,7 +123,8 @@ export function VideoWelcome({
                 type="button"
                 onClick={() => fetchQuestions(true)}
                 disabled={refreshing || loading}
-                className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                // 24px target floor; `-my-1` keeps the row its original height.
+                className="-my-1 flex min-h-6 items-center gap-1 rounded px-2 py-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                 title="Refresh suggested questions"
               >
                 <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />

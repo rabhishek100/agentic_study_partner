@@ -1,14 +1,14 @@
 "use client";
 
-import { ArrowLeft, LogOut, Maximize2, PanelRightOpen } from "lucide-react";
+import { ArrowLeft, Maximize2, PanelRightOpen } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { ConversationHistory } from "@/components/conversation-history";
-import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SideChatLayer } from "@/components/side-chat/side-chat-layer";
 import { SideChatMenu } from "@/components/side-chat/side-chat-menu";
@@ -33,20 +33,12 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useResizablePane } from "@/hooks/use-resizable-pane";
 import { useSideChats } from "@/hooks/use-side-chats";
 import { useVideoChat } from "@/hooks/use-video-chat";
 import { VIDEO_SIDE_CHATS } from "@/lib/side-chat";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import { takeQuestion } from "@/lib/deck-handoff";
 import { cn } from "@/lib/utils";
@@ -406,7 +398,7 @@ export default function VideoWorkspace() {
 
   return (
     <AppShell
-      nav={<SectionNav active="videos" />}
+      section="videos"
       sideChatControl={
         <SideChatMenu
           sideChats={sideChats.available}
@@ -494,25 +486,7 @@ export default function VideoWorkspace() {
           : []
       }
       activeRegion={documentOpen ? "document" : null}
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       rail={
         <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
           <Link
@@ -541,6 +515,11 @@ export default function VideoWorkspace() {
         ref={containerRef}
         className={cn(
           "flex min-h-0 flex-1 flex-col overflow-y-auto",
+          // At `compact` the two panes split the height the way they split the
+          // width at `wide`, so the composer stays anchored. Stacked in one
+          // scroller, asking a question meant scrolling past the player, the
+          // readiness notes and the whole resource list to reach the box.
+          !documentOpen && "max-md:overflow-hidden",
           !documentOpen && "lg:flex-row lg:overflow-hidden",
         )}
       >
@@ -552,6 +531,13 @@ export default function VideoWorkspace() {
         <div
           className={cn(
             "flex min-h-0 w-full shrink-0 flex-col gap-3 p-4",
+            // Its own scroller at `compact`, capped at roughly the title, the
+            // 16:9 player and the panel tabs — everything below that scrolls
+            // inside it, so the conversation keeps the rest of the screen. A
+            // length rather than a percentage: a percentage of a box whose
+            // height depends on this pane's content is a measurement that can
+            // chase itself.
+            !documentOpen && "max-md:max-h-[22rem] max-md:overflow-y-auto",
             !documentOpen && "lg:w-[var(--lecture-pane)] lg:overflow-y-auto",
           )}
           style={{ "--lecture-pane": `${percent}%` } as React.CSSProperties}
@@ -683,6 +669,10 @@ export default function VideoWorkspace() {
           aria-label="Ask this lecture"
           className={cn(
             "flex min-h-[70vh] min-w-0 flex-1 flex-col border-t border-border",
+            // `min-h-[70vh]` is what makes the stacked layout readable while
+            // the page is one scroller; at `compact` the page is not, and that
+            // minimum would push the composer back off the bottom of it.
+            !documentOpen && "max-md:min-h-0 max-md:overflow-hidden",
             !documentOpen && "lg:h-full lg:min-h-0 lg:overflow-hidden lg:border-t-0",
           )}
         >

@@ -153,10 +153,25 @@ export function TurnView({
           fills the space beside the prose. What stays here is the way back to
           them — which turn's evidence the region is showing is only meaningful
           per answer, so each answer can claim it.
+
+          At `compact` there is no region to point at — the frame has dissolved
+          to the conversation alone — so the sources come back under the answer
+          they belong to. Both are rendered and one is hidden by breakpoint
+          rather than by a media-query hook, so the first paint after hydration
+          is already right.
         */}
         {result && (result.evidence.length > 0 || (result.web_sources && result.web_sources.length > 0)) && (
           onShowSources ? (
-            <div>
+            <>
+            <div className="md:hidden">
+              <References
+                evidence={result.evidence}
+                citations={result.citations}
+                webSources={result.web_sources}
+                onOpenReference={onOpenReference}
+              />
+            </div>
+            <div className="hidden md:block">
               <Button
                 variant="ghost"
                 size="xs"
@@ -177,6 +192,7 @@ export function TurnView({
                 ) : null}
               </Button>
             </div>
+            </>
           ) : (
             <References
               evidence={result.evidence}

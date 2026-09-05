@@ -6,7 +6,6 @@ import {
   ChevronDown,
   LayoutGrid,
   Loader2,
-  LogOut,
   MessageSquarePlus,
   Send,
   Square,
@@ -16,6 +15,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { CourseAnswer } from "@/components/course/course-answer";
@@ -24,7 +24,6 @@ import { CourseCurriculumManager } from "@/components/course/course-curriculum-m
 import { CourseIngestionProgress } from "@/components/course/course-ingestion-progress";
 import { CourseLectureNavigator } from "@/components/course/course-lecture-navigator";
 import { CoursePoster } from "@/components/course/course-poster";
-import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { API_BASE, apiFetch, errorDetail } from "@/lib/api";
 import type {
   CourseAskResponse,
@@ -328,25 +327,16 @@ export default function CoursePage() {
   return (
     <AppShell
       railMode="drawer-only"
-      nav={<SectionNav active="courses" />}
+      section="courses"
       status={course ? (
         course.processing_count
           ? "Course upgrade in progress"
           : `${course.lecture_count} lectures`
       ) : "Course"}
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="max-w-44"><span className="truncate">{session.user.email}</span></Button></DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">Signed in</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}><LogOut aria-hidden />Sign out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       rail={
         <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
-          <div className="sm:hidden"><SectionNav active="courses" /></div>
+
           <Button variant="outline" asChild className="justify-start"><Link href="/courses"><ArrowLeft aria-hidden />All courses</Link></Button>
           <Button onClick={newConversation} className="justify-start"><MessageSquarePlus aria-hidden />New conversation</Button>
           <nav aria-label="Course conversations" className="space-y-1">

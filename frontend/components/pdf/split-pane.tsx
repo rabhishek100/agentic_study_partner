@@ -19,6 +19,18 @@ export interface RightRegionMode {
    */
   fixedWidth?: number;
   /**
+   * Shown alongside rather than asked for — evidence that fills the region as
+   * soon as an answer is grounded, activity that appears while decks build.
+   *
+   * These do not overlay at `compact`. They used to: the region became a
+   * full-bleed overlay below `md` with no way out of it, so on a phone the
+   * first grounded answer replaced the conversation permanently — no composer,
+   * no turns, no dismiss control, because nothing had ever *opened* the panel
+   * for there to be a control to close. A requested region (a document, a
+   * session's questions) still overlays, and carries its own way back.
+   */
+  ambient?: boolean;
+  /**
    * The draggable range for this mode, when it has one.
    *
    * Per mode, not per pane: the design system says as much, and the reason is
@@ -118,6 +130,7 @@ export function SplitPane({
                   region.fixedWidth
                     ? "md:w-[var(--region-width)]"
                     : "md:w-[var(--pane)]",
+                  region.ambient && "max-md:hidden",
                   !isActive && "hidden",
                 )}
                 style={

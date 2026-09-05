@@ -7,6 +7,11 @@ import { BrandMark } from "@/components/brand-mark";
 import { HEADER_INSET } from "@/lib/floating-window";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { SplitPane, type RightRegionMode } from "@/components/pdf/split-pane";
+import {
+  SectionNav,
+  SectionTabBar,
+  type SectionKey,
+} from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +28,17 @@ export interface AppShellProps {
   rail: React.ReactNode;
   /** Some workspaces need the mobile drawer without reserving a desktop rail. */
   railMode?: "responsive" | "drawer-only";
-  /** Switches between the library's sections; books and videos are peers. */
+  /**
+   * Header-level navigation that is not the section switcher — the back link an
+   * immersive route (reading, watching) puts where the switcher would be.
+   */
   nav?: React.ReactNode;
+  /**
+   * The section this route belongs to. Draws the switcher in the masthead above
+   * `compact`, and the bottom tab bar below it. Immersive routes pass `nav`
+   * instead: they are one task, and their way out is a back link.
+   */
+  section?: SectionKey;
   /** Short status line for the current conversation. */
   status: React.ReactNode;
   /** Account controls, right-aligned in the header. */
@@ -83,6 +97,7 @@ export function AppShell({
   rail,
   railMode = "responsive",
   nav,
+  section,
   status,
   account,
   documentControl,
@@ -170,7 +185,14 @@ export function AppShell({
           </Sheet>
         ) : null}
 
-        <div className="flex min-w-0 items-center gap-3">
+        {/*
+          `min-w-0 flex-1` is what keeps the masthead readable on a phone. The
+          brand block used to be an unflagged flex item next to an `ml-auto`
+          group that could not shrink, so the group took the width it wanted and
+          the wordmark was squeezed to a single wrapped glyph with the status
+          line clipped out of existence entirely.
+        */}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <BrandMark size="sm" />
           <div className="min-w-0">
             <p className="truncate font-serif text-base font-medium leading-tight tracking-tight">
@@ -182,8 +204,9 @@ export function AppShell({
           </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          {nav ? <div className="hidden sm:block">{nav}</div> : null}
+        <div className="flex shrink-0 items-center gap-2">
+          {section ? <SectionNav active={section} /> : null}
+          {nav}
           {sideChatControl}
           {documentControl}
           <NotificationCenter />
@@ -214,6 +237,13 @@ export function AppShell({
           <main className="flex min-w-0 flex-1 flex-col">{children}</main>
         </SplitPane>
       </div>
+
+      {/*
+        Below `compact` the frame dissolves to this. It is a sibling of the
+        scrolling row rather than a fixed overlay, so an anchored composer sits
+        directly on top of it instead of underneath it.
+      */}
+      {section ? <SectionTabBar active={section} /> : null}
 
       {/*
         Outside the scrolling layout on purpose: side chat windows are
