@@ -1,7 +1,9 @@
 # Read aloud
 
 Decision date: 2026-09-06
-Status: implementing.
+Status: implemented. Verified by unit and component tests and by a browser
+walkthrough of the controls; end-to-end synthesis against the live OpenRouter
+voice has not been exercised.
 
 ## Purpose and agreed decisions
 

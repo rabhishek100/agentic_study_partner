@@ -547,6 +547,29 @@ Every study turn and LLM call can be traced in LangSmith when the standard
 LangSmith environment variables are configured. LangSmith is not used as the
 ingestion job database; Postgres is.
 
+## Reading answers aloud
+
+Every answer in the book conversation, in a side chat, and in the video
+conversation carries a **Read aloud** control; the latest turn also offers
+**Read exchange**, which reads the question first. Highlighting a passage
+offers **Read this** beside **Ask about this**. Speed is adjustable from 0.75x
+to 2x and is remembered per device.
+
+What is spoken is what is on screen, with markdown, LaTeX and citation markers
+turned into words rather than read out as syntax, and code blocks and tables
+announced rather than recited. The one addition is diagrams: a cited figure is
+described at the point the answer cites it, from a spoken description written
+once per image by a vision model and stored in `narration_figures`.
+
+Apply migration `20260906120000_read_aloud.sql` before restarting the API.
+Speech uses `OPENROUTER_READING_TTS_MODEL` / `_VOICE` when set and otherwise
+the interviewer's `OPENROUTER_TTS_*` pair; figure descriptions use
+`OPENROUTER_NARRATION_FIGURE_MODEL`, falling back to the caption model.
+Synthesised audio is cached per owner in `narration_audio` and evicted least
+recently heard past `NARRATION_AUDIO_CACHE_BYTES` (128 MB by default), so a
+replay costs nothing. When the hosted voice cannot be reached the browser's own
+speech synthesis reads instead, and says so.
+
 ## Verification
 
 Run Python checks:

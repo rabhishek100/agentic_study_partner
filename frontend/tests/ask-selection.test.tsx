@@ -84,6 +84,9 @@ afterEach(() => {
 });
 
 const ask = () => screen.queryByRole("button", { name: "Ask about this" });
+/** The pill the actions sit in, which is the thing that gets positioned. */
+const offer = () =>
+  screen.queryByRole("group", { name: "Actions for the highlighted passage" });
 
 describe("AskSelection", () => {
   it("offers nothing until something is selected", () => {
@@ -196,14 +199,14 @@ describe("AskSelection", () => {
   it("sits above the passage, and below it when there is no room above", () => {
     render(<Harness onAsk={vi.fn()} />);
     selectWithin("answer-a");
-    const above = ask()!.style.top;
+    const above = offer()!.style.top;
 
     // A selection near the top of the viewport has nowhere to put a button.
     rangeRect = { ...baseRect, top: 4, bottom: 24, y: 4 } as DOMRect;
     fireEvent.keyDown(document, { key: "Escape" });
     selectWithin("answer-a");
 
-    expect(ask()!.style.top).not.toBe(above);
-    expect(Number.parseFloat(ask()!.style.top)).toBeGreaterThan(24);
+    expect(offer()!.style.top).not.toBe(above);
+    expect(Number.parseFloat(offer()!.style.top)).toBeGreaterThan(24);
   });
 });
