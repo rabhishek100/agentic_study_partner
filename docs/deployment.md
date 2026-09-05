@@ -287,6 +287,23 @@ in Railway's service settings (Settings → Config-as-code):
 | api | `/` | `railway.app.json` |
 | web | `/frontend` | `railway.json` |
 
+**`railway up` uploads a directory chosen by the link, not by your shell.** The
+link entry in `~/.railway/config.json` carries a `projectPath`, and that is the
+upload root — `cd` somewhere else and it still uploads the linked path. Deploying
+from a clean `git worktree` therefore requires either correcting `projectPath`
+for the new path or passing the root explicitly:
+
+```bash
+railway up "$PWD" --path-as-root --service api --detach
+```
+
+Getting this wrong is quiet and expensive: `scripts/deploy.sh` reads the commit
+from the shell's directory, so `BUILD_REVISION` records the clean worktree while
+the image is built from the dirty repository root. On 2026-09-06 that shipped an
+unmigrated feature's worker into production, which then failed its loop every
+five seconds against a table that did not exist — with health checks green and
+`build_revision` reporting a commit whose code was not what was running.
+
 `railway.app.json` — the file name, not a service name — starts
 `python -m scripts.serve`, keeps the `/api/health` health check, and restarts
 always. `railway.api.json` and
