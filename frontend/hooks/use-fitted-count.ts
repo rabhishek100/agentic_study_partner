@@ -33,6 +33,21 @@ export function useFittedCount(total: number, minimum = 0) {
   const itemsRef = useRef<HTMLDivElement | null>(null);
   /** Last known item height, so an emptied list can still be grown back. */
   const tallestRef = useRef(0);
+  /**
+   * The smallest count already known not to fit, for this frame height and this
+   * many items.
+   *
+   * Growing estimates from the tallest item *on screen*, which says nothing
+   * about the height of the one about to come back. When the next item is
+   * taller than that estimate, the pass that adds it overflows, the pass after
+   * drops it, and the two alternate forever — React stops the page with
+   * "Maximum update depth exceeded" rather than the count settling. Remembering
+   * what overflowed turns that into a bound: never grow back to a count this
+   * frame has already rejected.
+   */
+  const ceilingRef = useRef<{ available: number; total: number; count: number } | null>(
+    null,
+  );
   const [count, setCount] = useState(total);
 
   const measure = useCallback(() => {
@@ -56,9 +71,17 @@ export function useFittedCount(total: number, minimum = 0) {
       tallestRef.current = Math.max(...heights);
     }
 
+    // A different frame height or a different list is a different question, so
+    // what overflowed under the old one says nothing about this one.
+    const ceiling = ceilingRef.current;
+    if (ceiling && (ceiling.available !== available || ceiling.total !== total)) {
+      ceilingRef.current = null;
+    }
+
     setCount((current) => {
       const shown = Math.min(current, total);
       if (free < 0) {
+        ceilingRef.current = { available, total, count: shown };
         let dropped = 0;
         let freed = 0;
         while (freed < -free && shown - dropped > minimum) {
@@ -69,7 +92,12 @@ export function useFittedCount(total: number, minimum = 0) {
       }
       const tallest = tallestRef.current;
       if (tallest <= 0) return shown;
-      return Math.min(total, shown + Math.floor(free / tallest));
+      const rejected = ceilingRef.current;
+      const limit =
+        rejected && rejected.available === available && rejected.total === total
+          ? Math.max(minimum, rejected.count - 1)
+          : total;
+      return Math.min(total, limit, shown + Math.floor(free / tallest));
     });
   }, [minimum, total]);
 

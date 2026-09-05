@@ -141,7 +141,7 @@ export function PageComposer({
           pageInContext ? "Ask about this page…" : "Ask anything about this book…"
         }
         className={cn(
-          "max-h-[160px] resize-none rounded-xl bg-card py-3 pl-4 pr-20 text-xs shadow-sm",
+          "max-h-[160px] resize-none rounded-xl bg-card py-3 pl-4 pr-20 text-xs shadow-sm max-md:text-base",
         )}
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {

@@ -1,26 +1,18 @@
 "use client";
 
-import { Loader2, LogOut } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { InterviewSetup } from "@/components/interviews/interview-setup";
 import { RecentInterviews } from "@/components/interviews/recent-interviews";
-import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { primeInterviewerSpeech } from "@/hooks/use-interviewer-speech";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import {
   primeInterviewAudio,
   releasePrimedInterviewAudio,
@@ -153,32 +145,11 @@ export default function InterviewsPage() {
 
   return (
     <AppShell
-      nav={<SectionNav active="interviews" />}
+      section="interviews"
       status={<span>Source-grounded interview practice</span>}
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       rail={
         <div className="flex h-full flex-col overflow-y-auto p-4">
-          <div className="mb-6 sm:hidden">
-            <SectionNav active="interviews" />
-          </div>
           <RecentInterviews sessions={history} />
         </div>
       }

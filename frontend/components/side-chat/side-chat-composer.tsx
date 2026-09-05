@@ -105,7 +105,7 @@ export function SideChatComposer({
           aria-label={`Ask a question in the ${label} side chat`}
           placeholder="Ask about this…"
           style={{ minHeight: MIN_TEXTAREA_HEIGHT_PX }}
-          className="side-chat-ui resize-none rounded-none border-0 bg-transparent px-3 py-2 leading-snug shadow-none focus-visible:border-0 dark:bg-transparent"
+          className="side-chat-ui resize-none rounded-none border-0 bg-transparent px-3 py-2 leading-snug shadow-none focus-visible:border-0 max-md:text-base dark:bg-transparent"
           onChange={(event) => {
             setValue(event.target.value);
             resize();

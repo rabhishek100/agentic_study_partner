@@ -156,6 +156,15 @@ function CitationChip({
         reference &&
           onOpen &&
           "cursor-pointer transition-colors hover:bg-citation hover:text-citation-foreground",
+        // The accessibility contract exempts these from the 24px target floor
+        // — WCAG 2.5.8 exempts targets inline in a sentence — but still asks
+        // that the hit area be padded vertically to 24px. A thumb aiming at a
+        // 13px-tall marker set in running prose missed it more often than not.
+        // A pseudo-element rather than padding, so growing the target does not
+        // grow the line box it sits in.
+        reference &&
+          onOpen &&
+          "relative after:absolute after:inset-x-0 after:top-1/2 after:h-6 after:-translate-y-1/2 after:content-['']",
       )}
     >
       {shownPage == null ? index : `${index}\u00b7${shownPage}`}

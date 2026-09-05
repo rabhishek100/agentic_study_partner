@@ -64,13 +64,19 @@ function ReferenceRow({
           </span>
         </p>
 
-        <div className="flex shrink-0 items-center gap-2">
+        {/*
+          `min-h-6` and the horizontal padding are the 24px target floor. These
+          were bare text buttons 20px tall and 34px wide, which is under the
+          floor in both axes and is the difference between opening a source and
+          selecting the sentence next to it on a phone.
+        */}
+        <div className="-my-1 flex shrink-0 items-center gap-1">
           {reference.excerpt && (
             <button
               type="button"
               onClick={() => setOpen((current) => !current)}
               aria-expanded={open}
-              className="text-xs text-muted-foreground transition-colors hover:text-citation"
+              className="inline-flex min-h-6 items-center rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-citation"
             >
               {open ? "Hide" : "Passage"}
             </button>
@@ -79,7 +85,7 @@ function ReferenceRow({
             <button
               type="button"
               onClick={() => onOpen(reference)}
-              className="text-xs text-muted-foreground transition-colors hover:text-citation"
+              className="inline-flex min-h-6 items-center rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-citation"
             >
               Open
             </button>
@@ -199,7 +205,7 @@ export function References({
 
       {uncited.length > 0 && (
         <Collapsible open={showUncited} onOpenChange={setShowUncited}>
-          <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
+          <CollapsibleTrigger className="flex min-h-6 items-center gap-1 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
             {showUncited ? (
               <ChevronDown className="size-3" aria-hidden />
             ) : (

@@ -1,11 +1,11 @@
 "use client";
 
-import { LogOut, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
-import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AddVideoDialog } from "@/components/video/add-video-dialog";
 import { ContinueBand } from "@/components/video/continue-band";
@@ -20,16 +20,8 @@ import { VideoTile } from "@/components/video/video-tile";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { useWatchSessions } from "@/hooks/use-source-sessions";
 import { timecode } from "@/lib/timecode";
 import { apiFetch } from "@/lib/api";
@@ -213,7 +205,7 @@ export default function VideosPage() {
 
   return (
     <AppShell
-      nav={<SectionNav active="videos" />}
+      section="videos"
       status={
         <span>
           {/* What the page is for: lectures that can answer, not rows. */}
@@ -222,30 +214,9 @@ export default function VideosPage() {
           {attention.length > 0 ? ` · ${attention.length} need attention` : ""}
         </span>
       }
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       rail={
         <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
-          <div className="sm:hidden">
-            <SectionNav active="videos" />
-          </div>
 
           <AddVideoDialog onAdded={load} />
 

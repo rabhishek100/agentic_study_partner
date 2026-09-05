@@ -1,28 +1,20 @@
 "use client";
 
-import { ArrowRight, GraduationCap, LogOut } from "lucide-react";
+import { ArrowRight, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { AddCourseDialog } from "@/components/course/add-course-dialog";
 import { CoursePoster } from "@/components/course/course-poster";
-import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import type { CourseListResponse } from "@/lib/course-types";
 
@@ -79,7 +71,7 @@ export default function CoursesPage() {
 
   return (
     <AppShell
-      nav={<SectionNav active="courses" />}
+      section="courses"
       status={
         <span>
           {payload.courses.length} course
@@ -87,30 +79,9 @@ export default function CoursesPage() {
           {processing ? ` · ${processing} lectures processing` : ""}
         </span>
       }
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       rail={
         <div className="flex h-full flex-col gap-6 overflow-y-auto p-4">
-          <div className="sm:hidden">
-            <SectionNav active="courses" />
-          </div>
           <AddCourseDialog onAdded={load} />
           <div className="space-y-2 text-xs text-muted-foreground">
             <p className="font-medium text-foreground">Course answers</p>

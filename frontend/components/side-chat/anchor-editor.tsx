@@ -155,7 +155,7 @@ export function AnchorEditor({
             rows={4}
             value={draft}
             aria-label="Passage to reference"
-            className="resize-none text-xs"
+            className="resize-none text-xs max-md:text-base"
             onChange={(event) => {
               setDraft(event.target.value);
               setProblem("");

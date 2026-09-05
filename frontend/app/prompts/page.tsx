@@ -1,24 +1,16 @@
 "use client";
 
-import { ArrowLeft, Loader2, LogOut } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { PromptStudio } from "@/components/prompts/prompt-studio";
-import { SectionNav } from "@/components/section-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { signOut, useSession } from "@/hooks/use-session";
+import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import { PROMPT_FIELDS } from "@/lib/prompt-profile";
 import type {
@@ -163,35 +155,14 @@ export default function PromptsPage() {
 
   return (
     <AppShell
-      nav={<SectionNav active="prompts" />}
+      section="prompts"
       status={<span>Prompt studio</span>}
-      account={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-44">
-              <span className="truncate">{session.user.email}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Signed in
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => signOut()}>
-              <LogOut aria-hidden />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      }
+      account={<AccountMenu email={session.user.email} />}
       rail={
         <nav
           aria-label="Prompt studio contents"
           className="flex h-full flex-col gap-6 overflow-y-auto p-4"
         >
-          <div className="sm:hidden">
-            <SectionNav active="prompts" />
-          </div>
 
           <Button variant="outline" size="sm" className="justify-start" asChild>
             <Link href={context.from}>
