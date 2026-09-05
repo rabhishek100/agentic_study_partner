@@ -64,8 +64,16 @@ export function SectionNav({ active }: { active: SectionKey }) {
           key={key}
           href={href}
           aria-current={active === key ? "page" : undefined}
+          // Icons until the row can afford words. Six labelled links measure
+          // 606px; with the notifications, the theme and the account beside
+          // them the group ran 862px, which overflowed an 812px landscape
+          // phone outright and left the masthead 78px for the wordmark and the
+          // status line at 1024. The labels come back at `xl`, where there is
+          // room for both.
+          aria-label={label}
+          title={label}
           className={cn(
-            "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+            "flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors xl:px-3",
             // Selection is the jade wash; hover is the neutral ground. They
             // were both `accent` before, so the current section and a hovered
             // one looked identical.
@@ -74,8 +82,8 @@ export function SectionNav({ active }: { active: SectionKey }) {
               : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
           )}
         >
-          <Icon aria-hidden className="size-4" />
-          {label}
+          <Icon aria-hidden className="size-4 shrink-0" />
+          <span className="hidden xl:inline">{label}</span>
         </Link>
       ))}
     </nav>
@@ -110,7 +118,11 @@ export function SectionTabBar({ active }: { active: SectionKey }) {
               className={cn(
                 // 48px tall before the label wraps, over the 44px preferred
                 // target: a tab bar is thumb-operated and gets the larger one.
-                "flex min-h-12 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors",
+                // No horizontal padding: six tabs on a 320px screen leave 53px
+                // each, and "Interview" needs 51 of them. The label is the
+                // destination's name — an ellipsis in it is worse than a tab
+                // whose wash runs cell to cell.
+                "flex min-h-12 flex-col items-center justify-center gap-1 px-0 py-2 transition-colors",
                 // Never colour alone: the current tab carries the wash *and*
                 // the heavier label, and `aria-current` names it outright.
                 active === key

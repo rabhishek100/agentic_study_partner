@@ -32,11 +32,16 @@ export function AccountMenu({ email }: { email?: string | null }) {
         <Button
           variant="ghost"
           size="sm"
-          className="max-w-44 shrink-0 px-2 md:px-3"
+          className="max-w-44 shrink-0 px-2 xl:px-3"
           aria-label={`Account: ${address}`}
         >
-          <UserRound aria-hidden className="md:hidden" />
-          <span className="hidden truncate md:inline">{address}</span>
+          {/*
+            Spelled out only once the row can afford it. The address is the
+            widest thing in the masthead and the least urgent; below `xl` its
+            icon says the same thing and the section switcher gets the width.
+          */}
+          <UserRound aria-hidden className="xl:hidden" />
+          <span className="hidden truncate xl:inline">{address}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
