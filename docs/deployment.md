@@ -481,10 +481,28 @@ is the direct connection and exists only for this:
 
 ```bash
 npx supabase@2.109.1 db push --db-url "$MIGRATION_DATABASE_URL"
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f ops/postgres/disable_inert_rls.sql
 ```
 
 Apply the migration **before** deploying an API that depends on it, or every
 request touching the new tables fails until it lands.
+
+The second command is not optional. Every migration in this repository enables
+row-level security and attaches `auth.uid()` policies, because on local Supabase
+they are real and tested. Here they are inert, and `app_runtime` is
+`nobypassrls` — so a table that arrives with RLS on is not a stricter table,
+it is one the runtime cannot see. The new table would read as empty, with no
+error anywhere. `disable_inert_rls.sql` is the RLS half of
+`harden_runtime_role.sql` on its own; the full script also rotates the
+`app_runtime` password, which would cut off every running service.
+
+Grants need no equivalent step: `harden_runtime_role.sql` set default
+privileges for the operator role, so a table a later migration creates is
+already readable and writable by `app_runtime`.
+
+Check `$MIGRATION_DATABASE_URL` before running either command. A laptop
+configured for local development has it pointing at local Supabase, where
+`db push` succeeds and production learns nothing.
 
 ## Source PDFs
 

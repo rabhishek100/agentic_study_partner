@@ -1,14 +1,16 @@
 "use client";
 
-import { MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus, Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+
+import { useReadAloud } from "@/hooks/use-read-aloud";
 
 /** Ignore a stray click-drag that selects a character or two. */
 const MINIMUM_SELECTION_CHARS = 3;
 
 /** Gap between the selection and the button offered above it. */
 const OFFSET_PX = 10;
-const ESTIMATED_WIDTH_PX = 150;
+const ESTIMATED_WIDTH_PX = 260;
 const ESTIMATED_HEIGHT_PX = 32;
 
 export interface Selected {
@@ -141,21 +143,86 @@ export function AskSelection({ container, onAsk }: AskSelectionProps) {
   if (!selected) return null;
 
   return (
+    <div
+      role="group"
+      aria-label="Actions for the highlighted passage"
+      style={{ left: selected.x, top: selected.y }}
+      className="fixed z-drawer flex -translate-x-1/2 items-center overflow-hidden rounded-full border border-border bg-popover text-xs font-medium text-popover-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in"
+    >
+      <SelectionAction
+        onActivate={() => {
+          onAsk(selected.turnIndex, selected.text);
+          document.getSelection()?.removeAllRanges();
+          dismiss();
+        }}
+      >
+        <MessageSquarePlus aria-hidden className="size-3.5" />
+        Ask about this
+      </SelectionAction>
+
+      <ReadSelection text={selected.text} />
+    </div>
+  );
+}
+
+/**
+ * One action in the selection pill.
+ *
+ * The pointer goes down while the selection still exists; preventing default
+ * keeps the browser from clearing it before the click lands.
+ */
+function SelectionAction({
+  onActivate,
+  children,
+}: {
+  onActivate: () => void;
+  children: React.ReactNode;
+}) {
+  return (
     <button
       type="button"
-      // The pointer goes down on this button while the selection still exists;
-      // preventing default keeps the browser from clearing it before the click.
       onPointerDown={(event) => event.preventDefault()}
-      onClick={() => {
-        onAsk(selected.turnIndex, selected.text);
-        document.getSelection()?.removeAllRanges();
-        dismiss();
-      }}
-      style={{ left: selected.x, top: selected.y }}
-      className="fixed z-drawer flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-popover px-3 py-2 text-xs font-medium text-popover-foreground shadow-lg motion-safe:animate-in motion-safe:fade-in focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      onClick={onActivate}
+      className="flex items-center gap-2 px-3 py-2 hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring not-first:border-l not-first:border-border"
     >
-      <MessageSquarePlus aria-hidden className="size-3.5" />
-      Ask about this
+      {children}
     </button>
   );
 }
+
+/**
+ * Speak the highlighted passage.
+ *
+ * The selection is taken from the rendered page rather than from the stored
+ * answer, so it carries no citations and no figures — it is exactly the words
+ * the reader pointed at, which is the whole request.
+ */
+function ReadSelection({ text }: { text: string }) {
+  const narration = useReadAloud();
+  const speaking = narration.activeId === SELECTION_ID;
+
+  return (
+    <SelectionAction
+      onActivate={() => {
+        if (speaking) {
+          narration.stop();
+          return;
+        }
+        void narration.play(SELECTION_ID, { answer: text });
+      }}
+    >
+      {speaking ? (
+        <Square aria-hidden className="size-3.5" />
+      ) : (
+        <Volume2 aria-hidden className="size-3.5" />
+      )}
+      {speaking ? "Stop" : "Read this"}
+    </SelectionAction>
+  );
+}
+
+/**
+ * One id for whatever is currently highlighted: a new selection replaces the
+ * old one, and there is never a second selection to keep speaking.
+ */
+const SELECTION_ID = "selection";

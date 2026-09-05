@@ -3,6 +3,7 @@
 import { AlertCircle, Quote } from "lucide-react";
 
 import { Answer } from "@/components/conversation/answer";
+import { ReadAloud, ReadAloudError } from "@/components/conversation/read-aloud";
 import { AnswerInspector } from "@/components/conversation/inspector";
 import { References } from "@/components/conversation/references";
 import { ThinkingIndicator } from "@/components/conversation/turn-view";
@@ -168,6 +169,21 @@ export function SideChatTurns({
                 {turn.error}
               </AlertDescription>
             </Alert>
+          )}
+
+          {turn.answer && turn.status !== "streaming" && (
+            <div className="flex flex-wrap items-center gap-1">
+              <ReadAloud
+                id={`side-turn-${turn.id}`}
+                source={() => ({
+                  answer: turn.answer,
+                  evidence: turn.result?.evidence ?? [],
+                  citations: turn.result?.citations ?? [],
+                  figures: turn.result?.figures ?? [],
+                })}
+              />
+              <ReadAloudError id={`side-turn-${turn.id}`} />
+            </div>
           )}
 
           {turn.result && <AnswerInspector result={turn.result} />}

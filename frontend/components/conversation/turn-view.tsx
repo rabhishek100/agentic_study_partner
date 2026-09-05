@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { Answer } from "@/components/conversation/answer";
+import { ReadAloud, ReadAloudError } from "@/components/conversation/read-aloud";
 import { Figures } from "@/components/conversation/figures";
 import { AnswerInspector } from "@/components/conversation/inspector";
 import {
@@ -220,6 +221,35 @@ export function TurnView({
         {turn.status !== "streaming" && (
           <div className="flex flex-wrap items-center gap-1">
             {turn.answer && <CopyButton text={turn.answer} />}
+            {turn.answer && (
+              <ReadAloud
+                id={`turn-${turn.id}`}
+                source={() => ({
+                  answer: turn.answer,
+                  evidence: result?.evidence ?? [],
+                  citations: result?.citations ?? [],
+                  figures: result?.figures ?? [],
+                })}
+              />
+            )}
+            {/*
+              Reading the exchange rather than the answer is only offered on
+              the latest turn: that is the one a reader comes back to having
+              forgotten what they asked.
+            */}
+            {isLast && turn.answer && (
+              <ReadAloud
+                id={`exchange-${turn.id}`}
+                label="Read exchange"
+                source={() => ({
+                  question: turn.question,
+                  answer: turn.answer,
+                  evidence: result?.evidence ?? [],
+                  citations: result?.citations ?? [],
+                  figures: result?.figures ?? [],
+                })}
+              />
+            )}
             {onAskOnTheSide && turn.turnIndex != null && turn.answer && (
               <Button
                 variant="ghost"
@@ -237,6 +267,8 @@ export function TurnView({
               </Button>
             )}
             {result && <AnswerInspector result={result} />}
+            <ReadAloudError id={`turn-${turn.id}`} />
+            <ReadAloudError id={`exchange-${turn.id}`} />
           </div>
         )}
       </div>

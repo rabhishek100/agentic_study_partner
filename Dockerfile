@@ -25,6 +25,7 @@ COPY api ./api
 COPY decks ./decks
 COPY ingestion ./ingestion
 COPY interviews ./interviews
+COPY narration ./narration
 COPY notifications ./notifications
 COPY parsing ./parsing
 COPY retrieval ./retrieval

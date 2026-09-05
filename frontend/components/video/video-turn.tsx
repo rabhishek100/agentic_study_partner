@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { ReadAloud, ReadAloudError } from "@/components/conversation/read-aloud";
 import { DocumentPages } from "@/components/video/document-pages";
 import { VisualEvidence } from "@/components/video/evidence-cards";
 import { VideoAnswer, citedFrameIds } from "@/components/video/video-answer";
@@ -16,9 +17,10 @@ import { VideoInspector } from "@/components/video/video-inspector";
 import { VideoReferences } from "@/components/video/video-references";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import type {
-  VideoDocumentTarget,
-  VideoTurn as VideoTurnModel,
+import {
+  formatTimestamp,
+  type VideoDocumentTarget,
+  type VideoTurn as VideoTurnModel,
 } from "@/lib/video-types";
 
 function CopyButton({ text }: { text: string }) {
@@ -193,6 +195,29 @@ export function VideoTurnView({
         {turn.status !== "streaming" && (
           <div className="flex flex-wrap items-center gap-1">
             {turn.answer && <CopyButton text={turn.answer} />}
+            {turn.answer && (
+              <ReadAloud
+                id={`video-turn-${turn.id}`}
+                source={() => ({
+                  answer: turn.answer,
+                  // A lecture frame's summary was written in sentences at
+                  // ingest, so it is spoken as it stands.
+                  visuals: (result?.visual_cards ?? [])
+                    .filter((card) => card.summary?.trim())
+                    .map((card) => ({
+                      lead: `At ${formatTimestamp(card.start_ms)}`,
+                      description: card.summary,
+                    })),
+                })}
+              />
+            )}
+            {isLast && turn.answer && (
+              <ReadAloud
+                id={`video-exchange-${turn.id}`}
+                label="Read exchange"
+                source={() => ({ question: turn.question, answer: turn.answer })}
+              />
+            )}
             {onAskOnTheSide && turn.turnIndex != null && turn.answer && (
               <Button
                 variant="ghost"
@@ -210,6 +235,8 @@ export function VideoTurnView({
               </Button>
             )}
             {result && <VideoInspector result={result} />}
+            <ReadAloudError id={`video-turn-${turn.id}`} />
+            <ReadAloudError id={`video-exchange-${turn.id}`} />
           </div>
         )}
       </div>
