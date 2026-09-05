@@ -3,7 +3,7 @@ import unittest
 
 from storage.database import connection as database_connection
 from storage.postgres import ingest_book
-from study.analyze import ConversationDecisionError, analyze_turn
+from study.analyze import ConversationDecisionError, ModelDecision, analyze_turn
 from study.contracts import (
     ConversationMessage,
     ConversationState,
@@ -510,3 +510,52 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExplicitWebSearchRoutingTests(ConversationDecisionTests):
+    """An asked-for web search is routed without consulting the model.
+
+    Deterministic for the same reason the library listing is: the reader said
+    what they wanted in so many words. Before this, "use web search to add
+    more detail" reached the web only if retrieval happened to come up short
+    first, so the one turn where the intent was explicit was the turn where it
+    was least reliable.
+    """
+
+    def test_explicit_web_request_routes_to_external_qa(self):
+        decision = self.analyze(
+            "can you use web search to add more details on this part",
+            self.state(previous_answer="Chapter 12 designs a chat system."),
+            FailIfCalled(),
+        )
+        self.assertEqual(decision.route, "external_qa")
+        self.assertEqual(decision.history_dependency, "dependent")
+        self.assertIn("web search", decision.reason.casefold())
+
+    def test_explicit_web_request_without_history_is_independent(self):
+        decision = self.analyze(
+            "search the web for current Kubernetes autoscaling guidance",
+            self.state(),
+            FailIfCalled(),
+        )
+        self.assertEqual(decision.route, "external_qa")
+        self.assertEqual(decision.history_dependency, "independent")
+
+    def test_book_topics_named_online_or_search_are_not_web_requests(self):
+        """The route must not fire on 'online prediction' or 'search relevance'."""
+
+        for question in (
+            "Summarize Batch Prediction Versus Online Prediction in Chapter 7.",
+            "How does the book describe research on search relevance?",
+        ):
+            with self.subTest(question=question):
+                model = FakeModel(
+                    ModelDecision(
+                        route="retrieval_qa",
+                        history_dependency="independent",
+                        standalone_query=question,
+                        reason="A book question.",
+                    )
+                )
+                decision = self.analyze(question, self.state(), model)
+                self.assertNotEqual(decision.route, "external_qa")
