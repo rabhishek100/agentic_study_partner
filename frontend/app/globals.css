@@ -507,6 +507,58 @@
     }
 
     /*
+     * Source text reproduced into the conversation — a chapter or a paper read
+     * in full rather than summarized. See `docs/chat-reader-spec.md`.
+     *
+     * It shares the serif stack with answer prose and then departs from it in
+     * the two ways sustained reading needs and scanning an answer does not: a
+     * looser line height, and a narrower measure. The chat column is already
+     * capped at 3xl for answers; a reader working through forty paragraphs
+     * wants the shorter line, and on a phone the cap does nothing at all —
+     * which is the case this exists for.
+     */
+    .reading-passage {
+        font-size: var(--reading-size, 1.0625rem);
+        max-width: var(--reading-measure, 62ch);
+        @apply font-serif leading-[1.8] text-foreground;
+    }
+
+    .reading-passage > * + * {
+        margin-top: 0.9412em;
+    }
+
+    /* A paragraph after a heading belongs to it; the heading owns the space. */
+    .reading-passage > h4 + * {
+        margin-top: 0.4706em;
+    }
+
+    .reading-passage li + li {
+        margin-top: 0.3529em;
+    }
+
+    /*
+     * Tables come from the parser as plain markup with no classes of their own,
+     * so the styling is applied from here rather than by the renderer. The
+     * horizontal scroll lives on the wrapper: a wide table must not widen the
+     * conversation column, which is the mobile failure this feature is fixing.
+     */
+    .reading-table table {
+        font-size: 0.85em;
+        @apply w-full border-collapse font-sans;
+    }
+
+    .reading-table th,
+    .reading-table td {
+        padding-inline: 0.7em;
+        padding-block: 0.45em;
+        @apply border border-border text-left align-top;
+    }
+
+    .reading-table th {
+        @apply bg-muted font-semibold;
+    }
+
+    /*
      * A side chat window is its own typographic context: the reader resizes it,
      * and the type has to follow. The window body is the query container; the
      * scale steps live on a descendant because a container cannot query itself.

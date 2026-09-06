@@ -66,6 +66,12 @@ def _hierarchy_query(decision: TurnDecision) -> str:
     scope = decision.resolved_scope
     if scope is None:
         raise ValueError("hierarchy decision has no scope")
+    if decision.route == "verbatim_reading":
+        # "this document" for a book-kind scope, exactly as the summary
+        # wording below does, and for the same reason: re-execution is already
+        # narrowed to the resolved id, so a generic noun cannot drift.
+        subject = "this document" if scope.kind == "book" else scope.display_path
+        return f"Read {subject} verbatim."
     if decision.route == "hierarchy_list":
         if scope.kind == "book":
             return "What chapters does this book have?"
@@ -263,7 +269,11 @@ def execute_decision(
         )
         return ext_result.model_copy(update={"side_context": report})
 
-    is_hierarchy = decision.route in {"hierarchy_summary", "hierarchy_list"}
+    is_hierarchy = decision.route in {
+        "hierarchy_summary",
+        "hierarchy_list",
+        "verbatim_reading",
+    }
     execution_question = (
         _hierarchy_query(decision)
         if is_hierarchy

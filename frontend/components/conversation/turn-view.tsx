@@ -14,6 +14,7 @@ import { Answer } from "@/components/conversation/answer";
 import { ReadAloud, ReadAloudError } from "@/components/conversation/read-aloud";
 import { Figures } from "@/components/conversation/figures";
 import { AnswerInspector } from "@/components/conversation/inspector";
+import { ReadingPassage } from "@/components/conversation/reading-passage";
 import {
   References,
   citedSourceCount,
@@ -128,6 +129,14 @@ export function TurnView({
             onOpenReference={onOpenReference}
           />
         )}
+
+        {/*
+          A verbatim reading. The answer above it is one deterministic line
+          naming the scope; the chapter itself is fetched from canonical
+          storage rather than carried on the turn, so this renders from a
+          reference and not from `turn.answer`.
+        */}
+        {result?.reading ? <ReadingPassage reading={result.reading} /> : null}
 
         {/* Anything no marker claimed still appears, after the prose. */}
         {result && (

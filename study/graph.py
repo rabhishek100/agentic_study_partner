@@ -110,7 +110,7 @@ def route_turn(state: StudyGraphState) -> ExecutionNode:
     route = state["decision"].route
     if route == "library_list":
         return "execute_library"
-    if route in {"hierarchy_summary", "hierarchy_list"}:
+    if route in {"hierarchy_summary", "hierarchy_list", "verbatim_reading"}:
         return "execute_hierarchy"
     if route == "retrieval_qa":
         return "execute_retrieval"

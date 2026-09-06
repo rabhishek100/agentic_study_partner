@@ -86,8 +86,10 @@ from study.contracts import (
     DocumentPageAnchor,
     DocumentPassageAnchor,
     DocumentSectionAnchor,
+    PassageSegment,
     PromptProfile,
     QuoteAnchor,
+    ReadingRef,
     ResponseDepth,
     TurnResult,
     parse_anchor,
@@ -114,7 +116,22 @@ from study.prompts import (
     prompt_preview,
 )
 from study.query import QueryExecutionError
-from study.scope import ScopeResolutionError, list_chapters
+from study.reading import (
+    DEFAULT_INSTALLMENT_CHARACTERS,
+    MAXIMUM_INSTALLMENT_CHARACTERS,
+    PassageTooLargeError,
+    build_reading_passage,
+    installment,
+    load_figure_details,
+    node_ids,
+)
+from study.content import load_scope_content
+from study.scope import (
+    ScopeResolutionError,
+    list_chapters,
+    resolve_book,
+    resolve_node,
+)
 from study.summarize import ContextWindowExceededError
 
 logging.basicConfig(
@@ -482,6 +499,22 @@ class ChapterSummary(ContractModel):
     end_page: int
 
 
+class PassageResponse(ContractModel):
+    """One installment of a scope reproduced for reading.
+
+    Paged by segment rather than by page or by node: a segment is the unit the
+    interface renders, so an offset the client sends back always names the same
+    boundary it was given.
+    """
+
+    reading: ReadingRef
+    offset: int
+    # Null once the end is reached, which is what the interface reads to know
+    # there is nothing more to continue to.
+    next_offset: int | None
+    segments: list[PassageSegment]
+
+
 class ChapterListResponse(ContractModel):
     book_id: int
     chapters: list[ChapterSummary]
@@ -771,6 +804,70 @@ async def book_chapters(
     return ChapterListResponse(
         book_id=book_id, chapters=await run_in_threadpool(load)
     )
+
+
+@app.get("/api/books/{book_id}/passage", response_model=PassageResponse)
+async def book_passage(
+    book_id: int,
+    node_id: int | None = Query(
+        default=None,
+        description="A chapter or section node; omitted reads the whole document.",
+    ),
+    offset: int = Query(default=0, ge=0),
+    max_characters: int = Query(
+        default=DEFAULT_INSTALLMENT_CHARACTERS,
+        ge=1,
+        le=MAXIMUM_INSTALLMENT_CHARACTERS,
+    ),
+    owner_id: UUID = Depends(current_owner),
+) -> PassageResponse:
+    """Canonical text of one scope, in reading-sized installments.
+
+    No retrieval, no ranking, and no model call: this is the book, reflowed
+    for a screen the PDF was never laid out for. It is a pure function of
+    canonical storage, so the same offset returns the same segments until the
+    book is ingested again.
+    """
+
+    def load() -> PassageResponse:
+        _require_ready_books(owner_id, [book_id])
+        with database_connection(readonly=True) as connection:
+            if node_id is None:
+                scope = resolve_book(connection, None, owner_id=owner_id, book_id=book_id)
+            else:
+                scope = resolve_node(connection, node_id, owner_id=owner_id)
+                if scope.book_id != book_id:
+                    # The node exists and the reader owns it, but not under the
+                    # book they addressed. Answering anyway would let a stale
+                    # link read out of a different book without saying so.
+                    raise HTTPException(status_code=404, detail="passage not found")
+            evidence = load_scope_content(connection, scope, owner_id=owner_id)
+            passage = build_reading_passage(
+                evidence,
+                figure_details=load_figure_details(
+                    connection,
+                    list(node_ids(evidence)),
+                    owner_id=owner_id,
+                ),
+            )
+        page = installment(
+            passage.segments,
+            offset=offset,
+            max_characters=max_characters,
+        )
+        return PassageResponse(
+            reading=passage.reference(),
+            offset=page.offset,
+            next_offset=page.next_offset,
+            segments=list(page.segments),
+        )
+
+    try:
+        return await run_in_threadpool(load)
+    except ScopeResolutionError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except PassageTooLargeError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @app.get("/api/books/suggested-questions", response_model=SuggestedQuestionsResponse)
@@ -1763,6 +1860,7 @@ async def chat(
         QueryExecutionError,
         ScopeResolutionError,
         ConversationDecisionError,
+        PassageTooLargeError,
     ) as error:
         logger.warning("Chat turn rejected: %s", error)
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -1776,6 +1874,10 @@ _REJECTED_TURN_ERRORS = (
     QueryExecutionError,
     ScopeResolutionError,
     ConversationDecisionError,
+    # A whole-book verbatim request. The message names the chapter-sized
+    # request the reader almost certainly meant, so it belongs in front of
+    # them rather than in a 500.
+    PassageTooLargeError,
 )
 _STREAM_DONE = object()
 _HEARTBEAT_INTERVAL_SECONDS = 15

@@ -14,7 +14,8 @@ export type Route =
   | "retrieval_qa"
   | "prior_answer_transform"
   | "clarify"
-  | "external_qa";
+  | "external_qa"
+  | "verbatim_reading";
 
 export interface WebSourceRef {
   url: string;
@@ -98,6 +99,59 @@ export interface FigureRef {
   path: string;
   caption: string | null;
   evidence_rank: number | null;
+}
+
+/**
+ * Where to read, not the reading itself.
+ *
+ * A verbatim turn carries this instead of the chapter's text: the text is
+ * canonical content and stays in canonical storage, so the interface fetches
+ * it in installments from `/api/books/{book_id}/passage`. See
+ * `docs/chat-reader-spec.md`.
+ */
+export interface ReadingRef {
+  book_id: number;
+  book_title: string;
+  node_id: number | null;
+  kind: "book" | "chapter" | "section";
+  display_path: string;
+  start_page: number;
+  end_page: number;
+  /** The number printed on the page, where a scan's numbering was measured. */
+  printed_start_page: number | null;
+  printed_end_page: number | null;
+  total_segments: number;
+  total_characters: number;
+  /** Running heads, footers, and images the captioner marked decorative. */
+  omitted_block_count: number;
+}
+
+export interface PassageSegment {
+  index: number;
+  /** Derived from the parser's own block category, never from a model. */
+  kind:
+    | "heading"
+    | "text"
+    | "list_item"
+    | "caption"
+    | "formula"
+    | "table"
+    | "figure";
+  node_id: number;
+  page: number;
+  printed_page: number | null;
+  text: string | null;
+  level: number | null;
+  html: string | null;
+  figure: FigureRef | null;
+}
+
+export interface PassageResponse {
+  reading: ReadingRef;
+  offset: number;
+  /** Null at the end of the passage. */
+  next_offset: number | null;
+  segments: PassageSegment[];
 }
 
 export interface ConversationMessage {
@@ -219,6 +273,8 @@ export interface TurnResult {
   citations: CitationRef[];
   figures: FigureRef[];
   outline_node_ids: number[];
+  /** Set only on the verbatim reading route. */
+  reading?: ReadingRef | null;
   outcome: Outcome;
   retrieval_mode: string | null;
   warnings: string[];
