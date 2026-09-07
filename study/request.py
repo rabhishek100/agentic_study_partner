@@ -130,6 +130,22 @@ SUMMARIZE_CHAPTER_IN_BOOK = re.compile(
     r"(?:of|in|from)\s+(?P<book_reference>.+?)\s*[?.]?$",
     re.IGNORECASE,
 )
+# "the @[Title] chapter 5" — the book named *before* the chapter rather than
+# after it. `SUMMARIZE_CHAPTER_IN_BOOK` above reads naturally when the chapter
+# leads ("chapter 5 of @[Title]"), and a reader who starts from the book writes
+# this order instead. Without it the whole phrase fell through to
+# `SUMMARIZE_NAMED`, was sent to the hierarchy resolver as if "@[Title] chapter
+# 5" were a section title, matched nothing, and the turn silently became an
+# ordinary retrieval question about the chapter instead of a request for it.
+#
+# Only a *numbered* chapter is accepted here. That is what stops this from
+# swallowing "the caching chapter", which names a chapter by title and is
+# already handled further down.
+SUMMARIZE_CHAPTER_IN_NAMED_BOOK = re.compile(
+    r"^summari[sz]e\s+(?:the\s+)?(?P<book_reference>@\[[^\]]+]|\S.*?)\s+"
+    r"chapter\s+(?P<chapter>\d+)\s*[?.]?$",
+    re.IGNORECASE,
+)
 LIST_SECTIONS_IN_BOOK = re.compile(
     r"^(?:list|show)(?:\s+me)?\s+(?:all\s+)?(?:the\s+)?sections\s+"
     r"(?:in|of|under)\s+chapter\s+(?P<chapter>\d+)\s+"
@@ -335,6 +351,15 @@ def parse_study_request(query: str) -> StudyRequest:
             )
 
     match = SUMMARIZE_CHAPTER_IN_BOOK.fullmatch(query)
+    if match:
+        return StudyRequest(
+            intent="summarize",
+            scope_kind="chapter",
+            scope_reference=match.group("chapter"),
+            book_reference=_clean_book_reference(match.group("book_reference")),
+        )
+
+    match = SUMMARIZE_CHAPTER_IN_NAMED_BOOK.fullmatch(query)
     if match:
         return StudyRequest(
             intent="summarize",

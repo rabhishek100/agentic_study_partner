@@ -121,6 +121,43 @@ class VerbatimGrammarTests(unittest.TestCase):
         self.assertEqual(whole.intent, "read_verbatim")
         self.assertEqual(whole.scope_kind, "book")
 
+    def test_the_book_may_be_named_before_the_chapter_or_after_it(self) -> None:
+        """Both word orders, because readers write both.
+
+        "read the @[Title] chapter 5 verbatim" failed in production: the whole
+        phrase fell through to the named-scope catch-all, resolved to nothing,
+        and the turn quietly became an ordinary retrieval question *about*
+        chapter 5 instead of a request to read it.
+        """
+
+        for query in (
+            "read chapter 5 of @[Scaler HLD] verbatim",
+            "read the @[Scaler HLD] chapter 5 verbatim",
+            "read @[Scaler HLD] chapter 5 in full",
+            "give me the full text of @[Scaler HLD] chapter 5",
+        ):
+            request = parse_study_request(query)
+            self.assertEqual(request.intent, "read_verbatim", query)
+            self.assertEqual(request.scope_kind, "chapter", query)
+            self.assertEqual(request.scope_reference, "5", query)
+            self.assertEqual(request.book_reference, "Scaler HLD", query)
+
+    def test_the_book_first_order_works_for_summaries_too(self) -> None:
+        """The gap was in the shared scope grammar, not in this feature."""
+
+        request = parse_study_request("summarize the @[Scaler HLD] chapter 5")
+        self.assertEqual(request.intent, "summarize")
+        self.assertEqual(request.scope_kind, "chapter")
+        self.assertEqual(request.scope_reference, "5")
+        self.assertEqual(request.book_reference, "Scaler HLD")
+
+    def test_a_chapter_named_by_title_is_not_swallowed(self) -> None:
+        """Only a numbered chapter takes the book-first form."""
+
+        request = parse_study_request("summarize the caching chapter")
+        self.assertEqual(request.scope_kind, "named")
+        self.assertEqual(request.scope_reference, "caching chapter")
+
     def test_reading_aloud_is_a_different_feature_and_does_not_match(self) -> None:
         """Narration must not be swallowed by a marker set that got greedy."""
 
