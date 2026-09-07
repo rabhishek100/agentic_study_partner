@@ -2,12 +2,13 @@
 
 from collections.abc import Sequence
 from dataclasses import replace
+import logging
 from typing import Literal
 from uuid import UUID
 
 from psycopg import Connection
 
-from .reranker import Reranker, build_reranker, rerank
+from .reranker import Reranker, RerankerUnavailable, build_reranker, rerank
 from .postgres import SearchResult, search as bm25_search
 from .vector import (
     Embedder,
@@ -15,6 +16,8 @@ from .vector import (
     vector_search,
 )
 
+
+logger = logging.getLogger("study_partner.retrieval.search")
 
 RetrievalMode = Literal["bm25", "vector", "hybrid", "hybrid_rerank"]
 RRF_RANK_CONSTANT = 60
@@ -185,10 +188,25 @@ def retrieve(
             limit=limit,
             unique_nodes=unique_nodes,
         )
-    return rerank(
-        query,
-        fused,
-        reranker=reranker or build_reranker(),
-        limit=limit,
-        unique_nodes=unique_nodes,
-    )
+    try:
+        return rerank(
+            query,
+            fused,
+            reranker=reranker or build_reranker(),
+            limit=limit,
+            unique_nodes=unique_nodes,
+        )
+    except RerankerUnavailable as error:
+        # The candidates are already retrieved and already fused; reranking
+        # only reorders them. Degrading to that fused ordering is exactly the
+        # `hybrid` mode this project measured and shipped, so the answer stays
+        # grounded and cited instead of the turn failing outright.
+        #
+        # Logged rather than silent: a reranked answer and a degraded one are
+        # different results, and which one a reader got has to be recoverable
+        # afterwards.
+        logger.warning(
+            "reranker unavailable, falling back to fused hybrid ordering: %s",
+            error,
+        )
+        return _take_ranked(fused, limit=limit, unique_nodes=unique_nodes)

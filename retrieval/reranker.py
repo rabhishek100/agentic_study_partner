@@ -14,6 +14,17 @@ DEFAULT_RERANKER_MODEL = "cohere/rerank-4-pro"
 OPENROUTER_RERANK_URL = "https://openrouter.ai/api/v1/rerank"
 
 
+class RerankerUnavailable(RuntimeError):
+    """The hosted reranker did not return usable scores.
+
+    Distinct from a programming error on purpose. Reranking *reorders* results
+    that hybrid retrieval has already found, so when the provider is briefly
+    unreachable the honest response is a slightly worse ordering, not a dead
+    turn — but only a caller that can tell "the provider refused us" apart from
+    "this code is wrong" can make that call safely.
+    """
+
+
 class Reranker(Protocol):
     """Minimal scoring contract used by retrieval and tests."""
 
@@ -56,17 +67,27 @@ class OpenRouterReranker:
     def score(self, query: str, documents: Sequence[str]) -> list[float]:
         if not documents:
             return []
-        response = self._client.post(
-            OPENROUTER_RERANK_URL,
-            json={
-                "model": self.model_name,
-                "query": query,
-                "documents": list(documents),
-                "top_n": len(documents),
-            },
-        )
-        response.raise_for_status()
-        results = response.json()["results"]
+        try:
+            response = self._client.post(
+                OPENROUTER_RERANK_URL,
+                json={
+                    "model": self.model_name,
+                    "query": query,
+                    "documents": list(documents),
+                    "top_n": len(documents),
+                },
+            )
+            response.raise_for_status()
+            results = response.json()["results"]
+        except httpx.HTTPError as error:
+            # Rate limits, timeouts, transport failures and 5xx alike. A 429
+            # here once surfaced to a reader as "internal error" on a question
+            # the library could answer perfectly well.
+            raise RerankerUnavailable(f"rerank request failed: {error}") from error
+        except (KeyError, ValueError) as error:
+            raise RerankerUnavailable(
+                f"rerank response was not usable: {error}"
+            ) from error
         scores = [0.0] * len(documents)
         seen: set[int] = set()
         for item in results:
