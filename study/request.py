@@ -2,7 +2,7 @@
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 from uuid import UUID
 
@@ -16,7 +16,12 @@ from .scope import (
     resolve_section,
 )
 
-StudyIntent = Literal["summarize", "list_chapters", "list_sections"]
+StudyIntent = Literal[
+    "summarize",
+    "list_chapters",
+    "list_sections",
+    "read_verbatim",
+]
 RequestedScopeKind = Literal["book", "chapter", "section", "named"]
 
 
@@ -153,6 +158,55 @@ SUMMARIZE_NAMED = re.compile(
 )
 
 
+# Reading a scope rather than being told about it. Written as a grammar — a
+# marker wrapped around a scope phrase — rather than as a list of sentences,
+# for the reason recorded above WHOLE_DOCUMENT_SUMMARY: enumerating reported
+# phrasings means every unlisted word order fails the same way.
+#
+# The scope phrase is not parsed here. It is handed back to the patterns above,
+# which already understand chapters, sections, mentions and whole documents, so
+# "read chapter 3 of @[DDIA] in full" works without this grammar knowing what a
+# chapter is.
+#
+# "read chapter 3 aloud" deliberately does not match: narration is a different
+# feature, and a marker set that swallowed it would take the reader somewhere
+# they did not ask to go.
+_VERBATIM_MARKER = (
+    r"(?:verbatim"
+    r"|word[-\s]for[-\s]word"
+    r"|in\s+full"
+    r"|in\s+its\s+entirety"
+    r"|unabridged"
+    r"|(?:as\s+)?(?:a\s+)?chat\s+version"
+    r"|in\s+(?:the\s+)?chat"
+    r"|reader\s+mode"
+    r")"
+)
+_READ_VERB = r"(?:read|show|give|display|open|render|make)"
+
+READ_VERBATIM = (
+    # "give me the full text of chapter 3", "show the complete text of the paper"
+    re.compile(
+        rf"^{_READ_VERB}\s+(?:me\s+)?(?:the\s+)?"
+        r"(?:full|complete|whole|entire|verbatim|raw|original)\s+"
+        r"(?:text|version|contents?)\s+(?:of|for|from)\s+"
+        r"(?P<scope>.+?)\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+    # "read chapter 3 in full", "make this paper a chat version"
+    re.compile(
+        rf"^{_READ_VERB}\s+(?:me\s+)?(?P<scope>.+?)\s+"
+        rf"(?:as\s+|in(?:to)?\s+)?{_VERBATIM_MARKER}\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+    # "verbatim chapter 3", "chat version of this paper"
+    re.compile(
+        rf"^{_VERBATIM_MARKER}\s+(?:of\s+|for\s+)?(?P<scope>.+?)\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+)
+
+
 def _clean_reference(value: str) -> str:
     return value.strip().strip("\"'“”‘’").strip()
 
@@ -185,10 +239,36 @@ def _clean_book_reference(value: str | None) -> str:
     return _clean_reference(reference)
 
 
+def _verbatim_request(query: str) -> StudyRequest | None:
+    """Recognise a request to reproduce a scope, reusing the scope grammar."""
+
+    for pattern in READ_VERBATIM:
+        match = pattern.fullmatch(query)
+        if match is None:
+            continue
+        phrase = _clean_reference(match.group("scope"))
+        if not phrase:
+            continue
+        try:
+            # The scope phrase is parsed as if the reader had asked for a
+            # summary of it, then the intent is swapped. Only the *scope*
+            # forms are reused; a phrase that reads as a listing ("chapters
+            # in ddia") is not a passage and is left to fall through.
+            scoped = parse_study_request(f"summarize {phrase}")
+        except UnsupportedStudyRequestError:
+            continue
+        if scoped.intent != "summarize":
+            continue
+        return replace(scoped, intent="read_verbatim")
+    return None
+
+
 def parse_study_request(query: str) -> StudyRequest:
     """Parse the supported explicit query forms without a model call."""
 
     query = " ".join(query.split())
+    if verbatim := _verbatim_request(query):
+        return verbatim
     if match := WHOLE_DOCUMENT_SUMMARY.fullmatch(query):
         return StudyRequest(
             intent="summarize",
@@ -282,7 +362,7 @@ def parse_study_request(query: str) -> StudyRequest:
     raise UnsupportedStudyRequestError(
         "supported forms are: 'summarize chapter N', "
         "'summarize section TITLE in chapter N', "
-        "'summarize TITLE', 'list chapters', and "
+        "'summarize TITLE', 'read chapter N in full', 'list chapters', and "
         "'list sections in/under chapter N or TITLE', or "
         "'explain this PDF'"
     )

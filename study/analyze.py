@@ -297,23 +297,33 @@ def _explicit_hierarchy_decision(
                 reason="A whole-document request needs one selected source.",
             )
         return None
-    route = (
-        "hierarchy_list"
-        if request.intent in {"list_chapters", "list_sections"}
-        else "hierarchy_summary"
-    )
     if request.intent == "list_chapters":
-        verb = "List chapters in"
+        route, query = "hierarchy_list", f"List chapters in {scope.display_path}."
+        reason = f"Explicit canonical {scope.kind} request."
     elif request.intent == "list_sections":
-        verb = "List sections in"
+        route, query = "hierarchy_list", f"List sections in {scope.display_path}."
+        reason = f"Explicit canonical {scope.kind} request."
+    elif request.intent == "read_verbatim":
+        # Rendered so that it parses back to this same intent: the execution
+        # layer re-derives the scope from this sentence, and a sentence that
+        # read as a summary request would quietly summarize what the reader
+        # asked to be shown.
+        route, query = "verbatim_reading", f"Read {scope.display_path} verbatim."
+        # A whole-scope request on a paper is a `book`-kind scope, and calling
+        # a paper a book in the inspector reads as a routing mistake.
+        subject = scope.document_type if scope.kind == "book" else scope.kind
+        reason = (
+            f"The reader asked to read the {subject} rather than be told about it."
+        )
     else:
-        verb = "Summarize"
+        route, query = "hierarchy_summary", f"Summarize {scope.display_path}."
+        reason = f"Explicit canonical {scope.kind} request."
     return TurnDecision(
         route=route,
         history_dependency="independent",
-        standalone_query=f"{verb} {scope.display_path}.",
+        standalone_query=query,
         resolved_scope=_scope_ref(scope),
-        reason=f"Explicit canonical {scope.kind} request.",
+        reason=reason,
     )
 
 

@@ -28,6 +28,12 @@ from .contracts import (
     TurnResult,
 )
 from .figures import load_figure_images, select_figures
+from .reading import (
+    build_reading_passage,
+    load_figure_details,
+    node_ids,
+    passage_headline,
+)
 from .prompts import (
     DEFAULT_PROMPT_PROFILE,
     build_answer_messages,
@@ -196,6 +202,67 @@ def _resolve_hierarchy_request(
     return request, scope
 
 
+def _read_scope_verbatim(
+    scope: ResolvedScope,
+    *,
+    database_url: str | None,
+    owner_id: str | UUID,
+    prompt_profile: PromptProfile,
+    response_depth: ResponseDepth,
+    routing_reason: str | None,
+    token_callback: TokenCallback | None = None,
+) -> TurnResult:
+    """Reproduce a scope instead of describing it. No model is called.
+
+    The turn carries a reference rather than the text. That keeps canonical
+    content out of derived storage — a persisted turn holding a chapter would
+    be a second copy of the book — and it is what lets the interface deliver
+    the passage in installments the reader advances.
+
+    No citations, either: a verbatim passage asserts nothing, so there is
+    nothing for a citation to support. Its provenance is `resolved_scope`.
+    """
+
+    with database_connection(database_url, readonly=True) as source:
+        evidence_bundle = load_scope_content(source, scope, owner_id=owner_id)
+        passage = build_reading_passage(
+            evidence_bundle,
+            figure_details=load_figure_details(
+                source,
+                list(node_ids(evidence_bundle)),
+                owner_id=owner_id,
+            ),
+        )
+
+    reference = passage.reference()
+    if reference.total_segments == 0:
+        raise QueryExecutionError(
+            f"{scope.display_path} has no readable text stored. It may have "
+            "been ingested from a scan whose text extraction failed."
+        )
+
+    answer = passage_headline(passage)
+    if token_callback is not None:
+        # One deterministic line, emitted whole. There is no generation to
+        # stream, and streaming the passage itself would put a chapter through
+        # the token channel that the client then has to fetch anyway.
+        token_callback("token", answer)
+
+    return TurnResult(
+        question="",
+        answer=answer,
+        route="verbatim_reading",
+        history_dependency="independent",
+        standalone_query=f"Read {scope.display_path} verbatim.",
+        resolved_scope=_scope_ref(scope),
+        reading=reference,
+        outcome="answer",
+        response_depth=response_depth,
+        routing_reason=routing_reason,
+        prompt_profile_version=profile_version(prompt_profile),
+    )
+
+
 def _answer_hierarchy_request(
     request: StudyRequest,
     scope: ResolvedScope,
@@ -208,7 +275,18 @@ def _answer_hierarchy_request(
     routing_reason: str | None,
     token_callback: TokenCallback | None = None,
 ) -> TurnResult:
-    """List or summarize one complete canonical hierarchy subtree."""
+    """List, reproduce, or summarize one complete canonical hierarchy subtree."""
+
+    if request.intent == "read_verbatim":
+        return _read_scope_verbatim(
+            scope,
+            database_url=database_url,
+            owner_id=owner_id,
+            prompt_profile=prompt_profile,
+            response_depth=response_depth,
+            routing_reason=routing_reason,
+            token_callback=token_callback,
+        )
 
     if request.intent in {"list_chapters", "list_sections"}:
         is_chapter_list = request.intent == "list_chapters"

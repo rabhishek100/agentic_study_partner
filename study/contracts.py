@@ -21,7 +21,15 @@ Route = Literal[
     "prior_answer_transform",
     "clarify",
     "external_qa",
+    "verbatim_reading",
 ]
+# Routes whose decision must already name a canonical scope. Every one of them
+# resolves the scope deterministically before execution, so a decision without
+# one is a bug rather than something to recover from at run time.
+SCOPED_ROUTES = frozenset(
+    {"hierarchy_summary", "hierarchy_list", "verbatim_reading"}
+)
+
 HistoryDependency = Literal["independent", "dependent", "ambiguous"]
 Outcome = Literal["answer", "clarify", "abstain", "error"]
 AnswerArchetype = Literal[
@@ -177,6 +185,78 @@ class FigureRef(ContractModel):
     path: str
     caption: str | None = None
     evidence_rank: int | None = None
+
+
+class PassageSegment(ContractModel):
+    """One piece of a scope reproduced for reading.
+
+    Deliberately a flat union rather than four models: the interface renders
+    one ordered list and switches on `kind`, and a discriminated union here
+    would put four names in the wire contract for a difference of two fields.
+    """
+
+    index: int = Field(ge=0)
+    # Derived from the parser's own block category, never from a model. The
+    # text is identical either way; the kind only decides how it is set.
+    kind: Literal[
+        "heading",
+        "text",
+        "list_item",
+        "caption",
+        "formula",
+        "table",
+        "figure",
+    ]
+    node_id: int
+    # The PDF page the block sits on, and — for a scan whose numbering was
+    # measured — the number actually printed on it. A reader jumping to the
+    # viewer needs the first; a reader reading needs the second.
+    page: int
+    printed_page: int | None = None
+    # Present on heading, text and table segments. Never rewritten: for a text
+    # segment this is exactly what the parser stored, minus surrounding
+    # whitespace.
+    text: str | None = None
+    # Heading depth, so the interface can typeset a section under its chapter.
+    level: int | None = None
+    # A table's stored markup, when it has any. `text` is the flat fallback.
+    html: str | None = None
+    figure: FigureRef | None = None
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "PassageSegment":
+        if self.kind == "figure" and self.figure is None:
+            raise ValueError("a figure segment must carry a figure")
+        textual = {"heading", "text", "list_item", "caption", "formula"}
+        if self.kind in textual and not (self.text or "").strip():
+            raise ValueError(f"a {self.kind} segment must carry text")
+        return self
+
+
+class ReadingRef(ContractModel):
+    """What a verbatim turn records: where to read, not the reading itself.
+
+    The text is canonical content and stays in canonical storage. Persisting
+    a chapter of it onto the turn would copy source data into derived data and
+    make every conversation reload carry it, so the turn carries the reference
+    and the interface re-resolves it against the book.
+    """
+
+    book_id: int
+    book_title: str
+    node_id: int | None
+    kind: Literal["book", "chapter", "section"]
+    display_path: str
+    start_page: int
+    end_page: int
+    printed_start_page: int | None = None
+    printed_end_page: int | None = None
+    total_segments: int = Field(ge=0)
+    total_characters: int = Field(ge=0)
+    # Running heads, footers, page-break markers, and images the captioner
+    # marked decorative. Reported rather than dropped in silence: "verbatim"
+    # is a claim, and this is the exact extent of the exception to it.
+    omitted_block_count: int = Field(ge=0)
 
 
 # The longest passage a side chat will store as an anchor. Set from measured
@@ -381,10 +461,10 @@ class TurnDecision(ContractModel):
     @model_validator(mode="after")
     def validate_route(self) -> "TurnDecision":
         if (
-            self.route in {"hierarchy_summary", "hierarchy_list"}
+            self.route in SCOPED_ROUTES
             and self.resolved_scope is None
         ):
-            raise ValueError("hierarchy routes require a scope")
+            raise ValueError(f"{self.route} requires a scope")
         if self.route == "retrieval_qa" and not (self.standalone_query or "").strip():
             raise ValueError("retrieval QA requires a standalone query")
         if self.route == "clarify" and not (self.clarification_question or "").strip():
@@ -424,6 +504,8 @@ class TurnResult(ContractModel):
     citations: list[CitationRef] = Field(default_factory=list)
     figures: list[FigureRef] = Field(default_factory=list)
     outline_node_ids: list[int] = Field(default_factory=list)
+    # Set only on the verbatim reading route: where to read, not the reading.
+    reading: ReadingRef | None = None
     outcome: Outcome
     retrieval_mode: str | None = None
     warnings: list[str] = Field(default_factory=list)

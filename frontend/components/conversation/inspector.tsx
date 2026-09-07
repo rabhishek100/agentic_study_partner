@@ -24,6 +24,7 @@ const ROUTE_LABELS: Record<TurnResult["route"], string> = {
   prior_answer_transform: "Transform of the previous answer",
   clarify: "Clarification",
   external_qa: "External model knowledge / web search",
+  verbatim_reading: "Verbatim source text, no generation",
 };
 
 const DEPENDENCY_LABELS: Record<TurnResult["history_dependency"], string> = {
