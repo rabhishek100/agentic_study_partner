@@ -104,8 +104,20 @@ def apply_sheet_patch(sheet: Sheet, patch: SheetPatch) -> Sheet:
     return Sheet.model_validate(data)
 
 
+# Luna, like every other generation default in this project. Revision sheets
+# were the one feature that reached for a more expensive model, and because the
+# choice lived only in this default — `OPENROUTER_REVISION_MODEL` is unset in
+# production, where every other model is pinned explicitly — it was invisible
+# until it showed up as a spend spike that exhausted the account's monthly key
+# limit and took every model-backed feature down with it.
+#
+# The cost is not one call: `read_all_figures` deliberately inspects every
+# figure rather than sampling, so the model here is paid per figure batch, per
+# inventory, per draft and per review pass. Luna already serves vision
+# elsewhere (`OPENROUTER_VIDEO_VISION_MODEL`), so this is a price change rather
+# than a capability change.
 def model_name() -> str:
-    return os.getenv("OPENROUTER_REVISION_MODEL") or "openai/gpt-5.6-sol"
+    return os.getenv("OPENROUTER_REVISION_MODEL") or "openai/gpt-5.6-luna"
 
 
 def config_key() -> str:

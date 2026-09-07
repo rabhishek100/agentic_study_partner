@@ -549,7 +549,7 @@ immutable new version. A failed/cancelled job leaves previous versions intact.
 Apply migration `20260905120000_revision_sheets.sql` before restarting the API
 and worker. Install the HTML renderer locally with `uv run playwright install chromium`;
 the Docker image includes Chromium and its system dependencies. Generation uses
-`OPENROUTER_REVISION_MODEL` when set (default `openai/gpt-5.6-sol` with low reasoning effort), with `OPENROUTER_API_KEY` and the existing
+`OPENROUTER_REVISION_MODEL` when set (default `openai/gpt-5.6-luna` with low reasoning effort), with `OPENROUTER_API_KEY` and the existing
 LangSmith configuration. `OPENROUTER_REVISION_JUDGE_MODEL` optionally selects
 a separate reviewer model; by default it uses an independent call to the revision
 model. `REVISION_CONTEXT_WINDOW_TOKENS` defaults to 64,000;
