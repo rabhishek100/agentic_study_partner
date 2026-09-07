@@ -27,6 +27,21 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
+# Regenerate the pdf.js worker here, and fail the build if it is missing.
+#
+# It cannot arrive any other way. `frontend/public/pdf.worker.min.mjs` is
+# gitignored — deliberately, so it cannot drift from the installed pdfjs-dist
+# — and `railway up` filters the upload through .gitignore, so it is absent
+# from the build context on the platform even though it sits on a laptop after
+# `npm install`. The dependencies stage does run `postinstall` and does write
+# it, but this stage copies only `node_modules` from there, and the `COPY . .`
+# above then overwrites `public/` with the context's copy, which lacks it.
+#
+# The result was an image whose viewer 404s its own worker, which renders no
+# PDF at all while every other page works. The postinstall hook only warns —
+# right for an install on a laptop, wrong for the deployment image — so this
+# asserts the file exists rather than trusting the exit code.
+RUN node scripts/copy-pdf-worker.mjs && test -f public/pdf.worker.min.mjs
 RUN npm run build
 
 FROM node:24-alpine AS runner
