@@ -526,6 +526,50 @@ cannot recall offers two things: open the cited page or lecture timestamp, or
 carry it into a grounded conversation seeded with the card. See
 [`docs/flashcard-decks-spec.md`](docs/flashcard-decks-spec.md).
 
+**Revision sheets** are saved, cited two-page A4 reviews of one book chapter
+or an entire paper. Choose **Revision sheet** beside the Q&A controls, select
+a chapter or paper, then create or reopen a saved sheet. Each combines
+original source figures, compact concepts, trade-offs/results, and recall cues.
+Every original figure is inspected in batches and available in an expandable gallery. The
+responsive reading view links citations to original pages and inspected figures;
+**Download HTML**, **Download PDF** and **Print / A4 preview** share an owned,
+script-free HTML template. The PDF is limited to two readable A4 pages.
+**Ask about this** answers from the original source scope.
+
+Generation runs in the existing worker and survives closing the dialog. It
+builds an independent source concept inventory with an exact page ledger, checks citation locations
+and page fit, then reviews the rendered pages against a four-part LLM rubric:
+beauty, presentation, concept coverage and conciseness. Every dimension must
+score at least 4/5 and every essential concept must be covered. Up to two
+targeted review revisions are allowed, in addition to one schema/citation repair
+and one fit repair. It fails rather than truncating an over-budget source or shrinking the
+10.5-point body text. Reopening makes no model call; regeneration saves an
+immutable new version. A failed/cancelled job leaves previous versions intact.
+
+Apply migration `20260905120000_revision_sheets.sql` before restarting the API
+and worker. Install the HTML renderer locally with `uv run playwright install chromium`;
+the Docker image includes Chromium and its system dependencies. Generation uses
+`OPENROUTER_REVISION_MODEL` when set (default `openai/gpt-5.6-sol` with low reasoning effort), with `OPENROUTER_API_KEY` and the existing
+LangSmith configuration. `OPENROUTER_REVISION_JUDGE_MODEL` optionally selects
+a separate reviewer model; by default it uses an independent call to the revision
+model. `REVISION_CONTEXT_WINDOW_TOKENS` defaults to 64,000;
+large scopes return an explicit limitation rather than silently dropping pages.
+
+Reproduce a local source evaluation (IDs are installation-specific):
+
+```bash
+uv run python -m scripts.evaluate_revision_sheets --book-id BOOK_ID \
+  --chapter-node-id CHAPTER_NODE_ID --output outputs/revision-evaluation/chapter
+# Omit --chapter-node-id for an entire paper. --save exercises the durable
+# worker path and saves under DEFAULT_OWNER_ID, processing only that job.
+```
+
+See the [feature specification](docs/revision-sheets-spec.md) and
+[initial evaluation](docs/revision-sheets-evaluation.md). Citation identity and
+coverage-map consistency are deterministic checks; semantic completeness still
+requires source review. The initial evaluation covers two sources, with the
+larger held-out comparison still pending.
+
 The API exposes `GET /api/health`, `GET /api/books`,
 `GET /api/books/{id}/chapters`, `POST /api/chat`,
 `POST /api/chat/stream`, `POST /api/transcriptions`,

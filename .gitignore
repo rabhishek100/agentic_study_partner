@@ -35,7 +35,10 @@ data/*.sqlite3-shm
 data/*.sqlite3-wal
 data/chroma/
 data/video-media/
+data/system_design_curriculum/
+scripts/compile_system_design_book.py
 outputs/
+tmp/pdfs/
 evaluation/runs/
 
 # Supabase CLI local state

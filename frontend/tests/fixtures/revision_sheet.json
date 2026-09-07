@@ -1,0 +1,179 @@
+{
+  "template_kind": "chapter",
+  "title": "Designing a reliable event pipeline",
+  "central_idea": {
+    "id": "idea",
+    "heading": "",
+    "text": "Separate accepting an event from processing it. A durable queue absorbs bursts; workers retry safely, and an idempotent sink prevents repeated delivery from changing the result twice.",
+    "citations": [
+      "[N1:P1]"
+    ]
+  },
+  "diagram": {
+    "description": "Follow an event from acceptance to a durable result. Acknowledgement follows a successful write.",
+    "nodes": [
+      {
+        "id": "api",
+        "label": "Ingress API",
+        "citations": [
+          "[N1:P1]"
+        ]
+      },
+      {
+        "id": "queue",
+        "label": "Durable queue",
+        "citations": [
+          "[N1:P1]"
+        ]
+      },
+      {
+        "id": "worker",
+        "label": "Consumer workers",
+        "citations": [
+          "[N1:P1]"
+        ]
+      },
+      {
+        "id": "sink",
+        "label": "Idempotent sink",
+        "citations": [
+          "[N1:P1]"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "api",
+        "target": "queue",
+        "label": "Persist before acknowledging acceptance.",
+        "citations": [
+          "[N1:P1]"
+        ]
+      },
+      {
+        "id": "e2",
+        "source": "queue",
+        "target": "worker",
+        "label": "Deliver with a lease; redeliver after expiry.",
+        "citations": [
+          "[N1:P1]"
+        ]
+      },
+      {
+        "id": "e3",
+        "source": "worker",
+        "target": "sink",
+        "label": "Write using the event identity.",
+        "citations": [
+          "[N1:P1]"
+        ]
+      }
+    ],
+    "source_figure_ids": [],
+    "description_citations": [
+      "[N1:P1]"
+    ]
+  },
+  "essential_notes": [
+    {
+      "id": "n1",
+      "heading": "Durability",
+      "text": "Acceptance means the event is stored, not that downstream work has finished. A lost acknowledgement can cause the producer to send again.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    },
+    {
+      "id": "n2",
+      "heading": "Idempotency",
+      "text": "Use a stable event identifier. Repeating the same operation must have the same observable effect; an identifier generated on each retry defeats deduplication.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    },
+    {
+      "id": "n3",
+      "heading": "Backpressure",
+      "text": "Watch queue age as well as queue length. Limit admission or slow producers when consumers cannot keep up, rather than buffering without a bound.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    },
+    {
+      "id": "n4",
+      "heading": "Ordering",
+      "text": "Parallel consumption improves throughput but can reorder events. Partition by entity when ordering is required within an entity, while allowing independent entities to progress.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    }
+  ],
+  "comparison_rows": [
+    {
+      "id": "t1",
+      "heading": "Delivery vs effect",
+      "text": "At-least-once delivery can duplicate work. Idempotent writes protect effects, but do not make transport exactly once.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    },
+    {
+      "id": "t2",
+      "heading": "Retries vs poison events",
+      "text": "Transient failures can recover on retry. Persistently failing events need a bounded retry policy and a separate inspection path.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    },
+    {
+      "id": "t3",
+      "heading": "Throughput vs ordering",
+      "text": "More consumers increase parallelism only when independent work exists. A single hot partition remains a bottleneck.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    }
+  ],
+  "equation": null,
+  "recall_cues": [
+    {
+      "id": "r1",
+      "heading": "Reconstruct",
+      "text": "Explain the acceptance boundary, retry boundary, and the identity used to deduplicate.",
+      "citations": [
+        "[N1:P1]"
+      ]
+    },
+    {
+      "id": "r2",
+      "heading": "Failure drill",
+      "text": "What happens if a worker crashes immediately after the sink write but before acknowledgement?",
+      "citations": [
+        "[N1:P1]"
+      ]
+    }
+  ],
+  "essential_concepts": [
+    {
+      "id": "c1",
+      "label": "delivery",
+      "citations": [
+        "[N1:P1]"
+      ],
+      "item_ids": [
+        "idea"
+      ]
+    }
+  ],
+  "source_dispositions": [
+    {
+      "source_unit": "u1",
+      "item_ids": [
+        "idea"
+      ],
+      "reason": ""
+    }
+  ],
+  "compression_notes": []
+}

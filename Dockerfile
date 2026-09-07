@@ -21,6 +21,8 @@ RUN apt-get update \
         tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
+RUN /app/.venv/bin/playwright install --with-deps chromium
+
 COPY api ./api
 COPY decks ./decks
 COPY ingestion ./ingestion
@@ -29,6 +31,7 @@ COPY narration ./narration
 COPY notifications ./notifications
 COPY parsing ./parsing
 COPY retrieval ./retrieval
+COPY revision_sheets ./revision_sheets
 # The whole package: enumerating individual modules here means a new one is
 # missing from the image until someone remembers to add it, which fails at
 # import time on the deployed service rather than in CI.

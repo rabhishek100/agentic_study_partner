@@ -40,6 +40,16 @@ class FakeVideoWorker:
 class WorkerTests(PipelineFixture):
     def setUp(self):
         super().setUp()
+        # Exercise ingestion and queue rotation without consuming another
+        # owner's video, deck, or revision jobs in a shared local database.
+        for target in ("StandaloneVideoWorker", "StandaloneDeckWorker", "RevisionWorker"):
+            queue_patch = patch(f"worker.main.{target}", side_effect=lambda **kwargs: FakeVideoWorker())
+            queue_patch.start()
+            self.addCleanup(queue_patch.stop)
+        for method in ("run_retention_pass", "run_cards_reconciliation"):
+            maintenance_patch = patch.object(Worker, method)
+            maintenance_patch.start()
+            self.addCleanup(maintenance_patch.stop)
         # The pipeline imports the parser lazily, so patch it at its source.
         self.parser = patch(
             "parsing.parser.parse_book",
@@ -57,6 +67,16 @@ class WorkerTests(PipelineFixture):
 
     def test_an_idle_worker_reports_that_it_did_nothing(self):
         self.assertFalse(self.worker.run_once())
+
+    def test_queue_rotation_services_revision_jobs_without_starvation(self):
+        order = []
+        for name, queue in (("video", self.worker.video_worker), ("deck", self.worker.deck_worker), ("revision", self.worker.revision_worker)):
+            queue.jobs = [name]
+            queue.process = order.append
+        with patch.object(self.worker, "claim", return_value="book"), patch.object(self.worker, "process", side_effect=order.append):
+            for _ in range(4):
+                self.assertTrue(self.worker.run_once())
+        self.assertEqual(order, ["book", "video", "deck", "revision"])
 
     def test_daily_reminder_reconciliation_uses_each_requested_pass(self):
         with patch(

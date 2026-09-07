@@ -5,6 +5,7 @@ import { useLayoutEffect } from "react";
 
 import { Composer } from "@/components/conversation/composer";
 import { PromptSettingsLink } from "@/components/conversation/prompt-settings-link";
+import { RevisionSheets } from "@/components/revision/revision-sheets";
 import type { DocumentNoun } from "@/components/book-selector";
 import { TurnView } from "@/components/conversation/turn-view";
 import { Welcome } from "@/components/conversation/welcome";
@@ -185,10 +186,13 @@ export function ConversationView({
             responseDepth={responseDepth}
             onResponseDepthChange={onResponseDepthChange}
             settingsControl={
-              <PromptSettingsLink
-                conversationId={conversationId}
-                responseDepth={responseDepth}
-              />
+              <div className="flex flex-wrap items-center gap-1">
+                <RevisionSheets books={books} selectedBookIds={selectedBookIds} noun={noun} />
+                <PromptSettingsLink
+                  conversationId={conversationId}
+                  responseDepth={responseDepth}
+                />
+              </div>
             }
           />
           <p className="mt-2 text-center text-xs text-muted-foreground">

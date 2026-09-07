@@ -29,6 +29,7 @@ from decks.source_preferences import (
     reconcile_missing_initial_sets,
 )
 from decks.worker import DeckWorker as StandaloneDeckWorker
+from revision_sheets.worker import RevisionWorker
 from ingestion.cleanup import run_cleanup
 from ingestion.config import IngestionLimits, load_limits
 from ingestion.errors import ErrorCode, IngestionError, classify_failure
@@ -166,6 +167,7 @@ class Worker:
         temporary_root: Path | None = None,
         video_worker: StandaloneVideoWorker | None = None,
         deck_worker: StandaloneDeckWorker | None = None,
+        revision_worker: RevisionWorker | None = None,
     ) -> None:
         self.limits = limits or load_limits()
         self.worker_id = worker_id or f"{socket.gethostname()}-{uuid4().hex[:8]}"
@@ -183,6 +185,9 @@ class Worker:
         self.deck_worker = deck_worker or StandaloneDeckWorker(
             worker_id=self.worker_id,
             database_url=self.database_url,
+        )
+        self.revision_worker = revision_worker or RevisionWorker(
+            worker_id=self.worker_id, database_url=self.database_url,
         )
         self._next_queue = 0
         # Force the first loop iteration to run a retention pass, so a worker
@@ -445,7 +450,7 @@ class Worker:
     def run_once(self) -> bool:
         """Claim and run at most one job. True when work was done.
 
-        Three independent queues share this process, so the cursor rotates
+        Four independent queues share this process, so the cursor rotates
         rather than alternating: a long book ingestion must not be the reason
         a deck that takes ninety seconds never starts, and vice versa.
         """
@@ -453,6 +458,7 @@ class Worker:
         self.recover_abandoned_jobs()
         self.video_worker.recover_abandoned_jobs()
         self.deck_worker.recover_abandoned_jobs()
+        self.revision_worker.recover_abandoned_jobs()
         self.run_retention_pass()
         self.run_cards_reconciliation()
 
@@ -460,6 +466,7 @@ class Worker:
             (self.claim, self.process),
             (self.video_worker.claim, self.video_worker.process),
             (self.deck_worker.claim, self.deck_worker.process),
+            (self.revision_worker.claim, self.revision_worker.process),
         )
         for offset in range(len(queues)):
             index = (self._next_queue + offset) % len(queues)

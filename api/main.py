@@ -33,6 +33,7 @@ from api.courses import router as course_router
 from api.course_chat import router as course_chat_router
 from api.version import build_revision, build_time
 from api.decks import router as deck_router
+from api.revision_sheets import router as revision_sheet_router
 from api.ingestions import router as ingestion_router
 from api.interviews import router as interview_router
 from api.narration import router as narration_router
@@ -561,6 +562,7 @@ app.include_router(course_router)
 app.include_router(course_chat_router)
 app.include_router(notification_router)
 app.include_router(deck_router)
+app.include_router(revision_sheet_router)
 app.include_router(interview_router)
 app.include_router(narration_router)
 
