@@ -92,8 +92,9 @@ def validate_sheet(sheet: Sheet, *, allowed: set[str], units: dict[str, set[str]
         errors.append(
             f"The visible sheet has {words} words. Compress it to {low}-{high} words "
             f"(hard maximum {ceiling}) across at most {pages} A4 pages, including headings "
-            "and diagram labels. Use 20-45 words per essential note and 15-30 words per "
-            "trade-off/result."
+            "and diagram labels. Use 20-35 words per essential note and 15-25 words per "
+            "trade-off/result: breadth now comes from having more notes, not from "
+            "writing longer ones."
         )
     if errors:
         raise RevisionError("invalid_content", "\n".join(errors[:30]))

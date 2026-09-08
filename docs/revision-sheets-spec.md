@@ -30,11 +30,24 @@ exactly; at five it gives 1125–1375/1625.
 stops at the first that fits, so extra paper is a concession to dense material
 rather than a target to fill. A chapter that fits two pages still gets two.
 
-Content caps are deliberately unchanged (at most twelve essential notes, four
-trade-off rows, three recall cues). More pages therefore buy *fuller* notes,
-which is what the observed failures needed, rather than more of them — raising
-those caps changes the model's output schema and interacts with the review
-rubric, and belongs in its own change.
+**Content caps scale with the paper.** Twelve essential notes, four trade-off
+rows and three recall cues were right for two pages; at five they are what
+forces a dense chapter's mechanisms to be *compressed away* — the independent
+reviewer's own phrase for why it refused Scaler HLD ch. 4 and ch. 6, both of
+which failed on coverage with every essential concept only partially covered.
+The caps are now 24 / 8 / 6.
+
+This corrects an earlier judgement in this same document: the first version of
+the five-page change left the caps alone on the reasoning that more pages
+should buy *fuller* notes. That was wrong. A partially covered essential
+concept fails review however well it is written, so breadth has to come from
+having more notes, and the per-item guidance stays compact (20-35 words per
+note) rather than growing with the page count.
+
+Item caps and the word budget are therefore two constraints on the same sheet
+and must not contradict each other — a schema that can hold more words than the
+budget permits tells the model two incompatible things. `test_revision_pagination`
+asserts a full sheet still fits.
 
 The earlier two-page decision, and the one-page decision before it, follow.
 

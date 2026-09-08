@@ -116,6 +116,22 @@ def apply_sheet_patch(sheet: Sheet, patch: SheetPatch) -> Sheet:
 # inventory, per draft and per review pass. Luna already serves vision
 # elsewhere (`OPENROUTER_VIDEO_VISION_MODEL`), so this is a price change rather
 # than a capability change.
+# How page one may be composed, tried in order: two figures before one, and as
+# many intro notes as will fit before fewer.
+#
+# Page one's capacity has to scale with the sheet. Its composition is fixed, so
+# on a four- or five-page sheet a four-note ceiling left "substantial unused
+# whitespace below the mechanism panel" — the independent reviewer's wording,
+# and enough to hold presentation below the passing score.
+#
+# Named rather than inlined because the size of this sweep is load-bearing for
+# a test that has to exhaust it, and it has silently drifted twice.
+LAYOUT_COMBINATIONS = (
+    (2, 8), (2, 6), (2, 4), (2, 2), (2, 0),
+    (1, 8), (1, 6), (1, 4), (1, 2), (1, 0),
+)
+
+
 def model_name() -> str:
     return os.getenv("OPENROUTER_REVISION_MODEL") or "openai/gpt-5.6-luna"
 
@@ -226,7 +242,7 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
         feedback = state.get("feedback", "")
         text = human_text + ("\n\nRepair the previous draft:\n" + feedback if feedback else "")
         if feedback and state.get("sheet"):
-            text += "\nRepair instructions: preserve already-covered mechanisms and conditions. Address EVERY listed essential gap explicitly, retaining item IDs where possible. If asked to distinguish named mechanisms, print their names and their input/output roles; vague paraphrases or citations alone do not fix that gap. Add a separate essential note when combining concepts would hide the distinction; up to twelve notes are allowed.\n"
+            text += "\nRepair instructions: preserve already-covered mechanisms and conditions. Address EVERY listed essential gap explicitly, retaining item IDs where possible. If asked to distinguish named mechanisms, print their names and their input/output roles; vague paraphrases or citations alone do not fix that gap. Add a separate essential note when combining concepts would hide the distinction; up to twenty-four notes are allowed, and a partially covered mechanism is worth a note of its own rather than a fuller sentence in an existing one.\n"
             text += "\nPrevious draft:\n" + state["sheet"].model_dump_json()
         repair_tokens = len(tiktoken.get_encoding("cl100k_base").encode(text)) - len(tiktoken.get_encoding("cl100k_base").encode(human_text))
         if budget + repair_tokens > window:
@@ -274,7 +290,7 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
             # rather than a target to fill.
             for detail_pages in range(1, max_pages()):
                 for compact in (False, True):
-                    for figure_limit, intro_count in ((2, 4), (2, 2), (2, 0), (1, 4), (1, 2), (1, 0)):
+                    for figure_limit, intro_count in LAYOUT_COMBINATIONS:
                         html = make_html(state["sheet"], source_title=source.title,
                             scope_title=source.scope_title, references=source.references, figures=assets,
                             figure_limit=figure_limit, intro_note_count=intro_count, compact=compact,

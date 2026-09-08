@@ -78,10 +78,16 @@ class Sheet(Contract):
     title: str = Field(min_length=1, max_length=100)
     central_idea: Item
     diagram: Diagram
-    essential_notes: list[Item] = Field(min_length=1, max_length=12)
-    comparison_rows: list[Item] = Field(min_length=1, max_length=4)
+    # Scaled with the page allowance. At two pages twelve notes was the right
+    # ceiling; at five it is what forces a dense chapter's mechanisms to be
+    # "compressed away", which is the independent reviewer's own phrase for why
+    # it refused Scaler HLD ch. 4 and ch. 6. More pages have to buy more notes,
+    # not only longer ones — a partially covered essential concept fails review
+    # however well it is written.
+    essential_notes: list[Item] = Field(min_length=1, max_length=24)
+    comparison_rows: list[Item] = Field(min_length=1, max_length=8)
     equation: Item | None
-    recall_cues: list[Item] = Field(min_length=1, max_length=3)
+    recall_cues: list[Item] = Field(min_length=1, max_length=6)
     essential_concepts: list[Concept] = Field(min_length=1, max_length=60)
     source_dispositions: list[Disposition] = Field(min_length=1, max_length=400)
     compression_notes: list[str] = Field(max_length=20)

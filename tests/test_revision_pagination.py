@@ -88,3 +88,42 @@ class WordBudgetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SchemaAndBudgetAgreeTests(unittest.TestCase):
+    """The caps and the word ceiling must not contradict each other.
+
+    Raising the item caps to cover dense chapters is only coherent if a sheet
+    that actually uses them can still pass the word budget. Otherwise the model
+    is told two incompatible things — fill these fields, and stay under this
+    many words — and fails whichever it obeys second.
+    """
+
+    # The upper end of the guidance the model is given, per item.
+    NOTE_WORDS, ROW_WORDS, CUE_WORDS = 35, 25, 25
+
+    def capacity(self) -> int:
+        from revision_sheets.contracts import Sheet
+
+        def cap(field: str) -> int:
+            meta = Sheet.model_fields[field].metadata
+            return next(m.max_length for m in meta if hasattr(m, "max_length"))
+
+        return (
+            cap("essential_notes") * self.NOTE_WORDS
+            + cap("comparison_rows") * self.ROW_WORDS
+            + cap("recall_cues") * self.CUE_WORDS
+            # Title, central idea, diagram description, node and edge labels.
+            + 15 + 40 + 15 + 8 * 8 + 10 * 13
+        )
+
+    def test_a_full_sheet_fits_the_five_page_budget(self) -> None:
+        with mock.patch.dict("os.environ", {"REVISION_MAX_PAGES": "5"}):
+            ceiling = max_pages() * validation.WORDS_CEILING
+
+        self.assertLess(
+            self.capacity(),
+            ceiling,
+            "the schema can hold more words than the budget allows; raise the "
+            "page allowance or lower the item caps, but do not ship both",
+        )
