@@ -36,7 +36,7 @@ def resolve_disposition_concepts(sheet: Sheet) -> int:
 
 
 def validate_sheet(sheet: Sheet, *, allowed: set[str], units: dict[str, set[str]],
-                   figure_ids: set[int], scope_kind: str) -> None:
+                   figure_ids: set[int], scope_kind: str) -> list[str]:
     errors: list[str] = []
     items = sheet.items()
     ids = [item.id for item in items]
@@ -88,13 +88,22 @@ def validate_sheet(sheet: Sheet, *, allowed: set[str], units: dict[str, set[str]
     # that silently contradicts `REVISION_MAX_PAGES`.
     pages = max_pages()
     low, high, ceiling = pages * WORDS_LOW, pages * WORDS_HIGH, pages * WORDS_CEILING
+    advisories: list[str] = []
     if words > ceiling:
-        errors.append(
+        advisories.append(
             f"The visible sheet has {words} words. Compress it to {low}-{high} words "
             f"(hard maximum {ceiling}) across at most {pages} A4 pages, including headings "
             "and diagram labels. Use 20-35 words per essential note and 15-25 words per "
             "trade-off/result: breadth now comes from having more notes, not from "
             "writing longer ones."
         )
+    # Integrity is fatal, density is not. Everything above this point is a
+    # citation marker that does not exist, an item ID nothing maps to, or a
+    # source unit left unaccounted for — publishing those would put unresolvable
+    # references in front of a reader, which is the one thing a grounded sheet
+    # may never do. The word count is a *proxy* for fitting on the paper, and
+    # the renderer measures the real thing a few steps later, so exceeding it
+    # is worth telling the model about and never worth destroying a sheet over.
     if errors:
         raise RevisionError("invalid_content", "\n".join(errors[:30]))
+    return advisories

@@ -29,6 +29,13 @@ export interface RevisionSheet extends RevisionSummary {
     html?: string;
     page_count?: number;
     quality_repairs?: number;
+    /**
+     * What the independent reviewer still wanted after its revisions were
+     * spent. Empty or absent means the sheet passed. Non-empty means it was
+     * published with known gaps — shown on the sheet, never left implicit,
+     * because an imperfect sheet must not be mistaken for a complete one.
+     */
+    outstanding_findings?: string[];
     review?: { beauty: {score: number; rationale: string}; presentation: {score: number; rationale: string}; concept_coverage: {score: number; rationale: string}; conciseness: {score: number; rationale: string}; coverage: {concept_id: string; status: string; reason: string}[] };
     model: string; prompt_version: string; content_repairs: number; fit_repairs: number; inspected_figures: number[]; uninspected_figures: number[] };
   diagram_layout: {

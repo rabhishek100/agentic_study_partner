@@ -156,6 +156,11 @@ def revision_model(schema=Draft, *, judge=False):
                       ).with_structured_output(schema, method="json_schema")
 
 
+def _page_count(pdf: bytes) -> int:
+    with pymupdf.open(stream=pdf, filetype="pdf") as document:
+        return len(document)
+
+
 def read_all_figures(source: Source, client, progress):
     """Inspect every canonical original in small batches; never sample or truncate."""
     assets, readings = {}, []
@@ -200,6 +205,8 @@ class State(TypedDict, total=False):
     review: Review
     reviews: list[dict]
     quality_repairs: int
+    advisories: list
+    outstanding_findings: list
     quality_patch: bool
     feedback: str
     content_repairs: int
@@ -271,13 +278,19 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
         try:
             if any(r["role"] in ("concept", "example") for r in readings) and not state["sheet"].diagram.source_figure_ids:
                 raise RevisionError("invalid_content", "Select at least one useful inspected original figure for the summary; keep its ID in diagram.source_figure_ids.")
-            validate_sheet(state["sheet"], allowed=set(source.references), units=source.units,
+            advisories = validate_sheet(state["sheet"], allowed=set(source.references), units=source.units,
                            figure_ids=set(inspected), scope_kind=source.request.scope_kind)
         except RevisionError as error:
             if state.get("content_repairs", 0):
                 raise
             return {"feedback": str(error), "content_repairs": 1, "next": "compose"}
-        return {"next": "render"}
+        if advisories and not state.get("content_repairs", 0):
+            # Worth one attempt at compression, never worth failing over: if
+            # the sheet still renders inside the page limit, the proxy was
+            # wrong and the artifact is fine.
+            return {"feedback": "\n".join(advisories), "content_repairs": 1,
+                    "advisories": advisories, "next": "compose"}
+        return {"advisories": advisories, "next": "render"}
 
     def render(state: State):
         progress("preparing_page")
@@ -332,7 +345,15 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
         history = state.get("reviews", []) + [review.model_dump()]
         if failures:
             if state.get("quality_repairs", 0) >= 2:
-                raise RevisionError("quality_review_failed", "The sheet did not pass independent review after two revisions: " + "; ".join(failures)[:1100])
+                # Publish the best attempt rather than nothing. Two revisions
+                # in, the remaining findings are the reviewer wanting more of a
+                # dense chapter than the sheet has room for — a real limitation
+                # of the artifact, not a reason to hand the reader an error and
+                # no sheet at all. What is still outstanding travels with the
+                # sheet and is shown on it, so an imperfect sheet is never
+                # mistaken for a complete one.
+                return {"review": review, "reviews": history,
+                        "outstanding_findings": failures, "next": "done"}
             progress("revising_sheet")
             return {"reviews": history, "quality_patch": True, "quality_repairs": state.get("quality_repairs", 0) + 1,
                     "feedback": "Independent review failures:\n" + json.dumps(failures + review.revision_instructions)
@@ -357,11 +378,18 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
                      "prompt_version": PROMPT_VERSION, "model": model_name(), "job_id": job_id}, "recursion_limit": 32})
     return result["sheet"], result["pdf"], {"model": model_name(), "prompt_version": PROMPT_VERSION,
         "schema_version": SCHEMA_VERSION, "layout_version": LAYOUT_VERSION,
-        "html": result["html"], "page_count": 2, "layout_profile": result["layout_profile"], "summary_figure_ids": result["summary_figure_ids"],
+        # Counted from the artifact rather than assumed: this said 2 for as long
+        # as there were only ever two pages, and silently lied afterwards.
+        "html": result["html"], "page_count": _page_count(result["pdf"]),
+        "layout_profile": result["layout_profile"], "summary_figure_ids": result["summary_figure_ids"],
         "inventory": result["inventory"].model_dump(), "figure_readings": readings,
         "review": result["review"].model_dump(), "review_history": result["reviews"],
         "rubric_version": RUBRIC_VERSION, "judge_model": judge_model_name(),
         "quality_repairs": result.get("quality_repairs", 0),
+        # Empty when the reviewer passed the sheet. Non-empty means it is
+        # published with known gaps, and the interface says so.
+        "outstanding_findings": result.get("outstanding_findings", []),
+        "advisories": result.get("advisories", []),
         "inspected_figures": inspected, "uninspected_figures": uninspected,
         "figure_references": [{"book_id": source.request.book_id, "block_id": f["block_id"],
             "node_id": f["node_id"], "page": f["page"], "mime_type": f["mime_type"],

@@ -235,6 +235,17 @@ export function RevisionSheets({ books, selectedBookIds, noun }: {
             </div>
             {(sheet.source_changed || sheet.settings_changed) && <p className="mb-4 text-sm text-muted-foreground">{sheet.source_changed ? "The source has changed since this sheet was saved." : "New generation settings are available."} Regenerate when you want a new version.</p>}
             {sheet.provenance.html ? <RevisionHtml sheet={sheet} onSource={openSource} /> : <RevisionPage sheet={sheet} onSource={openSource} />}
+            {/*
+              Stated before the review panel and never inside a collapsed
+              section: a sheet published with known gaps has to say so where a
+              reader will see it, or the fallback that stopped generation from
+              failing becomes a way of quietly shipping a worse sheet.
+            */}
+            {sheet.provenance.outstanding_findings?.length ? <div role="note" className="mt-4 rounded-lg border border-border bg-wash p-4 text-sm">
+              <p className="font-medium">Published with {sheet.provenance.outstanding_findings.length} known {sheet.provenance.outstanding_findings.length === 1 ? "gap" : "gaps"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">The independent reviewer still wanted more after its revisions were spent. The sheet is usable; these points are where it is thin, so check the source before relying on them.</p>
+              <ul className="mt-2 list-disc pl-5 text-xs text-muted-foreground">{sheet.provenance.outstanding_findings.map((finding, index) => <li key={index}>{finding}</li>)}</ul>
+            </div> : null}
             {sheet.provenance.review && <details className="mt-4 rounded-lg border border-border p-4 text-sm"><summary className="cursor-pointer font-medium">Independent quality review</summary>
               <dl className="mt-3 grid gap-3 sm:grid-cols-2">{([ ["beauty", "Visual design"], ["presentation", "Presentation"], ["concept_coverage", "Concept coverage"], ["conciseness", "Conciseness"] ] as const).map(([key, label]) => <div key={key}><dt className="font-medium">{label} · {sheet.provenance.review![key].score}/5</dt><dd className="mt-1 text-xs text-muted-foreground">{sheet.provenance.review![key].rationale}</dd></div>)}</dl>
               <p className="mt-3 text-xs text-muted-foreground">Reviewed against the source and rendered pages. Automated review is an assessment, not a guarantee.</p>

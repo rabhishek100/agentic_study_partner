@@ -81,7 +81,17 @@ class ReviewTests(unittest.TestCase):
             with self.assertRaisesRegex(RevisionError, "cannot be read"):
                 read_all_figures(source, Mock(), lambda stage: None)
 
-    def test_judge_revision_is_bounded_and_failed_review_does_not_return_artifact(self):
+    def test_judge_revision_is_bounded_and_an_unsatisfied_review_still_publishes(self):
+        """Revisions are bounded; running out of them no longer destroys the sheet.
+
+        This previously asserted the opposite — that a review the sheet could
+        not satisfy returned no artifact. Three dense chapters in a row then
+        produced nothing at all, each time because the reviewer wanted more of
+        the source than the paper had room for, and the reader was handed an
+        error instead of a usable sheet. The bound is still two revisions; what
+        changed is what happens when they are spent.
+        """
+
         with patch("revision_sheets.generate.make_inventory", return_value=inventory()), \
              patch("revision_sheets.generate.judge_sheet", side_effect=[review("partial"), review()]):
             _, _, provenance = generate(source_fixture(), model=SequenceModel(fixture(), fixture()), review_clients=(None, None, None))
@@ -90,9 +100,15 @@ class ReviewTests(unittest.TestCase):
         model = SequenceModel(fixture(), fixture(), fixture())
         with patch("revision_sheets.generate.make_inventory", return_value=inventory()), \
              patch("revision_sheets.generate.judge_sheet", return_value=review("missing")):
-            with self.assertRaisesRegex(RevisionError, "after two revisions"):
-                generate(source_fixture(), model=model, review_clients=(None, None, None))
+            _, pdf, provenance = generate(source_fixture(), model=model, review_clients=(None, None, None))
+        # Still bounded to two revisions, so an unsatisfiable reviewer cannot
+        # spend the account on an endless loop.
         self.assertEqual(len(model.calls), 3)
+        self.assertEqual(provenance["quality_repairs"], 2)
+        # And the reader gets the sheet, with what is still missing recorded on
+        # it rather than discarded with it.
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertTrue(provenance["outstanding_findings"])
 
     def test_real_workflow_uses_targeted_quality_patch(self):
         author = SequenceModel(fixture())

@@ -30,6 +30,27 @@ exactly; at five it gives 1125–1375/1625.
 stops at the first that fits, so extra paper is a concession to dense material
 rather than a target to fill. A chapter that fits two pages still gets two.
 
+**The independent review informs; it does not gate.** Three dense chapters in a
+row produced no artifact at all — each time the sheet existed, rendered, and
+was refused because the reviewer wanted more of the source than the paper had
+room for. A 90%-complete sheet is worth more to a reader than an error message,
+so after its two revisions are spent the sheet is published with the
+outstanding findings recorded on it and shown above the review panel. An
+imperfect sheet must never be mistaken for a complete one, which is why the
+notice is not inside a collapsed section.
+
+The bound of two revisions is unchanged: an unsatisfiable reviewer must not be
+able to spend the account on an endless loop.
+
+**What is still fatal is anything that leaves no usable artifact, or a
+misleading one:** a citation marker that does not exist, an item ID nothing
+maps to, a source unit left unaccounted for, a render that will not fit inside
+the page limit, a render that dropped an item, an unreadable source figure, an
+exhausted provider budget. Density is not in that list — the word cap is a
+proxy for fitting on the paper, the renderer measures the real thing a few
+steps later, so exceeding the proxy is worth one compression attempt and never
+worth destroying a sheet over.
+
 **Content caps scale with the paper.** Twelve essential notes, four trade-off
 rows and three recall cues were right for two pages; at five they are what
 forces a dense chapter's mechanisms to be *compressed away* — the independent
