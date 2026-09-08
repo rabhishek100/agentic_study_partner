@@ -1,10 +1,18 @@
 """One safe HTML artifact for responsive reading, print, and visual review.
 
 Only an owned template emits markup; model strings are escaped. Chromium has
-no network access and no JavaScript, and refuses clipped two-page output.
+no network access and no JavaScript, and refuses clipped output.
+
+The sheet is one composed overview page plus as many detail pages as the
+material needs, up to `REVISION_MAX_PAGES`. The first page is deliberately not
+part of the flow: it is the "at a glance" page — title, central idea, the hero
+figure and the mechanism overview — and it earns a fixed composition. Only the
+details after it are distributed, which is what stops a longer sheet from
+becoming an undifferentiated wall.
 """
 from base64 import b64encode
 from html import escape
+import os
 import re
 import unicodedata
 
@@ -13,7 +21,26 @@ import pymupdf
 from .contracts import RevisionError
 from .render import citations
 
-LAYOUT_VERSION = "html-a4-spread-v2"
+# Bumped for the multi-page layout: `config_key` includes this, so sheets
+# saved under the two-page spread keep their own provenance and are not
+# silently re-read as if they had been composed under these rules.
+LAYOUT_VERSION = "html-a4-flow-v3"
+
+# The ceiling the reader chose. One overview page plus up to four detail pages.
+DEFAULT_MAX_PAGES = 5
+
+
+def max_pages() -> int:
+    """How many A4 pages a sheet may occupy, overridable per deployment."""
+
+    return max(2, int(os.getenv("REVISION_MAX_PAGES", str(DEFAULT_MAX_PAGES))))
+
+
+# What one figure costs against a page's budget relative to a word. A figure is
+# capped at 420px tall and dominates whatever column it lands in, so weighting
+# it like prose packs pages that then overflow. Tuned to keep the renderer's
+# own overflow check the arbiter rather than a second guess at layout.
+FIGURE_WEIGHT = 140
 CSS = """
 *{box-sizing:border-box}body{margin:0;background:#ecefe9;color:#18332d;font-family:Arial,Helvetica,sans-serif}
 .page{width:210mm;height:297mm;padding:12mm 11mm 12mm;margin:20px auto;background:#fffef9;position:relative;overflow:visible}
@@ -31,7 +58,45 @@ a:focus-visible{outline:2px solid #28593d;outline-offset:3px}
 """
 
 
-def make_html(sheet, *, source_title, scope_title, references, figures=None, figure_limit=2, intro_note_count=0, compact=False):
+def _weight(item) -> int:
+    """Roughly how much page a rendered item costs, in words."""
+
+    return len(re.findall(r"\S+", f"{getattr(item, 'heading', '')} {getattr(item, 'text', '')}"))
+
+
+def _distribute(blocks, pages: int) -> list[list[tuple[str, str, int]]]:
+    """Split ordered blocks into `pages` runs of roughly equal weight.
+
+    Order is never changed — a revision sheet is read front to back, and
+    reordering notes to pack pages would break the reading the sheet is for.
+    Only the break points move. An exact partition is unnecessary because the
+    renderer measures the result and asks for another page if this was wrong.
+    """
+
+    pages = max(1, pages)
+    if pages == 1 or not blocks:
+        return [list(blocks)]
+    target = sum(weight for _, _, weight in blocks) / pages
+    runs: list[list[tuple[str, str, int]]] = [[]]
+    carried = 0
+    for block in blocks:
+        # Start a new page once this one has met its share, provided enough
+        # blocks remain to fill the pages still to come.
+        remaining_pages = pages - len(runs)
+        if (
+            runs[-1]
+            and carried >= target
+            and remaining_pages > 0
+            and len(blocks) - blocks.index(block) > remaining_pages - 1
+        ):
+            runs.append([])
+            carried = 0
+        runs[-1].append(block)
+        carried += block[2]
+    return [run for run in runs if run] or [list(blocks)]
+
+
+def make_html(sheet, *, source_title, scope_title, references, figures=None, figure_limit=2, intro_note_count=0, compact=False, detail_pages=1):
     figures = figures or {}
     css = CSS.replace("font-size:10.5pt;line-height:1.3", "font-size:10.5pt;line-height:1.25").replace("break-inside:avoid;margin-bottom:6px", "break-inside:avoid;margin-bottom:4px") if compact else CSS
     def cites(markers):
@@ -52,12 +117,51 @@ def make_html(sheet, *, source_title, scope_title, references, figures=None, fig
     relationships = ''.join(f'<p id="item-{escape(e.id)}"><b>{node_numbers[e.source]} → {node_numbers[e.target]}</b>: {escape(e.label)} {cites(e.citations)}</p>' for e in sheet.diagram.edges)
     component_sources = ''.join(f'<p id="item-{escape(n.id)}"><b>{node_numbers[n.id]}.</b> {escape(n.label)} {cites(n.citations)}</p>' for n in sheet.diagram.nodes)
     overview = f'<div class="relationships"><h3>Mechanism at a glance</h3><p id="item-diagram_description">{escape(sheet.diagram.description)} {cites(sheet.diagram.description_citations)}</p><div class="columns"><section><h3>Component key</h3>{component_sources}</section><section><h3>Relationships</h3>{relationships}</section></div></div>'
-    pages = [
-        f'<h1>{escape(sheet.title)}</h1><div class="lead">{note(sheet.central_idea)}</div>{hero}{overview}<div class="columns">{"".join(note(i) for i in intro)}</div>',
-        f'<span class="part">The details that change the answer</span><h2>Constraints, choices & recall</h2><div class="notes-flow"><h3>02 / Complete the model</h3>{"".join(note(i) for i in remaining)}{note(sheet.equation) if sheet.equation else ""}{second}<h3>{"Results & limitations" if sheet.template_kind == "paper" else "Trade-offs & failure modes"}</h3>{"".join(note(i) for i in sheet.comparison_rows)}<div class="recall"><h3>03 / Reconstruct from memory</h3>{"".join(note(i) for i in sheet.recall_cues)}</div></div>'
 
-    ]
-    content = ''.join(f'<article class="page"><header class="running"><span class="source-name">{escape(source_title)}</span><span>REVISION / {index:02d}</span></header><main class="body">{body}</main><footer class="footer"><span>{escape(scope_title)}</span><span>{index} / 2 · Citations [section:PDF page]</span></footer></article>' for index, body in enumerate(pages, 1))
+    # The detail blocks, in reading order, each tagged with the section it
+    # belongs to. Distributing *these* — rather than re-flowing the whole sheet
+    # — is what lets a long chapter use more paper without the overview page
+    # losing its shape.
+    tradeoff_heading = "Results & limitations" if sheet.template_kind == "paper" else "Trade-offs & failure modes"
+    blocks: list[tuple[str, str, int]] = []
+    for item in remaining:
+        blocks.append(("model", note(item), _weight(item)))
+    if sheet.equation:
+        blocks.append(("model", note(sheet.equation), _weight(sheet.equation)))
+    if second:
+        blocks.append(("model", second, FIGURE_WEIGHT))
+    for item in sheet.comparison_rows:
+        blocks.append(("tradeoffs", note(item), _weight(item)))
+    for item in sheet.recall_cues:
+        blocks.append(("recall", note(item), _weight(item)))
+
+    SECTION_TITLES = {"model": "02 / Complete the model",
+                      "tradeoffs": tradeoff_heading,
+                      "recall": "03 / Reconstruct from memory"}
+    bodies = [f'<h1>{escape(sheet.title)}</h1><div class="lead">{note(sheet.central_idea)}</div>{hero}{overview}<div class="columns">{"".join(note(i) for i in intro)}</div>']
+    started: set[str] = set()
+    for position, chunk in enumerate(_distribute(blocks, detail_pages)):
+        flow = ''
+        index = 0
+        while index < len(chunk):
+            section = chunk[index][0]
+            run = []
+            while index < len(chunk) and chunk[index][0] == section:
+                run.append(chunk[index][1])
+                index += 1
+            # "continued" rather than a repeated heading, so a reader can see a
+            # section was split rather than think it restarted.
+            title = SECTION_TITLES[section] + (" · continued" if section in started else "")
+            started.add(section)
+            body = f'<h3>{escape(title)}</h3>{"".join(run)}'
+            flow += f'<div class="recall">{body}</div>' if section == "recall" else body
+        lead_in = ('<span class="part">The details that change the answer</span><h2>Constraints, choices &amp; recall</h2>'
+                   if position == 0 else
+                   '<span class="part">The details that change the answer</span><h2>Continued</h2>')
+        bodies.append(f'{lead_in}<div class="notes-flow">{flow}</div>')
+
+    total = len(bodies)
+    content = ''.join(f'<article class="page"><header class="running"><span class="source-name">{escape(source_title)}</span><span>REVISION / {index:02d}</span></header><main class="body">{body}</main><footer class="footer"><span>{escape(scope_title)}</span><span>{index} / {total} · Citations [section:PDF page]</span></footer></article>' for index, body in enumerate(bodies, 1))
     used = list(dict.fromkeys(m for item in sheet.items() for m in item.citations))
     source_key = '<details class="source-index"><summary>Source key · section and PDF pages</summary>' + ''.join(
         f'<p id="source-{escape(m, quote=True)}">{escape(citations([m], references))} · {escape(references[m].get("path", references[m]["section_title"]))}</p>' for m in used) + '</details>'
@@ -97,13 +201,17 @@ def render_html_pdf(html, sheet, *, on_preview=None, on_layout=None):
         finally:
             browser.close()
     with pymupdf.open(stream=data, filetype="pdf") as pdf:
-        if len(pdf) > 2:
-            raise RevisionError("page_overflow", "Summary exceeds two A4 pages.")
+        limit = max_pages()
+        if len(pdf) > limit:
+            raise RevisionError(
+                "page_overflow",
+                f"Summary occupies {len(pdf)} A4 pages; the limit is {limit}.",
+            )
         normalize = lambda value: re.sub(r"\s+", "", unicodedata.normalize("NFKC", value))
         extracted = normalize(''.join(p.get_text() for p in pdf))
         for item in sheet.items():
             if normalize(getattr(item, "text", getattr(item, "label", ""))) not in extracted:
                 raise RevisionError("text_preservation", f"Rendered HTML lost item {item.id}.")
     if len(data) > 2_000_000:
-        raise RevisionError("artifact_too_large", "The two-page PDF exceeds the artifact size limit.")
+        raise RevisionError("artifact_too_large", "The rendered PDF exceeds the artifact size limit.")
     return data

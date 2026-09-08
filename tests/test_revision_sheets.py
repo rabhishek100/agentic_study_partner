@@ -15,6 +15,7 @@ from api.auth import current_owner
 from api.main import app
 from revision_sheets import store
 from revision_sheets.contracts import RevisionError, ScopeRequest, Sheet
+from revision_sheets.html_render import max_pages
 from revision_sheets.generate import Draft, generate
 from revision_sheets.render import render_pdf, diagram_layout
 from revision_sheets.source import Source, load_source
@@ -133,9 +134,16 @@ class ContractTests(unittest.TestCase):
         from revision_sheets import generate as generation_module
         real_render = generation_module.render_html_pdf
         calls = []
+        # Every configuration of the layout search has to fail before the fit
+        # repair is reached. Derived rather than hardcoded: the sweep is
+        # `detail_pages` x `compact` x six figure/intro combinations, and it
+        # grew when the sheet gained pages, silently turning this into a test
+        # that the search finds a layout on its thirteenth try.
+        sweep = (max_pages() - 1) * 2 * 6
+
         def fail_once(*args, **kwargs):
             calls.append(True)
-            if len(calls) <= 12:
+            if len(calls) <= sweep:
                 raise RevisionError("page_overflow", "Shorten the diagram.")
             return real_render(*args, **kwargs)
         with patch.object(generation_module, "render_html_pdf", side_effect=fail_once):

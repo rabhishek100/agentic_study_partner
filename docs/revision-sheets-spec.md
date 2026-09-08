@@ -1,8 +1,47 @@
-# Visual revision sheets: September 6 update
+# Visual revision sheets: September 8 update
 
-The user now allows **up to two A4 summary pages**, with responsive HTML,
-original source images, and independent LLM review. This replaces the earlier
-one-page layout decision documented below; old saved artifacts remain readable.
+The user now allows **up to five A4 summary pages**. This supersedes the
+two-page decision below, which itself replaced a one-page one; old saved
+artifacts remain readable, and `LAYOUT_VERSION` (`html-a4-flow-v3`) is part of
+`config_key`, so sheets composed under an earlier allowance keep their own
+provenance rather than being read as if they had been composed under these
+rules.
+
+**Why it moved again.** The page count was enforced through a proxy: a hard
+maximum of 650 visible words, checked before rendering. Dense chapters failed
+there rather than at the layout — Scaler HLD ch. 4 produced 749 words and was
+rejected, and four of that book's twenty chapters were similarly out of reach.
+The cap was doing its job; it was set for two pages.
+
+**What is and is not paginated.** The overview page is *not* part of the flow.
+Title, central idea, hero figure and the mechanism overview keep a fixed
+composition, because that page is the artifact's identity — the thing a reader
+scans first. Only the detail content after it is distributed, across one to
+four further pages. Block order is never changed to balance pages: the sheet is
+read front to back, so only the break points move, and a split section is
+marked "· continued" rather than repeating its heading.
+
+**The budget follows the paper.** Word limits are now per page — 225–275 target,
+325 ceiling — rather than a second constant that could silently contradict
+`REVISION_MAX_PAGES`. At two pages that reproduces the tuned 450–550/650
+exactly; at five it gives 1125–1375/1625.
+
+**Fewest pages still wins.** The layout search sweeps page counts ascending and
+stops at the first that fits, so extra paper is a concession to dense material
+rather than a target to fill. A chapter that fits two pages still gets two.
+
+Content caps are deliberately unchanged (at most twelve essential notes, four
+trade-off rows, three recall cues). More pages therefore buy *fuller* notes,
+which is what the observed failures needed, rather than more of them — raising
+those caps changes the model's output schema and interacts with the review
+rubric, and belongs in its own change.
+
+The earlier two-page decision, and the one-page decision before it, follow.
+
+---
+
+The September 6 update allowed **up to two A4 summary pages**, with responsive
+HTML, original source images, and independent LLM review.
 
 The summary places up to two useful original figures prominently. **Every**
 canonical original is inspected in batches of four and remains accessible in

@@ -15,7 +15,7 @@ import type { BookSummary, FigureRef } from "@/lib/types";
 import type { RevisionAnswer, RevisionCreated, RevisionJob, RevisionList, RevisionReference, RevisionSheet } from "@/lib/revision-types";
 import { RevisionNote, RevisionPage } from "./revision-page";
 
-const STAGES: Record<string, string> = { inspecting_figures: "Inspecting every original figure", inventorying_concepts: "Mapping important concepts", reviewing_quality: "Reviewing coverage and page design", revising_sheet: "Refining the sheet from review feedback", queued: "Queued for generation", reading_source: "Reading the complete source", composing: "Composing your revision sheet", checking_content: "Checking content and citations", preparing_page: "Preparing two A4 pages", publishing: "Saving your sheet" };
+const STAGES: Record<string, string> = { inspecting_figures: "Inspecting every original figure", inventorying_concepts: "Mapping important concepts", reviewing_quality: "Reviewing coverage and page design", revising_sheet: "Refining the sheet from review feedback", queued: "Queued for generation", reading_source: "Reading the complete source", composing: "Composing your revision sheet", checking_content: "Checking content and citations", preparing_page: "Laying out the printable pages", publishing: "Saving your sheet" };
 const active = (job: RevisionJob | null) => !!job && ["queued", "running"].includes(job.status);
 const selectStyle = "h-10 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50";
 type Chapter = { node_id: number; title: string; start_page: number; end_page: number };
@@ -205,7 +205,7 @@ export function RevisionSheets({ books, selectedBookIds, noun }: {
       <DialogTrigger asChild><Button type="button" variant="ghost" size="sm" disabled={!books.length}><FileText aria-hidden className="size-3.5" />Revision sheet</Button></DialogTrigger>
       <DialogContent className="flex max-h-[92dvh] flex-col gap-4 overflow-hidden sm:max-w-5xl">
         <div className="shrink-0 pr-8"><DialogTitle>{sheet ? sheet.scope_title : "Revision sheets"}</DialogTitle>
-          <DialogDescription>{sheet ? `${sheet.source_title} · Saved version ${sheet.version}` : "One chapter or an entire paper, condensed for repeated review. Up to two printable A4 pages."}</DialogDescription></div>
+          <DialogDescription>{sheet ? `${sheet.source_title} · Saved version ${sheet.version}` : "One chapter or an entire paper, condensed for repeated review. Up to five printable A4 pages."}</DialogDescription></div>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {job && <div className="shrink-0 rounded-lg border border-border bg-wash p-3 text-sm">
           <p role="status">{active(job) ? job.cancellation_requested ? "Cancellation requested" : STAGES[job.stage] ?? "Generating sheet" : job.status === "failed" ? job.error_detail : job.status === "cancelled" ? "Generation cancelled" : "Sheet saved"} · {job.scope_title}</p>

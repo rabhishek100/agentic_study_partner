@@ -39,7 +39,7 @@ export function RevisionHtml({ sheet, onSource }: { sheet: RevisionSheet; onSour
     connect();
     return () => { disconnect(); element.removeEventListener("load", connect); };
   }, [sheet.provenance.html, sheet.source_references, onSource]);
-  return <iframe ref={frame} title={`${sheet.content.title} — two-page revision summary`}
+  return <iframe ref={frame} title={`${sheet.content.title} — printable revision summary`}
     srcDoc={sheet.provenance.html} sandbox="allow-same-origin"
     className="w-full rounded-lg border border-border bg-card" style={{ height }} />;
 }

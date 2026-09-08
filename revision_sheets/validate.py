@@ -2,6 +2,11 @@
 
 import re
 
+from .html_render import max_pages
+
+# Per A4 page, from the tuning recorded in docs/revision-sheets-spec.md: the
+# two-page sheet targeted 450-550 words with a hard maximum of 650.
+WORDS_LOW, WORDS_HIGH, WORDS_CEILING = 225, 275, 325
 from .contracts import RevisionError, Sheet
 
 
@@ -77,7 +82,18 @@ def validate_sheet(sheet: Sheet, *, allowed: set[str], units: dict[str, set[str]
         visible += [getattr(item, "heading", ""), getattr(item, "text", ""),
                     getattr(item, "label", "")]
     words = len(re.findall(r"\S+", " ".join(visible)))
-    if words > 650:
-        errors.append(f"The visible page has {words} words. Compress it to 450-550 words (hard maximum 650), including headings and diagram labels. Use 20-35 words per essential note and 15-25 words per trade-off/result.")
+    # Derived from the page allowance rather than fixed. These per-page figures
+    # are the ones the two-page sheet was tuned to in real source trials; the
+    # budget moves with the paper instead of being a second, stale constant
+    # that silently contradicts `REVISION_MAX_PAGES`.
+    pages = max_pages()
+    low, high, ceiling = pages * WORDS_LOW, pages * WORDS_HIGH, pages * WORDS_CEILING
+    if words > ceiling:
+        errors.append(
+            f"The visible sheet has {words} words. Compress it to {low}-{high} words "
+            f"(hard maximum {ceiling}) across at most {pages} A4 pages, including headings "
+            "and diagram labels. Use 20-45 words per essential note and 15-30 words per "
+            "trade-off/result."
+        )
     if errors:
         raise RevisionError("invalid_content", "\n".join(errors[:30]))

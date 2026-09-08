@@ -18,13 +18,13 @@ from pydantic import ValidationError
 from storage.book_images import load_figure
 from video.media_store import MediaStoreError
 from .contracts import Contract, RevisionError, Sheet, Item, Diagram, SCHEMA_VERSION
-from .html_render import LAYOUT_VERSION, make_html, render_html_pdf
+from .html_render import LAYOUT_VERSION, make_html, max_pages, render_html_pdf
 from .review import (Inventory, FigureBatch, Review, RUBRIC_VERSION, make_inventory, judge_sheet)
 from .source import Source
 from .validate import validate_sheet, resolve_disposition_concepts
 
 PROMPT_VERSION = "revision-prompt-v9"
-PROMPT = """Create a maximum two-page A4 revision sheet for a reader who already studied
+PROMPT = """Create an A4 revision sheet of at most five pages for a reader who already studied
 this complete chapter or paper. Optimize for rapid recall and reconstruction
 of its mental model, with one clear overview diagram and compact notes.
 Use only supplied evidence. Copy citation markers exactly into citations
@@ -268,24 +268,35 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
         try:
             fit_error = None
             candidates = []
-            for compact in (False, True):
-                for figure_limit, intro_count in ((2, 4), (2, 2), (2, 0), (1, 4), (1, 2), (1, 0)):
-                    html = make_html(state["sheet"], source_title=source.title,
-                        scope_title=source.scope_title, references=source.references, figures=assets,
-                        figure_limit=figure_limit, intro_note_count=intro_count, compact=compact)
-                    try:
-                        fills = []
-                        pdf = render_html_pdf(html, state["sheet"], on_layout=fills.extend)
-                        score = abs(fills[0] - fills[1]) + 0.1 * max(fills) if len(fills) == 2 else 0
-                        candidates.append((score, pdf, html, figure_limit))
-                    except RevisionError as error:
-                        if error.code != "page_overflow":
-                            raise
-                        fit_error = error
+            # Fewest pages first, and stop at the first count that fits: a
+            # two-page sheet is still the better artifact when the material
+            # allows one, and extra paper is a concession to dense chapters
+            # rather than a target to fill.
+            for detail_pages in range(1, max_pages()):
+                for compact in (False, True):
+                    for figure_limit, intro_count in ((2, 4), (2, 2), (2, 0), (1, 4), (1, 2), (1, 0)):
+                        html = make_html(state["sheet"], source_title=source.title,
+                            scope_title=source.scope_title, references=source.references, figures=assets,
+                            figure_limit=figure_limit, intro_note_count=intro_count, compact=compact,
+                            detail_pages=detail_pages)
+                        try:
+                            fills = []
+                            pdf = render_html_pdf(html, state["sheet"], on_layout=fills.extend)
+                            # Even pages read better than one full page beside
+                            # a sparse one, and a sheet that barely fills its
+                            # last page should have used fewer.
+                            score = (max(fills) - min(fills)) + 0.1 * max(fills) if fills else 0
+                            candidates.append((score, pdf, html, figure_limit, compact, detail_pages))
+                        except RevisionError as error:
+                            if error.code != "page_overflow":
+                                raise
+                            fit_error = error
+                    if candidates:
+                        break
                 if candidates:
                     break
             if candidates:
-                _, pdf, html, figure_limit = min(candidates, key=lambda c: c[0])
+                _, pdf, html, figure_limit, compact, detail_pages = min(candidates, key=lambda c: c[0])
             elif fit_error:
                 raise fit_error
             # Balance whole concepts across pages before asking for compression.

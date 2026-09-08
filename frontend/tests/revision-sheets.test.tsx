@@ -120,7 +120,7 @@ it("opens reviewed HTML and retains every original figure in the gallery", async
   render(<RevisionSheets books={books} selectedBookIds={[1]} noun="book" />);
   fireEvent.click(screen.getByRole("button", { name: "Revision sheet" }));
   fireEvent.click(await screen.findByRole("button", {name: /Chapter one.*Version 1/}));
-  expect(await screen.findByTitle(/two-page revision summary/)).toHaveAttribute("sandbox", "allow-same-origin");
+  expect(await screen.findByTitle(/printable revision summary/)).toHaveAttribute("sandbox", "allow-same-origin");
   expect(await screen.findByRole("link", {name: "Download HTML"})).toBeInTheDocument();
   fireEvent.click(screen.getByText("All original figures · 2"));
   expect(screen.getAllByText("Original figure")).toHaveLength(2);

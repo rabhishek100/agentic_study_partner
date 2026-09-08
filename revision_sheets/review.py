@@ -101,13 +101,13 @@ PRESENTATION: 1 illegible; 2 serious crowding; 3 usable with scanning friction;
 5 effortless navigation and excellent information grouping. Penalize tiny source labels.
 CONCEPT COVERAGE: 1 misleading; 2 major omissions; 3 some essential gaps; 4 all essential
 mechanisms, assumptions, tradeoffs and limitations accurately represented; 5 exceptionally
-faithful and connected. A partial essential concept cannot receive 4 or 5. Supporting examples or implementation minutiae may be omitted from a two-page revision sheet; do not fail coverage solely for a supporting omission when every essential concept is covered.
+faithful and connected. A partial essential concept cannot receive 4 or 5. Supporting examples or implementation minutiae may be omitted from a length-limited revision sheet; do not fail coverage solely for a supporting omission when every essential concept is covered.
 CONCISENESS: 1 rambling; 2 much repetition; 3 compressible; 4 dense but understandable,
 no repeated equations or filler; 5 every phrase aids recall without erasing qualifications.
 
 Use the entire scale honestly; do not automatically pass. Give actionable revision
 instructions grounded in actual item IDs. Never demand decorative assets or outside
-knowledge. A complete figure gallery is separate from the maximum two-page summary;
+knowledge. A complete figure gallery is separate from the page-limited summary;
 judge figures selected for the summary for usefulness and readability, not gallery size.
 """
 
