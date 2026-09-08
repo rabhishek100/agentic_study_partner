@@ -6,6 +6,7 @@ import threading
 from storage.database import connection
 from . import store
 from .contracts import RevisionError
+from .provider_errors import spend_refusal
 from .generate import config_key, generate
 from .source import load_source
 
@@ -64,8 +65,23 @@ class RevisionWorker:
                 current = load_source(db, owner_id=job["owner_id"], request=request)
                 store.publish(db, job, self.worker_id, current, sheet, pdf, provenance)
         except Exception as error:
-            code = error.code if isinstance(error, RevisionError) else "generation_failed"
-            detail = str(error) if isinstance(error, RevisionError) else "Generation could not finish. Check the worker/provider connection and retry."
+            refusal = None if isinstance(error, RevisionError) else spend_refusal(error)
+            if isinstance(error, RevisionError):
+                code, detail = error.code, str(error)
+            elif refusal:
+                # Distinct from a failure, because retrying cannot fix it. The
+                # previous wording named the worker and the connection — the
+                # two things that were working — and sent readers round a retry
+                # loop while the account's monthly key limit stayed exhausted.
+                code = "provider_quota_exhausted"
+                detail = (
+                    f"{refusal} Nothing was generated and this attempt cost nothing. "
+                    "Raise the limit or add credit on the provider account, then create "
+                    "the sheet again."
+                )
+            else:
+                code = "generation_failed"
+                detail = "Generation could not finish. Check the worker/provider connection and retry."
             logger.warning("revision generation failed", extra={"job_id": str(job["id"]), "error_code": code}, exc_info=not isinstance(error, RevisionError))
             with connection(self.database_url) as db:
                 store.finish_failure(db, job["id"], self.worker_id, code, detail)

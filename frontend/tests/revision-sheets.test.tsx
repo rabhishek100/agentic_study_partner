@@ -83,6 +83,41 @@ describe("revision sheets", () => {
     expect(call[1].headers["Idempotency-Key"]).toBeTruthy();
   });
 
+  it("offers no retry when the provider refused on spending", async () => {
+    // Retrying cannot move an exhausted monthly limit, and offering the button
+    // is what sent the reader round the loop twice.
+    fetchApi.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path.startsWith("/revision-sheets?")) return { sheets: [], jobs: [] };
+      if (path.includes("/chapters")) return { chapters: [{ node_id: 10, title: "Chapter one", start_page: 1, end_page: 8 }] };
+      if (options?.method === "POST") return { job: { id: "job1", scope_key: summary.scope_key, status: "failed", scope_title: "Chapter one", error_code: "provider_quota_exhausted", error_detail: "Key limit exceeded (monthly limit). Raise the limit or add credit." } };
+    });
+    render(<RevisionSheets books={books} selectedBookIds={[1, 2]} noun="book" />);
+    fireEvent.click(screen.getByRole("button", { name: "Revision sheet" }));
+    fireEvent.change(screen.getByLabelText("Book"), { target: { value: "1" } });
+    await screen.findByRole("option", { name: /Chapter one/ });
+    fireEvent.change(screen.getByLabelText("Chapter"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create sheet" }));
+
+    await screen.findByText(/Key limit exceeded/);
+    expect(screen.queryByRole("button", { name: "Retry generation" })).not.toBeInTheDocument();
+  });
+
+  it("still offers a retry for an ordinary failure", async () => {
+    fetchApi.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path.startsWith("/revision-sheets?")) return { sheets: [], jobs: [] };
+      if (path.includes("/chapters")) return { chapters: [{ node_id: 10, title: "Chapter one", start_page: 1, end_page: 8 }] };
+      if (options?.method === "POST") return { job: { id: "job1", scope_key: summary.scope_key, status: "failed", scope_title: "Chapter one", error_code: "generation_failed", error_detail: "Generation could not finish." } };
+    });
+    render(<RevisionSheets books={books} selectedBookIds={[1, 2]} noun="book" />);
+    fireEvent.click(screen.getByRole("button", { name: "Revision sheet" }));
+    fireEvent.change(screen.getByLabelText("Book"), { target: { value: "1" } });
+    await screen.findByRole("option", { name: /Chapter one/ });
+    fireEvent.change(screen.getByLabelText("Chapter"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create sheet" }));
+
+    expect(await screen.findByRole("button", { name: "Retry generation" })).toBeInTheDocument();
+  });
+
   it("ignores an old chapter request after changing books", async () => {
     let resolveOld!: (value: unknown) => void;
     fetchApi.mockImplementation((path: string) => {

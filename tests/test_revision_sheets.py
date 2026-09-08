@@ -251,6 +251,49 @@ class PersistenceTests(PostgresOwnerMixin, unittest.TestCase):
                     app.dependency_overrides.pop(current_owner, None)
         asyncio.run(check_api_access())
 
+    def test_a_spending_refusal_is_recorded_as_its_own_outcome(self):
+        """Not "generation failed": the worker and the connection were fine."""
+
+        from revision_sheets.worker import RevisionWorker
+
+        self.queue()
+        with connection(self.database_url) as db:
+            job = store.claim(db, "revision-worker-test", owner=self.owner_id)
+        worker = RevisionWorker(worker_id="revision-worker-test", database_url=self.database_url)
+
+        class Refused(Exception):
+            status_code = 403
+
+        refusal = Refused(
+            "Error code: 403 - {'error': {'message': 'Key limit exceeded "
+            "(monthly limit). Manage it using https://openrouter.ai/keys/abc'}}"
+        )
+        with patch("revision_sheets.worker.generate", side_effect=refusal):
+            worker.process(job)
+
+        with connection(self.database_url) as db:
+            failed = store.read_job(db, self.owner_id, job["id"])
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["error_code"], "provider_quota_exhausted")
+        self.assertIn("Key limit exceeded", failed["error_detail"])
+        # The two things that were working are not blamed, and the reader is
+        # told what to change instead of being invited to retry.
+        self.assertNotIn("worker/provider connection", failed["error_detail"])
+        self.assertIn("Raise the limit or add credit", failed["error_detail"])
+
+    def test_an_ordinary_failure_still_reads_as_one(self):
+        self.queue()
+        with connection(self.database_url) as db:
+            job = store.claim(db, "revision-worker-test", owner=self.owner_id)
+        worker = RevisionWorker(worker_id="revision-worker-test", database_url=self.database_url)
+
+        with patch("revision_sheets.worker.generate", side_effect=RuntimeError("boom")):
+            worker.process(job)
+
+        with connection(self.database_url) as db:
+            failed = store.read_job(db, self.owner_id, job["id"])
+        self.assertEqual(failed["error_code"], "generation_failed")
+
     def test_worker_publishes_atomically_and_rejects_changed_source(self):
         self.queue()
         with connection(self.database_url) as db:

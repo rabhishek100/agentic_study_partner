@@ -212,7 +212,13 @@ export function RevisionSheets({ books, selectedBookIds, noun }: {
           {active(job) && <Button type="button" variant="ghost" size="sm" disabled={job.cancellation_requested} onClick={() => {
             void apiFetch<RevisionJob>(`/revision-sheet-jobs/${job.id}/cancel`, { method: "POST" }).then(setJob).catch(e => setError(e.message));
           }}>Cancel generation</Button>}
-          {["failed", "cancelled"].includes(job.status) && <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={() => void mutate(`/revision-sheet-jobs/${job.id}/retry`)}>Retry generation</Button>}
+          {/*
+            No retry when the provider refused on spend: the same request would
+            be refused again, and offering the button is what sent readers round
+            a retry loop while an exhausted monthly key limit stayed exhausted.
+            The failure detail already says what to change.
+          */}
+          {["failed", "cancelled"].includes(job.status) && job.error_code !== "provider_quota_exhausted" && <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={() => void mutate(`/revision-sheet-jobs/${job.id}/retry`)}>Retry generation</Button>}
         </div>}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {loading && <p role="status" className="p-6 text-sm text-muted-foreground">Loading saved sheet…</p>}
