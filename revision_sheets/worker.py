@@ -82,7 +82,16 @@ class RevisionWorker:
             else:
                 code = "generation_failed"
                 detail = "Generation could not finish. Check the worker/provider connection and retry."
-            logger.warning("revision generation failed", extra={"job_id": str(job["id"]), "error_code": code}, exc_info=not isinstance(error, RevisionError))
+            # A RevisionError is expected and needs no stack — unless it was
+            # raised *from* something else, in which case that something is the
+            # actual failure and was previously invisible: "could not produce a
+            # valid sheet schema" was logged with no trace of what the schema
+            # had objected to.
+            logger.warning(
+                "revision generation failed",
+                extra={"job_id": str(job["id"]), "error_code": code},
+                exc_info=not isinstance(error, RevisionError) or error.__cause__ is not None,
+            )
             with connection(self.database_url) as db:
                 store.finish_failure(db, job["id"], self.worker_id, code, detail)
         finally:

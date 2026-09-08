@@ -15,7 +15,7 @@ from api.auth import current_owner
 from api.main import app
 from revision_sheets import store
 from revision_sheets.contracts import RevisionError, ScopeRequest, Sheet
-from revision_sheets.generate import LAYOUT_COMBINATIONS
+from revision_sheets.generate import LAYOUT_COMBINATIONS, SCHEMA_ATTEMPTS
 from revision_sheets.html_render import max_pages
 from revision_sheets.generate import Draft, generate
 from revision_sheets.render import render_pdf, diagram_layout
@@ -120,17 +120,28 @@ class ContractTests(unittest.TestCase):
             with self.assertRaises(RevisionError):
                 validate_sheet(sheet, allowed={"[N1:P1]"}, units={"u1": {"[N1:P1]"}}, figure_ids=set(), scope_kind="chapter")
 
-    def test_only_one_content_repair_and_one_layout_repair_are_allowed(self):
+    def test_content_repairs_are_bounded_and_one_layout_repair_is_allowed(self):
+        """Bounded, but not to a single attempt.
+
+        The model is nondeterministic, and one draft the schema rejects used to
+        end a job that costs real money to reach. It now gets
+        `SCHEMA_ATTEMPTS` tries; what has not changed is that the budget is
+        finite, so a model that never produces valid output cannot loop.
+        """
+
         bad = fixture(); bad.central_idea.citations = ["[N9:P99]"]
         model = SequenceModel(bad, fixture())
         sheet, pdf, provenance = generate(source_fixture(), model=model, images=([], [], []), review_clients=(None, None, None))
         self.assertEqual(len(model.calls), 2)
         self.assertEqual(provenance["content_repairs"], 1)
         self.assertTrue(pdf.startswith(b"%PDF"))
-        model = SequenceModel(bad, bad)
-        with self.assertRaises(RevisionError):
+        # A draft that is still wrong on the last permitted attempt fails, and
+        # the failure names what was wrong instead of only that something was.
+        model = SequenceModel(*[bad] * (SCHEMA_ATTEMPTS + 1))
+        with self.assertRaises(RevisionError) as caught:
             generate(source_fixture(), model=model, images=([], [], []), review_clients=(None, None, None))
-        self.assertEqual(len(model.calls), 2)
+        self.assertEqual(len(model.calls), SCHEMA_ATTEMPTS + 1)
+        self.assertIn("citations must be exact supplied markers", str(caught.exception))
         model = SequenceModel(fixture(), fixture())
         from revision_sheets import generate as generation_module
         real_render = generation_module.render_html_pdf

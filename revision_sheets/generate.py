@@ -126,6 +126,11 @@ def apply_sheet_patch(sheet: Sheet, patch: SheetPatch) -> Sheet:
 #
 # Named rather than inlined because the size of this sweep is load-bearing for
 # a test that has to exhaust it, and it has silently drifted twice.
+# How many times the model may be asked again for structurally valid output.
+# It is nondeterministic and occasionally returns a draft the schema rejects;
+# one bad roll should not end a job that costs real money to reach.
+SCHEMA_ATTEMPTS = 3
+
 LAYOUT_COMBINATIONS = (
     (2, 8), (2, 6), (2, 4), (2, 2), (2, 0),
     (1, 8), (1, 6), (1, 4), (1, 2), (1, 0),
@@ -264,9 +269,20 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
                 raw = client.invoke([SystemMessage(content=PROMPT), HumanMessage(content=[{"type": "text", "text": text}, *attached])])
                 draft = raw if isinstance(raw, Draft) else Draft.model_validate(raw)
         except (ValidationError, json.JSONDecodeError, OutputParserException, RevisionError) as error:
-            if state.get("content_repairs", 0):
-                raise RevisionError("invalid_content", "The model could not produce a valid sheet schema after repair.") from error
-            return {"feedback": str(error)[:5000], "content_repairs": 1, "next": "compose"}
+            if state.get("content_repairs", 0) >= SCHEMA_ATTEMPTS:
+                # The cause is named. Without it this said only "could not
+                # produce a valid sheet schema after repair", which is the
+                # shape of a problem and not the problem, and the worker logs
+                # no traceback for a RevisionError — so the actual reason was
+                # invisible in production.
+                raise RevisionError(
+                    "invalid_content",
+                    f"The model could not produce a valid sheet schema after "
+                    f"{SCHEMA_ATTEMPTS} attempts. Last error: "
+                    f"{type(error).__name__}: {str(error)[:400]}",
+                ) from error
+            return {"feedback": str(error)[:5000],
+                    "content_repairs": state.get("content_repairs", 0) + 1, "next": "compose"}
         if draft.sheet is None:
             raise RevisionError("insufficient_evidence", draft.missing_evidence or "The source cannot support a reliable sheet.")
         resolved = resolve_disposition_concepts(draft.sheet)
@@ -281,15 +297,15 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
             advisories = validate_sheet(state["sheet"], allowed=set(source.references), units=source.units,
                            figure_ids=set(inspected), scope_kind=source.request.scope_kind)
         except RevisionError as error:
-            if state.get("content_repairs", 0):
+            if state.get("content_repairs", 0) >= SCHEMA_ATTEMPTS:
                 raise
-            return {"feedback": str(error), "content_repairs": 1, "next": "compose"}
-        if advisories and not state.get("content_repairs", 0):
-            # Worth one attempt at compression, never worth failing over: if
-            # the sheet still renders inside the page limit, the proxy was
-            # wrong and the artifact is fine.
-            return {"feedback": "\n".join(advisories), "content_repairs": 1,
-                    "advisories": advisories, "next": "compose"}
+            return {"feedback": str(error), "content_repairs": state.get("content_repairs", 0) + 1, "next": "compose"}
+        # Advisories do not go back to the model and do not spend a repair.
+        # Sending an overlong sheet back to compose consumed the one content
+        # repair, so any schema hiccup on the recomposed draft then had no
+        # budget left and failed the whole job — trading a cosmetic proxy for
+        # the artifact itself. The renderer measures whether it really fits a
+        # few steps later, and the fit repair compresses it if it does not.
         return {"advisories": advisories, "next": "render"}
 
     def render(state: State):
@@ -375,7 +391,12 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
     collector = RunCollectorCallbackHandler()
     result = graph.compile().invoke({}, config={"run_name": "revision_sheet", "callbacks": [collector],
         "metadata": {"scope": source.request.key, "source_fingerprint": source.fingerprint,
-                     "prompt_version": PROMPT_VERSION, "model": model_name(), "job_id": job_id}, "recursion_limit": 32})
+                     "prompt_version": PROMPT_VERSION, "model": model_name(), "job_id": job_id},
+        # Every permitted repair is another pass through compose,
+        # validate, render and judge. Raised with the repair budgets so
+        # the graph settles on its own terms rather than tripping a
+        # limit that has nothing to say to a reader.
+        "recursion_limit": 64})
     return result["sheet"], result["pdf"], {"model": model_name(), "prompt_version": PROMPT_VERSION,
         "schema_version": SCHEMA_VERSION, "layout_version": LAYOUT_VERSION,
         # Counted from the artifact rather than assumed: this said 2 for as long

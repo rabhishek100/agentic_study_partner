@@ -65,6 +65,55 @@ class DensityIsAdvisoryTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "invalid_content")
 
 
+class AdvisoriesDoNotSpendRepairsTests(unittest.TestCase):
+    """An advisory must not eat the budget a real error needs.
+
+    Making density advisory was right; routing it back to the model was not.
+    It consumed the single content repair, so the very next draft the schema
+    rejected had nothing left and failed the whole job — trading a cosmetic
+    proxy for the artifact. Production hit exactly that: "The model could not
+    produce a valid sheet schema after repair."
+    """
+
+    def test_an_overlong_sheet_goes_straight_to_the_renderer(self) -> None:
+        import sys
+        sys.path.insert(0, "tests")
+        from test_revision_sheets import fixture, source_fixture, SequenceModel
+        from revision_sheets.generate import generate
+        from revision_sheets.review import (
+            Inventory, EvidenceConcept, Review, Score, Coverage,
+        )
+
+        concept = EvidenceConcept(id="c1", label="Fixture", explanation="Fixture",
+                                  citations=["[N1:P1]"], importance="essential")
+        good = Score(score=4, rationale="Fine")
+        review = Review(
+            beauty=good, presentation=good, concept_coverage=good, conciseness=good,
+            coverage=[Coverage(concept_id="c1", item_ids=[fixture().central_idea.id],
+                               status="covered", reason="Covered")],
+            unsupported_claims=[], unresolved_contradictions=[], revision_instructions=[],
+        )
+        model = SequenceModel(fixture())
+        with (
+            patch("revision_sheets.generate.make_inventory",
+                  return_value=Inventory(concepts=[concept], contradictions=[], source_coverage=[])),
+            patch("revision_sheets.generate.judge_sheet", return_value=review),
+            patch("revision_sheets.generate.validate_sheet",
+                  return_value=["The visible sheet has 2000 words."]),
+        ):
+            _, pdf, provenance = generate(
+                source_fixture(), model=model, images=([], [], []),
+                review_clients=(None, None, None),
+            )
+
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        # The model was asked once. The advisory did not send it back, and the
+        # repair budget is untouched and available for a real schema failure.
+        self.assertEqual(len(model.calls), 1)
+        self.assertEqual(provenance["content_repairs"], 0)
+        self.assertEqual(provenance["advisories"], ["The visible sheet has 2000 words."])
+
+
 class ReviewDoesNotGateTests(unittest.TestCase):
     """After its revisions are spent, the reviewer informs rather than blocks."""
 
