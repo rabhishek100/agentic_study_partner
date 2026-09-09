@@ -77,6 +77,8 @@ variants. If a tone is needed often enough to use, it is a role.
 | `foreground` | `#F2EEE4` | `#17231F` | Reading text. |
 | `muted` | `#A8C4B5` | `#586A63` | Secondary information. |
 | `divider` | `#263930` | `#D5D7CB` | Decorative separation. **Not** a control boundary. |
+| `scrim` | `canvas` @ 90% | `canvas` @ 90% | Behind a dialog or drawer where `backdrop-filter` is unsupported, so the fill hides the page on its own. |
+| `scrim-veil` | `canvas` @ 55% | `canvas` @ 55% | Behind a dialog or drawer *with* a 12px backdrop blur. The blur separates; a heavier fill would black the app out, which is how this started. |
 | `border` | `#4A6F5D` | `#7F8175` | Control boundaries. Meets 3:1. |
 | `action` | `#69D39F` | `#255E50` | Focus, selection, primary action, progress. |
 | `action-hover` | `#8CDFB4` | `#1A4A3E` | The hover state of an action fill. |

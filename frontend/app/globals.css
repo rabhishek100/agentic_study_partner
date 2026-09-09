@@ -55,6 +55,15 @@
 
     /* Semantic roles. */
     --color-canvas: var(--canvas);
+    /*
+     * The scrim behind a dialog or drawer. Two roles, not one opacity knob:
+     * `scrim` stands alone where `backdrop-filter` is unsupported and has to
+     * hide the page by itself, and `scrim-veil` is the thinner fill used *with*
+     * a blur, where the blur does the separating and an opaque fill would just
+     * black the app out.
+     */
+    --color-scrim: var(--scrim);
+    --color-scrim-veil: var(--scrim-veil);
     --color-surface: var(--surface);
     --color-raised: var(--raised);
     --color-divider: var(--divider);
@@ -180,6 +189,8 @@
 
     /* ── Washi · light ──────────────────────────────────────────────── */
     --canvas: #f4f0e6;
+    --scrim: color-mix(in oklab, var(--canvas) 90%, transparent);
+    --scrim-veil: color-mix(in oklab, var(--canvas) 55%, transparent);
     --surface: #fffdf7;
     --raised: #fffdf7;
     --foreground: #17231f;
@@ -260,6 +271,8 @@
 .dark {
     /* ── Sumi · dark ────────────────────────────────────────────────── */
     --canvas: #070b0a;
+    --scrim: color-mix(in oklab, var(--canvas) 90%, transparent);
+    --scrim-veil: color-mix(in oklab, var(--canvas) 55%, transparent);
     --surface: #0d1714;
     --raised: #101a17;
     --foreground: #f2eee4;
@@ -517,6 +530,21 @@
      * wants the shorter line, and on a phone the cap does nothing at all —
      * which is the case this exists for.
      */
+    /*
+     * A frosted scrim is a transparency effect, and some readers ask their
+     * system for less of it — vestibular sensitivity, low vision, or simply
+     * finding it hard to read against. Honour that by putting the opaque fill
+     * back rather than leaving them the thin 55% one, which separates the
+     * dialog from the page far less well than either alternative.
+     */
+    @media (prefers-reduced-transparency: reduce) {
+        [data-slot="dialog-overlay"],
+        [data-slot="sheet-overlay"] {
+            background-color: var(--canvas);
+            backdrop-filter: none;
+        }
+    }
+
     .reading-passage {
         font-size: var(--reading-size, 1.0625rem);
         max-width: var(--reading-measure, 62ch);
