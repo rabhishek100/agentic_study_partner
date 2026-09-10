@@ -22,7 +22,7 @@ from livekit.agents import (
 from interviews import store
 from interviews.livekit_voice import (
     AGENT_NAME, EVENT_TOPIC, RPC_METHOD, VoiceBinding, VoiceCommand,
-    saved_utterance, voice_event,
+    saved_utterance, voice_event, voice_metric_cost_usd,
 )
 from storage.database import connection as database_connection
 
@@ -70,10 +70,26 @@ class InterviewMedia:
             provider.on("metrics_collected", self.record_metrics)
 
     def record_metrics(self, metrics):
+        payload = metrics.model_dump(mode="json")
         logger.info(json.dumps({
             "event": "interview_voice_usage", "session_id": str(self.binding.session_id),
-            "room": self.binding.room_name, "metrics": metrics.model_dump(mode="json"),
+            "room": self.binding.room_name, "metrics": payload,
         }))
+        cost = voice_metric_cost_usd(payload)
+        if cost:
+            try:
+                with database_connection() as connection:
+                    store.add_voice_cost(
+                        connection, self.binding.session_id,
+                        owner_id=self.binding.owner_id, cost_usd=cost,
+                    )
+            except Exception:
+                # Accounting must be visible, but a transient database failure
+                # must not stop live media in the middle of an interview.
+                logger.exception(
+                    "Failed to persist interview voice cost",
+                    extra={"session_id": str(self.binding.session_id)},
+                )
 
     def load_session(self):
         with database_connection() as connection:

@@ -194,6 +194,7 @@ export interface InterviewSession {
   checkpoint: InterviewCheckpoint;
   metrics: InterviewMetrics;
   total_cost_usd: number;
+  voice_cost_usd: number;
   turns: InterviewTurn[];
   created_at: string | null;
   updated_at: string | null;

@@ -40,7 +40,7 @@ SESSION_COLUMNS = """
     coding_exercise_requested,
     maximum_duration_minutes, estimated_min_minutes, estimated_max_minutes,
     status, elapsed_seconds, active_since, started_at, completed_at, state_json,
-    metrics_json, total_cost_usd, created_at, updated_at
+    metrics_json, total_cost_usd, voice_cost_usd, created_at, updated_at
 """
 
 
@@ -155,6 +155,7 @@ def _session(
         checkpoint=InterviewCheckpoint.model_validate(row["state_json"] or {}),
         metrics=InterviewMetrics.model_validate(row["metrics_json"] or {}),
         total_cost_usd=float(row["total_cost_usd"] or 0),
+        voice_cost_usd=float(row["voice_cost_usd"] or 0),
         turns=turns,
         created_at=row["created_at"],
         updated_at=row["updated_at"],
@@ -604,6 +605,33 @@ def add_cost(
         where id = %s and owner_id = %s
         """,
         (cost_usd, UUID(str(session_id)), parse_owner_id(owner_id)),
+    )
+
+
+def add_voice_cost(
+    connection: Connection,
+    session_id: str | UUID,
+    *,
+    owner_id: str | UUID,
+    cost_usd: float,
+) -> None:
+    """Add metered speech cost to both the voice subtotal and session total."""
+    if cost_usd <= 0:
+        return
+    connection.execute(
+        """
+        update public.interview_sessions
+        set voice_cost_usd = voice_cost_usd + %s,
+            total_cost_usd = total_cost_usd + %s,
+            updated_at = now()
+        where id = %s and owner_id = %s
+        """,
+        (
+            cost_usd,
+            cost_usd,
+            UUID(str(session_id)),
+            parse_owner_id(owner_id),
+        ),
     )
 
 

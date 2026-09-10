@@ -302,6 +302,7 @@ class InterviewSession(ContractModel):
     checkpoint: InterviewCheckpoint
     metrics: InterviewMetrics = Field(default_factory=InterviewMetrics)
     total_cost_usd: float = Field(default=0, ge=0)
+    voice_cost_usd: float = Field(default=0, ge=0)
     turns: list[InterviewTurn] = Field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None

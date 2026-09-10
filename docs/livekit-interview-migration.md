@@ -141,9 +141,13 @@ room name, and SDK-provided STT/TTS metrics. It does not store audio, transcript
 from the media stream, or screenshots. Only explicitly submitted answers reach
 the existing canonical interview store. SDK room recording is disabled.
 
-LiveKit media/inference charges are **not included** in the stored interview
-cost total yet; the interface discloses this. Reconcile Cloud usage with those
-logs for the pilot. Existing LangSmith reasoning traces remain unchanged.
+LiveKit media/inference charges are added to the stored interview total and a
+separate `voice_cost_usd` subtotal. Rates are configurable because provider
+pricing changes; the defaults are the current Build/Ship prices for Deepgram
+Nova-3 monolingual and Cartesia Sonic 3. Reconcile Cloud usage with structured
+worker logs during the pilot. Existing LangSmith reasoning traces remain unchanged.
+The source for those defaults is LiveKit's public inference pricing page:
+<https://livekit.com/pricing/inference>.
 The pilot must validate playback timing, STT finalization, device switching,
 autoplay unlocking, reconnect behavior, and cost before default enablement.
 
@@ -200,6 +204,9 @@ characters) and fourteen STT metric events (37.4 seconds of audio) in the
 inspected 250-line worker log window. Median provider TTS time to first byte
 was 0.205 seconds across those four events. This is provider latency, not
 browser playback latency or evidence of an improvement over the old transport.
+At the current defaults, that observed voice usage is approximately $0.0312.
+It predates the cost migration, so the historical report retains its original
+model-only total rather than being rewritten from a partial log window.
 
 Disconnect exposed a cleanup exception: LiveKit had already closed AgentSession
 before the job shutdown callback called `interrupt`. Cleanup now delegates
@@ -209,11 +216,11 @@ hook tests cover explicit restart after reconnect, stale transcript rejection,
 and leaving an interview while its token request is pending. The backend
 interview/voice suite now passes 88 tests; frontend type checking passes.
 
-Remaining evaluation: a complete interview through its final report, physical
-microphone switching, paired legacy/LiveKit transcript and playback measurements,
-and reconciliation with billed Cloud usage. Provider usage is currently logged;
-the application does not yet persist or price it in session cost totals. Do not
-interpret the existing total as an all-inclusive interview cost.
+The production smoke test completed an interview through its final cited report.
+Physical microphone switching and a paired legacy/LiveKit benchmark remain useful
+follow-up evaluation rather than release gates. Provider usage is logged and new
+usage is priced into the session total. Sessions completed before the cost
+migration retain their historical model-only totals.
 
 ### CI release fixes (2026-09-10)
 

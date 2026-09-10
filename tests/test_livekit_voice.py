@@ -14,12 +14,21 @@ from interviews import store
 from interviews.contracts import InterviewTurn
 from interviews.livekit_voice import (
     VoiceCommand, VoiceUnavailable, create_voice_connection, saved_utterance,
+    voice_metric_cost_usd,
 )
 from interviews.service import answer_interview
 from tests.test_interviews import evaluation, question, session
 
 
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
+
+
+def test_voice_usage_uses_configurable_metered_rates(monkeypatch):
+    monkeypatch.setenv("LIVEKIT_INTERVIEW_STT_USD_PER_MINUTE", "0.006")
+    monkeypatch.setenv("LIVEKIT_INTERVIEW_TTS_USD_PER_MILLION_CHARACTERS", "40")
+    assert voice_metric_cost_usd({"type": "stt_metrics", "audio_duration": 30}) == pytest.approx(0.003)
+    assert voice_metric_cost_usd({"type": "tts_metrics", "characters_count": 500}) == pytest.approx(0.02)
+    assert voice_metric_cost_usd({"type": "llm_metrics", "input_tokens": 500}) == 0
 
 
 def active_session():

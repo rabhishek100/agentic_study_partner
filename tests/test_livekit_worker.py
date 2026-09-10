@@ -1,6 +1,7 @@
 """Exercise stream concurrency and worker authority without provider calls."""
 
 import asyncio
+from contextlib import nullcontext
 from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
@@ -57,6 +58,22 @@ def test_disconnect_cleanup_closes_providers_after_session_already_stopped():
     worker.speech.aclose.assert_awaited_once()
     worker.stt.aclose.assert_awaited_once()
     worker.tts.aclose.assert_awaited_once()
+
+
+def test_provider_metric_is_added_to_the_owner_scoped_session_total():
+    worker = media()
+    metric = Mock(model_dump=Mock(return_value={
+        "type": "tts_metrics", "characters_count": 1_000,
+    }))
+    connection = Mock()
+    with patch("interviews.voice_worker.database_connection", return_value=nullcontext(connection)), patch(
+        "interviews.voice_worker.store.add_voice_cost",
+    ) as add_voice_cost:
+        worker.record_metrics(metric)
+    add_voice_cost.assert_called_once()
+    assert add_voice_cost.call_args.args == (connection, worker.binding.session_id)
+    assert add_voice_cost.call_args.kwargs["owner_id"] == OWNER
+    assert add_voice_cost.call_args.kwargs["cost_usd"] == pytest.approx(0.05)
 
 
 def test_worker_rejects_arbitrary_speech_text():

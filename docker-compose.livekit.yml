@@ -21,6 +21,8 @@ services:
     environment:
       START_COMMAND: python -m interviews.voice_worker start
       DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
+      LIVEKIT_INTERVIEW_STT_USD_PER_MINUTE: ${LIVEKIT_INTERVIEW_STT_USD_PER_MINUTE:-0.0048}
+      LIVEKIT_INTERVIEW_TTS_USD_PER_MILLION_CHARACTERS: ${LIVEKIT_INTERVIEW_TTS_USD_PER_MILLION_CHARACTERS:-50}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

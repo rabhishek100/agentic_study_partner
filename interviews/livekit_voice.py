@@ -28,6 +28,20 @@ class VoiceUnavailable(RuntimeError):
     pass
 
 
+def voice_metric_cost_usd(metrics: dict[str, object]) -> float:
+    """Price an SDK usage event using configurable LiveKit Build/Ship rates."""
+    kind = metrics.get("type")
+    if kind == "stt_metrics":
+        seconds = max(0.0, float(metrics.get("audio_duration") or 0))
+        rate = float(os.getenv("LIVEKIT_INTERVIEW_STT_USD_PER_MINUTE", "0.0048"))
+        return seconds * max(0.0, rate) / 60
+    if kind == "tts_metrics":
+        characters = max(0, int(metrics.get("characters_count") or 0))
+        rate = float(os.getenv("LIVEKIT_INTERVIEW_TTS_USD_PER_MILLION_CHARACTERS", "50"))
+        return characters * max(0.0, rate) / 1_000_000
+    return 0.0
+
+
 class VoiceConnection(ContractModel):
     server_url: str
     participant_token: str
