@@ -51,6 +51,8 @@ import {
   useInterviewVoice,
 } from "@/hooks/use-interview-voice";
 import { useScreenShare } from "@/hooks/use-screen-share";
+import { useLivekitInterview } from "@/hooks/use-livekit-interview";
+import { LIVEKIT_INTERVIEWS } from "@/lib/livekit-interview";
 import { useSession } from "@/hooks/use-session";
 import { ApiError, apiFetch, errorDetail, uploadUrl } from "@/lib/api";
 import { transcribeInterviewRecording } from "@/lib/dictation";
@@ -259,7 +261,7 @@ function SessionReportView({ report }: { report: InterviewReport }) {
           <div><h1 className="font-serif text-3xl font-semibold">Your interview report</h1><p className="mt-2 text-muted-foreground">{session.title.replace("Interview · ", "")} · {session.metrics.questions_answered} answered</p></div>
           <div className="rounded-xl bg-wash px-6 py-4 text-foreground"><p className="text-xs font-medium uppercase tracking-wider opacity-75">Overall</p><p className="mt-1 text-4xl font-semibold tabular-nums">{session.metrics.overall_score?.toFixed(1) ?? "—"}<span className="text-lg opacity-75">/5</span></p></div>
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Coverage</p><p className="mt-1 text-sm font-medium">{session.metrics.topics_covered} of {session.metrics.topics_required} topics</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Active time</p><p className="mt-1 text-sm font-medium">{clock(session.elapsed_seconds)}</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Provider cost</p><p className="mt-1 text-sm font-medium">${session.total_cost_usd.toFixed(4)} · ≈₹{(session.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)}</p></div></div>
+        <p className="mt-4 text-xs text-muted-foreground">LiveKit voice usage, when enabled, is not included in the provider total below.</p><div className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Coverage</p><p className="mt-1 text-sm font-medium">{session.metrics.topics_covered} of {session.metrics.topics_required} topics</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Active time</p><p className="mt-1 text-sm font-medium">{clock(session.elapsed_seconds)}</p></div><div className="rounded-lg bg-muted p-3"><p className="text-xs text-muted-foreground">Provider cost</p><p className="mt-1 text-sm font-medium">${session.total_cost_usd.toFixed(4)} · ≈₹{(session.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)}</p></div></div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
@@ -332,7 +334,24 @@ export default function InterviewWorkspace() {
   const dictationTargetRef = useRef<"answer" | "clarification">("answer");
   const submissionControllerRef = useRef<AbortController | null>(null);
   const submissionInFlightRef = useRef(false);
-  const speech = useInterviewerSpeech();
+  const legacySpeech = useInterviewerSpeech();
+  const appendLiveTranscript = useCallback((text: string) => {
+    if (dictationTargetRef.current === "clarification") {
+      setClarificationQuestion((draft) => appendTranscriptSegment(draft, text));
+    } else {
+      setAnswer((draft) => appendTranscriptSegment(draft, text));
+    }
+  }, []);
+  const livekit = useLivekitInterview({
+    enabled: LIVEKIT_INTERVIEWS,
+    sessionId,
+    turnIndex: interview ? pendingTurn(interview)?.turn_index ?? 0 : 0,
+    onTranscript: appendLiveTranscript,
+  });
+  const speech = LIVEKIT_INTERVIEWS ? livekit.speech : legacySpeech;
+  useEffect(() => {
+    if (LIVEKIT_INTERVIEWS) releasePrimedInterviewAudio();
+  }, []);
   const screen = useScreenShare();
 
   const pending = interview ? pendingTurn(interview) : null;
@@ -350,10 +369,11 @@ export default function InterviewWorkspace() {
 
   const setDictationTarget = useCallback(
     (target: "answer" | "clarification") => {
+      if (LIVEKIT_INTERVIEWS && target !== dictationTargetRef.current) livekit.voice.stop();
       dictationTargetRef.current = target;
       setDictationTargetState(target);
     },
-    [],
+    [livekit.voice.stop],
   );
 
   useEffect(() => {
@@ -453,6 +473,7 @@ export default function InterviewWorkspace() {
           answer_text: value,
           transcript_corrected: corrected,
           coding_answer: codingAnswer,
+          expected_turn_index: answeredTurnIndex,
         }),
         signal: controller.signal,
       });
@@ -547,7 +568,8 @@ export default function InterviewWorkspace() {
     }
   }, [sessionId]);
 
-  const voice = useInterviewVoice({ onRecording: handleRecording, onVoiceStart: speech.stop });
+  const legacyVoice = useInterviewVoice({ onRecording: handleRecording, onVoiceStart: speech.stop });
+  const voice = LIVEKIT_INTERVIEWS ? livekit.voice : legacyVoice;
 
   const askClarification = useCallback(async () => {
     const value = clarificationQuestion.trim();
@@ -729,7 +751,7 @@ export default function InterviewWorkspace() {
     finally { endOperation(); }
   }, [beginOperation, endOperation, sessionId, speech.stop, voice.stop]);
   const resume = useCallback(async () => {
-    primeInterviewAudio();
+    if (!LIVEKIT_INTERVIEWS) primeInterviewAudio();
     primeInterviewerSpeech();
     lastSpokenRef.current = null;
     setListeningPaused(false);
@@ -1064,8 +1086,8 @@ export default function InterviewWorkspace() {
                                 : "Capturing this part of your answer…"
                               : voice.status === "processing"
                                 ? dictationTarget === "clarification"
-                                  ? "Whisper is transcribing into the clarification box…"
-                                  : "Whisper is transcribing this segment into your answer…"
+                                  ? "Speech recognition is transcribing into the clarification box…"
+                                  : "Speech recognition is transcribing this segment into your answer…"
                                 : voice.status === "listening"
                                   ? voice.mode === "automatic"
                                     ? dictationTarget === "clarification"
@@ -1172,7 +1194,10 @@ export default function InterviewWorkspace() {
                       ) : null}
                       <div className="mt-3 flex items-center justify-between gap-3">
                         {voice.mode === "push_to_talk" && voice.status !== "idle" ? (
-                          <Button type="button" variant="secondary" onPointerDown={voice.beginPush} onPointerUp={voice.endPush} onPointerCancel={voice.endPush}>
+                          <Button type="button" variant="secondary" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); void voice.beginPush(); }} onPointerUp={voice.endPush} onPointerCancel={voice.endPush}
+                            onKeyDown={(event) => { if ((event.key === " " || event.key === "Enter") && !event.repeat) { event.preventDefault(); void voice.beginPush(); } }}
+                            onKeyUp={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); voice.endPush(); } }}
+                            onBlur={voice.endPush}>
                             <Mic aria-hidden />Hold to talk
                           </Button>
                         ) : <span />}
@@ -1252,7 +1277,7 @@ export default function InterviewWorkspace() {
                     ) : null}
                   </PanelContent>
                 </Panel>
-                <Panel><PanelHeader className="pb-3"><PanelTitle className="flex items-center gap-2 text-base"><Clock3 aria-hidden className="size-4" />Session budget</PanelTitle></PanelHeader><PanelContent><div className="flex items-end justify-between"><div><p className="text-2xl font-semibold tabular-nums">${interview.total_cost_usd.toFixed(4)}</p><p className="text-xs text-muted-foreground">≈₹{(interview.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)} provider cost</p></div><span className="text-xs text-muted-foreground">Target ₹5–10</span></div><Progress className="mt-3" value={Math.min(100, (interview.total_cost_usd * INR_PER_USD_ESTIMATE / 10) * 100)} /><p className="mt-3 text-xs leading-5 text-muted-foreground">Raw audio and screen images are discarded after processing.</p></PanelContent></Panel>
+                <Panel><PanelHeader className="pb-3"><PanelTitle className="flex items-center gap-2 text-base"><Clock3 aria-hidden className="size-4" />Session budget</PanelTitle></PanelHeader><PanelContent><div className="flex items-end justify-between"><div><p className="text-2xl font-semibold tabular-nums">${interview.total_cost_usd.toFixed(4)}</p><p className="text-xs text-muted-foreground">≈₹{(interview.total_cost_usd * INR_PER_USD_ESTIMATE).toFixed(1)} provider cost</p></div><span className="text-xs text-muted-foreground">Target ₹5–10</span></div><Progress className="mt-3" value={Math.min(100, (interview.total_cost_usd * INR_PER_USD_ESTIMATE / 10) * 100)} /><p className="mt-3 text-xs leading-5 text-muted-foreground">Raw audio and screen images are discarded after processing. LiveKit voice usage, when enabled, is billed separately and is not included in this total.</p></PanelContent></Panel>
               </aside>
             </div>
           </div>

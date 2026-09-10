@@ -156,7 +156,7 @@ export function describeInterviewActivity({
     return {
       tone: "working",
       title: "Connecting your microphone",
-      detail: "Opening the selected input and calibrating to the room noise level.",
+      detail: "Opening the selected microphone and preparing voice capture.",
     };
   }
   if (voiceStatus === "processing") {
@@ -168,8 +168,8 @@ export function describeInterviewActivity({
           : "Transcribing your latest answer segment",
       detail:
         dictationTarget === "clarification"
-          ? "Whisper will place these words only in the clarification box."
-          : "Whisper will append these words only to your answer draft.",
+          ? "Transcription will place these words only in the clarification box."
+          : "Transcription will append these words only to your answer draft.",
     };
   }
   if (voiceStatus === "recording") {

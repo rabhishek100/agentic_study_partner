@@ -27,6 +27,7 @@ from interviews.contracts import (
 )
 from interviews.evaluation import interviewer_reaction
 from interviews.models import InterviewModelError
+from interviews.livekit_voice import VoiceConnection, VoiceUnavailable, create_voice_connection
 from interviews.planning import InterviewSourceError
 from interviews.screen import (
     MAXIMUM_SCREEN_BYTES,
@@ -109,6 +110,7 @@ class AnswerRequest(ContractModel):
     answer_text: str = Field(min_length=1, max_length=12_000)
     transcript_corrected: bool = False
     coding_answer: PythonCodingAnswer | None = None
+    expected_turn_index: int | None = Field(default=None, ge=0)
 
 
 class ClarificationRequest(ContractModel):
@@ -336,12 +338,33 @@ async def answer(
                 answer_text=request.answer_text,
                 transcript_corrected=request.transcript_corrected,
                 coding_answer=request.coding_answer,
+                expected_turn_index=request.expected_turn_index,
             )
 
     try:
         return _public(await run_in_threadpool(run))
     except Exception as error:
         logger.exception("Interview answer failed", extra={"session_id": str(session_id)})
+        raise _translate(error) from error
+
+
+@router.post("/{session_id}/voice-connection", response_model=VoiceConnection)
+async def voice_connection(
+    session_id: UUID,
+    response: Response,
+    owner_id: UUID = Depends(current_owner),
+) -> VoiceConnection:
+    def connect():
+        with database_connection() as connection:
+            session = store.load_session(connection, session_id, owner_id=owner_id)
+        return create_voice_connection(session, owner_id)
+
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return await run_in_threadpool(connect)
+    except VoiceUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except Exception as error:
         raise _translate(error) from error
 
 

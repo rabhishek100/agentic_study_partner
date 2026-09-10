@@ -32,6 +32,12 @@ dependencies = [
     "playwright>=1.55,<2",
 ]
 
+[project.optional-dependencies]
+voice = [
+    "livekit-agents>=1.8,<2",
+    "livekit-api>=1,<2",
+]
+
 [dependency-groups]
 dev = [
     "markdown-it-py>=4,<5",
