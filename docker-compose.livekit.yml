@@ -1,0 +1,28 @@
+# Opt-in overlay: docker compose -f docker-compose.yml -f docker-compose.livekit.yml up --build
+services:
+  api:
+    build:
+      args:
+        INSTALL_VOICE: "true"
+    environment:
+      INTERVIEW_LIVEKIT_ENABLED: "true"
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_INTERVIEW_LIVEKIT_ENABLED: "true"
+  voice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_VOICE: "true"
+    env_file:
+      - .env
+    environment:
+      START_COMMAND: python -m interviews.voice_worker start
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}}
+      LIVEKIT_INTERVIEW_STT_USD_PER_MINUTE: ${LIVEKIT_INTERVIEW_STT_USD_PER_MINUTE:-0.0048}
+      LIVEKIT_INTERVIEW_TTS_USD_PER_MILLION_CHARACTERS: ${LIVEKIT_INTERVIEW_TTS_USD_PER_MILLION_CHARACTERS:-50}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

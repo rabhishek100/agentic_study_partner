@@ -438,6 +438,11 @@ same thing. A device chosen and later unplugged does not silently demote to
 the laptop lid: the request fails against the exact device, the stored choice
 is dropped, and the recording restarts on the system default.
 
+An opt-in LiveKit Cloud voice transport is under evaluation. Its feature flags,
+worker setup, migration plan, and live validation checklist are documented in
+[`docs/livekit-interview-migration.md`](docs/livekit-interview-migration.md).
+The existing HTTP voice transport remains the default.
+
 **Interviews** run an adaptive, source-grounded mock interview over one book
 chapter or one lecture. Choose a 15, 30, 45, 60, 90, or 120 minute ceiling,
 entry/mid/senior level, and realistic or guided feedback. The ceiling is not a

@@ -270,6 +270,7 @@ def answer_interview(
     answer_text: str,
     coding_answer: PythonCodingAnswer | None = None,
     transcript_corrected: bool = False,
+    expected_turn_index: int | None = None,
     evaluation_model: Any | None = None,
     question_model: Any | None = None,
 ) -> InterviewSession:
@@ -281,6 +282,8 @@ def answer_interview(
     )
     if current is None:
         raise store.InterviewStateError("the interview has no unanswered question")
+    if expected_turn_index is not None and current.turn_index != expected_turn_index:
+        raise store.InterviewStateError("that answer belongs to a different interview turn")
     expects_code = current.question.coding_exercise is not None
     if expects_code and coding_answer is None:
         raise ValueError("this coding question requires a submitted Python artifact")

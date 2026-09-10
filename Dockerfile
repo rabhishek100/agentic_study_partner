@@ -9,7 +9,10 @@ WORKDIR /app
 
 COPY --from=uv /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-cache --no-dev --no-install-project
+ARG INSTALL_VOICE=false
+RUN if [ "$INSTALL_VOICE" = "true" ]; then \
+      uv sync --frozen --no-cache --no-dev --no-install-project --extra voice; \
+    else uv sync --frozen --no-cache --no-dev --no-install-project; fi
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
         libgl1 \
