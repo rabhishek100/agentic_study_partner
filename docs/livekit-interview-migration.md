@@ -214,3 +214,12 @@ microphone switching, paired legacy/LiveKit transcript and playback measurements
 and reconciliation with billed Cloud usage. Provider usage is currently logged;
 the application does not yet persist or price it in session cost totals. Do not
 interpret the existing total as an all-inclusive interview cost.
+
+### CI release fixes (2026-09-10)
+
+Production dependency auditing now passes after updating the lockfile to Next.js
+16.3.4, sharp 0.35.4, and baseline-browser-mapping 2.11.21. All 703 frontend
+tests and the LiveKit-enabled production build passed with these updates.
+The Python CI failure consisted of eight PDF-rendering tests whose Chromium
+executable was missing; CI now installs Chromium and its system dependencies
+before running those tests. These supersede the initial audit findings above.
