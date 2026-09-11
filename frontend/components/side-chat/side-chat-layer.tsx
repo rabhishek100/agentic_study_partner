@@ -43,7 +43,11 @@ export interface SideChatLayerProps {
   onMinimize: (sideChatId: string, minimized: boolean) => void;
   onClose: (sideChatId: string) => void;
   onFocus: (sideChatId: string) => void;
-  onSettled: (sideChatId: string, recorded: boolean) => void;
+  onSettled: (
+    sideChatId: string,
+    recorded: boolean,
+    turn?: SideChatTurn<unknown>,
+  ) => void;
   onAnchorsChange: (sideChatId: string, anchors: Anchor[]) => void;
   surface: SideChatSurface;
   renderTurns: (state: {
@@ -212,7 +216,7 @@ export function SideChatLayer({
                 onMinimize={() => onMinimize(id, true)}
                 onClose={() => onClose(id)}
                 onFocus={() => onFocus(id)}
-                onSettled={(recorded) => onSettled(id, recorded)}
+                onSettled={(recorded, turn) => onSettled(id, recorded, turn)}
                 onAnchorsChange={(anchors) => onAnchorsChange(id, anchors)}
                 surface={surface}
                 renderTurns={renderTurns}
@@ -241,7 +245,7 @@ export function SideChatLayer({
             onMinimize={() => onMinimize(id, true)}
             onClose={() => onClose(id)}
             onFocus={() => onFocus(id)}
-            onSettled={(recorded) => onSettled(id, recorded)}
+            onSettled={(recorded, turn) => onSettled(id, recorded, turn)}
             onAnchorsChange={(anchors) => onAnchorsChange(id, anchors)}
             surface={surface}
             renderTurns={renderTurns}

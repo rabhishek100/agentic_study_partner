@@ -31,6 +31,12 @@ from narration.synthesis import (
     configured_voice,
     synthesize_speech,
 )
+from narration.livekit_voice import (
+    VoiceConnection,
+    VoiceUnavailable,
+    create_voice_connection,
+)
+from storage.conversations import load_conversation
 from storage.database import connection as database_connection
 
 
@@ -64,6 +70,28 @@ class FigureNarrationResponse(BaseModel):
 
 class SpeechRequest(BaseModel):
     text: str = Field(min_length=1, max_length=MAXIMUM_TTS_CHARACTERS)
+
+
+@router.post("/voice-connections/{conversation_id}", response_model=VoiceConnection)
+async def narration_voice_connection(
+    conversation_id: UUID,
+    owner_id: UUID = Depends(current_owner),
+) -> VoiceConnection:
+    """Mint a microphone-only room token after conversation ownership checks."""
+
+    def create() -> VoiceConnection:
+        with database_connection(readonly=True) as connection:
+            conversation = load_conversation(
+                connection, conversation_id, owner_id=owner_id
+            )
+        if conversation is None or conversation["parent_conversation_id"] is not None:
+            raise HTTPException(status_code=404, detail="conversation not found")
+        return create_voice_connection(conversation_id, owner_id)
+
+    try:
+        return await run_in_threadpool(create)
+    except VoiceUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 @router.post("/figures", response_model=FigureNarrationResponse)

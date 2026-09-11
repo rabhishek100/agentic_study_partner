@@ -59,6 +59,7 @@ interface VideoAnswerProps {
   citations: VideoCitationRef[];
   onSeek(milliseconds: number): void;
   onOpenDocument(target: VideoDocumentTarget): void;
+  narrationId?: string;
 }
 
 /**
@@ -341,6 +342,7 @@ export function VideoAnswer({
   citations,
   onSeek,
   onOpenDocument,
+  narrationId,
 }: VideoAnswerProps) {
   const byRank = useMemo(
     () => new Map(evidence.map((item) => [item.rank, item])),
@@ -380,6 +382,7 @@ export function VideoAnswer({
         // chat to. Without it the selection popover refuses every lecture
         // selection, because reference cards and controls are not passages.
         data-answer=""
+        data-narration-anchor={narrationId}
         className={cn(
           "text-sm leading-relaxed",
           "[&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6",

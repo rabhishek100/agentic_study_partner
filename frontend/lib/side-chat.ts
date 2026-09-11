@@ -75,6 +75,7 @@ export interface SideChatTurn<TResult> {
   status: "streaming" | "complete" | "stopped" | "failed";
   result: TResult | null;
   error: string | null;
+  turnIndex?: number;
 }
 
 /** The turn shape both conversation-detail endpoints return. */

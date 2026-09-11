@@ -133,6 +133,7 @@ export function SideChatTurns({
 
           {turn.answer && (
             <Answer
+              narrationId={`side-turn-${turn.id}`}
               text={turn.answer}
               evidence={turn.result?.evidence ?? []}
               citations={turn.result?.citations ?? []}

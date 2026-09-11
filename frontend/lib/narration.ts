@@ -33,6 +33,12 @@ export interface NarrationScript {
   figures: FigureRef[];
 }
 
+/** One independently playable sentence in a narration script. */
+export interface NarrationItem {
+  text: string;
+  kind: NarrationSegment["kind"];
+}
+
 export interface NarrationInput {
   answer: string;
   evidence?: EvidenceRef[];
@@ -349,6 +355,21 @@ export function narrationChunks(
   if (current) chunks.push(current);
 
   return chunks.filter((chunk) => /[a-z0-9]/i.test(chunk));
+}
+
+/**
+ * Addressable playback units for the media player.
+ *
+ * TTS is requested per sentence so pause, rewind, scrubbing and follow-along
+ * never have to guess where a sentence begins inside an opaque audio file.
+ * The server cache keeps this from making replay more expensive.
+ */
+export function narrationItems(script: NarrationScript): NarrationItem[] {
+  return script.segments.flatMap((segment) =>
+    splitSentences(segment.text)
+      .filter((text) => /[a-z0-9]/i.test(text))
+      .map((text) => ({ text, kind: segment.kind })),
+  );
 }
 
 /** The figures a script will reach, so their descriptions can be fetched. */

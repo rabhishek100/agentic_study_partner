@@ -424,6 +424,11 @@
         @apply font-serif leading-[1.75] text-foreground;
     }
 
+    [data-narration-fallback] {
+      background: var(--wash);
+      border-radius: 0.25rem;
+    }
+
     .answer-prose > * + * {
         margin-top: 1.0256em;
     }

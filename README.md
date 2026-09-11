@@ -604,6 +604,13 @@ conversation carries a **Read aloud** control; the latest turn also offers
 offers **Read this** beside **Ask about this**. Speed is adjustable from 0.75x
 to 2x and is remembered per device.
 
+Starting a reading opens one shared floating media bar with sentence-aware
+play/pause, stop, ten-second rewind, previous/next sentence, scrubbing, elapsed
+and remaining time, and speed. **Auto-follow** is on by default: it scrolls the
+spoken sentence into view and highlights it without changing the reader's text
+selection. The preference is remembered; manually scrolling suppresses only
+the current automatic movement, so the player does not fight the reader.
+
 What is spoken is what is on screen, with markdown, LaTeX and citation markers
 turned into words rather than read out as syntax, and code blocks and tables
 announced rather than recited. The one addition is diagrams: a cited figure is
@@ -618,6 +625,17 @@ Synthesised audio is cached per owner in `narration_audio` and evicted least
 recently heard past `NARRATION_AUDIO_CACHE_BYTES` (128 MB by default), so a
 replay costs nothing. When the hosted voice cannot be reached the browser's own
 speech synthesis reads instead, and says so.
+
+An opt-in LiveKit voice-question path can pause a book answer when the reader
+speaks, show the transcript for a short edit/cancel window, and open a persisted
+side chat anchored to the interrupted sentence. The existing grounded side-chat
+workflow performs retrieval and generation. A separate speech-only worker may
+then read that saved answer; it cannot accept arbitrary text or run its own
+reasoning agent. Enable it with `NARRATION_LIVEKIT_ENABLED=true` on the API,
+`NEXT_PUBLIC_NARRATION_LIVEKIT_ENABLED=true` at frontend build time, and run
+`uv run --extra voice python -m narration.voice_worker dev`. The Docker LiveKit
+overlay starts both interview and narration workers. See
+[`docs/read-aloud-voice-agent.md`](docs/read-aloud-voice-agent.md).
 
 ## Verification
 

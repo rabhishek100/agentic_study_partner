@@ -84,6 +84,7 @@ export interface TurnViewProps {
   onShowSources?: () => void;
   /** Whether the region is currently showing this turn. */
   sourcesShown?: boolean;
+  conversationId?: string | null;
 }
 
 export function TurnView({
@@ -95,6 +96,7 @@ export function TurnView({
   onAskOnTheSide,
   onShowSources,
   sourcesShown,
+  conversationId,
 }: TurnViewProps) {
   const showThinking = turn.status === "streaming" && !turn.answer;
   const result = turn.result;
@@ -122,6 +124,7 @@ export function TurnView({
 
         {turn.answer && (
           <Answer
+            narrationId={`turn-${turn.id}`}
             text={turn.answer}
             evidence={result?.evidence ?? []}
             citations={result?.citations ?? []}
@@ -233,6 +236,11 @@ export function TurnView({
             {turn.answer && (
               <ReadAloud
                 id={`turn-${turn.id}`}
+                voiceContext={
+                  conversationId && turn.turnIndex != null
+                    ? { conversationId, turnIndex: turn.turnIndex }
+                    : undefined
+                }
                 source={() => ({
                   answer: turn.answer,
                   evidence: result?.evidence ?? [],
@@ -249,6 +257,12 @@ export function TurnView({
             {isLast && turn.answer && (
               <ReadAloud
                 id={`exchange-${turn.id}`}
+                anchorId={`turn-${turn.id}`}
+                voiceContext={
+                  conversationId && turn.turnIndex != null
+                    ? { conversationId, turnIndex: turn.turnIndex }
+                    : undefined
+                }
                 label="Read exchange"
                 source={() => ({
                   question: turn.question,

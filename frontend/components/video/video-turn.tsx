@@ -127,6 +127,7 @@ export function VideoTurnView({
         {turn.answer &&
           (result ? (
             <VideoAnswer
+              narrationId={`video-turn-${turn.id}`}
               videoId={videoId}
               answer={turn.answer}
               evidence={result.evidence}
@@ -214,6 +215,7 @@ export function VideoTurnView({
             {isLast && turn.answer && (
               <ReadAloud
                 id={`video-exchange-${turn.id}`}
+                anchorId={`video-turn-${turn.id}`}
                 label="Read exchange"
                 source={() => ({ question: turn.question, answer: turn.answer })}
               />
