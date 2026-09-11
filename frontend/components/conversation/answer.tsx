@@ -194,6 +194,8 @@ export interface AnswerProps {
   citations: CitationRef[];
   figures?: FigureRef[];
   onOpenReference?: (reference: EvidenceRef, page?: number) => void;
+  /** Connects this visible passage to the shared follow-along player. */
+  narrationId?: string;
 }
 
 interface AnswerRenderState {
@@ -285,6 +287,7 @@ export function Answer({
   citations,
   figures = [],
   onOpenReference,
+  narrationId,
 }: AnswerProps) {
   const plugin = useMemo(
     () => citationPlugin(evidence, citations),
@@ -312,7 +315,11 @@ export function Answer({
     // reference cards and controls around it are interface, not passages: a
     // quote of "8 Advanced Practice" anchors nothing worth asking about.
     <AnswerRenderContext.Provider value={renderState}>
-      <div className="answer-prose" data-answer="">
+      <div
+        className="answer-prose"
+        data-answer=""
+        data-narration-anchor={narrationId}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkMath]}
           // KaTeX runs before the citation pass so that markers are never

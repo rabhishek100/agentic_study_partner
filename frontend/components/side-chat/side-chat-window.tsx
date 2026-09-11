@@ -20,7 +20,7 @@ export interface SideChatWindowProps {
   onClose: () => void;
   onFocus: () => void;
   /** `recorded` is false for a turn that failed or was stopped. */
-  onSettled: (recorded: boolean) => void;
+  onSettled: (recorded: boolean, turn?: SideChatTurn<unknown>) => void;
   onAnchorsChange: (anchors: Anchor[]) => void;
   surface: SideChatSurface;
   /**
@@ -93,7 +93,7 @@ export function SideChatWindow({
   const latest = turns.at(-1);
   useEffect(() => {
     if (wasStreaming.current && !isStreaming) {
-      onSettled(latest?.status === "complete");
+      onSettled(latest?.status === "complete", latest);
     }
     wasStreaming.current = isStreaming;
     // `latest` is read only at the moment streaming stops; depending on it

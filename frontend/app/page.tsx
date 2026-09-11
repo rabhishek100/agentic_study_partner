@@ -1,7 +1,7 @@
 "use client";
 
 import { PanelRightOpen } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
@@ -23,6 +23,12 @@ import { useConversations } from "@/hooks/use-conversations";
 import { useReadingSessions } from "@/hooks/use-source-sessions";
 import { useSideChats } from "@/hooks/use-side-chats";
 import { BOOK_SIDE_CHATS } from "@/lib/side-chat";
+import type { SideChatThread, SideChatTurn } from "@/lib/side-chat";
+import {
+  emitNarrationVoiceAnswer,
+  NARRATION_VOICE_QUESTION,
+  type NarrationVoiceQuestionDetail,
+} from "@/lib/narration-voice-events";
 import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
 import { takeQuestion } from "@/lib/deck-handoff";
@@ -70,6 +76,38 @@ export default function Page() {
   } = useChat();
   const history = useConversations("book");
   const sideChats = useSideChats(conversationId, BOOK_SIDE_CHATS);
+  const voiceThreadRef = useRef<SideChatThread | null>(null);
+  const voiceRequestRef = useRef(new Map<string, string>());
+
+  useEffect(() => {
+    voiceThreadRef.current = null;
+    voiceRequestRef.current.clear();
+  }, [conversationId]);
+
+  useEffect(() => {
+    const ask = (raw: Event) => {
+      const detail = (raw as CustomEvent<NarrationVoiceQuestionDetail>).detail;
+      if (!conversationId || detail.conversationId !== conversationId) return;
+      const existing = voiceThreadRef.current;
+      if (existing) {
+        voiceRequestRef.current.set(existing.conversation_id, detail.requestId);
+        sideChats.show(existing, detail.question);
+        return;
+      }
+      void sideChats.open({
+        parentTurnIndex: detail.parentTurnIndex,
+        quotedText: detail.quotedText,
+        question: detail.question,
+        title: "Read-aloud questions",
+      }).then((created) => {
+        if (!created) return;
+        voiceThreadRef.current = created;
+        voiceRequestRef.current.set(created.conversation_id, detail.requestId);
+      });
+    };
+    window.addEventListener(NARRATION_VOICE_QUESTION, ask);
+    return () => window.removeEventListener(NARRATION_VOICE_QUESTION, ask);
+  }, [conversationId, sideChats.open, sideChats.show]);
 
   const loadBooks = useCallback(async () => {
     setBooksError("");
@@ -438,7 +476,20 @@ export default function Page() {
           onMinimize={sideChats.setMinimized}
           onClose={sideChats.close}
           onFocus={sideChats.focus}
-          onSettled={sideChats.noteSettled}
+          onSettled={(sideChatId, recorded, turn) => {
+            sideChats.noteSettled(sideChatId, recorded);
+            const requestId = voiceRequestRef.current.get(sideChatId);
+            const settled = turn as SideChatTurn<unknown> | undefined;
+            if (!requestId) return;
+            voiceRequestRef.current.delete(sideChatId);
+            emitNarrationVoiceAnswer({
+              requestId,
+              sideChatId,
+              ...(recorded && settled?.turnIndex != null
+                ? { turnIndex: settled.turnIndex }
+                : { error: settled?.error ?? "The grounded voice question failed." }),
+            });
+          }}
           surface={BOOK_SIDE_CHATS}
           renderTurns={({ turns: sideTurns, isLoading, isQueued }) => (
             <SideChatTurns

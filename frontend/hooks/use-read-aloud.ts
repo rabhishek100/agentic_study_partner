@@ -4,9 +4,14 @@ import { useEffect, useSyncExternalStore } from "react";
 
 import {
   hydrate,
+  next,
   pause,
   play,
+  previous,
   resume,
+  seekBy,
+  seekTo,
+  setAutoFollow,
   setSpeed,
   snapshot,
   stop,
@@ -22,6 +27,11 @@ export interface ReadAloud extends NarrationState {
   resume: typeof resume;
   stop: typeof stop;
   setSpeed: typeof setSpeed;
+  setAutoFollow: typeof setAutoFollow;
+  seekTo: typeof seekTo;
+  seekBy: typeof seekBy;
+  next: typeof next;
+  previous: typeof previous;
 }
 
 /**
@@ -38,5 +48,18 @@ export function useReadAloud(): ReadAloud {
     hydrate();
   }, []);
 
-  return { ...state, play, toggle, pause, resume, stop, setSpeed };
+  return {
+    ...state,
+    play,
+    toggle,
+    pause,
+    resume,
+    stop,
+    setSpeed,
+    setAutoFollow,
+    seekTo,
+    seekBy,
+    next,
+    previous,
+  };
 }

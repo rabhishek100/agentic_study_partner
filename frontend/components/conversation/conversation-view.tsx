@@ -127,6 +127,7 @@ export function ConversationView({
               <TurnView
                 key={turn.id}
                 turn={turn}
+                conversationId={conversationId}
                 isLast={index === turns.length - 1}
                 canRetry={hasBooks && !isStreaming}
                 onRetry={onRetry}

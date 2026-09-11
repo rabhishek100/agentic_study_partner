@@ -1,18 +1,10 @@
 "use client";
 
-import { Loader2, Pause, Play, Square, Volume2 } from "lucide-react";
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Loader2, Pause, Play, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReadAloud } from "@/hooks/use-read-aloud";
 import type { NarrationInput } from "@/lib/narration";
-import { SPEEDS } from "@/lib/narration-player";
+import type { NarrationVoiceContext } from "@/lib/narration-player";
 
 export interface ReadAloudProps {
   /** Identifies this control's passage, so only the speaking one looks active. */
@@ -22,6 +14,9 @@ export interface ReadAloudProps {
   /** Overrides the label where "Read aloud" would be ambiguous. */
   label?: string;
   size?: "xs" | "sm";
+  /** Answer body to highlight when it is not the same as this control's id. */
+  anchorId?: string;
+  voiceContext?: NarrationVoiceContext;
 }
 
 /**
@@ -31,7 +26,14 @@ export interface ReadAloudProps {
  * turns each showing a stop button and a speed menu would be a wall of
  * controls for a thing that happens one at a time.
  */
-export function ReadAloud({ id, source, label = "Read aloud", size = "xs" }: ReadAloudProps) {
+export function ReadAloud({
+  id,
+  source,
+  label = "Read aloud",
+  size = "xs",
+  anchorId,
+  voiceContext,
+}: ReadAloudProps) {
   const narration = useReadAloud();
   const isActive = narration.activeId === id;
   const isPreparing = isActive && narration.status === "preparing";
@@ -53,7 +55,9 @@ export function ReadAloud({ id, source, label = "Read aloud", size = "xs" }: Rea
       <Button
         variant="ghost"
         size={size}
-        onClick={() => void narration.toggle(id, source())}
+        onClick={() =>
+          void narration.toggle(id, source(), { anchorId, label, voiceContext })
+        }
         aria-label={
           isSpeaking ? `Pause ${label.toLowerCase()}` : isPaused ? "Resume reading" : label
         }
@@ -69,40 +73,6 @@ export function ReadAloud({ id, source, label = "Read aloud", size = "xs" }: Rea
         )}
         {isPreparing ? "Preparing…" : isSpeaking ? "Pause" : isPaused ? "Resume" : label}
       </Button>
-
-      {isActive && (
-        <>
-          <Button
-            variant="ghost"
-            size={size}
-            onClick={() => narration.stop()}
-            aria-label="Stop reading"
-          >
-            <Square aria-hidden />
-            Stop
-          </Button>
-
-          <Select
-            value={String(narration.speed)}
-            onValueChange={(value) => narration.setSpeed(Number(value))}
-          >
-            <SelectTrigger
-              size="sm"
-              className="h-6 w-[4.75rem] text-xs"
-              aria-label="Reading speed"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SPEEDS.map((speed) => (
-                <SelectItem key={speed} value={String(speed)}>
-                  {speed}×
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </>
-      )}
 
       {/*
         Progress and failures are announced rather than drawn: the reader

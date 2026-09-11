@@ -109,6 +109,7 @@ export function useSideChat<TResult>(
               status: "complete" as const,
               result: turn.result,
               error: null,
+              turnIndex: turn.turn_index,
             })),
         );
       })
@@ -226,12 +227,14 @@ export function useSideChat<TResult>(
             } else if (event === "final") {
               const data = JSON.parse(payload) as {
                 result: TResult & { answer: string };
+                turn_index: number;
               };
               settled = true;
               patchTurn(id, {
                 answer: data.result.answer,
                 result: data.result,
                 status: "complete",
+                turnIndex: data.turn_index,
               });
               break readLoop;
             } else if (event === "error") {

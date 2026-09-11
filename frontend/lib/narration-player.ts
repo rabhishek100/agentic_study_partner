@@ -1,23 +1,12 @@
-/**
- * The one voice in the application, and everything that keeps it speaking.
- *
- * A module-level player rather than per-component state, for a reason that is
- * a bug otherwise: read-aloud controls sit on every turn, in side chats, and
- * on the selection popover, and two of them speaking at once is unusable. One
- * player means starting anywhere stops everywhere else, without every page
- * having to hold a provider or coordinate with its neighbours.
- *
- * Chunks are fetched one ahead of playback. Synthesis of a whole answer takes
- * seconds; synthesis of the first sentence takes a moment, and by the time it
- * has been heard the next chunk has arrived. The listener waits once, briefly.
- */
+/** The application's single, sentence-addressable narration player. */
 
 import { API_BASE, errorDetail } from "./api";
 import {
   buildNarrationScript,
   citedFigures,
-  narrationChunks,
+  narrationItems,
   type NarrationInput,
+  type NarrationItem,
 } from "./narration";
 import { accessToken } from "./supabase";
 
@@ -25,27 +14,53 @@ export type NarrationStatus = "idle" | "preparing" | "speaking" | "paused";
 
 export interface NarrationState {
   status: NarrationStatus;
-  /** Which control is speaking, so only that one shows as active. */
   activeId: string | null;
+  /** DOM passage to follow; may differ from activeId for “Read exchange”. */
+  anchorId: string | null;
+  label: string;
   error: string;
   speed: number;
-  /** Position in the script, for the progress a listener can see. */
   chunkIndex: number;
   chunkCount: number;
+  currentText: string;
+  currentTime: number;
+  duration: number;
+  durationEstimated: boolean;
+  autoFollow: boolean;
+  voiceContext: NarrationVoiceContext | null;
+}
+
+export interface NarrationVoiceContext {
+  conversationId: string;
+  turnIndex: number;
+}
+
+export interface PlaybackOptions {
+  anchorId?: string;
+  label?: string;
+  voiceContext?: NarrationVoiceContext;
 }
 
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;
-
 const SPEED_STORAGE_KEY = "narration-speed";
+const FOLLOW_STORAGE_KEY = "narration-auto-follow";
 const DEFAULT_SPEED = 1;
 
 const IDLE: NarrationState = {
   status: "idle",
   activeId: null,
+  anchorId: null,
+  label: "Read aloud",
   error: "",
   speed: DEFAULT_SPEED,
   chunkIndex: 0,
   chunkCount: 0,
+  currentText: "",
+  currentTime: 0,
+  duration: 0,
+  durationEstimated: true,
+  autoFollow: true,
+  voiceContext: null,
 };
 
 let state: NarrationState = IDLE;
@@ -65,37 +80,76 @@ export function snapshot(): NarrationState {
   return state;
 }
 
-/** The server never sees this; it is one reader's preference on one device. */
 function storedSpeed(): number {
   try {
-    const raw = window.localStorage.getItem(SPEED_STORAGE_KEY);
-    const parsed = raw ? Number(raw) : NaN;
+    const parsed = Number(window.localStorage.getItem(SPEED_STORAGE_KEY));
     return SPEEDS.includes(parsed as (typeof SPEEDS)[number]) ? parsed : DEFAULT_SPEED;
   } catch {
-    // Private windows and blocked site data throw on access rather than
-    // returning nothing. A remembered speed is not worth an exception.
     return DEFAULT_SPEED;
   }
 }
 
 let hydrated = false;
-
-/** Adopt the remembered speed once, on the first control to mount. */
 export function hydrate(): void {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
-  const speed = storedSpeed();
-  if (speed !== state.speed) emit({ speed });
+  let autoFollow = true;
+  try {
+    autoFollow = window.localStorage.getItem(FOLLOW_STORAGE_KEY) !== "false";
+  } catch {
+    // A preference must never prevent playback.
+  }
+  emit({ speed: storedSpeed(), autoFollow });
 }
 
-// Everything below is the live playback, which is imperative by nature: one
-// audio element, one queue, one abort controller.
+interface Session {
+  run: number;
+  items: NarrationItem[];
+  blobs: Map<number, Promise<Blob>>;
+  durations: Array<number | null>;
+}
+
+let session: Session | null = null;
 let audio: HTMLAudioElement | null = null;
 let objectUrl: string | null = null;
 let generation = 0;
+let cursorGeneration = 0;
 let controller: AbortController | null = null;
 
-function releaseUrl(): void {
+function estimateDuration(text: string): number {
+  return Math.max(1.2, text.trim().split(/\s+/).length / 2.75 + 0.25);
+}
+
+function effectiveDurations(current: Session): number[] {
+  return current.items.map((item, index) =>
+    current.durations[index] ?? estimateDuration(item.text),
+  );
+}
+
+function timeline(current: Session, index: number, itemTime = 0): number {
+  return effectiveDurations(current)
+    .slice(0, index)
+    .reduce((sum, value) => sum + value, itemTime);
+}
+
+function refreshDuration(current: Session): void {
+  const durations = effectiveDurations(current);
+  emit({
+    duration: durations.reduce((sum, value) => sum + value, 0),
+    durationEstimated: current.durations.some((value) => value == null),
+  });
+}
+
+function releaseAudio(): void {
+  if (audio) {
+    audio.onended = null;
+    audio.onerror = null;
+    audio.ontimeupdate = null;
+    audio.onloadedmetadata = null;
+    audio.pause();
+    audio.src = "";
+  }
+  audio = null;
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = null;
 }
@@ -108,20 +162,28 @@ function stopDeviceVoice(): void {
 
 export function stop(): void {
   generation += 1;
+  cursorGeneration += 1;
   controller?.abort();
   controller = null;
-  if (audio) {
-    audio.pause();
-    audio.src = "";
-  }
-  audio = null;
-  releaseUrl();
+  session = null;
+  releaseAudio();
   stopDeviceVoice();
-  emit({ status: "idle", activeId: null, chunkIndex: 0, chunkCount: 0 });
+  emit({
+    status: "idle",
+    activeId: null,
+    anchorId: null,
+    chunkIndex: 0,
+    chunkCount: 0,
+    currentText: "",
+    currentTime: 0,
+    duration: 0,
+    durationEstimated: true,
+    voiceContext: null,
+  });
 }
 
 export function pause(): void {
-  if (state.status !== "speaking") return;
+  if (state.status !== "speaking" && state.status !== "preparing") return;
   audio?.pause();
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     window.speechSynthesis.pause();
@@ -131,7 +193,7 @@ export function pause(): void {
 
 export function resume(): void {
   if (state.status !== "paused") return;
-  void audio?.play();
+  if (audio) void audio.play();
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     window.speechSynthesis.resume();
   }
@@ -139,14 +201,22 @@ export function resume(): void {
 }
 
 export function setSpeed(speed: number): void {
+  if (!SPEEDS.includes(speed as (typeof SPEEDS)[number])) return;
   emit({ speed });
-  // Applied to the element rather than re-synthesised: the browser resamples
-  // without shifting pitch, so it is instant and costs nothing.
   if (audio) audio.playbackRate = speed;
   try {
     window.localStorage.setItem(SPEED_STORAGE_KEY, String(speed));
   } catch {
-    // Not remembering the speed is a smaller failure than throwing here.
+    // Remembering the preference is optional.
+  }
+}
+
+export function setAutoFollow(autoFollow: boolean): void {
+  emit({ autoFollow });
+  try {
+    window.localStorage.setItem(FOLLOW_STORAGE_KEY, String(autoFollow));
+  } catch {
+    // Remembering the preference is optional.
   }
 }
 
@@ -164,7 +234,6 @@ async function fetchDescriptions(
 ): Promise<Record<number, string>> {
   const figures = citedFigures(input);
   if (figures.length === 0) return {};
-
   const response = await fetch(`${API_BASE}/narration/figures`, {
     method: "POST",
     signal,
@@ -176,8 +245,6 @@ async function fetchDescriptions(
       })),
     }),
   });
-  // A figure that cannot be described is not a reason not to read the answer:
-  // the script still announces it, it just has nothing to say about it.
   if (!response.ok) return {};
   const payload = (await response.json()) as { descriptions?: Record<string, string> };
   return Object.fromEntries(
@@ -185,7 +252,7 @@ async function fetchDescriptions(
   );
 }
 
-async function fetchChunk(text: string, signal: AbortSignal): Promise<Blob> {
+async function fetchItem(text: string, signal: AbortSignal): Promise<Blob> {
   const response = await fetch(`${API_BASE}/narration/speech`, {
     method: "POST",
     signal,
@@ -196,151 +263,220 @@ async function fetchChunk(text: string, signal: AbortSignal): Promise<Blob> {
   return response.blob();
 }
 
-/** Play one blob to its end, or until the run is superseded. */
-function playBlob(blob: Blob, run: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (run !== generation) {
-      resolve();
-      return;
-    }
-    releaseUrl();
-    objectUrl = URL.createObjectURL(blob);
-    const element = new Audio(objectUrl);
-    element.playbackRate = state.speed;
-    audio = element;
-    element.onended = () => resolve();
-    element.onerror = () => reject(new Error("This passage could not be played."));
-    element.play().then(
-      () => {
-        if (run === generation && state.status !== "paused") {
-          emit({ status: "speaking" });
-        }
-      },
-      (failure: unknown) => reject(failure),
-    );
-  });
+function itemBlob(current: Session, index: number, signal: AbortSignal): Promise<Blob> {
+  const existing = current.blobs.get(index);
+  if (existing) return existing;
+  const request = fetchItem(current.items[index]!.text, signal);
+  request.catch(() => undefined);
+  current.blobs.set(index, request);
+  return request;
 }
 
-/**
- * The browser's own voice, for when the hosted one cannot be reached.
- *
- * Markedly less natural, and said so in the interface rather than passed off
- * as the same thing. It exists because an answer read in a plain voice beats
- * an answer not read at all when the network is the problem.
- */
-function speakOnDevice(text: string, run: number): boolean {
+function speakOnDevice(items: NarrationItem[], run: number): boolean {
   if (
     typeof window === "undefined" ||
     !("speechSynthesis" in window) ||
     typeof SpeechSynthesisUtterance === "undefined"
   ) return false;
-
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(items.map((item) => item.text).join(" "));
   const voices = window.speechSynthesis.getVoices();
   utterance.voice =
-    voices.find(
-      (voice) =>
-        voice.lang.toLowerCase().startsWith("en") &&
-        /(premium|enhanced|natural|google|microsoft|samantha)/i.test(voice.name),
-    ) ?? voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ?? null;
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("en") &&
+      /(premium|enhanced|natural|google|microsoft|samantha)/i.test(voice.name)) ??
+    voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ?? null;
   utterance.rate = state.speed;
   utterance.onend = () => {
-    if (run === generation) emit({ status: "idle", activeId: null });
+    if (run === generation) stop();
   };
   window.speechSynthesis.speak(utterance);
   emit({ status: "speaking" });
   return true;
 }
 
-export async function play(id: string, input: NarrationInput): Promise<void> {
-  stop();
-  const run = generation;
-  controller = new AbortController();
-  const { signal } = controller;
-  emit({ status: "preparing", activeId: id, error: "", chunkIndex: 0, chunkCount: 0 });
+function playAudio(
+  blob: Blob,
+  current: Session,
+  index: number,
+  offset: number,
+  cursor: number,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (current.run !== generation || cursor !== cursorGeneration) {
+      resolve();
+      return;
+    }
+    releaseAudio();
+    objectUrl = URL.createObjectURL(blob);
+    const element = new Audio(objectUrl);
+    audio = element;
+    element.playbackRate = state.speed;
 
-  let chunks: string[] = [];
-  try {
-    const descriptions = await fetchDescriptions(input, signal);
-    if (run !== generation) return;
-    chunks = narrationChunks(buildNarrationScript({ ...input, descriptions }));
-  } catch (failure) {
-    if (signal.aborted || run !== generation) return;
-    // Descriptions are the only thing that failed; the prose still reads.
-    chunks = narrationChunks(buildNarrationScript(input));
-  }
+    const adoptMetadata = () => {
+      if (Number.isFinite(element.duration) && element.duration > 0) {
+        current.durations[index] = element.duration;
+        refreshDuration(current);
+      }
+      if (offset > 0) {
+        try { element.currentTime = Math.min(offset, element.duration || offset); }
+        catch { /* Some engines reject seeking until metadata is ready. */ }
+      }
+    };
+    element.onloadedmetadata = adoptMetadata;
+    element.ontimeupdate = () => {
+      if (current.run !== generation || cursor !== cursorGeneration) return;
+      emit({ currentTime: timeline(current, index, element.currentTime || 0) });
+    };
+    element.onended = () => resolve();
+    element.onerror = () => reject(new Error("This passage could not be played."));
+    adoptMetadata();
+    element.play().then(() => {
+      if (current.run !== generation || cursor !== cursorGeneration) return;
+      if (state.status === "paused") {
+        element.pause();
+      } else {
+        emit({ status: "speaking" });
+      }
+    }, reject);
+  });
+}
 
-  if (chunks.length === 0) {
-    emit({ status: "idle", activeId: null, error: "There is nothing to read here." });
-    return;
-  }
-  emit({ chunkCount: chunks.length });
+async function playFrom(index: number, offset = 0): Promise<void> {
+  const current = session;
+  const signal = controller?.signal;
+  if (!current || !signal) return;
+  const cursor = ++cursorGeneration;
+  releaseAudio();
 
-  // One request ahead: the chunk being heard was fetched while the previous
-  // one played.
-  let pending: Promise<Blob> | null = fetchChunk(chunks[0]!, signal);
-
-  for (let index = 0; index < chunks.length; index += 1) {
-    if (run !== generation) return;
-    const current = pending ?? fetchChunk(chunks[index]!, signal);
-    const next =
-      index + 1 < chunks.length ? fetchChunk(chunks[index + 1]!, signal) : null;
-    // Started now so it downloads during playback, and its rejection is
-    // handled where it is awaited rather than as an unhandled rejection.
-    next?.catch(() => undefined);
-    pending = next;
-
+  for (let at = index; at < current.items.length; at += 1) {
+    if (current.run !== generation || cursor !== cursorGeneration) return;
+    const item = current.items[at]!;
+    emit({
+      status: state.status === "paused" ? "paused" : "preparing",
+      chunkIndex: at,
+      currentText: item.text,
+      currentTime: timeline(current, at, at === index ? offset : 0),
+    });
+    const blobRequest = itemBlob(current, at, signal);
+    if (at + 1 < current.items.length) void itemBlob(current, at + 1, signal);
+    if (at + 2 < current.items.length) void itemBlob(current, at + 2, signal);
     try {
-      const blob = await current;
-      if (run !== generation) return;
-      emit({ chunkIndex: index });
-      await playBlob(blob, run);
+      const blob = await blobRequest;
+      if (current.run !== generation || cursor !== cursorGeneration) return;
+      await playAudio(blob, current, at, at === index ? offset : 0, cursor);
     } catch (failure) {
-      if (signal.aborted || run !== generation) return;
-      const remaining = chunks.slice(index).join(" ");
-      if (speakOnDevice(remaining, run)) {
-        emit({
-          error:
-            "The natural voice is unavailable, so this is your browser's own voice.",
-        });
+      if (signal.aborted || current.run !== generation || cursor !== cursorGeneration) return;
+      if (speakOnDevice(current.items.slice(at), current.run)) {
+        emit({ error: "The natural voice is unavailable, so this is your browser's own voice." });
         return;
       }
       emit({
-        status: "idle",
-        activeId: null,
-        error:
-          failure instanceof Error && failure.message
-            ? failure.message
-            : "This answer could not be read aloud.",
+        status: "paused",
+        error: failure instanceof Error && failure.message
+          ? failure.message
+          : "This answer could not be read aloud.",
       });
       return;
     }
   }
-
-  if (run === generation) {
-    emit({ status: "idle", activeId: null, chunkIndex: 0, chunkCount: 0 });
-  }
+  if (current.run === generation && cursor === cursorGeneration) stop();
 }
 
-/** Play, or stop if this control is already the one speaking. */
-export async function toggle(id: string, input: NarrationInput): Promise<void> {
+export async function play(
+  id: string,
+  input: NarrationInput,
+  options: PlaybackOptions = {},
+): Promise<void> {
+  stop();
+  const run = generation;
+  controller = new AbortController();
+  const { signal } = controller;
+  emit({
+    status: "preparing",
+    activeId: id,
+    anchorId: options.anchorId ?? id,
+    label: options.label ?? "Read aloud",
+    error: "",
+    chunkIndex: 0,
+    chunkCount: 0,
+    currentText: "",
+    currentTime: 0,
+    duration: 0,
+    voiceContext: options.voiceContext ?? null,
+  });
+
+  let items: NarrationItem[];
+  try {
+    const descriptions = await fetchDescriptions(input, signal);
+    if (run !== generation) return;
+    items = narrationItems(buildNarrationScript({ ...input, descriptions }));
+  } catch {
+    if (signal.aborted || run !== generation) return;
+    items = narrationItems(buildNarrationScript(input));
+  }
+  if (items.length === 0) {
+    emit({ status: "idle", activeId: null, error: "There is nothing to read here." });
+    return;
+  }
+
+  session = { run, items, blobs: new Map(), durations: items.map(() => null) };
+  emit({ chunkCount: items.length, currentText: items[0]!.text });
+  refreshDuration(session);
+  await playFrom(0);
+}
+
+export async function toggle(
+  id: string,
+  input: NarrationInput,
+  options: PlaybackOptions = {},
+): Promise<void> {
   if (state.activeId === id) {
-    if (state.status === "speaking") {
-      pause();
-      return;
-    }
-    if (state.status === "paused") {
-      resume();
-      return;
-    }
+    if (state.status === "speaking" || state.status === "preparing") return pause();
+    if (state.status === "paused") return resume();
   }
-  await play(id, input);
+  await play(id, input, options);
 }
 
-/** Test seam: forget the current playback without touching the DOM. */
+export function seekTo(seconds: number): void {
+  const current = session;
+  if (!current) return;
+  const target = Math.max(0, Math.min(seconds, state.duration));
+  const durations = effectiveDurations(current);
+  let elapsed = 0;
+  let index = durations.length - 1;
+  for (let at = 0; at < durations.length; at += 1) {
+    if (target < elapsed + durations[at]!) { index = at; break; }
+    elapsed += durations[at]!;
+  }
+  const wasPaused = state.status === "paused";
+  emit({ status: wasPaused ? "paused" : "preparing" });
+  void playFrom(index, Math.max(0, target - elapsed)).then(() => {
+    if (wasPaused && audio) audio.pause();
+  });
+}
+
+export function seekBy(seconds: number): void {
+  seekTo(state.currentTime + seconds);
+}
+
+export function next(): void {
+  const current = session;
+  if (!current) return;
+  void playFrom(Math.min(current.items.length - 1, state.chunkIndex + 1));
+}
+
+export function previous(): void {
+  const current = session;
+  if (!current) return;
+  const intoItem = state.currentTime - timeline(current, state.chunkIndex);
+  void playFrom(intoItem > 2 ? state.chunkIndex : Math.max(0, state.chunkIndex - 1));
+}
+
+/** Test seam: forget playback without relying on media DOM support. */
 export function reset(): void {
   generation += 1;
+  cursorGeneration += 1;
   controller = null;
+  session = null;
   audio = null;
   objectUrl = null;
   hydrated = false;

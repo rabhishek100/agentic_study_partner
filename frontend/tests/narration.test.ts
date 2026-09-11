@@ -4,6 +4,7 @@ import {
   buildNarrationScript,
   citedFigures,
   narrationChunks,
+  narrationItems,
   splitSentences,
   CHUNK_CHARACTERS,
   FIRST_CHUNK_CHARACTERS,
@@ -183,6 +184,17 @@ describe("what the voice is given to say", () => {
 });
 
 describe("splitting for the synthesiser", () => {
+  it("makes every spoken sentence independently seekable", () => {
+    const items = narrationItems(
+      buildNarrationScript({ answer: "First idea. Second idea follows." }),
+    );
+
+    expect(items.map((item) => item.text)).toEqual([
+      "First idea.",
+      "Second idea follows.",
+    ]);
+  });
+
   it("keeps an abbreviation's full stop inside its sentence", () => {
     const sentences = splitSentences(
       "The residuals are shown in Fig. 4. They are unpatterned.",

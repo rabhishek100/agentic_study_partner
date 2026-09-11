@@ -7,8 +7,24 @@ vi.mock("@/lib/api", () => ({
   API_BASE: "/api",
   errorDetail: async () => "the reading voice is unavailable",
 }));
+const narrationVoice = vi.hoisted(() => ({ setEnabled: vi.fn() }));
+vi.mock("@/hooks/use-narration-voice", () => ({
+  useNarrationVoice: () => ({
+    enabled: false,
+    setEnabled: narrationVoice.setEnabled,
+    status: "off",
+    error: "",
+    dismissError: vi.fn(),
+    startListening: vi.fn(),
+    stopListening: vi.fn(async () => {}),
+    speakAnswer: vi.fn(async () => {}),
+    microphones: { selectedId: "", devices: [] },
+    supported: true,
+  }),
+}));
 
 import { ReadAloud } from "@/components/conversation/read-aloud";
+import { NarrationPlayerBar } from "@/components/conversation/narration-player-bar";
 import { reset } from "@/lib/narration-player";
 import type { FigureRef } from "@/lib/types";
 
@@ -19,6 +35,7 @@ import type { FigureRef } from "@/lib/types";
  */
 class AudioStub {
   static instances: AudioStub[] = [];
+  static autoEnd = true;
   playbackRate = 1;
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
@@ -31,7 +48,7 @@ class AudioStub {
 
   play(): Promise<void> {
     // Resolved on a later tick, so the caller sees "speaking" before "ended".
-    queueMicrotask(() => this.onended?.());
+    if (AudioStub.autoEnd) queueMicrotask(() => this.onended?.());
     return Promise.resolve();
   }
 
@@ -73,6 +90,8 @@ function stubFetch(calls: Call[], { speechFails = false } = {}) {
 beforeEach(() => {
   reset();
   AudioStub.instances = [];
+  AudioStub.autoEnd = true;
+  narrationVoice.setEnabled.mockClear();
   vi.stubGlobal("Audio", AudioStub);
   vi.stubGlobal("URL", {
     ...URL,
@@ -191,5 +210,52 @@ describe("reading an answer aloud", () => {
       expect(screen.getByRole("button", { name: "Read first" })).toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: "Pause read first" })).toBeNull();
+  });
+
+  it("opens one global media bar with follow, seek and stop controls", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+
+    render(
+      <>
+        <ReadAloud id="turn-1" source={source} />
+        <NarrationPlayerBar />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+
+    expect(await screen.findByRole("region", { name: "Read-aloud player" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Reading position" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous sentence" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rewind 10 seconds" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Turn off auto-follow" }));
+    expect(window.localStorage.getItem("narration-auto-follow")).toBe("false");
+    await userEvent.click(screen.getByRole("button", { name: "Stop reading" }));
+    expect(screen.queryByRole("region", { name: "Read-aloud player" })).toBeNull();
+  });
+
+  it("offers the guarded voice-question mode only for a saved book turn", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    process.env.NEXT_PUBLIC_NARRATION_LIVEKIT_ENABLED = "true";
+
+    render(
+      <>
+        <ReadAloud
+          id="turn-1"
+          source={source}
+          voiceContext={{ conversationId: "conversation-1", turnIndex: 0 }}
+        />
+        <NarrationPlayerBar />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Voice questions" }));
+
+    expect(narrationVoice.setEnabled).toHaveBeenCalledWith(true);
+    delete process.env.NEXT_PUBLIC_NARRATION_LIVEKIT_ENABLED;
   });
 });
