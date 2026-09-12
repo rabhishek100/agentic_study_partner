@@ -15,9 +15,15 @@ import {
 } from "@/components/ui/panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase, supabaseConfigured } from "@/lib/supabase";
+import {
+  demoLoginConfigured,
+  signInToDemo,
+  supabase,
+  supabaseConfigured,
+} from "@/lib/supabase";
 
 type Mode = "sign-in" | "sign-up";
+type PendingAction = "credentials" | "demo" | null;
 
 export function AuthGate() {
   const [mode, setMode] = useState<Mode>("sign-in");
@@ -25,12 +31,13 @@ export function AuthGate() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<PendingAction>(null);
+  const busy = pending !== null;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !supabase) return;
-    setBusy(true);
+    setPending("credentials");
     setError("");
     setNotice("");
     try {
@@ -58,7 +65,22 @@ export function AuthGate() {
     } catch {
       setError("Could not reach the sign-in service.");
     } finally {
-      setBusy(false);
+      setPending(null);
+    }
+  }
+
+  async function openDemo() {
+    if (busy || !demoLoginConfigured) return;
+    setPending("demo");
+    setError("");
+    setNotice("");
+    try {
+      const { error: authError } = await signInToDemo();
+      if (authError) setError(authError.message);
+    } catch {
+      setError("Could not reach the demo sign-in service.");
+    } finally {
+      setPending(null);
     }
   }
 
@@ -133,14 +155,41 @@ export function AuthGate() {
           )}
 
           <Button type="submit" size="lg" className="w-full" disabled={busy}>
-            {busy && <Loader2 className="animate-spin" aria-hidden />}
-            {busy
+            {pending === "credentials" && (
+              <Loader2 className="animate-spin" aria-hidden />
+            )}
+            {pending === "credentials"
               ? "Working…"
               : mode === "sign-in"
                 ? "Sign in"
                 : "Create account"}
           </Button>
         </form>
+
+        {mode === "sign-in" && demoLoginConfigured && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                or
+              </span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full"
+              onClick={openDemo}
+              disabled={busy}
+            >
+              {pending === "demo" ? "Opening demo…" : "Explore the demo"}
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              Opens a shared guest workspace. Its activity may be reset.
+            </p>
+          </div>
+        )}
 
         <Button
           type="button"
