@@ -553,20 +553,111 @@
     .reading-passage {
         font-size: var(--reading-size, 1.0625rem);
         max-width: var(--reading-measure, 62ch);
-        @apply font-serif leading-[1.8] text-foreground;
+        margin-inline: auto;
+        @apply font-serif leading-[1.82] text-foreground;
     }
 
     .reading-passage > * + * {
-        margin-top: 0.9412em;
+        margin-top: 1.0588em;
     }
 
     /* A paragraph after a heading belongs to it; the heading owns the space. */
-    .reading-passage > h4 + * {
-        margin-top: 0.4706em;
+    .reading-passage > .reading-heading + * {
+        margin-top: 0.5294em;
+    }
+
+    .reading-document {
+        box-shadow: 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent),
+            0 14px 36px color-mix(in oklab, var(--foreground) 5%, transparent);
+    }
+
+    .reading-document-header {
+        background: linear-gradient(
+            135deg,
+            color-mix(in oklab, var(--wash) 55%, var(--surface)) 0%,
+            var(--surface) 72%
+        );
+        @apply border-b border-divider px-4 py-5 sm:px-8 sm:py-7 lg:px-10;
+    }
+
+    .reading-document-footer {
+        max-width: var(--reading-measure, 62ch);
+        margin-inline: auto;
+        @apply mt-8 flex flex-wrap items-center gap-3 border-t border-divider pt-5 font-sans text-xs text-muted-foreground;
+    }
+
+    .reading-heading {
+        text-wrap: balance;
+        scroll-margin-top: 2rem;
+        @apply font-sans text-foreground;
+    }
+
+    .reading-heading-primary {
+        margin-top: 2.3529em;
+        padding-bottom: 0.4706em;
+        @apply border-b border-divider text-xl font-medium leading-tight tracking-tight;
+    }
+
+    .reading-heading-secondary {
+        margin-top: 1.8824em;
+        @apply text-lg font-semibold leading-snug tracking-tight;
+    }
+
+    .reading-heading-tertiary {
+        margin-top: 1.5294em;
+        @apply text-base font-semibold leading-snug tracking-tight;
     }
 
     .reading-passage li + li {
-        margin-top: 0.3529em;
+        margin-top: 0.5294em;
+    }
+
+    .reading-list {
+        padding: 0.9412em 1.1765em 0.9412em 2.3529em;
+        @apply rounded-lg border border-divider bg-wash/35;
+    }
+
+    .reading-list-bulleted {
+        @apply list-disc;
+    }
+
+    .reading-list-ordered {
+        @apply list-decimal;
+    }
+
+    .reading-list li {
+        padding-left: 0.2353em;
+    }
+
+    .reading-list li::marker {
+        color: var(--evidence);
+    }
+
+    .reading-caption {
+        padding-left: 1em;
+        @apply border-l-2 border-evidence/40 font-sans text-xs italic leading-relaxed text-muted-foreground;
+    }
+
+    .reading-formula {
+        @apply relative overflow-x-auto rounded-lg border border-divider bg-canvas px-4 pb-4 pt-8 text-center;
+    }
+
+    .reading-formula-label {
+        @apply absolute left-3 top-2 font-sans text-eyebrow font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+    }
+
+    .reading-formula pre {
+        min-width: max-content;
+        @apply font-mono text-sm leading-relaxed text-foreground;
+    }
+
+    .reading-page-tick {
+        margin-block: 2.1176em 1.4118em;
+        @apply flex items-center gap-3;
+    }
+
+    .reading-passage .reading-heading:first-child {
+        margin-top: 0;
     }
 
     /*
@@ -582,13 +673,41 @@
 
     .reading-table th,
     .reading-table td {
-        padding-inline: 0.7em;
-        padding-block: 0.45em;
-        @apply border border-border text-left align-top;
+        padding-inline: 0.9em;
+        padding-block: 0.7em;
+        @apply border-b border-r border-divider text-left align-top last:border-r-0;
     }
 
     .reading-table th {
-        @apply bg-muted font-semibold;
+        @apply bg-wash font-semibold text-foreground;
+    }
+
+    .reading-table tr:last-child td {
+        @apply border-b-0;
+    }
+
+    .reading-table tbody tr:nth-child(even) {
+        background-color: color-mix(in oklab, var(--wash) 22%, transparent);
+    }
+
+    .reading-passage figure {
+        margin-block: 1.8824em;
+        @apply bg-raised;
+    }
+
+    .reading-passage figure img {
+        padding: 0.7059em;
+    }
+
+    @media (max-width: 40rem) {
+        .reading-passage {
+            --reading-size: 1rem;
+            line-height: 1.75;
+        }
+
+        .reading-heading-primary {
+            font-size: 1.375rem;
+        }
     }
 
     /*

@@ -30,7 +30,7 @@ import { ReadAloud } from "@/components/conversation/read-aloud";
 import { Answer } from "@/components/conversation/answer";
 import { NarrationPlayerBar } from "@/components/conversation/narration-player-bar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { reset } from "@/lib/narration-player";
+import { reset, setPacing } from "@/lib/narration-player";
 import type { FigureRef } from "@/lib/types";
 
 /**
@@ -98,6 +98,15 @@ function stubFetch(calls: Call[], { speechFails = false } = {}) {
 
 beforeEach(() => {
   reset();
+  window.localStorage.clear();
+  setPacing({
+    sentencePauseMs: 0,
+    paragraphPauseMs: 0,
+    headingPauseMs: 0,
+    titlePauseMs: 0,
+    headingRate: 1,
+    titleRate: 1,
+  });
   AudioStub.instances = [];
   AudioStub.autoEnd = true;
   narrationVoice.setEnabled.mockClear();
@@ -239,6 +248,7 @@ describe("reading an answer aloud", () => {
     expect(screen.getByRole("slider", { name: "Reading position" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Previous passage" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rewind 10 seconds" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reading pacing controls" })).toBeInTheDocument();
 
     // The media metadata says 100 seconds, but the logical timeline stays
     // fixed instead of stretching and flickering when metadata arrives.
@@ -249,6 +259,33 @@ describe("reading an answer aloud", () => {
     expect(window.localStorage.getItem("narration-auto-follow")).toBe("false");
     await userEvent.click(screen.getByRole("button", { name: "Stop reading" }));
     expect(screen.queryByRole("region", { name: "Read-aloud player" })).toBeNull();
+  });
+
+  it("stores independent pause and heading pace controls", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+
+    render(
+      <>
+        <ReadAloud id="turn-1" source={() => ({ answer: "## Architecture\n\nA request flows." })} />
+        <NarrationPlayerBar />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Reading pacing controls" }));
+
+    fireEvent.change(screen.getByRole("slider", { name: "After each sentence" }), {
+      target: { value: "700" },
+    });
+    fireEvent.change(screen.getByRole("slider", { name: "Heading voice pace" }), {
+      target: { value: "0.75" },
+    });
+
+    const stored = JSON.parse(window.localStorage.getItem("narration-pacing") ?? "{}");
+    expect(stored.sentencePauseMs).toBe(700);
+    expect(stored.headingRate).toBe(0.75);
+    expect(AudioStub.instances[0]!.playbackRate).toBe(0.75);
   });
 
   it("commits a pointer scrub once instead of restarting audio on every move", async () => {

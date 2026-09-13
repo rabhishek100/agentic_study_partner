@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildNarrationScript,
+  buildPassageNarrationScript,
   citedFigures,
   narrationChunks,
   narrationItems,
@@ -10,7 +11,7 @@ import {
   CHUNK_CHARACTERS,
   FIRST_CHUNK_CHARACTERS,
 } from "@/lib/narration";
-import type { CitationRef, EvidenceRef, FigureRef } from "@/lib/types";
+import type { CitationRef, EvidenceRef, FigureRef, PassageSegment, ReadingRef } from "@/lib/types";
 
 function evidence(rank: number, nodeId = 7, pages = [84]): EvidenceRef {
   return {
@@ -210,14 +211,16 @@ describe("what the voice is given to say", () => {
 });
 
 describe("splitting for the synthesiser", () => {
-  it("keeps neighbouring sentences in one natural voice take", () => {
+  it("keeps sentence boundaries addressable for configurable silence", () => {
     const items = narrationItems(
       buildNarrationScript({ answer: "First idea. Second idea follows." }),
     );
 
     expect(items.map((item) => item.text)).toEqual([
-      "First idea. Second idea follows.",
+      "First idea.",
+      "Second idea follows.",
     ]);
+    expect(items.map((item) => item.pauseAfter)).toEqual(["sentence", "paragraph"]);
   });
 
   it("keeps stable source anchors for headings, prose and figures", () => {
@@ -288,5 +291,77 @@ describe("splitting for the synthesiser", () => {
     const script = buildNarrationScript({ answer: "---\n\n***\n" });
 
     expect(narrationChunks(script)).toEqual([]);
+  });
+});
+
+describe("complete chapter narration", () => {
+  const reading: ReadingRef = {
+    book_id: 1,
+    book_title: "ML Systems",
+    node_id: 12,
+    kind: "chapter",
+    display_path: "Chapter 1. Machine Learning Systems",
+    start_page: 1,
+    end_page: 20,
+    printed_start_page: 1,
+    printed_end_page: 20,
+    total_segments: 6,
+    total_characters: 200,
+    omitted_block_count: 0,
+  };
+  const segment = (
+    index: number,
+    kind: PassageSegment["kind"],
+    text: string | null,
+  ): PassageSegment => ({
+    index,
+    kind,
+    text,
+    node_id: 12,
+    page: 1,
+    printed_page: 1,
+    level: kind === "heading" ? 2 : null,
+    html: null,
+    figure: null,
+  });
+
+  it("reads the title once and preserves section rhythm and source anchors", () => {
+    const script = buildPassageNarrationScript({
+      reading,
+      segments: [
+        segment(0, "heading", "Chapter 1. Machine Learning Systems"),
+        segment(1, "heading", "System requirements"),
+        segment(2, "text", "First thought. Second thought."),
+      ],
+    });
+    const items = narrationItems(script);
+
+    expect(items.map((item) => item.text)).toEqual([
+      "Chapter 1. Machine Learning Systems.",
+      "System requirements.",
+      "First thought.",
+      "Second thought.",
+    ]);
+    expect(items.map((item) => item.pauseAfter)).toEqual([
+      "title", "heading", "sentence", "paragraph",
+    ]);
+    expect(items[1]!.anchor).toEqual({ type: "passage", index: 1 });
+  });
+
+  it("removes retained formatting before speech and announces visual structures", () => {
+    const script = buildPassageNarrationScript({
+      reading,
+      segments: [
+        segment(0, "text", "**Training.** <span>Use</span> $x^2$ samples &amp; verify."),
+        segment(1, "list_item", "3. Set `max_tokens`."),
+        segment(2, "table", "| raw | markdown |"),
+      ],
+    });
+    const text = narrationItems(script).map((item) => item.speechText).join(" ");
+
+    expect(text).toContain("Training. Use x squared samples and verify.");
+    expect(text).toContain("Set max tokens.");
+    expect(text).toContain("Table, shown on screen.");
+    expect(text).not.toMatch(/\*\*|<span>|`|\$|\|/);
   });
 });

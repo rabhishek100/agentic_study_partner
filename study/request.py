@@ -146,6 +146,14 @@ SUMMARIZE_CHAPTER_IN_NAMED_BOOK = re.compile(
     r"chapter\s+(?P<chapter>\d+)\s*[?.]?$",
     re.IGNORECASE,
 )
+# "the Uber case study chapter from @[Scaler HLD]" — a titled chapter with
+# its descriptive words before "chapter" and its book after it. This is the
+# natural order when the reader remembers the subject but not its number.
+SUMMARIZE_TITLED_CHAPTER_IN_BOOK = re.compile(
+    r"^summari[sz]e\s+(?:the\s+)?(?P<chapter>.+?)\s+chapter\s+"
+    r"(?:of|in|from)\s+(?P<book_reference>.+?)\s*[?.]?$",
+    re.IGNORECASE,
+)
 LIST_SECTIONS_IN_BOOK = re.compile(
     r"^(?:list|show)(?:\s+me)?\s+(?:all\s+)?(?:the\s+)?sections\s+"
     r"(?:in|of|under)\s+chapter\s+(?P<chapter>\d+)\s+"
@@ -207,6 +215,13 @@ READ_VERBATIM = (
         r"(?:full|complete|whole|entire|verbatim|raw|original)\s+"
         r"(?:text|version|contents?)\s+(?:of|for|from)\s+"
         r"(?P<scope>.+?)\s*[?.]?$",
+        re.IGNORECASE,
+    ),
+    # "show verbatim the Uber chapter", where the marker immediately follows
+    # the action rather than wrapping up the sentence.
+    re.compile(
+        rf"^{_READ_VERB}\s+(?:me\s+)?{_VERBATIM_MARKER}\s+"
+        r"(?:of\s+|for\s+)?(?P<scope>.+?)\s*[?.]?$",
         re.IGNORECASE,
     ),
     # "read chapter 3 in full", "make this paper a chat version"
@@ -365,6 +380,15 @@ def parse_study_request(query: str) -> StudyRequest:
             intent="summarize",
             scope_kind="chapter",
             scope_reference=match.group("chapter"),
+            book_reference=_clean_book_reference(match.group("book_reference")),
+        )
+
+    match = SUMMARIZE_TITLED_CHAPTER_IN_BOOK.fullmatch(query)
+    if match:
+        return StudyRequest(
+            intent="summarize",
+            scope_kind="chapter",
+            scope_reference=_clean_reference(match.group("chapter")),
             book_reference=_clean_book_reference(match.group("book_reference")),
         )
 

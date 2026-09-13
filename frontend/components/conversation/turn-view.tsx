@@ -233,7 +233,7 @@ export function TurnView({
         {turn.status !== "streaming" && (
           <div className="flex flex-wrap items-center gap-1">
             {turn.answer && <CopyButton text={turn.answer} />}
-            {turn.answer && (
+            {turn.answer && !result?.reading && (
               <ReadAloud
                 id={`turn-${turn.id}`}
                 voiceContext={
@@ -254,7 +254,7 @@ export function TurnView({
               the latest turn: that is the one a reader comes back to having
               forgotten what they asked.
             */}
-            {isLast && turn.answer && (
+            {isLast && turn.answer && !result?.reading && (
               <ReadAloud
                 id={`exchange-${turn.id}`}
                 anchorId={`turn-${turn.id}`}

@@ -1,13 +1,26 @@
 "use client";
 
-import { AlertCircle, BookOpen, ChevronDown } from "lucide-react";
-import { useMemo } from "react";
+import {
+  AlertCircle,
+  BookOpen,
+  ChevronDown,
+  FileText,
+  Loader2,
+  Pause,
+  Play,
+  Volume2,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { InlineFigure } from "@/components/conversation/figures";
+import { CaptionText } from "@/components/conversation/caption-text";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePassage } from "@/hooks/use-passage";
+import { useReadAloud } from "@/hooks/use-read-aloud";
+import { buildPassageNarrationScript, presentablePassageSegments } from "@/lib/narration";
+import { fetchCompletePassage } from "@/lib/passage";
 import type { PassageSegment, ReadingRef } from "@/lib/types";
 
 /** The page number a reader sees, preferring the one printed on the page. */
@@ -46,27 +59,41 @@ function progress(
   };
 }
 
-function Heading({ segment }: { segment: PassageSegment }) {
+function Heading({
+  segment,
+  baseLevel,
+}: {
+  segment: PassageSegment;
+  baseLevel: number;
+}) {
   // Depth is the book's, not the document's: the scope root sits at whatever
   // level it occupies in the table of contents, so headings are rendered
   // relative to each other rather than mapped onto h1–h4 absolutely.
-  const deep = (segment.level ?? 1) > 1;
+  const depth = Math.max(0, (segment.level ?? baseLevel) - baseLevel);
+  if (depth === 0) {
+    return (
+      <h3 className="reading-heading reading-heading-primary">
+        {segment.text}
+      </h3>
+    );
+  }
+  if (depth === 1) {
+    return (
+      <h4 className="reading-heading reading-heading-secondary">
+        {segment.text}
+      </h4>
+    );
+  }
   return (
-    <h4
-      className={
-        deep
-          ? "pt-2 font-sans text-sm font-semibold tracking-tight text-foreground"
-          : "pt-3 font-sans text-base font-semibold tracking-tight text-foreground"
-      }
-    >
+    <h5 className="reading-heading reading-heading-tertiary">
       {segment.text}
-    </h4>
+    </h5>
   );
 }
 
 function Table({ segment }: { segment: PassageSegment }) {
   return (
-    <div className="reading-table -mx-1 overflow-x-auto rounded-md border border-border px-1 py-1">
+    <div className="reading-table overflow-x-auto rounded-lg border border-border bg-raised">
       {segment.html ? (
         // Parser output from our own ingestion, not reader input, and it is
         // stripped to table markup at parse time. Rendering the flat text
@@ -74,7 +101,7 @@ function Table({ segment }: { segment: PassageSegment }) {
         // reason a table is worth showing separately.
         <div dangerouslySetInnerHTML={{ __html: segment.html }} />
       ) : (
-        <pre className="whitespace-pre-wrap font-mono text-xs">
+        <pre className="whitespace-pre-wrap p-4 font-mono text-xs leading-relaxed">
           {segment.text}
         </pre>
       )}
@@ -85,27 +112,34 @@ function Table({ segment }: { segment: PassageSegment }) {
 /** A quiet rule carrying the page number, wherever the page turns. */
 function PageTick({ page }: { page: number }) {
   return (
-    <div className="flex items-center gap-2 pt-2" aria-hidden>
-      <span className="h-px flex-1 bg-border" />
+    <div className="reading-page-tick" aria-hidden>
+      <span className="h-px flex-1 bg-divider" />
       {/* The eyebrow role: a micro-label that never carries sole meaning. */}
-      <span className="font-sans text-eyebrow uppercase text-muted-foreground">
+      <span className="rounded-full border border-divider bg-canvas px-3 py-1 font-sans text-eyebrow uppercase tracking-[0.12em] text-muted-foreground">
         p. {page}
       </span>
+      <span className="h-px flex-1 bg-divider" />
     </div>
   );
 }
 
-function Body({ segment }: { segment: PassageSegment }) {
+function Body({
+  segment,
+  baseHeadingLevel,
+}: {
+  segment: PassageSegment;
+  baseHeadingLevel: number;
+}) {
   switch (segment.kind) {
     case "heading":
-      return <Heading segment={segment} />;
+      return <Heading segment={segment} baseLevel={baseHeadingLevel} />;
     case "table":
       return <Table segment={segment} />;
     case "figure":
       return segment.figure ? <InlineFigure figure={segment.figure} /> : null;
     case "caption":
       return (
-        <p className="font-sans text-[0.8em] text-muted-foreground">
+        <p className="reading-caption">
           {segment.text}
         </p>
       );
@@ -114,12 +148,23 @@ function Body({ segment }: { segment: PassageSegment }) {
       // rendering it through KaTeX would be guessing at markup it never had.
       // A monospaced, scrollable line is honest about that.
       return (
-        <pre className="overflow-x-auto rounded bg-muted px-3 py-2 font-mono text-[0.85em]">
-          {segment.text}
-        </pre>
+        <div className="reading-formula" role="group" aria-label="Formula">
+          <span className="reading-formula-label" aria-hidden>
+            Formula
+          </span>
+          <pre>{segment.text}</pre>
+        </div>
       );
     default:
-      return <p>{segment.text}</p>;
+      return (
+        <p>
+          {segment.text && !/<[a-z][\s\S]*>/i.test(segment.text) ? (
+            <CaptionText>{segment.text}</CaptionText>
+          ) : (
+            segment.text
+          )}
+        </p>
+      );
   }
 }
 
@@ -149,12 +194,41 @@ function grouped(segments: PassageSegment[]): Run[] {
   return runs;
 }
 
+function listItemText(text: string | null): string {
+  // The outer semantic list supplies the marker. Some imported blocks retain
+  // their Markdown marker too; removing only that prefix prevents a double
+  // bullet while leaving the stored string and all meaningful text untouched.
+  return (text ?? "")
+    .replace(/^\s*[-*•]\s+/, "")
+    .replace(/^\s*\d+[.)]\s+/, "");
+}
+
+function orderedListStart(run: Run): number | null {
+  if (!run.every((segment) => /^\s*\d+[.)]\s+/.test(segment.text ?? ""))) {
+    return null;
+  }
+  const match = /^\s*(\d+)/.exec(run[0].text ?? "");
+  return match ? Number(match[1]) : 1;
+}
+
+function headingBase(segments: PassageSegment[]): number {
+  let base = Number.POSITIVE_INFINITY;
+  for (const segment of segments) {
+    if (segment.kind === "heading") {
+      base = Math.min(base, segment.level ?? 1);
+    }
+  }
+  return Number.isFinite(base) ? base : 1;
+}
+
 function RunView({
   run,
   previous,
+  baseHeadingLevel,
 }: {
   run: Run;
   previous: PassageSegment | undefined;
+  baseHeadingLevel: number;
 }) {
   const first = run[0];
   const turned =
@@ -164,13 +238,25 @@ function RunView({
     <>
       {turned ? <PageTick page={readerPage(first)} /> : null}
       {first.kind === "list_item" ? (
-        <ul className="list-disc pl-[1.2em]">
-          {run.map((segment) => (
-            <li key={segment.index}>{segment.text}</li>
-          ))}
-        </ul>
+        (() => {
+          const start = orderedListStart(run);
+          const items = run.map((segment) => (
+            <li key={segment.index} data-narration-passage={segment.index}>
+              <CaptionText>{listItemText(segment.text)}</CaptionText>
+            </li>
+          ));
+          return start === null ? (
+            <ul className="reading-list reading-list-bulleted">{items}</ul>
+          ) : (
+            <ol className="reading-list reading-list-ordered" start={start}>
+              {items}
+            </ol>
+          );
+        })()
       ) : (
-        <Body segment={first} />
+        <div className="contents" data-narration-passage={first.index}>
+          <Body segment={first} baseHeadingLevel={baseHeadingLevel} />
+        </div>
       )}
     </>
   );
@@ -196,27 +282,123 @@ export function ReadingPassage({ reading }: ReadingPassageProps) {
     () => progress(segments, reading),
     [segments, reading],
   );
-  const runs = useMemo(() => grouped(segments), [segments]);
+  const displayedSegments = useMemo(
+    () => presentablePassageSegments(segments, reading.display_path),
+    [segments, reading.display_path],
+  );
+  const runs = useMemo(() => grouped(displayedSegments), [displayedSegments]);
+  const baseHeadingLevel = useMemo(
+    () => headingBase(displayedSegments),
+    [displayedSegments],
+  );
+  const narration = useReadAloud();
+  const narrationId = `reading-${reading.book_id}-${reading.node_id ?? "whole"}`;
+  const isActive = narration.activeId === narrationId;
+  const [preparingChapter, setPreparingChapter] = useState(false);
+  const [narrationError, setNarrationError] = useState("");
+  const prepareRun = useRef(0);
+
+  useEffect(() => () => {
+    prepareRun.current += 1;
+  }, []);
+
+  const toggleChapterNarration = async () => {
+    if (isActive) {
+      if (narration.status === "paused") narration.resume();
+      else narration.pause();
+      return;
+    }
+    const run = ++prepareRun.current;
+    setPreparingChapter(true);
+    setNarrationError("");
+    try {
+      const complete = await fetchCompletePassage(reading);
+      if (run !== prepareRun.current) return;
+      void narration.playScript(
+        narrationId,
+        buildPassageNarrationScript({ reading, segments: complete }),
+        { anchorId: narrationId, label: reading.display_path },
+      );
+    } catch (cause) {
+      if (run !== prepareRun.current) return;
+      setNarrationError(
+        cause instanceof Error ? cause.message : "The chapter could not be prepared for reading.",
+      );
+    } finally {
+      if (run === prepareRun.current) setPreparingChapter(false);
+    }
+  };
 
   return (
     <section
-      className="rounded-lg border border-border bg-card"
+      className="reading-document overflow-hidden rounded-xl border border-border bg-card"
       aria-label={`${reading.display_path}, read in full from ${reading.book_title}`}
+      data-narration-anchor={narrationId}
     >
-      <header className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-3 py-2 font-sans text-xs text-muted-foreground sm:px-4">
-        <BookOpen className="size-3.5 shrink-0" aria-hidden />
-        <span className="font-medium text-foreground">
+      <header className="reading-document-header">
+        <div className="flex items-center gap-2 font-sans text-eyebrow font-semibold uppercase tracking-[0.14em] text-evidence">
+          <span className="grid size-7 place-items-center rounded-full bg-wash">
+            <BookOpen className="size-3.5" aria-hidden />
+          </span>
+          Full {reading.kind}
+        </div>
+        <h2 className="mt-3 max-w-[34ch] font-heading text-xl font-medium tracking-tight text-foreground sm:text-2xl">
           {reading.display_path}
-        </span>
-        <span aria-hidden>·</span>
-        <span>{passageRange(reading)}</span>
-        <span aria-hidden>·</span>
-        <span>{reading.book_title}</span>
+        </h2>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 font-sans text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-2">
+            <FileText className="size-3.5" aria-hidden />
+            {passageRange(reading)}
+          </span>
+          <span
+            className="hidden size-1 rounded-full bg-divider sm:block"
+            aria-hidden
+          />
+          <span>{reading.book_title}</span>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void toggleChapterNarration()}
+            disabled={preparingChapter}
+            aria-label={
+              isActive && narration.status !== "paused"
+                ? "Pause chapter"
+                : isActive
+                  ? "Resume chapter"
+                  : "Read entire chapter aloud"
+            }
+          >
+            {preparingChapter ? (
+              <Loader2 className="animate-spin" aria-hidden />
+            ) : isActive && narration.status !== "paused" ? (
+              <Pause aria-hidden />
+            ) : isActive ? (
+              <Play aria-hidden />
+            ) : (
+              <Volume2 aria-hidden />
+            )}
+            {preparingChapter
+              ? "Preparing full chapter…"
+              : isActive && narration.status !== "paused"
+                ? "Pause"
+                : isActive
+                  ? "Resume"
+                  : "Read entire chapter aloud"}
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Uses the pacing controls in the player.
+          </span>
+        </div>
+        {narrationError ? (
+          <p className="mt-2 text-xs text-destructive" role="alert">{narrationError}</p>
+        ) : null}
       </header>
 
-      <div className="px-3 py-3 sm:px-5 sm:py-4">
+      <div className="px-4 py-6 sm:px-8 sm:py-9 lg:px-10">
         {status === "loading" && segments.length === 0 && (
-          <div className="space-y-2" aria-hidden>
+          <div className="mx-auto max-w-[62ch] space-y-3" aria-hidden>
             {[0, 1, 2, 3, 4].map((row) => (
               <Skeleton
                 key={row}
@@ -233,6 +415,7 @@ export function ReadingPassage({ reading }: ReadingPassageProps) {
                 key={run[0].index}
                 run={run}
                 previous={runs[index - 1]?.at(-1)}
+                baseHeadingLevel={baseHeadingLevel}
               />
             ))}
           </div>
@@ -263,26 +446,46 @@ export function ReadingPassage({ reading }: ReadingPassageProps) {
         </p>
 
         {segments.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3 font-sans text-xs text-muted-foreground">
+          <div className="reading-document-footer">
             {hasMore ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadMore}
-                  disabled={status === "extending"}
+              <div className="w-full">
+                <div
+                  className="mb-3 h-1 overflow-hidden rounded-full bg-divider"
+                  aria-hidden
                 >
-                  <ChevronDown aria-hidden />
-                  {status === "extending" ? "Loading…" : "Continue reading"}
-                </Button>
-                <span>
-                  Through p. {reached.page} · {reached.percent}% of{" "}
-                  {reading.kind === "book" ? "the document" : `this ${reading.kind}`}
-                </span>
-              </>
+                  <span
+                    className="block h-full rounded-full bg-action"
+                    style={{ width: `${reached.percent}%` }}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadMore}
+                    disabled={status === "extending"}
+                  >
+                    <ChevronDown aria-hidden />
+                    {status === "extending"
+                      ? "Loading…"
+                      : "Continue reading"}
+                  </Button>
+                  <span>
+                    Through p. {reached.page} · {reached.percent}% of{" "}
+                    {reading.kind === "book"
+                      ? "the document"
+                      : `this ${reading.kind}`}
+                  </span>
+                </div>
+              </div>
             ) : (
-              <span>
-                End of {reading.kind === "book" ? "the document" : reading.kind}
+              <span className="inline-flex items-center gap-2">
+                <span
+                  className="size-1.5 rounded-full bg-evidence"
+                  aria-hidden
+                />
+                End of{" "}
+                {reading.kind === "book" ? "the document" : reading.kind}
                 {reading.omitted_block_count > 0 && (
                   <>
                     {" "}

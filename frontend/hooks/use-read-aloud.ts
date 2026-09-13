@@ -7,11 +7,13 @@ import {
   next,
   pause,
   play,
+  playScript,
   previous,
   resume,
   seekBy,
   seekTo,
   setAutoFollow,
+  setPacing,
   setSpeed,
   snapshot,
   stop,
@@ -22,11 +24,13 @@ import {
 
 export interface ReadAloud extends NarrationState {
   play: typeof play;
+  playScript: typeof playScript;
   toggle: typeof toggle;
   pause: typeof pause;
   resume: typeof resume;
   stop: typeof stop;
   setSpeed: typeof setSpeed;
+  setPacing: typeof setPacing;
   setAutoFollow: typeof setAutoFollow;
   seekTo: typeof seekTo;
   seekBy: typeof seekBy;
@@ -51,11 +55,13 @@ export function useReadAloud(): ReadAloud {
   return {
     ...state,
     play,
+    playScript,
     toggle,
     pause,
     resume,
     stop,
     setSpeed,
+    setPacing,
     setAutoFollow,
     seekTo,
     seekBy,

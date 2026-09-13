@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReadingPassage } from "@/components/conversation/reading-passage";
 import { TurnView } from "@/components/conversation/turn-view";
+import { fetchCompletePassage } from "@/lib/passage";
 import type {
   ChatTurn,
   PassageResponse,
@@ -13,6 +14,18 @@ import type {
 
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch, API_BASE: "/api" }));
+const narration = vi.hoisted(() => ({
+  activeId: null as string | null,
+  status: "idle" as "idle" | "preparing" | "speaking" | "paused",
+  playScript: vi.fn((id: string) => {
+    narration.activeId = id;
+    narration.status = "speaking";
+    return new Promise<void>(() => {});
+  }),
+  pause: vi.fn(),
+  resume: vi.fn(),
+}));
+vi.mock("@/hooks/use-read-aloud", () => ({ useReadAloud: () => narration }));
 
 // Figures fetch their own bytes with a bearer token; the passage under test is
 // about ordering and continuation, not about image loading.
@@ -64,6 +77,11 @@ function page(
 describe("ReadingPassage", () => {
   beforeEach(() => {
     apiFetch.mockReset();
+    narration.activeId = null;
+    narration.status = "idle";
+    narration.playScript.mockClear();
+    narration.pause.mockClear();
+    narration.resume.mockClear();
   });
 
   it("names the scope, the page range as printed, and the book", async () => {
@@ -78,6 +96,36 @@ describe("ReadingPassage", () => {
     expect(
       screen.getByText("Designing Data-Intensive Applications"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Read entire chapter aloud" }),
+    ).toBeInTheDocument();
+  });
+
+  it("loads every canonical installment for full-chapter narration", async () => {
+    apiFetch
+      .mockResolvedValueOnce(page([segment(0)], 0, 1))
+      .mockResolvedValueOnce(page([segment(1)], 1, 2))
+      .mockResolvedValueOnce(page([segment(2)], 2, null));
+
+    const complete = await fetchCompletePassage(reading);
+
+    expect(complete.map((item) => item.index)).toEqual([0, 1, 2]);
+    expect(apiFetch.mock.calls.map((call) => call[0])).toEqual([
+      "/books/4/passage?offset=0&node_id=91",
+      "/books/4/passage?offset=1&node_id=91",
+      "/books/4/passage?offset=2&node_id=91",
+    ]);
+  });
+
+  it("enables pause as soon as playback starts rather than after the chapter ends", async () => {
+    apiFetch.mockResolvedValue(page([segment(0)], 0, null));
+    render(<ReadingPassage reading={reading} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Read entire chapter aloud" }));
+
+    await waitFor(() => expect(narration.playScript).toHaveBeenCalledOnce());
+    const pause = await screen.findByRole("button", { name: "Pause chapter" });
+    expect(pause).toBeEnabled();
   });
 
   it("asks for the scope's own node so a chapter is not read as the book", async () => {
@@ -132,6 +180,65 @@ describe("ReadingPassage", () => {
     expect(
       screen.getByText("A log-structured segment file"),
     ).toBeInTheDocument();
+  });
+
+  it("preserves the source hierarchy as accessible heading levels", async () => {
+    apiFetch.mockResolvedValue(
+      page(
+        [
+          segment(0, { kind: "heading", text: "Storage engines", level: 2 }),
+          segment(1, { kind: "heading", text: "Hash indexes", level: 3 }),
+          segment(2, { kind: "heading", text: "Compaction", level: 4 }),
+        ],
+        0,
+        null,
+      ),
+    );
+
+    render(<ReadingPassage reading={reading} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Storage engines", level: 3 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Hash indexes", level: 4 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Compaction", level: 5 }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows repeated canonical title headings once without changing their text", async () => {
+    apiFetch.mockResolvedValue(
+      page(
+        [
+          segment(0, {
+            kind: "heading",
+            text: "Chapter 3. Storage and Retrieval",
+            level: 1,
+          }),
+          segment(1, {
+            kind: "heading",
+            text: "Chapter 3. Storage and Retrieval",
+            level: 2,
+          }),
+          segment(2, { text: "The chapter begins here." }),
+          segment(3, { kind: "heading", text: "Hash Indexes", level: 2 }),
+          segment(4, { kind: "heading", text: "Hash Indexes", level: 3 }),
+        ],
+        0,
+        null,
+      ),
+    );
+
+    render(<ReadingPassage reading={reading} />);
+
+    await screen.findByText("The chapter begins here.");
+    // The document header is the one visible scope title.
+    expect(
+      screen.getAllByText("Chapter 3. Storage and Retrieval"),
+    ).toHaveLength(1);
+    expect(screen.getAllByText("Hash Indexes")).toHaveLength(1);
   });
 
   it("continues from the offset the server gave rather than guessing one", async () => {
@@ -198,6 +305,73 @@ describe("ReadingPassage", () => {
     expect(lists).toHaveLength(2);
     expect(lists[0]?.querySelectorAll("li")).toHaveLength(2);
     expect(lists[1]?.querySelectorAll("li")).toHaveLength(1);
+  });
+
+  it("uses the semantic list marker and renders retained inline formatting", async () => {
+    apiFetch.mockResolvedValue(
+      page(
+        [
+          segment(0, {
+            kind: "list_item",
+            text: "- **Business objective.** Increase bookings.",
+          }),
+        ],
+        0,
+        null,
+      ),
+    );
+
+    const { container } = render(<ReadingPassage reading={reading} />);
+
+    const item = await screen.findByRole("listitem");
+    expect(item).toHaveTextContent("Business objective. Increase bookings.");
+    expect(item).not.toHaveTextContent("- Business objective");
+    expect(container.querySelector("li strong")?.textContent).toBe(
+      "Business objective.",
+    );
+  });
+
+  it("renders retained numeric markers as an ordered list", async () => {
+    apiFetch.mockResolvedValue(
+      page(
+        [
+          segment(0, { kind: "list_item", text: "3. Data preparation" }),
+          segment(1, { kind: "list_item", text: "4. Model development" }),
+        ],
+        0,
+        null,
+      ),
+    );
+
+    const { container } = render(<ReadingPassage reading={reading} />);
+
+    await screen.findByText("Data preparation");
+    const list = container.querySelector("ol");
+    expect(list).toHaveAttribute("start", "3");
+    expect(list?.querySelectorAll("li")).toHaveLength(2);
+    expect(container.querySelector("ul")).toBeNull();
+  });
+
+  it("typesets inline emphasis in prose but does not execute stored HTML", async () => {
+    apiFetch.mockResolvedValue(
+      page(
+        [
+          segment(0, { text: "**Supervised learning.** Uses labels." }),
+          segment(1, { text: '<img src="https://example.com/not-loaded.png">' }),
+        ],
+        0,
+        null,
+      ),
+    );
+
+    const { container } = render(<ReadingPassage reading={reading} />);
+
+    expect(await screen.findByText("Supervised learning.")).toBeInTheDocument();
+    expect(container.querySelector("p strong")?.textContent).toBe(
+      "Supervised learning.",
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText(/<img src=/)).toBeInTheDocument();
   });
 
   it("sets a caption and a formula apart from the prose", async () => {
@@ -296,5 +470,6 @@ describe("a verbatim turn in the conversation", () => {
         name: /Chapter 3\. Storage and Retrieval, read in full/,
       }),
     ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /read.*aloud/i })).toHaveLength(1);
   });
 });

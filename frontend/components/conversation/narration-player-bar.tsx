@@ -9,6 +9,7 @@ import {
   Pause,
   Play,
   RotateCcw,
+  SlidersHorizontal,
   SkipBack,
   SkipForward,
   Square,
@@ -16,6 +17,14 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -25,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { useReadAloud } from "@/hooks/use-read-aloud";
 import { useNarrationVoice } from "@/hooks/use-narration-voice";
-import { SPEEDS } from "@/lib/narration-player";
+import { DEFAULT_PACING, SPEEDS, type NarrationPacing } from "@/lib/narration-player";
 import {
   emitNarrationVoiceQuestion,
   NARRATION_VOICE_ANSWER,
@@ -125,6 +134,9 @@ function anchoredElement(root: Element, narration: ReturnType<typeof useReadAlou
       `[data-narration-figure="${anchor.blockId}"]`,
     ) ?? null;
   }
+  if (anchor.type === "passage") {
+    return root.querySelector(`[data-narration-passage="${anchor.index}"]`);
+  }
   return root.querySelector(`[data-narration-block="${anchor.key}"]`);
 }
 
@@ -189,6 +201,89 @@ function FollowAlong() {
 }
 
 type QuestionPhase = "idle" | "capturing" | "reviewing" | "asking";
+
+interface PacingSliderProps {
+  label: string;
+  hint: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  display: (value: number) => string;
+  onChange: (value: number) => void;
+}
+
+function PacingSlider({
+  label,
+  hint,
+  value,
+  min,
+  max,
+  step,
+  display,
+  onChange,
+}: PacingSliderProps) {
+  return (
+    <label className="block space-y-2">
+      <span className="flex items-baseline justify-between gap-3 text-xs">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="tabular-nums text-muted-foreground">{display(value)}</span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.currentTarget.value))}
+        className="block h-5 w-full cursor-pointer accent-primary"
+        aria-label={label}
+      />
+      <span className="block text-eyebrow leading-snug text-muted-foreground">{hint}</span>
+    </label>
+  );
+}
+
+function PacingControls() {
+  const narration = useReadAloud();
+  const update = (key: keyof NarrationPacing, value: number) => {
+    narration.setPacing({ ...narration.pacing, [key]: value });
+  };
+  const seconds = (value: number) => `${(value / 1000).toFixed(1)} s`;
+  const rate = (value: number) => `${value.toFixed(2)}×`;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label="Reading pacing controls">
+          <SlidersHorizontal aria-hidden />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={10} className="w-[min(22rem,calc(100vw-1.5rem))] space-y-4 p-4">
+        <PopoverHeader>
+          <PopoverTitle>Reading rhythm</PopoverTitle>
+          <PopoverDescription>
+            Pauses are real silence, never markup sent to the voice.
+          </PopoverDescription>
+        </PopoverHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <PacingSlider label="After each sentence" hint="A brief moment to absorb one thought." value={narration.pacing.sentencePauseMs} min={0} max={1500} step={100} display={seconds} onChange={(value) => update("sentencePauseMs", value)} />
+          <PacingSlider label="After each paragraph" hint="Separates related groups of ideas." value={narration.pacing.paragraphPauseMs} min={0} max={2500} step={100} display={seconds} onChange={(value) => update("paragraphPauseMs", value)} />
+          <PacingSlider label="After each heading" hint="Signals that a new section is beginning." value={narration.pacing.headingPauseMs} min={0} max={3500} step={100} display={seconds} onChange={(value) => update("headingPauseMs", value)} />
+          <PacingSlider label="After the title" hint="Creates a clear opening before the chapter." value={narration.pacing.titlePauseMs} min={0} max={4500} step={100} display={seconds} onChange={(value) => update("titlePauseMs", value)} />
+          <PacingSlider label="Heading voice pace" hint="Relative to the main reading speed." value={narration.pacing.headingRate} min={0.65} max={1.15} step={0.05} display={rate} onChange={(value) => update("headingRate", value)} />
+          <PacingSlider label="Title voice pace" hint="A deliberate pace helps establish context." value={narration.pacing.titleRate} min={0.6} max={1.1} step={0.05} display={rate} onChange={(value) => update("titleRate", value)} />
+        </div>
+        <div className="flex items-center justify-between border-t border-border pt-3">
+          <span className="text-eyebrow text-muted-foreground">Saved on this device</span>
+          <Button variant="ghost" size="xs" onClick={() => narration.setPacing(DEFAULT_PACING)}>
+            Reset rhythm
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function VoiceQuestions() {
   const narration = useReadAloud();
@@ -501,6 +596,7 @@ export function NarrationPlayerBar() {
               ))}
             </SelectContent>
           </Select>
+          <PacingControls />
           <Button
             variant="ghost"
             size="icon-sm"
