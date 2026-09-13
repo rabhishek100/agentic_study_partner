@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +6,9 @@ vi.mock("@/lib/supabase", () => ({ accessToken: async () => "token" }));
 vi.mock("@/lib/api", () => ({
   API_BASE: "/api",
   errorDetail: async () => "the reading voice is unavailable",
+}));
+vi.mock("@/hooks/use-authenticated-image", () => ({
+  useAuthenticatedImage: () => ({ status: "ready", url: "blob:figure" }),
 }));
 const narrationVoice = vi.hoisted(() => ({ setEnabled: vi.fn() }));
 vi.mock("@/hooks/use-narration-voice", () => ({
@@ -24,7 +27,9 @@ vi.mock("@/hooks/use-narration-voice", () => ({
 }));
 
 import { ReadAloud } from "@/components/conversation/read-aloud";
+import { Answer } from "@/components/conversation/answer";
 import { NarrationPlayerBar } from "@/components/conversation/narration-player-bar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { reset } from "@/lib/narration-player";
 import type { FigureRef } from "@/lib/types";
 
@@ -37,8 +42,12 @@ class AudioStub {
   static instances: AudioStub[] = [];
   static autoEnd = true;
   playbackRate = 1;
+  duration = 100;
+  currentTime = 0;
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  ontimeupdate: (() => void) | null = null;
+  onloadedmetadata: (() => void) | null = null;
   src = "";
 
   constructor(url: string) {
@@ -98,6 +107,7 @@ beforeEach(() => {
     createObjectURL: () => "blob:narration",
     revokeObjectURL: () => {},
   });
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
 });
 
 const source = () => ({
@@ -227,13 +237,73 @@ describe("reading an answer aloud", () => {
 
     expect(await screen.findByRole("region", { name: "Read-aloud player" })).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: "Reading position" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Previous sentence" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous passage" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rewind 10 seconds" })).toBeInTheDocument();
+
+    // The media metadata says 100 seconds, but the logical timeline stays
+    // fixed instead of stretching and flickering when metadata arrives.
+    const slider = screen.getByRole("slider", { name: "Reading position" });
+    expect(Number(slider.getAttribute("max"))).toBeLessThan(10);
 
     await userEvent.click(screen.getByRole("button", { name: "Turn off auto-follow" }));
     expect(window.localStorage.getItem("narration-auto-follow")).toBe("false");
     await userEvent.click(screen.getByRole("button", { name: "Stop reading" }));
     expect(screen.queryByRole("region", { name: "Read-aloud player" })).toBeNull();
+  });
+
+  it("commits a pointer scrub once instead of restarting audio on every move", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+
+    render(
+      <>
+        <ReadAloud id="turn-1" source={source} />
+        <NarrationPlayerBar />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    await waitFor(() => expect(AudioStub.instances).toHaveLength(1));
+
+    const slider = screen.getByRole("slider", { name: "Reading position" });
+    fireEvent.pointerDown(slider);
+    fireEvent.input(slider, { target: { value: "0.5" } });
+    fireEvent.change(slider, { target: { value: "0.8" } });
+    expect(AudioStub.instances).toHaveLength(1);
+    fireEvent.pointerUp(slider, { target: { value: "0.8" } });
+    await waitFor(() => expect(AudioStub.instances).toHaveLength(2));
+  });
+
+  it("follows stable blocks when identical text appears more than once", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    const repeated = "Repeated phrase.\n\nRepeated phrase.";
+
+    const view = render(
+      <TooltipProvider>
+        <Answer
+          narrationId="turn-1"
+          text={repeated}
+          evidence={[]}
+          citations={[]}
+        />
+        <ReadAloud id="turn-1" source={() => ({ answer: repeated })} />
+        <NarrationPlayerBar />
+      </TooltipProvider>,
+    );
+    const paragraphs = view.container.querySelectorAll("p");
+    const firstScroll = vi.fn();
+    const secondScroll = vi.fn();
+    Object.defineProperty(paragraphs[0]!, "scrollIntoView", { value: firstScroll });
+    Object.defineProperty(paragraphs[1]!, "scrollIntoView", { value: secondScroll });
+
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    await waitFor(() => expect(firstScroll).toHaveBeenCalledOnce());
+    expect(secondScroll).not.toHaveBeenCalled();
+
+    act(() => AudioStub.instances[0]!.onended?.());
+    await waitFor(() => expect(secondScroll).toHaveBeenCalledOnce());
   });
 
   it("offers the guarded voice-question mode only for a saved book turn", async () => {

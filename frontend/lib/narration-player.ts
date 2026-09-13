@@ -23,6 +23,7 @@ export interface NarrationState {
   chunkIndex: number;
   chunkCount: number;
   currentText: string;
+  currentAnchor: NarrationItem["anchor"] | null;
   currentTime: number;
   duration: number;
   durationEstimated: boolean;
@@ -56,6 +57,7 @@ const IDLE: NarrationState = {
   chunkIndex: 0,
   chunkCount: 0,
   currentText: "",
+  currentAnchor: null,
   currentTime: 0,
   duration: 0,
   durationEstimated: true,
@@ -106,7 +108,10 @@ interface Session {
   run: number;
   items: NarrationItem[];
   blobs: Map<number, Promise<Blob>>;
-  durations: Array<number | null>;
+  /** Immutable logical timeline: the seek bar never moves under the pointer. */
+  durations: number[];
+  /** Actual media durations, used only to translate logical offsets. */
+  mediaDurations: Array<number | null>;
 }
 
 let session: Session | null = null;
@@ -121,9 +126,7 @@ function estimateDuration(text: string): number {
 }
 
 function effectiveDurations(current: Session): number[] {
-  return current.items.map((item, index) =>
-    current.durations[index] ?? estimateDuration(item.text),
-  );
+  return current.durations;
 }
 
 function timeline(current: Session, index: number, itemTime = 0): number {
@@ -133,10 +136,9 @@ function timeline(current: Session, index: number, itemTime = 0): number {
 }
 
 function refreshDuration(current: Session): void {
-  const durations = effectiveDurations(current);
   emit({
-    duration: durations.reduce((sum, value) => sum + value, 0),
-    durationEstimated: current.durations.some((value) => value == null),
+    duration: current.durations.reduce((sum, value) => sum + value, 0),
+    durationEstimated: true,
   });
 }
 
@@ -175,6 +177,7 @@ export function stop(): void {
     chunkIndex: 0,
     chunkCount: 0,
     currentText: "",
+    currentAnchor: null,
     currentTime: 0,
     duration: 0,
     durationEstimated: true,
@@ -253,20 +256,38 @@ async function fetchDescriptions(
 }
 
 async function fetchItem(text: string, signal: AbortSignal): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/narration/speech`, {
-    method: "POST",
-    signal,
-    headers: await authorizedHeaders(),
-    body: JSON.stringify({ text }),
-  });
-  if (!response.ok) throw new Error(await errorDetail(response));
-  return response.blob();
+  let lastError = "the reading voice is unavailable";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(`${API_BASE}/narration/speech`, {
+        method: "POST",
+        signal,
+        headers: await authorizedHeaders(),
+        body: JSON.stringify({ text }),
+      });
+      if (response.ok) return response.blob();
+      lastError = await errorDetail(response);
+    } catch (failure) {
+      if (signal.aborted) throw failure;
+      lastError = failure instanceof Error ? failure.message : lastError;
+    }
+    if (attempt === 0) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = window.setTimeout(resolve, 250);
+        signal.addEventListener("abort", () => {
+          window.clearTimeout(timer);
+          reject(new DOMException("Aborted", "AbortError"));
+        }, { once: true });
+      });
+    }
+  }
+  throw new Error(lastError);
 }
 
 function itemBlob(current: Session, index: number, signal: AbortSignal): Promise<Blob> {
   const existing = current.blobs.get(index);
   if (existing) return existing;
-  const request = fetchItem(current.items[index]!.text, signal);
+  const request = fetchItem(current.items[index]!.speechText, signal);
   request.catch(() => undefined);
   current.blobs.set(index, request);
   return request;
@@ -278,7 +299,7 @@ function speakOnDevice(items: NarrationItem[], run: number): boolean {
     !("speechSynthesis" in window) ||
     typeof SpeechSynthesisUtterance === "undefined"
   ) return false;
-  const utterance = new SpeechSynthesisUtterance(items.map((item) => item.text).join(" "));
+  const utterance = new SpeechSynthesisUtterance(items.map((item) => item.speechText).join(" "));
   const voices = window.speechSynthesis.getVoices();
   utterance.voice =
     voices.find((voice) => voice.lang.toLowerCase().startsWith("en") &&
@@ -310,21 +331,32 @@ function playAudio(
     const element = new Audio(objectUrl);
     audio = element;
     element.playbackRate = state.speed;
+    // Explicit because older Safari versions otherwise change pitch when the
+    // user changes speed, which is commonly perceived as a robotic voice.
+    element.preservesPitch = true;
 
     const adoptMetadata = () => {
       if (Number.isFinite(element.duration) && element.duration > 0) {
-        current.durations[index] = element.duration;
-        refreshDuration(current);
+        current.mediaDurations[index] = element.duration;
       }
       if (offset > 0) {
-        try { element.currentTime = Math.min(offset, element.duration || offset); }
+        const logicalDuration = current.durations[index] ?? 1;
+        const mediaDuration = element.duration || current.mediaDurations[index] || logicalDuration;
+        const mediaOffset = (Math.min(offset, logicalDuration) / logicalDuration) * mediaDuration;
+        try { element.currentTime = mediaOffset; }
         catch { /* Some engines reject seeking until metadata is ready. */ }
       }
     };
     element.onloadedmetadata = adoptMetadata;
     element.ontimeupdate = () => {
       if (current.run !== generation || cursor !== cursorGeneration) return;
-      emit({ currentTime: timeline(current, index, element.currentTime || 0) });
+      const logicalDuration = current.durations[index] ?? 1;
+      const mediaDuration = current.mediaDurations[index] || element.duration || logicalDuration;
+      const logicalTime = Math.min(
+        logicalDuration,
+        ((element.currentTime || 0) / mediaDuration) * logicalDuration,
+      );
+      emit({ currentTime: timeline(current, index, logicalTime) });
     };
     element.onended = () => resolve();
     element.onerror = () => reject(new Error("This passage could not be played."));
@@ -354,6 +386,7 @@ async function playFrom(index: number, offset = 0): Promise<void> {
       status: state.status === "paused" ? "paused" : "preparing",
       chunkIndex: at,
       currentText: item.text,
+      currentAnchor: item.anchor ?? null,
       currentTime: timeline(current, at, at === index ? offset : 0),
     });
     const blobRequest = itemBlob(current, at, signal);
@@ -399,6 +432,7 @@ export async function play(
     chunkIndex: 0,
     chunkCount: 0,
     currentText: "",
+    currentAnchor: null,
     currentTime: 0,
     duration: 0,
     voiceContext: options.voiceContext ?? null,
@@ -418,7 +452,13 @@ export async function play(
     return;
   }
 
-  session = { run, items, blobs: new Map(), durations: items.map(() => null) };
+  session = {
+    run,
+    items,
+    blobs: new Map(),
+    durations: items.map((item) => estimateDuration(item.text)),
+    mediaDurations: items.map(() => null),
+  };
   emit({ chunkCount: items.length, currentText: items[0]!.text });
   refreshDuration(session);
   await playFrom(0);
@@ -442,9 +482,9 @@ export function seekTo(seconds: number): void {
   const target = Math.max(0, Math.min(seconds, state.duration));
   const durations = effectiveDurations(current);
   let elapsed = 0;
-  let index = durations.length - 1;
+  let index = Math.max(0, durations.length - 1);
   for (let at = 0; at < durations.length; at += 1) {
-    if (target < elapsed + durations[at]!) { index = at; break; }
+    if (target <= elapsed + durations[at]!) { index = at; break; }
     elapsed += durations[at]!;
   }
   const wasPaused = state.status === "paused";

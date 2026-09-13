@@ -9,18 +9,19 @@ side chat, lecture answer, exchange, or selection stops the previous reading
 and opens one responsive floating transport. The inline button remains the
 short path to start or pause; detailed control lives in the transport.
 
-The player operates on independently synthesized sentences. This makes sentence
-highlighting, previous/next, rewind, and seeking deterministic instead of
-guessing a timestamp inside a multi-sentence MP3. The first sentence is fetched
-immediately and the next two are prefetched. Actual media durations replace
-the initial word-count estimates as metadata arrives. Server-side TTS caching
+The player operates on independently synthesized semantic passages. A rendered
+paragraph or figure description stays together for natural prosody, while
+stable source anchors keep highlighting, previous/next, rewind, and seeking
+deterministic. The first passage is fetched immediately and the next two are
+prefetched. The logical timeline stays fixed while media metadata arrives, so
+the seek thumb cannot move under the reader's pointer. Server-side TTS caching
 is still keyed by text, model, and voice, so replay does not invoke the provider.
 
 Auto-follow uses a CSS Custom Highlight range over the rendered answer. It does
 not mutate stored Markdown or replace the browser's selection. A browser without
 Custom Highlight support receives a block-level fallback. Reduced-motion
 preferences turn smooth scrolling off. Wheel or touch interaction suppresses
-the current automatic scroll, and the next sentence resumes following.
+the current automatic scroll, and the next passage resumes following.
 
 ## Voice-question boundary
 
@@ -41,7 +42,7 @@ Voice questions are deliberately available only when reading a recorded turn
 of a book conversation. Voice activity pauses the original playback. Final STT
 phrases are accumulated, then a short edit/cancel window appears before the
 question is automatically submitted. The page creates a `Read-aloud questions`
-side chat anchored to the sentence and reuses it for later interruptions in the
+side chat anchored to the current passage and reuses it for later interruptions in the
 same playback context. The UI therefore retains questions, grounded answers,
 and citations even if speech fails.
 

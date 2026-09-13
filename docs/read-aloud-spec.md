@@ -38,8 +38,11 @@ is listenable, and two of them are ours:
   literally ("asterisk asterisk", "backslash frac", "bracket S one") are what
   make machine reading intolerable. The narration script strips them and
   verbalises maths into words before a single character reaches the API.
-- **Chunk boundaries.** Chunks are cut at sentence ends, never mid-clause, so
-  the synthesiser sees whole sentences and produces whole-sentence prosody.
+- **Chunk boundaries.** A rendered paragraph, heading, list, table, code
+  announcement, or figure description is one voice take (split only at a
+  sentence boundary when it exceeds the safety ceiling). The synthesiser gets
+  enough neighbouring context to keep pitch and pace stable instead of
+  restarting its delivery after every sentence.
 - **The voice model**, which stays environment-configurable
   (`OPENROUTER_READING_TTS_MODEL` / `_VOICE`), independent of the interviewer's,
   so the reading voice can be changed without touching interview behaviour.
@@ -101,6 +104,12 @@ Applied to the answer markdown, in order:
 | `[S1]`, `[N12:P84]` | nothing; the marker is a visual chip |
 | a marker that cites a figure | after that sentence: "Figure, page 84. <spoken description>." |
 | a figure no marker claimed | after the prose: "Also shown. Figure, page 84. <description>." |
+
+Common technical initialisms (API, LLM, GPU, HNSW, HTTP), alphanumeric names
+such as BM25, and snake/camel-case identifiers receive deterministic
+pronunciation hints before synthesis. Terms conventionally spoken as words,
+including RAG, JSON, REST, CUDA, and NumPy, are left intact. These hints affect
+only provider input; the grounded answer displayed and highlighted is unchanged.
 
 Code blocks and tables are announced rather than read. Reading either aloud
 character by character is not narration, and both are on screen for the reader

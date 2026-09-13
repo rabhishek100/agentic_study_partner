@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, createElement, useContext, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -268,7 +268,7 @@ function MarkdownParagraph({ children, node }: any) {
 
   return (
     <>
-      <p>{children}</p>
+      <p data-narration-block={narrationBlockKey(node)}>{children}</p>
       {attached.map((figure) => (
         <InlineFigure key={figure.block_id} figure={figure} />
       ))}
@@ -276,9 +276,39 @@ function MarkdownParagraph({ children, node }: any) {
   );
 }
 
+// `react-markdown` preserves source positions. Sharing that stable line key
+// with the narration parser makes follow-along deterministic even when a
+// heading gains spoken punctuation or the same sentence appears twice.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function narrationBlockKey(node: any): string | undefined {
+  const line = Number(node?.position?.start?.line);
+  return Number.isFinite(line) && line > 0 ? `line-${line}` : undefined;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function MarkdownNarrationBlock({ children, node, ...props }: any) {
+  const tag = String(node?.tagName ?? "div");
+  return createElement(
+    tag,
+    { ...props, "data-narration-block": narrationBlockKey(node) },
+    children,
+  );
+}
+
 const ANSWER_MARKDOWN_COMPONENTS = {
   "citation-ref": MarkdownCitation,
   p: MarkdownParagraph,
+  h1: MarkdownNarrationBlock,
+  h2: MarkdownNarrationBlock,
+  h3: MarkdownNarrationBlock,
+  h4: MarkdownNarrationBlock,
+  h5: MarkdownNarrationBlock,
+  h6: MarkdownNarrationBlock,
+  blockquote: MarkdownNarrationBlock,
+  ul: MarkdownNarrationBlock,
+  ol: MarkdownNarrationBlock,
+  pre: MarkdownNarrationBlock,
+  table: MarkdownNarrationBlock,
 } as never;
 
 export function Answer({
