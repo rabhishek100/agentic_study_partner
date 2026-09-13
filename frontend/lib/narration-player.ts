@@ -7,6 +7,8 @@ import {
   narrationItems,
   type NarrationInput,
   type NarrationItem,
+  type NarrationPause,
+  type NarrationScript,
 } from "./narration";
 import { accessToken } from "./supabase";
 
@@ -20,6 +22,7 @@ export interface NarrationState {
   label: string;
   error: string;
   speed: number;
+  pacing: NarrationPacing;
   chunkIndex: number;
   chunkCount: number;
   currentText: string;
@@ -42,9 +45,28 @@ export interface PlaybackOptions {
   voiceContext?: NarrationVoiceContext;
 }
 
+export interface NarrationPacing {
+  sentencePauseMs: number;
+  paragraphPauseMs: number;
+  headingPauseMs: number;
+  titlePauseMs: number;
+  headingRate: number;
+  titleRate: number;
+}
+
+export const DEFAULT_PACING: NarrationPacing = {
+  sentencePauseMs: 500,
+  paragraphPauseMs: 900,
+  headingPauseMs: 1300,
+  titlePauseMs: 1600,
+  headingRate: 0.9,
+  titleRate: 0.8,
+};
+
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 const SPEED_STORAGE_KEY = "narration-speed";
 const FOLLOW_STORAGE_KEY = "narration-auto-follow";
+const PACING_STORAGE_KEY = "narration-pacing";
 const DEFAULT_SPEED = 1;
 
 const IDLE: NarrationState = {
@@ -54,6 +76,7 @@ const IDLE: NarrationState = {
   label: "Read aloud",
   error: "",
   speed: DEFAULT_SPEED,
+  pacing: DEFAULT_PACING,
   chunkIndex: 0,
   chunkCount: 0,
   currentText: "",
@@ -91,6 +114,28 @@ function storedSpeed(): number {
   }
 }
 
+function bounded(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(min, Math.min(max, value))
+    : fallback;
+}
+
+function storedPacing(): NarrationPacing {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(PACING_STORAGE_KEY) ?? "{}") as Partial<NarrationPacing>;
+    return {
+      sentencePauseMs: bounded(parsed.sentencePauseMs, DEFAULT_PACING.sentencePauseMs, 0, 1500),
+      paragraphPauseMs: bounded(parsed.paragraphPauseMs, DEFAULT_PACING.paragraphPauseMs, 0, 2500),
+      headingPauseMs: bounded(parsed.headingPauseMs, DEFAULT_PACING.headingPauseMs, 0, 3500),
+      titlePauseMs: bounded(parsed.titlePauseMs, DEFAULT_PACING.titlePauseMs, 0, 4500),
+      headingRate: bounded(parsed.headingRate, DEFAULT_PACING.headingRate, 0.65, 1.15),
+      titleRate: bounded(parsed.titleRate, DEFAULT_PACING.titleRate, 0.6, 1.1),
+    };
+  } catch {
+    return DEFAULT_PACING;
+  }
+}
+
 let hydrated = false;
 export function hydrate(): void {
   if (hydrated || typeof window === "undefined") return;
@@ -101,7 +146,7 @@ export function hydrate(): void {
   } catch {
     // A preference must never prevent playback.
   }
-  emit({ speed: storedSpeed(), autoFollow });
+  emit({ speed: storedSpeed(), pacing: storedPacing(), autoFollow });
 }
 
 interface Session {
@@ -120,6 +165,15 @@ let objectUrl: string | null = null;
 let generation = 0;
 let cursorGeneration = 0;
 let controller: AbortController | null = null;
+let gapTimer: number | null = null;
+let resolveGap: (() => void) | null = null;
+
+function cancelGap(): void {
+  if (gapTimer !== null) window.clearTimeout(gapTimer);
+  gapTimer = null;
+  resolveGap?.();
+  resolveGap = null;
+}
 
 function estimateDuration(text: string): number {
   return Math.max(1.2, text.trim().split(/\s+/).length / 2.75 + 0.25);
@@ -167,6 +221,7 @@ export function stop(): void {
   cursorGeneration += 1;
   controller?.abort();
   controller = null;
+  cancelGap();
   session = null;
   releaseAudio();
   stopDeviceVoice();
@@ -206,12 +261,60 @@ export function resume(): void {
 export function setSpeed(speed: number): void {
   if (!SPEEDS.includes(speed as (typeof SPEEDS)[number])) return;
   emit({ speed });
-  if (audio) audio.playbackRate = speed;
+  if (audio && session) audio.playbackRate = itemRate(session.items[state.chunkIndex]!);
   try {
     window.localStorage.setItem(SPEED_STORAGE_KEY, String(speed));
   } catch {
     // Remembering the preference is optional.
   }
+}
+
+export function setPacing(pacing: NarrationPacing): void {
+  const normalized: NarrationPacing = {
+    sentencePauseMs: bounded(pacing.sentencePauseMs, DEFAULT_PACING.sentencePauseMs, 0, 1500),
+    paragraphPauseMs: bounded(pacing.paragraphPauseMs, DEFAULT_PACING.paragraphPauseMs, 0, 2500),
+    headingPauseMs: bounded(pacing.headingPauseMs, DEFAULT_PACING.headingPauseMs, 0, 3500),
+    titlePauseMs: bounded(pacing.titlePauseMs, DEFAULT_PACING.titlePauseMs, 0, 4500),
+    headingRate: bounded(pacing.headingRate, DEFAULT_PACING.headingRate, 0.65, 1.15),
+    titleRate: bounded(pacing.titleRate, DEFAULT_PACING.titleRate, 0.6, 1.1),
+  };
+  emit({ pacing: normalized });
+  if (audio && session) audio.playbackRate = itemRate(session.items[state.chunkIndex]!);
+  try {
+    window.localStorage.setItem(PACING_STORAGE_KEY, JSON.stringify(normalized));
+  } catch {
+    // Remembering the preference is optional.
+  }
+}
+
+function itemRate(item: NarrationItem): number {
+  const roleRate = item.kind === "title"
+    ? state.pacing.titleRate
+    : item.kind === "heading"
+      ? state.pacing.headingRate
+      : 1;
+  return state.speed * roleRate;
+}
+
+function pauseDuration(kind: NarrationPause): number {
+  if (kind === "title") return state.pacing.titlePauseMs;
+  if (kind === "heading") return state.pacing.headingPauseMs;
+  if (kind === "paragraph") return state.pacing.paragraphPauseMs;
+  return state.pacing.sentencePauseMs;
+}
+
+function waitBetween(milliseconds: number, run: number, cursor: number): Promise<void> {
+  if (milliseconds <= 0 || run !== generation || cursor !== cursorGeneration) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    resolveGap = resolve;
+    gapTimer = window.setTimeout(() => {
+      gapTimer = null;
+      resolveGap = null;
+      resolve();
+    }, milliseconds);
+  });
 }
 
 export function setAutoFollow(autoFollow: boolean): void {
@@ -293,24 +396,43 @@ function itemBlob(current: Session, index: number, signal: AbortSignal): Promise
   return request;
 }
 
-function speakOnDevice(items: NarrationItem[], run: number): boolean {
+async function speakOnDevice(current: Session, index: number, cursor: number): Promise<boolean> {
   if (
     typeof window === "undefined" ||
     !("speechSynthesis" in window) ||
     typeof SpeechSynthesisUtterance === "undefined"
   ) return false;
-  const utterance = new SpeechSynthesisUtterance(items.map((item) => item.speechText).join(" "));
   const voices = window.speechSynthesis.getVoices();
-  utterance.voice =
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("en") &&
-      /(premium|enhanced|natural|google|microsoft|samantha)/i.test(voice.name)) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ?? null;
-  utterance.rate = state.speed;
-  utterance.onend = () => {
-    if (run === generation) stop();
-  };
-  window.speechSynthesis.speak(utterance);
-  emit({ status: "speaking" });
+  for (let at = index; at < current.items.length; at += 1) {
+    if (current.run !== generation || cursor !== cursorGeneration) return true;
+    while (state.status === "paused") {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+      if (current.run !== generation || cursor !== cursorGeneration) return true;
+    }
+    const item = current.items[at]!;
+    emit({
+      status: "speaking",
+      chunkIndex: at,
+      currentText: item.text,
+      currentAnchor: item.anchor ?? null,
+      currentTime: timeline(current, at),
+    });
+    await new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(item.speechText);
+      utterance.voice =
+        voices.find((voice) => voice.lang.toLowerCase().startsWith("en") &&
+          /(premium|enhanced|natural|google|microsoft|samantha)/i.test(voice.name)) ??
+        voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ?? null;
+      utterance.rate = itemRate(item);
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+    if (at < current.items.length - 1) {
+      await waitBetween(pauseDuration(item.pauseAfter), current.run, cursor);
+    }
+  }
+  if (current.run === generation && cursor === cursorGeneration) stop();
   return true;
 }
 
@@ -330,7 +452,7 @@ function playAudio(
     objectUrl = URL.createObjectURL(blob);
     const element = new Audio(objectUrl);
     audio = element;
-    element.playbackRate = state.speed;
+    element.playbackRate = itemRate(current.items[index]!);
     // Explicit because older Safari versions otherwise change pitch when the
     // user changes speed, which is commonly perceived as a robotic voice.
     element.preservesPitch = true;
@@ -377,6 +499,7 @@ async function playFrom(index: number, offset = 0): Promise<void> {
   const signal = controller?.signal;
   if (!current || !signal) return;
   const cursor = ++cursorGeneration;
+  cancelGap();
   releaseAudio();
 
   for (let at = index; at < current.items.length; at += 1) {
@@ -396,10 +519,19 @@ async function playFrom(index: number, offset = 0): Promise<void> {
       const blob = await blobRequest;
       if (current.run !== generation || cursor !== cursorGeneration) return;
       await playAudio(blob, current, at, at === index ? offset : 0, cursor);
+      if (at < current.items.length - 1) {
+        await waitBetween(pauseDuration(item.pauseAfter), current.run, cursor);
+      }
     } catch (failure) {
       if (signal.aborted || current.run !== generation || cursor !== cursorGeneration) return;
-      if (speakOnDevice(current.items.slice(at), current.run)) {
+      const canUseDeviceVoice =
+        typeof window !== "undefined" &&
+        "speechSynthesis" in window &&
+        typeof SpeechSynthesisUtterance !== "undefined";
+      if (canUseDeviceVoice) {
         emit({ error: "The natural voice is unavailable, so this is your browser's own voice." });
+      }
+      if (await speakOnDevice(current, at, cursor)) {
         return;
       }
       emit({
@@ -452,6 +584,44 @@ export async function play(
     return;
   }
 
+  await playScript(id, { segments: items.map((item) => ({
+    kind: item.kind,
+    text: item.text,
+    anchor: item.anchor,
+    pauseAfter: item.pauseAfter,
+  })), figures: [] }, options, items);
+}
+
+export async function playScript(
+  id: string,
+  script: NarrationScript,
+  options: PlaybackOptions = {},
+  preparedItems?: NarrationItem[],
+): Promise<void> {
+  if (!preparedItems) {
+    stop();
+    emit({
+      status: "preparing",
+      activeId: id,
+      anchorId: options.anchorId ?? id,
+      label: options.label ?? "Read aloud",
+      error: "",
+      chunkIndex: 0,
+      chunkCount: 0,
+      currentText: "",
+      currentAnchor: null,
+      currentTime: 0,
+      duration: 0,
+      voiceContext: options.voiceContext ?? null,
+    });
+  }
+  const items = preparedItems ?? narrationItems(script);
+  if (items.length === 0) {
+    emit({ status: "idle", activeId: null, error: "There is nothing to read here." });
+    return;
+  }
+  const run = generation;
+  if (!controller) controller = new AbortController();
   session = {
     run,
     items,
@@ -515,6 +685,8 @@ export function previous(): void {
 export function reset(): void {
   generation += 1;
   cursorGeneration += 1;
+  controller?.abort();
+  cancelGap();
   controller = null;
   session = null;
   audio = null;

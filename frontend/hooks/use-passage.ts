@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import { passagePath } from "@/lib/passage";
 import type { PassageResponse, PassageSegment, ReadingRef } from "@/lib/types";
 
 type Status = "loading" | "ready" | "extending" | "failed";
@@ -15,12 +16,6 @@ export interface PassageState {
   hasMore: boolean;
   loadMore: () => void;
   retry: () => void;
-}
-
-function passagePath(reading: ReadingRef, offset: number): string {
-  const query = new URLSearchParams({ offset: String(offset) });
-  if (reading.node_id != null) query.set("node_id", String(reading.node_id));
-  return `/books/${reading.book_id}/passage?${query}`;
 }
 
 /**

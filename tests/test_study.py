@@ -180,6 +180,32 @@ class StudyScopeTests(PostgresOwnerMixin, unittest.TestCase):
 
         self.assertEqual(scope.display_path, title)
 
+    def test_resolves_a_titled_chapter_when_conversational_words_are_reordered(self) -> None:
+        book = sample_book()
+        title = "Chapter 15: Case Study: Uber (Nearest Neighbor Search)"
+        for section in book.sections:
+            section.path[0] = title
+        book.toc[0] = (1, title, 1)
+        book_id = ingest_book(
+            self.connection,
+            book,
+            owner_id=self.owner_id,
+            title="Scaler HLD by Pragy Agarwal",
+            author="Test Author",
+            file_hash="d" * 64,
+            page_count=5,
+            parser_version="test-v1",
+        )
+
+        scope = resolve_chapter(
+            self.connection,
+            "uber case study",
+            owner_id=self.owner_id,
+            book_id=book_id,
+        )
+
+        self.assertEqual(scope.display_path, title)
+
     def test_reports_missing_scope_instead_of_guessing(self) -> None:
         with self.assertRaises(ScopeNotFoundError):
             resolve_chapter(

@@ -128,6 +128,20 @@ def _normalize(value: object) -> str:
     return " ".join(NON_WORD.sub(" ", str(value).casefold()).split())
 
 
+def _same_title_words(reference: str, candidate: str) -> bool:
+    """Match a distinctive multiword title even when conversational order differs."""
+
+    wanted = {
+        word for word in reference.split() if word not in TITLE_STOPWORDS
+    }
+    if len(wanted) < 2:
+        return False
+    available = {
+        word for word in _normalize(candidate).split() if word not in TITLE_STOPWORDS
+    }
+    return wanted <= available
+
+
 def _node(row: Any) -> ScopeNode:
     return ScopeNode(
         id=row["id"],
@@ -472,10 +486,15 @@ def resolve_chapter(
         if not target:
             raise ScopeNotFoundError("chapter", reference)
         exact = [row for row in rows if target in _node_aliases(row)]
-        matches = exact or [
+        partial = [
             row
             for row in rows
             if any(target in alias for alias in _node_aliases(row))
+        ]
+        matches = exact or partial or [
+            row
+            for row in rows
+            if any(_same_title_words(target, alias) for alias in _node_aliases(row))
         ]
     if not matches:
         raise ScopeNotFoundError("chapter", reference)

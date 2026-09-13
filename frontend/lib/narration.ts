@@ -17,12 +17,31 @@
 import { figuresForMarker, resolveMarker, CITATION_PATTERN } from "./citations";
 import { normalizeMath } from "./math";
 import { speakMath } from "./spoken-math";
-import type { CitationRef, EvidenceRef, FigureRef } from "./types";
+import type {
+  CitationRef,
+  EvidenceRef,
+  FigureRef,
+  PassageSegment,
+  ReadingRef,
+} from "./types";
+
+export type NarrationKind =
+  | "title"
+  | "heading"
+  | "prose"
+  | "list"
+  | "figure"
+  | "table"
+  | "formula";
+
+export type NarrationPause = "sentence" | "paragraph" | "heading" | "title";
 
 /** A run of speech, and what it came from. */
 export interface NarrationSegment {
-  kind: "prose" | "figure";
+  kind: NarrationKind;
   text: string;
+  /** The semantic rest after this segment, independent of voice speed. */
+  pauseAfter?: NarrationPause;
   /** Stable rendered source for follow-along; never inferred from repeated text. */
   anchor?: NarrationAnchor;
   /** Present on a figure segment: which figure is being described. */
@@ -31,7 +50,8 @@ export interface NarrationSegment {
 
 export type NarrationAnchor =
   | { type: "block"; key: string }
-  | { type: "figure"; blockId: number };
+  | { type: "figure"; blockId: number }
+  | { type: "passage"; index: number };
 
 export interface NarrationScript {
   segments: NarrationSegment[];
@@ -46,6 +66,7 @@ export interface NarrationItem {
   /** Provider wording with pronunciation hints that do not alter the answer. */
   speechText: string;
   kind: NarrationSegment["kind"];
+  pauseAfter: NarrationPause;
   anchor?: NarrationAnchor;
 }
 
@@ -69,6 +90,11 @@ export interface NarrationInput {
   visuals?: { lead: string; description: string }[];
 }
 
+export interface PassageNarrationInput {
+  reading: ReadingRef;
+  segments: PassageSegment[];
+}
+
 /**
  * The wait a listener notices is the wait for the first sound, so the opening
  * chunk is short and the rest are long enough to keep prosody intact. Both sit
@@ -76,9 +102,6 @@ export interface NarrationInput {
  */
 export const FIRST_CHUNK_CHARACTERS = 320;
 export const CHUNK_CHARACTERS = 800;
-/** Enough context for natural prosody without making first playback sluggish. */
-export const ITEM_CHARACTERS = 700;
-
 /** Abbreviations whose full stop does not end a sentence. */
 const ABBREVIATIONS = /(?:e\.g|i\.e|etc|vs|cf|approx|Fig|Eq|Dr|Prof|St|No|pp|p)\.$/i;
 
@@ -112,7 +135,7 @@ function spokenMath(body: string): string {
  * Citation markers are left in place here. They are located afterwards, on the
  * cleaned text, so a figure lands after the sentence that cites it.
  */
-function speakableProse(block: string): string {
+export function speakableProse(block: string): string {
   let text = normalizeMath(block);
 
   text = text
@@ -340,6 +363,7 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
     const description = (descriptions[figure.block_id] ?? "").trim();
     segments.push({
       kind: "figure",
+      pauseAfter: "paragraph",
       figure,
       anchor: { type: "figure", blockId: figure.block_id },
       text: description
@@ -351,6 +375,7 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
   if (input.question?.trim()) {
     segments.push({
       kind: "prose",
+      pauseAfter: "paragraph",
       text: `You asked: ${terminated(withoutMarkers(speakableProse(input.question)))}`,
     });
   }
@@ -358,20 +383,31 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
   for (const block of blocks(input.answer)) {
     const anchor: NarrationAnchor = { type: "block", key: `line-${block.startLine}` };
     if (block.kind === "code") {
-      segments.push({ kind: "prose", text: announceCode(block), anchor });
+      segments.push({ kind: "prose", text: announceCode(block), anchor, pauseAfter: "paragraph" });
       continue;
     }
     if (block.kind === "table") {
-      segments.push({ kind: "prose", text: announceTable(block), anchor });
+      segments.push({ kind: "table", text: announceTable(block), anchor, pauseAfter: "paragraph" });
       continue;
     }
 
     const prose = speakableProse(block.lines.join("\n"));
     if (!prose) continue;
 
-    for (const sentence of splitSentences(prose)) {
+    const sentences = splitSentences(prose);
+    for (const [sentenceIndex, sentence] of sentences.entries()) {
       const spoken = withoutMarkers(sentence);
-      if (spoken) segments.push({ kind: "prose", text: terminated(spoken), anchor });
+      if (spoken) segments.push({
+        kind: block.kind === "heading" ? "heading" : block.kind === "list" ? "list" : "prose",
+        text: terminated(spoken),
+        anchor,
+        pauseAfter:
+          block.kind === "heading"
+            ? "heading"
+            : sentenceIndex === sentences.length - 1
+              ? "paragraph"
+              : "sentence",
+      });
 
       // Whatever this sentence cited, described right after it — which is
       // where the reader's eye would have gone.
@@ -392,17 +428,126 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
     segments.push({
       kind: "prose",
       text: unclaimed.length + visuals.length === 1 ? "Also shown." : "Also shown, in order.",
+      pauseAfter: "paragraph",
     });
     for (const figure of unclaimed) speakFigure(figure);
     for (const visual of visuals) {
       segments.push({
         kind: "figure",
         text: `${terminated(visual.lead)} ${terminated(visual.description)}`,
+        pauseAfter: "paragraph",
       });
     }
   }
 
   return { segments, figures: spokenFigures };
+}
+
+function normalizedHeading(text: string | null): string {
+  return (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+/**
+ * Presentation-only title de-duplication shared with the visual chapter reader.
+ * Canonical segments are never changed or discarded at the storage boundary.
+ */
+export function presentablePassageSegments(
+  segments: PassageSegment[],
+  displayPath: string,
+): PassageSegment[] {
+  const result: PassageSegment[] = [];
+  const scopeTitle = normalizedHeading(displayPath);
+  let inLeadingHeadings = true;
+  for (const segment of segments) {
+    if (segment.kind !== "heading") {
+      inLeadingHeadings = false;
+      result.push(segment);
+      continue;
+    }
+    const title = normalizedHeading(segment.text);
+    if (inLeadingHeadings && title === scopeTitle) continue;
+    const previous = result.at(-1);
+    if (
+      previous?.kind === "heading" &&
+      (previous.printed_page ?? previous.page) === (segment.printed_page ?? segment.page) &&
+      normalizedHeading(previous.text) === title
+    ) continue;
+    result.push(segment);
+  }
+  return result;
+}
+
+function passageSegmentText(segment: PassageSegment): string {
+  const raw = segment.text ?? segment.figure?.caption ?? "";
+  return withoutMarkers(speakableProse(raw));
+}
+
+/** Build a formatting-safe, source-addressable script for a complete chapter. */
+export function buildPassageNarrationScript(
+  input: PassageNarrationInput,
+): NarrationScript {
+  const segments: NarrationSegment[] = [];
+  const figures: FigureRef[] = [];
+  const title = withoutMarkers(speakableProse(input.reading.display_path));
+  if (title) {
+    segments.push({ kind: "title", text: terminated(title), pauseAfter: "title" });
+  }
+
+  for (const source of presentablePassageSegments(input.segments, input.reading.display_path)) {
+    const anchor: NarrationAnchor = { type: "passage", index: source.index };
+    if (source.kind === "figure") {
+      if (!source.figure) continue;
+      figures.push(source.figure);
+      const caption = passageSegmentText(source);
+      segments.push({
+        kind: "figure",
+        anchor,
+        figure: source.figure,
+        text: caption
+          ? `${figureLead(source.figure)} ${terminated(caption)}`
+          : figureLead(source.figure),
+        pauseAfter: "paragraph",
+      });
+      continue;
+    }
+    if (source.kind === "table") {
+      segments.push({
+        kind: "table",
+        anchor,
+        text: "Table, shown on screen.",
+        pauseAfter: "paragraph",
+      });
+      continue;
+    }
+
+    const prose = source.kind === "formula"
+      ? speakMath(source.text ?? "") || passageSegmentText(source)
+      : passageSegmentText(source);
+    if (!prose) continue;
+    const sentences = splitSentences(prose);
+    for (const [sentenceIndex, sentence] of sentences.entries()) {
+      const kind: NarrationKind =
+        source.kind === "heading"
+          ? "heading"
+          : source.kind === "list_item"
+            ? "list"
+            : source.kind === "formula"
+              ? "formula"
+              : "prose";
+      segments.push({
+        kind,
+        anchor,
+        text: terminated(sentence),
+        pauseAfter:
+          kind === "heading"
+            ? "heading"
+            : sentenceIndex === sentences.length - 1
+              ? "paragraph"
+              : "sentence",
+      });
+    }
+  }
+  return { segments, figures };
 }
 
 /**
@@ -446,36 +591,30 @@ export function narrationChunks(
 /**
  * Addressable playback units for the media player.
  *
- * TTS is requested per rendered passage. This gives the voice enough context
- * for stable prosody while pause, rewind, scrubbing and follow-along retain a
- * deterministic source target. The server cache keeps replay inexpensive.
+ * TTS is requested per sentence. Sentence boundaries are the only reliable
+ * place to add a real, configurable silent pause without sending SSML or
+ * punctuation controls that some providers pronounce as gibberish.
  */
 export function narrationItems(script: NarrationScript): NarrationItem[] {
   const items: NarrationItem[] = [];
   for (const segment of script.segments) {
-    for (const sentence of splitSentences(segment.text)) {
+    // Titles such as "Chapter 1. Introduction" are one semantic utterance;
+    // splitting at their numbering makes the voice restart halfway through.
+    const sentences = segment.kind === "title" || segment.kind === "heading"
+      ? [segment.text]
+      : splitSentences(segment.text);
+    for (const [sentenceIndex, sentence] of sentences.entries()) {
       if (!/[a-z0-9]/i.test(sentence)) continue;
-      const previous = items.at(-1);
-      const sameAnchor = JSON.stringify(previous?.anchor) === JSON.stringify(segment.anchor);
-      // One rendered paragraph (or one figure description) is one voice take.
-      // Keeping its neighbouring sentences together prevents the voice from
-      // resetting pitch, pace and timbre after every full stop.
-      if (
-        previous &&
-        previous.kind === segment.kind &&
-        sameAnchor &&
-        previous.text.length + 1 + sentence.length <= ITEM_CHARACTERS
-      ) {
-        previous.text = `${previous.text} ${sentence}`;
-        previous.speechText = pronunciationText(previous.text);
-      } else {
-        items.push({
-          text: sentence,
-          speechText: pronunciationText(sentence),
-          kind: segment.kind,
-          anchor: segment.anchor,
-        });
-      }
+      items.push({
+        text: sentence,
+        speechText: pronunciationText(sentence),
+        kind: segment.kind,
+        anchor: segment.anchor,
+        pauseAfter:
+          sentenceIndex === sentences.length - 1
+            ? segment.pauseAfter ?? "sentence"
+            : "sentence",
+      });
     }
   }
   return items;
