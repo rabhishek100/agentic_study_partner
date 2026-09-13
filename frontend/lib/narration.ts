@@ -23,9 +23,15 @@ import type { CitationRef, EvidenceRef, FigureRef } from "./types";
 export interface NarrationSegment {
   kind: "prose" | "figure";
   text: string;
+  /** Stable rendered source for follow-along; never inferred from repeated text. */
+  anchor?: NarrationAnchor;
   /** Present on a figure segment: which figure is being described. */
   figure?: FigureRef;
 }
+
+export type NarrationAnchor =
+  | { type: "block"; key: string }
+  | { type: "figure"; blockId: number };
 
 export interface NarrationScript {
   segments: NarrationSegment[];
@@ -33,10 +39,14 @@ export interface NarrationScript {
   figures: FigureRef[];
 }
 
-/** One independently playable sentence in a narration script. */
+/** One independently playable semantic passage in a narration script. */
 export interface NarrationItem {
+  /** Cleaned visible wording, used by follow-along and voice questions. */
   text: string;
+  /** Provider wording with pronunciation hints that do not alter the answer. */
+  speechText: string;
   kind: NarrationSegment["kind"];
+  anchor?: NarrationAnchor;
 }
 
 export interface NarrationInput {
@@ -66,6 +76,8 @@ export interface NarrationInput {
  */
 export const FIRST_CHUNK_CHARACTERS = 320;
 export const CHUNK_CHARACTERS = 800;
+/** Enough context for natural prosody without making first playback sluggish. */
+export const ITEM_CHARACTERS = 700;
 
 /** Abbreviations whose full stop does not end a sentence. */
 const ABBREVIATIONS = /(?:e\.g|i\.e|etc|vs|cf|approx|Fig|Eq|Dr|Prof|St|No|pp|p)\.$/i;
@@ -116,15 +128,69 @@ function speakableProse(block: string): string {
     .replace(/(\*\*|__)(.*?)\1/g, "$2")
     .replace(/(?<!\w)([*_])(?=\S)(.*?)(?<=\S)\1(?!\w)/g, "$2")
     .replace(/~~(.*?)~~/g, "$1")
+    // Raw HTML is not rendered by react-markdown and must not be pronounced.
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, " and ")
+    .replace(/&lt;/gi, " less than ")
+    .replace(/&gt;/gi, " greater than ")
+    // List controls are visual. Keep each item as a punctuated thought so a
+    // compact Markdown list does not become one breathless run-on sentence.
+    .replace(/^\s*[-*+]\s+\[[ xX]\]\s+(.+)$/gm, (_, item: string) => terminated(item))
     .replace(/^\s{0,3}>\s?/gm, "")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
-    .replace(/^\s*([-*+]|\d+[.)])\s+/gm, "")
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+(.+)$/gm, (_, item: string) => terminated(item))
     // A horizontal rule is a visual pause with nothing to say.
     .replace(/^\s*([-*_])\1{2,}\s*$/gm, "")
     .replace(/\s+/g, " ")
     .trim();
 
   return text;
+}
+
+/**
+ * Make technical prose unambiguous to a speech model without changing claims.
+ *
+ * Letter sequences are spaced only where engineers conventionally spell them
+ * out. Terms normally spoken as words (RAG, REST, JSON, CUDA, NumPy) stay
+ * intact. The list is deliberately conservative: a wrong pronunciation hint
+ * is worse than allowing a capable voice model to pronounce an unfamiliar
+ * term from context.
+ */
+export function pronunciationText(value: string): string {
+  const spelled: Record<string, string> = {
+    AI: "A I", ML: "M L", LLM: "L L M", LLMs: "L L M's",
+    API: "A P I", APIs: "A P I's", GPU: "G P U", GPUs: "G P U's",
+    CPU: "C P U", CPUs: "C P U's", TPU: "T P U", TPUs: "T P U's",
+    UI: "U I", UX: "U X", CLI: "C L I", SDK: "S D K",
+    HTTP: "H T T P", HTTPS: "H T T P S", TCP: "T C P", UDP: "U D P",
+    SQL: "S Q L", FTS: "F T S", ANN: "A N N", HNSW: "H N S W",
+    NLP: "N L P", OCR: "O C R", PDF: "P D F", PDFs: "P D F's",
+    URL: "U R L", URLs: "U R L's", UUID: "U U I D", JWT: "J W T",
+    CI: "C I", CD: "C D", AWS: "A W S", GCP: "G C P",
+  };
+
+  return value
+    // Identifiers are read as words, not as one invented word or punctuation.
+    .replace(/\b([A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+)\b/g, (identifier) =>
+      identifier.replace(/_/g, " "),
+    )
+    .replace(/\b[a-z]+(?:[A-Z][a-z0-9]*)+\b/g, (identifier) =>
+      identifier.replace(/([a-z0-9])([A-Z])/g, "$1 $2"),
+    )
+    .replace(/\b[A-Za-z]+\d+(?:\.\d+)?\b/g, (term) => {
+      const match = /^([A-Za-z]+)(\d+(?:\.\d+)?)$/.exec(term);
+      if (!match) return term;
+      const prefix = spelled[match[1]!] ?? match[1]!.split("").join(" ");
+      return `${prefix} ${match[2]}`;
+    })
+    .replace(/\b(?:AI|ML|LLMs?|APIs?|GPUs?|CPUs?|TPUs?|UI|UX|CLI|SDK|HTTPS?|TCP|UDP|SQL|FTS|ANN|HNSW|NLP|OCR|PDFs?|URLs?|UUID|JWT|CI|CD|AWS|GCP)\b/g,
+      (term) => spelled[term] ?? term,
+    )
+    .replace(/\s*&\s*/g, " and ")
+    .replace(/\s*(?:→|->|=>)\s*/g, " goes to ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Ensure a spoken line ends in a full stop, so the voice actually stops. */
@@ -149,8 +215,9 @@ export function figureLead(figure: FigureRef): string {
 }
 
 interface Block {
-  kind: "prose" | "code" | "table";
+  kind: "prose" | "heading" | "list" | "code" | "table";
   lines: string[];
+  startLine: number;
 }
 
 /**
@@ -172,7 +239,7 @@ function blocks(markdown: string): Block[] {
     current = null;
   };
 
-  for (const line of lines) {
+  for (const [lineIndex, line] of lines.entries()) {
     const fenceMatch = /^\s*(```|~~~)/.exec(line);
     if (fence) {
       current?.lines.push(line);
@@ -185,7 +252,24 @@ function blocks(markdown: string): Block[] {
     if (fenceMatch) {
       flush();
       fence = fenceMatch[1]!;
-      current = { kind: "code", lines: [line] };
+      current = { kind: "code", lines: [line], startLine: lineIndex + 1 };
+      continue;
+    }
+
+    const isHeading = /^\s{0,3}#{1,6}\s+/.test(line);
+    if (isHeading) {
+      flush();
+      found.push({ kind: "heading", lines: [line], startLine: lineIndex + 1 });
+      continue;
+    }
+
+    const isListItem = /^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)/.test(line);
+    if (isListItem) {
+      if (current?.kind !== "list") {
+        flush();
+        current = { kind: "list", lines: [], startLine: lineIndex + 1 };
+      }
+      current.lines.push(line);
       continue;
     }
 
@@ -193,7 +277,7 @@ function blocks(markdown: string): Block[] {
     if (isTableRow) {
       if (current?.kind !== "table") {
         flush();
-        current = { kind: "table", lines: [] };
+        current = { kind: "table", lines: [], startLine: lineIndex + 1 };
       }
       current.lines.push(line);
       continue;
@@ -205,7 +289,7 @@ function blocks(markdown: string): Block[] {
     }
     if (current?.kind !== "prose") {
       flush();
-      current = { kind: "prose", lines: [] };
+      current = { kind: "prose", lines: [], startLine: lineIndex + 1 };
     }
     current.lines.push(line);
   }
@@ -257,6 +341,7 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
     segments.push({
       kind: "figure",
       figure,
+      anchor: { type: "figure", blockId: figure.block_id },
       text: description
         ? `${figureLead(figure)} ${terminated(description)}`
         : figureLead(figure),
@@ -271,12 +356,13 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
   }
 
   for (const block of blocks(input.answer)) {
+    const anchor: NarrationAnchor = { type: "block", key: `line-${block.startLine}` };
     if (block.kind === "code") {
-      segments.push({ kind: "prose", text: announceCode(block) });
+      segments.push({ kind: "prose", text: announceCode(block), anchor });
       continue;
     }
     if (block.kind === "table") {
-      segments.push({ kind: "prose", text: announceTable(block) });
+      segments.push({ kind: "prose", text: announceTable(block), anchor });
       continue;
     }
 
@@ -285,7 +371,7 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
 
     for (const sentence of splitSentences(prose)) {
       const spoken = withoutMarkers(sentence);
-      if (spoken) segments.push({ kind: "prose", text: terminated(spoken) });
+      if (spoken) segments.push({ kind: "prose", text: terminated(spoken), anchor });
 
       // Whatever this sentence cited, described right after it — which is
       // where the reader's eye would have gone.
@@ -360,16 +446,39 @@ export function narrationChunks(
 /**
  * Addressable playback units for the media player.
  *
- * TTS is requested per sentence so pause, rewind, scrubbing and follow-along
- * never have to guess where a sentence begins inside an opaque audio file.
- * The server cache keeps this from making replay more expensive.
+ * TTS is requested per rendered passage. This gives the voice enough context
+ * for stable prosody while pause, rewind, scrubbing and follow-along retain a
+ * deterministic source target. The server cache keeps replay inexpensive.
  */
 export function narrationItems(script: NarrationScript): NarrationItem[] {
-  return script.segments.flatMap((segment) =>
-    splitSentences(segment.text)
-      .filter((text) => /[a-z0-9]/i.test(text))
-      .map((text) => ({ text, kind: segment.kind })),
-  );
+  const items: NarrationItem[] = [];
+  for (const segment of script.segments) {
+    for (const sentence of splitSentences(segment.text)) {
+      if (!/[a-z0-9]/i.test(sentence)) continue;
+      const previous = items.at(-1);
+      const sameAnchor = JSON.stringify(previous?.anchor) === JSON.stringify(segment.anchor);
+      // One rendered paragraph (or one figure description) is one voice take.
+      // Keeping its neighbouring sentences together prevents the voice from
+      // resetting pitch, pace and timbre after every full stop.
+      if (
+        previous &&
+        previous.kind === segment.kind &&
+        sameAnchor &&
+        previous.text.length + 1 + sentence.length <= ITEM_CHARACTERS
+      ) {
+        previous.text = `${previous.text} ${sentence}`;
+        previous.speechText = pronunciationText(previous.text);
+      } else {
+        items.push({
+          text: sentence,
+          speechText: pronunciationText(sentence),
+          kind: segment.kind,
+          anchor: segment.anchor,
+        });
+      }
+    }
+  }
+  return items;
 }
 
 /** The figures a script will reach, so their descriptions can be fetched. */

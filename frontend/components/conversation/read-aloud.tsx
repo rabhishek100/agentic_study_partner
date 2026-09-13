@@ -45,7 +45,7 @@ export function ReadAloud({
     : narration.error
     ? narration.error
     : isSpeaking && narration.chunkCount > 0
-    ? `Reading, part ${narration.chunkIndex + 1} of ${narration.chunkCount}.`
+    ? `Reading, passage ${narration.chunkIndex + 1} of ${narration.chunkCount}.`
     : isPaused
     ? "Reading paused."
     : "";

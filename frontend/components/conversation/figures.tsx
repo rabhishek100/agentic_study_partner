@@ -42,7 +42,10 @@ export function InlineFigure({ figure }: { figure: FigureRef }) {
   const parts = formatPath(figure.path);
 
   return (
-    <figure className="my-4 overflow-hidden rounded-lg border border-border bg-card">
+    <figure
+      data-narration-figure={figure.block_id}
+      className="my-4 overflow-hidden rounded-lg border border-border bg-card"
+    >
       <button
         type="button"
         onClick={() => setOpened(true)}
@@ -136,7 +139,7 @@ function Figure({ figure, onOpen }: { figure: FigureRef; onOpen: () => void }) {
   const parts = formatPath(figure.path);
 
   return (
-    <li>
+    <li data-narration-figure={figure.block_id}>
       <button
         type="button"
         onClick={onOpen}

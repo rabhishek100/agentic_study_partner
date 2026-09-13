@@ -604,12 +604,13 @@ conversation carries a **Read aloud** control; the latest turn also offers
 offers **Read this** beside **Ask about this**. Speed is adjustable from 0.75x
 to 2x and is remembered per device.
 
-Starting a reading opens one shared floating media bar with sentence-aware
-play/pause, stop, ten-second rewind, previous/next sentence, scrubbing, elapsed
-and remaining time, and speed. **Auto-follow** is on by default: it scrolls the
-spoken sentence into view and highlights it without changing the reader's text
-selection. The preference is remembered; manually scrolling suppresses only
-the current automatic movement, so the player does not fight the reader.
+Starting a reading opens one shared floating media bar with passage-aware
+play/pause, stop, ten-second rewind, previous/next passage, stable scrubbing,
+elapsed and remaining time, and speed. **Auto-follow** is on by default: source
+anchors scroll and highlight the current heading, prose block, list, table,
+code announcement, or figure without guessing from repeated text. The
+preference is remembered; manually scrolling suppresses only the current
+automatic movement, so the player does not fight the reader.
 
 What is spoken is what is on screen, with markdown, LaTeX and citation markers
 turned into words rather than read out as syntax, and code blocks and tables

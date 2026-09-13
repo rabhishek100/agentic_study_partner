@@ -102,6 +102,10 @@ describe("Figures", () => {
       "Figure from 3.1 Simple Linear Regression, page 78",
     );
     expect(image).toHaveAttribute("src", "blob:figure");
+    expect(image.closest("li")).toHaveAttribute(
+      "data-narration-figure",
+      "1234",
+    );
   });
 
   it("explains a refused figure instead of showing a broken image", async () => {

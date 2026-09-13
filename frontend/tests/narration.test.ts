@@ -5,6 +5,7 @@ import {
   citedFigures,
   narrationChunks,
   narrationItems,
+  pronunciationText,
   splitSentences,
   CHUNK_CHARACTERS,
   FIRST_CHUNK_CHARACTERS,
@@ -58,6 +59,17 @@ describe("what the voice is given to say", () => {
     expect(text).not.toContain("**");
     expect(text).not.toContain("#");
     expect(text).not.toContain("`");
+  });
+
+  it("removes raw formatting controls that a voice would read as gibberish", () => {
+    const script = buildNarrationScript({
+      answer: "- [x] **Ship it** &amp; verify it.\n\n<span>Hidden markup</span>",
+    });
+
+    const text = spoken(script);
+    expect(text).toContain("Ship it and verify it.");
+    expect(text).toContain("Hidden markup.");
+    expect(text).not.toMatch(/\[x\]|span|amp/i);
   });
 
   it("says maths in words", () => {
@@ -117,6 +129,20 @@ describe("what the voice is given to say", () => {
     expect(texts[1]).toContain("Validation error dips at moderate complexity");
     // The next sentence follows the figure, not the other way round.
     expect(texts[2]).toContain("bias-variance trade-off");
+  });
+
+  it("keeps prose between figures instead of batching the images", () => {
+    const script = buildNarrationScript({
+      answer: "First diagram [S1].\n\nImportant text between them.\n\nSecond diagram [S2].",
+      evidence: [evidence(1, 7, [84]), evidence(2, 8, [85])],
+      figures: [figure(42, 84, 1), { ...figure(43, 85, 2), node_id: 8 }],
+      descriptions: { 42: "The first flow.", 43: "The second flow." },
+    });
+
+    expect(script.segments.map((segment) => segment.kind)).toEqual([
+      "prose", "figure", "prose", "prose", "figure",
+    ]);
+    expect(script.segments[2]!.text).toContain("Important text between them");
   });
 
   it("still announces a figure whose description could not be produced", () => {
@@ -184,15 +210,39 @@ describe("what the voice is given to say", () => {
 });
 
 describe("splitting for the synthesiser", () => {
-  it("makes every spoken sentence independently seekable", () => {
+  it("keeps neighbouring sentences in one natural voice take", () => {
     const items = narrationItems(
       buildNarrationScript({ answer: "First idea. Second idea follows." }),
     );
 
     expect(items.map((item) => item.text)).toEqual([
-      "First idea.",
-      "Second idea follows.",
+      "First idea. Second idea follows.",
     ]);
+  });
+
+  it("keeps stable source anchors for headings, prose and figures", () => {
+    const items = narrationItems(buildNarrationScript({
+      answer: "## Architecture\n\nThe API calls an LLM [S1].",
+      evidence: [evidence(1)],
+      figures: [figure(42)],
+      descriptions: { 42: "A request flow." },
+    }));
+
+    expect(items[0]!.anchor).toEqual({ type: "block", key: "line-1" });
+    expect(items[1]!.anchor).toEqual({ type: "block", key: "line-3" });
+    expect(items[2]!.anchor).toEqual({ type: "figure", blockId: 42 });
+  });
+
+  it("adds conservative pronunciation hints for technical text", () => {
+    expect(
+      pronunciationText("The API sends BM25 results to an LLM via HTTP."),
+    ).toBe("The A P I sends B M 25 results to an L L M via H T T P.");
+    expect(pronunciationText("RAG uses JSON and CUDA.")).toBe(
+      "RAG uses JSON and CUDA.",
+    );
+    expect(pronunciationText("Set max_tokens in getUserID.")).toBe(
+      "Set max tokens in get User ID.",
+    );
   });
 
   it("keeps an abbreviation's full stop inside its sentence", () => {

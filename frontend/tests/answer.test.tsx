@@ -49,6 +49,32 @@ function renderAnswer(
 }
 
 describe("Answer", () => {
+  it("marks rendered markdown blocks with stable narration anchors", () => {
+    const { container } = render(
+      <TooltipProvider>
+        <Answer
+          narrationId="turn-1"
+          text={"## Architecture\n\nThe API calls an LLM.\n\n- Retrieve\n- Rerank"}
+          evidence={[]}
+          citations={[]}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(container.querySelector("h2")).toHaveAttribute(
+      "data-narration-block",
+      "line-1",
+    );
+    expect(container.querySelector("p")).toHaveAttribute(
+      "data-narration-block",
+      "line-3",
+    );
+    expect(container.querySelector("ul")).toHaveAttribute(
+      "data-narration-block",
+      "line-5",
+    );
+  });
+
   it("renders citation markers as numbered chips, not raw brackets", () => {
     const { container } = renderAnswer("Skew comes from drift [S1].", [
       evidence(),
@@ -235,6 +261,10 @@ describe("Answer", () => {
       </TooltipProvider>,
     );
     const original = screen.getByAltText("Training-serving skew diagram");
+    expect(original.closest("figure")).toHaveAttribute(
+      "data-narration-figure",
+      "99",
+    );
 
     view.rerender(
       <TooltipProvider>

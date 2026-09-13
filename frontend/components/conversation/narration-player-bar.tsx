@@ -82,13 +82,18 @@ function clearHighlight(): void {
   });
 }
 
-/** Highlight the exact rendered sentence when the browser supports CSS ranges. */
+/** Highlight the exact rendered passage when the browser supports CSS ranges. */
 function highlightSentence(root: Element, spoken: string): Range | null {
   clearHighlight();
-  const target = targetText(spoken);
+  let target = targetText(spoken);
   if (!target || target.startsWith("you asked:")) return null;
   const stream = normalizedText(root);
-  const start = stream.text.indexOf(target);
+  let start = stream.text.indexOf(target);
+  // Headings and list labels gain punctuation for prosody that is not visible.
+  if (start < 0 && /[.!?:;]$/.test(target)) {
+    target = target.slice(0, -1).trimEnd();
+    start = stream.text.indexOf(target);
+  }
   if (start < 0) return null;
   const first = stream.positions[start];
   const last = stream.positions[start + target.length - 1];
@@ -112,6 +117,17 @@ function highlightSentence(root: Element, spoken: string): Range | null {
   return range;
 }
 
+function anchoredElement(root: Element, narration: ReturnType<typeof useReadAloud>): Element | null {
+  const anchor = narration.currentAnchor;
+  if (!anchor) return null;
+  if (anchor.type === "figure") {
+    return root.parentElement?.querySelector(
+      `[data-narration-figure="${anchor.blockId}"]`,
+    ) ?? null;
+  }
+  return root.querySelector(`[data-narration-block="${anchor.key}"]`);
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
   const whole = Math.max(0, Math.round(seconds));
@@ -131,18 +147,21 @@ function FollowAlong() {
       (element) => element.getAttribute("data-narration-anchor") === narration.anchorId,
     );
     if (!root) return;
-    const range = highlightSentence(root, narration.currentText);
-    if (!range || !narration.autoFollow) return;
+    const anchored = anchoredElement(root, narration);
+    const range = highlightSentence(anchored ?? root, narration.currentText);
+    if (!range && anchored) anchored.setAttribute("data-narration-fallback", "");
+    const scrollTarget = anchored ?? range?.startContainer.parentElement;
+    if (!scrollTarget || !narration.autoFollow) return;
     if (suppressScrollAt.current === narration.chunkIndex) return;
     suppressScrollAt.current = null;
-    const target = range.startContainer.parentElement;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    target?.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    scrollTarget.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
   }, [
     narration.activeId,
     narration.anchorId,
     narration.autoFollow,
     narration.chunkIndex,
+    narration.currentAnchor,
     narration.currentText,
   ]);
 
@@ -365,10 +384,24 @@ function VoiceQuestions() {
 
 export function NarrationPlayerBar() {
   const narration = useReadAloud();
+  const [scrubValue, setScrubValue] = useState<number | null>(null);
+  const scrubbing = useRef(false);
+
+  useEffect(() => {
+    scrubbing.current = false;
+    setScrubValue(null);
+  }, [narration.activeId]);
+
   if (!narration.activeId) return <FollowAlong />;
 
   const playing = narration.status === "speaking" || narration.status === "preparing";
-  const progress = Math.min(narration.currentTime, narration.duration || 0);
+  const progress = scrubValue ?? Math.min(narration.currentTime, narration.duration || 0);
+
+  const commitScrub = (value: number) => {
+    scrubbing.current = false;
+    narration.seekTo(value);
+    setScrubValue(null);
+  };
 
   return (
     <>
@@ -382,7 +415,7 @@ export function NarrationPlayerBar() {
             variant="ghost"
             size="icon-sm"
             onClick={narration.previous}
-            aria-label="Previous sentence"
+            aria-label="Previous passage"
           >
             <SkipBack aria-hidden />
           </Button>
@@ -412,7 +445,7 @@ export function NarrationPlayerBar() {
           <div className="order-first w-full min-w-0 sm:order-none sm:flex-1">
             <div className="mb-1 flex items-center justify-between gap-3 text-xs">
               <span className="truncate font-medium">
-                {narration.label} · sentence {narration.chunkIndex + 1} of {narration.chunkCount}
+                {narration.label} · passage {narration.chunkIndex + 1} of {narration.chunkCount}
               </span>
               <span className="shrink-0 tabular-nums text-muted-foreground">
                 {formatTime(progress)} / {narration.durationEstimated ? "≈" : ""}
@@ -425,7 +458,23 @@ export function NarrationPlayerBar() {
               max={Math.max(0.01, narration.duration)}
               step={0.1}
               value={progress}
-              onChange={(event) => narration.seekTo(Number(event.currentTarget.value))}
+              onPointerDown={(event) => {
+                scrubbing.current = true;
+                setScrubValue(Number(event.currentTarget.value));
+              }}
+              onInput={(event) => {
+                if (scrubbing.current) setScrubValue(Number(event.currentTarget.value));
+              }}
+              onChange={(event) => {
+                const value = Number(event.currentTarget.value);
+                if (scrubbing.current) setScrubValue(value);
+                else narration.seekTo(value); // Keyboard changes are discrete.
+              }}
+              onPointerUp={(event) => commitScrub(Number(event.currentTarget.value))}
+              onPointerCancel={() => {
+                scrubbing.current = false;
+                setScrubValue(null);
+              }}
               aria-label="Reading position"
               className="block h-5 w-full cursor-pointer accent-primary"
             />
@@ -435,7 +484,7 @@ export function NarrationPlayerBar() {
             variant="ghost"
             size="icon-sm"
             onClick={narration.next}
-            aria-label="Next sentence"
+            aria-label="Next passage"
           >
             <SkipForward aria-hidden />
           </Button>
