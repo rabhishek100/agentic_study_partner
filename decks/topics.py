@@ -7,8 +7,9 @@ topic inventory, plus the evidence each topic is generated from and the exact
 markers a card about it is allowed to cite.
 
 Book topics are the content-bearing nodes of the subtree — the same unit
-`study.summarize` requires a summary to cite, because a node is a topic and an
-uncited node is a topic that was skipped. Lecture topics are
+`study.summarize` requires a summary to cite. Large nodes that contain an
+entire flat chapter are split by page so an uncited page cannot hide inside a
+single nominal topic. Lecture topics are
 `video.lecture.coverage_units`: published chapters where the source has them,
 transcript windows where it does not.
 """
@@ -16,6 +17,7 @@ transcript windows where it does not.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from uuid import UUID
 
 import tiktoken
@@ -23,7 +25,7 @@ from psycopg import Connection
 
 from parsing.models import NON_CONTENT_CATEGORIES
 from storage.database import parse_owner_id
-from study.content import EvidenceBundle
+from study.content import ContentBlock, EvidenceBundle
 from study.context import DEFAULT_ENCODING
 from study.summarize import OPTIONAL_INTERVIEW_SECTION, OPTIONAL_RECAP_TITLES
 from video.lecture import CoverageUnit, LectureScope
@@ -67,6 +69,20 @@ GENERATION_BATCH_TOKENS = 6_000
 # A single node can own hundreds of images in a shallow table of contents. Two
 # per topic is what fits beside a card back without turning it into a gallery.
 FIGURES_PER_TOPIC = 2
+
+# Some PDFs have real chapter headings but no nested TOC entries. Treating a
+# 20-page flat chapter as one topic makes "complete coverage" technically true
+# after one question while hiding almost the entire chapter inside that topic.
+# Page units are the lossless deterministic fallback: every readable block is
+# assigned once, citations stay exact, and interview planning sees enough
+# breadth to ask more than one or two questions.
+FLAT_NODE_MIN_CHARACTERS = 8_000
+FLAT_NODE_MIN_PAGES = 4
+NOISY_FLAT_HEADING = re.compile(
+    r"topics?\s*(?:&|and)\s*concepts?\s+covered|suggestions?\s+or\s+feedback|"
+    r"curriculum|reference\s+resources?",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -158,13 +174,12 @@ def book_inventory(
     connection: Connection | None = None,
     owner_id: str | UUID | None = None,
 ) -> ScopeInventory:
-    """Inventory one resolved book scope, one topic per content-bearing node.
+    """Inventory one resolved book scope into deterministic coverage units.
 
-    The evidence for a topic is that node's blocks only. A model given the
-    whole chapter and asked for cards about section 7.3 writes cards about the
-    chapter; a model given section 7.3 writes cards about section 7.3, and its
-    citations cannot wander outside it because no other marker is in the
-    prompt.
+    Normally a topic is one node and its blocks. A large node spanning several
+    pages is a flat-chapter parser fallback, so each page becomes a topic. A
+    model given section 7.3 writes cards about section 7.3, and its citations
+    cannot wander outside it because no other marker is in the prompt.
     """
 
     scope = bundle.scope
@@ -177,11 +192,14 @@ def book_inventory(
         )
 
     topics: list[Topic] = []
+    parent_node_ids = {
+        node_content.node.parent_id
+        for node_content in bundle.nodes
+        if node_content.node.parent_id is not None
+    }
     for node_content in bundle.nodes:
         node = node_content.node
-        lines: list[str] = []
-        markers: set[str] = set()
-        characters = 0
+        entries: list[tuple[ContentBlock, str, str]] = []
         for block in node_content.blocks:
             if block.category in NON_CONTENT_CATEGORIES:
                 continue
@@ -197,30 +215,76 @@ def book_inventory(
                     value = f"Table:\n{value}"
             if not value:
                 continue
-            lines.append(f"{marker}\n{value}")
-            markers.add(marker)
-            characters += len(value)
+            entries.append((block, marker, value))
 
-        if not lines:
+        if not entries:
             continue
 
-        topics.append(
-            Topic(
-                key=f"node:{node.id}",
-                ordinal=len(topics),
-                label=node.path_text or node.title,
-                required=(
-                    characters >= SUBSTANTIVE_NODE_CHARACTERS
-                    and cardable(node.title, node.path_text)
-                ),
-                evidence_text="\n\n".join(lines),
-                allowed_markers=frozenset(markers),
-                figures=figures_by_node.get(node.id, ())[:FIGURES_PER_TOPIC],
-                node_id=node.id,
-                start_page=node.start_page,
-                end_page=node.end_page,
-            )
+        pages = list(dict.fromkeys(block.page_number for block, _, _ in entries))
+        characters = sum(len(value) for _, _, value in entries)
+        split_flat_node = (
+            characters >= FLAT_NODE_MIN_CHARACTERS
+            and len(pages) >= FLAT_NODE_MIN_PAGES
+            and node.id not in parent_node_ids
         )
+        groups = (
+            [
+                [entry for entry in entries if entry[0].page_number == page]
+                for page in pages
+            ]
+            if split_flat_node
+            else [entries]
+        )
+        for group in groups:
+            start_page = min(block.page_number for block, _, _ in group)
+            end_page = max(block.page_number for block, _, _ in group)
+            group_characters = sum(len(value) for _, _, value in group)
+            heading = next(
+                (
+                    value
+                    for block, _, value in group
+                    if block.category == "Title"
+                    and value.casefold().strip() != node.title.casefold().strip()
+                    and not NOISY_FLAT_HEADING.search(value)
+                    and len(value) <= 160
+                ),
+                None,
+            )
+            label = node.path_text or node.title
+            if split_flat_node:
+                label = (
+                    f"{label} :: {heading}"
+                    if heading
+                    else f"{label} :: page {start_page}"
+                )
+            group_figures = tuple(
+                figure
+                for figure in figures_by_node.get(node.id, ())
+                if figure.page is None or start_page <= figure.page <= end_page
+            )
+            topics.append(
+                Topic(
+                    key=(
+                        f"node:{node.id}:page:{start_page}"
+                        if split_flat_node
+                        else f"node:{node.id}"
+                    ),
+                    ordinal=len(topics),
+                    label=label,
+                    required=(
+                        group_characters >= SUBSTANTIVE_NODE_CHARACTERS
+                        and cardable(heading or node.title, label)
+                    ),
+                    evidence_text="\n\n".join(
+                        f"{marker}\n{value}" for _, marker, value in group
+                    ),
+                    allowed_markers=frozenset(marker for _, marker, _ in group),
+                    figures=group_figures[:FIGURES_PER_TOPIC],
+                    node_id=node.id,
+                    start_page=start_page,
+                    end_page=end_page,
+                )
+            )
 
     whole_paper = scope.document_type == "paper" and scope.root_node_id is None
     return ScopeInventory(

@@ -48,7 +48,7 @@ mechanism, application, edge cases, and evaluation.
 
 
 def prompt_version() -> str:
-    return "ideal-chapter-interview-v1:" + sha256(
+    return "ideal-chapter-interview-v2:" + sha256(
         IDEAL_INTERVIEW_PROMPT.encode()
     ).hexdigest()[:12]
 

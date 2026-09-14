@@ -62,8 +62,9 @@ def create_ideal_interview(
         return reusable
     exchanges = []
     total_cost = 0.0
-    # Every content-bearing canonical node is assigned exactly one exchange.
-    # Generation cannot decide that a less convenient section is expendable.
+    # Every deterministic coverage unit is assigned exactly one exchange.
+    # Large flat chapters use page units; structured chapters use node units.
+    # Generation cannot decide that a less convenient area is expendable.
     for index, topic in enumerate(inventory.topics):
         last_error: ValueError | None = None
         for _attempt in range(EXCHANGE_ATTEMPTS):
