@@ -110,6 +110,25 @@ describe("the interview launch panel", () => {
     expect(props.onStart).toHaveBeenCalledOnce();
   });
 
+  it("offers listen-only ideal flow without requiring microphone access", async () => {
+    const user = userEvent.setup();
+    const onListen = vi.fn();
+    panel({ preflight: PREFLIGHT, onListen, listenAvailable: true });
+
+    expect(screen.getByRole("button", { name: /start interview/i })).toBeDisabled();
+    const listen = screen.getByRole("button", { name: /listen to ideal interview/i });
+    expect(listen).toBeEnabled();
+    await user.click(listen);
+    expect(onListen).toHaveBeenCalledOnce();
+  });
+
+  it("limits ideal flows to complete book chapters", () => {
+    panel({ preflight: PREFLIGHT, onListen: vi.fn(), listenAvailable: false });
+
+    expect(screen.getByRole("button", { name: /listen to ideal interview/i })).toBeDisabled();
+    expect(screen.getByText(/currently require a book chapter/i)).toBeVisible();
+  });
+
   it("carries the microphone controls in the section that requires them", () => {
     panel({
       microphoneControl: <button type="button">Enable microphone</button>,

@@ -102,6 +102,7 @@ class ConversationDecisionError(RuntimeError):
 AnalysisRoute = Literal[
     "hierarchy_summary",
     "hierarchy_list",
+    "verbatim_reading",
     "retrieval_qa",
     "prior_answer_transform",
     "clarify",
@@ -378,6 +379,8 @@ Do not answer.
 Routes:
 - hierarchy_summary: summarize a complete paper, book, chapter, or section.
 - hierarchy_list: list chapters in a book or sections under a chapter.
+- verbatim_reading: reproduce the exact stored text of a complete paper, book,
+  chapter, or section without summarizing or generating prose.
 - retrieval_qa: retrieve selected-source evidence for a question.
 - prior_answer_transform: reformat or shorten the prior answer without facts.
 - clarify: the referent or requested scope is genuinely ambiguous.
@@ -385,7 +388,13 @@ Routes:
 For retrieval_qa, return one standalone query understandable without chat
 history. Replace pronouns, ordinals, and vague labels with named referents and
 preserve relevant book or chapter context. Do not expand, use HyDE, or write an
-answer. A hierarchy route may select only a supplied scope_node_id or the
+answer. Choose verbatim_reading when the reader wants the source itself in the
+chat rather than an explanation or summary. Infer that intent from the whole
+request; natural requests such as "let me read the entire chapter here" or
+"put that section in the chat without summarizing it" do not need a fixed
+command phrase. Do not treat requests for a detailed, comprehensive, or "full"
+explanation as verbatim unless they ask for the source text itself.
+A hierarchy or verbatim route may select only a supplied scope_node_id or the
 active scope. Use clarify when no unique referent exists. scope_candidates are
 retrieved by keyword overlap and often include chapters that share a word with
 the question without being what the question is about; a candidate title
@@ -524,8 +533,23 @@ def _validated_decision(
         if decision.route != "retrieval_qa":
             raise
         scope = None
-    if decision.route in {"hierarchy_summary", "hierarchy_list"} and not scope:
-        raise ValueError("hierarchy route requires a canonical scope")
+    scoped_route = decision.route in {
+        "hierarchy_summary",
+        "hierarchy_list",
+        "verbatim_reading",
+    }
+    if scoped_route and not scope and not candidates:
+        return TurnDecision(
+            route="clarify",
+            history_dependency="ambiguous",
+            clarification_question=(
+                "I could not find that chapter or section in this book. "
+                "Which part did you mean?"
+            ),
+            reason="no canonical scope matched the question",
+        )
+    if scoped_route and not scope:
+        raise ValueError("scoped route requires a canonical scope")
     if decision.route == "prior_answer_transform" and not state.previous_answer:
         raise ValueError("no previous answer is available to transform")
     return TurnDecision(
@@ -559,6 +583,15 @@ def _clarification_fallback(
             if evidence:
                 return evidence.path
         return state.previous_evidence[0].path if state.previous_evidence else None
+
+    # This clarification is backed by the canonical hierarchy lookup, not a
+    # model being overly cautious. Do not let the generic "long question"
+    # recovery below turn a request for a missing passage into retrieval QA.
+    if (
+        decision.route == "clarify"
+        and decision.reason == "no canonical scope matched the question"
+    ):
+        return decision
 
     if WEALTH_SHIFT.search(question):
         return TurnDecision(

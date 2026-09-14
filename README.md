@@ -462,6 +462,15 @@ answer; guided mode returns the detailed feedback after each turn. Reports retai
 transcript, six dimension scores, recommended answers, citations, cost, and
 missed topics without inventing percentiles.
 
+For revision, a book chapter can also be turned into an **ideal interview
+flow**: a complete, listen-only dialogue between an interviewer and a strong
+candidate. Every content-bearing node in the chapter is assigned exactly one
+grounded exchange, so the flow cannot silently optimize away a section. A
+separate LiveKit worker performs the persisted transcript with two Cartesia
+voices, deliberate turn pauses, and an optional reviewed IPA pronunciation
+map. Setup, architecture, and the LangSmith evaluation command are documented
+in [`docs/ideal-interview-flows.md`](docs/ideal-interview-flows.md).
+
 Voice answers listen continuously by default, with push-to-talk as a fallback.
 The setup separates required microphone access from the optional live input
 test, so candidates never need to prove input activity before starting. Session

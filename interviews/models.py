@@ -68,9 +68,19 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
     )
 
 
-def invoke_structured(client: Any, messages: list[Any], schema: type[Schema]) -> tuple[Schema, float]:
+def invoke_structured(
+    client: Any,
+    messages: list[Any],
+    schema: type[Schema],
+    *,
+    config: dict[str, Any] | None = None,
+) -> tuple[Schema, float]:
     try:
-        response = client.invoke(messages)
+        response = (
+            client.invoke(messages, config=config)
+            if config is not None
+            else client.invoke(messages)
+        )
     except InterviewModelError:
         raise
     except Exception as error:

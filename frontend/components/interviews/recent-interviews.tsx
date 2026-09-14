@@ -1,9 +1,9 @@
 "use client";
 
-import { CircleCheck, CirclePause, CircleSlash, Play } from "lucide-react";
+import { CircleCheck, CirclePause, CircleSlash, Headphones, Play } from "lucide-react";
 import Link from "next/link";
 
-import { formatDuration, type InterviewSession } from "@/lib/interview-types";
+import { formatDuration, type IdealInterviewFlow, type InterviewSession } from "@/lib/interview-types";
 import { cn } from "@/lib/utils";
 
 const LEVEL_LABEL: Record<InterviewSession["target_level"], string> = {
@@ -42,7 +42,7 @@ function relativeDay(timestamp: string | null): string | null {
   return then.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function RecentInterviews({ sessions }: { sessions: InterviewSession[] }) {
+export function RecentInterviews({ sessions, idealFlows = [] }: { sessions: InterviewSession[]; idealFlows?: IdealInterviewFlow[] }) {
   return (
     <div className="grid gap-4">
       <div className="grid gap-1">
@@ -98,6 +98,31 @@ export function RecentInterviews({ sessions }: { sessions: InterviewSession[] })
           })}
         </ul>
       )}
+
+      {idealFlows.length ? (
+        <div className="grid gap-2 border-t border-divider pt-4">
+          <h2 className="text-sm font-medium">Ideal listening flows</h2>
+          <ul className="grid gap-1">
+            {idealFlows.map((item) => (
+              <li key={item.flow_id}>
+                <Link
+                  href={`/interviews/ideal/${item.flow_id}`}
+                  className="grid gap-1 rounded-md border border-transparent px-3 py-3 transition-colors hover:border-divider hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="line-clamp-2 font-serif text-sm font-medium">{item.title.replace("Ideal interview · ", "")}</p>
+                    <Headphones aria-hidden className="size-4 shrink-0 text-action" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {item.covered_topic_count}/{item.topic_count} topics · {LEVEL_LABEL[item.target_level]}
+                    {relativeDay(item.created_at) ? ` · ${relativeDay(item.created_at)}` : ""}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

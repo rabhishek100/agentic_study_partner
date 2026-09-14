@@ -36,6 +36,7 @@ from api.decks import router as deck_router
 from api.revision_sheets import router as revision_sheet_router
 from api.ingestions import router as ingestion_router
 from api.interviews import router as interview_router
+from api.ideal_interviews import router as ideal_interview_router
 from api.narration import router as narration_router
 from api.notifications import router as notification_router
 from api.video_chat import chat_router as video_chat_router
@@ -597,6 +598,7 @@ app.include_router(notification_router)
 app.include_router(deck_router)
 app.include_router(revision_sheet_router)
 app.include_router(interview_router)
+app.include_router(ideal_interview_router)
 app.include_router(narration_router)
 
 

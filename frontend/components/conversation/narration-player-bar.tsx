@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { useReadAloud } from "@/hooks/use-read-aloud";
 import { useNarrationVoice } from "@/hooks/use-narration-voice";
+import { splitSentences } from "@/lib/narration";
 import { DEFAULT_PACING, SPEEDS, type NarrationPacing } from "@/lib/narration-player";
 import {
   emitNarrationVoiceQuestion,
@@ -45,18 +46,45 @@ const HIGHLIGHT_NAME = "narration-current";
 
 type Position = { node: Text; offset: number };
 
-function normalizedText(root: Element): { text: string; positions: Position[] } {
+const NARRATION_BLOCKS = "li, p, h1, h2, h3, h4, h5, h6, blockquote, figcaption, td, th";
+
+/**
+ * The text the reader can actually see, with every character mapped back to
+ * its DOM position. Structural stops are inserted between rendered blocks so
+ * adjacent list items cannot collapse into one unmatchable word stream.
+ */
+function renderedText(root: Element): { text: string; positions: Position[] } {
   const positions: Position[] = [];
   let text = "";
   let previousWhitespace = true;
+  let previousBlock: Element | null = null;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let node = walker.nextNode() as Text | null;
   while (node) {
     const parent = node.parentElement;
-    const ignored = parent?.closest(
-      "[data-citation], [aria-hidden='true'], pre, code, script, style",
-    );
+    const katexVisual = parent?.closest(".katex-html");
+    const ignored =
+      parent?.closest("[data-citation], .katex-mathml, pre, script, style") ||
+      (!katexVisual && parent?.closest("[aria-hidden='true']"));
     if (!ignored) {
+      const block = parent?.closest(NARRATION_BLOCKS) ?? root;
+      if (text && previousBlock && block !== previousBlock && node.data.trim()) {
+        // Markdown list markers provide a visual boundary but no text node.
+        // Mirror the prosody stop added by speakableProse for an unpunctuated
+        // item, mapping synthetic characters to the previous visible glyph.
+        while (text.endsWith(" ")) {
+          text = text.slice(0, -1);
+          positions.pop();
+        }
+        const position = positions.at(-1)!;
+        if (!/[.!?:;]$/.test(text)) {
+          text += ".";
+          positions.push(position);
+        }
+        text += " ";
+        positions.push(position);
+        previousWhitespace = true;
+      }
       for (let offset = 0; offset < node.data.length; offset += 1) {
         const character = node.data[offset]!;
         if (/\s/.test(character)) {
@@ -71,10 +99,15 @@ function normalizedText(root: Element): { text: string; positions: Position[] } 
           previousWhitespace = false;
         }
       }
+      if (node.data.trim()) previousBlock = block;
     }
     node = walker.nextNode() as Text | null;
   }
-  return { text: text.trim(), positions };
+  while (text.endsWith(" ")) {
+    text = text.slice(0, -1);
+    positions.pop();
+  }
+  return { text, positions };
 }
 
 function targetText(value: string): string {
@@ -91,25 +124,59 @@ function clearHighlight(): void {
   });
 }
 
-/** Highlight the exact rendered passage when the browser supports CSS ranges. */
-function highlightSentence(root: Element, spoken: string): Range | null {
-  clearHighlight();
-  let target = targetText(spoken);
-  if (!target || target.startsWith("you asked:")) return null;
-  const stream = normalizedText(root);
-  let start = stream.text.indexOf(target);
+function mappedRange(
+  stream: { text: string; positions: Position[] },
+  start: number,
+  length: number,
+): Range | null {
   // Headings and list labels gain punctuation for prosody that is not visible.
-  if (start < 0 && /[.!?:;]$/.test(target)) {
-    target = target.slice(0, -1).trimEnd();
-    start = stream.text.indexOf(target);
-  }
-  if (start < 0) return null;
   const first = stream.positions[start];
-  const last = stream.positions[start + target.length - 1];
+  const last = stream.positions[start + length - 1];
   if (!first || !last) return null;
   const range = document.createRange();
   range.setStart(first.node, first.offset);
   range.setEnd(last.node, Math.min(last.node.length, last.offset + 1));
+  return range;
+}
+
+/** Resolve the same sentence by order, independent of speech-only wording. */
+function sentenceRange(root: Element, sentenceIndex: number): Range | null {
+  const stream = renderedText(root);
+  const sentences = splitSentences(stream.text);
+  let cursor = 0;
+  for (const [index, sentence] of sentences.entries()) {
+    const start = stream.text.indexOf(sentence, cursor);
+    if (start < 0) return null;
+    if (index === sentenceIndex) return mappedRange(stream, start, sentence.length);
+    cursor = start + sentence.length;
+  }
+  return null;
+}
+
+/** Text matching retained for older scripts and intentionally unanchored text. */
+function matchingRange(root: Element, spoken: string): Range | null {
+  let target = targetText(spoken);
+  if (!target || target.startsWith("you asked:")) return null;
+  const stream = renderedText(root);
+  let start = stream.text.indexOf(target);
+  if (start < 0 && /[.!?:;]$/.test(target)) {
+    target = target.slice(0, -1).trimEnd();
+    start = stream.text.indexOf(target);
+  }
+  return start < 0 ? null : mappedRange(stream, start, target.length);
+}
+
+/** Highlight the exact rendered sentence when the browser supports CSS ranges. */
+function highlightSentence(
+  root: Element,
+  spoken: string,
+  sentenceIndex?: number,
+): Range | null {
+  clearHighlight();
+  const range = sentenceIndex == null
+    ? matchingRange(root, spoken)
+    : sentenceRange(root, sentenceIndex) ?? matchingRange(root, spoken);
+  if (!range) return null;
 
   const HighlightConstructor = (globalThis as typeof globalThis & {
     Highlight?: new (...ranges: Range[]) => unknown;
@@ -120,7 +187,7 @@ function highlightSentence(root: Element, spoken: string): Range | null {
   if (HighlightConstructor && css?.highlights) {
     css.highlights.set(HIGHLIGHT_NAME, new HighlightConstructor(range));
   } else {
-    const element = first.node.parentElement?.closest("p, li, h1, h2, h3, h4, blockquote");
+    const element = range.startContainer.parentElement?.closest(NARRATION_BLOCKS);
     element?.setAttribute("data-narration-fallback", "");
   }
   return range;
@@ -129,6 +196,12 @@ function highlightSentence(root: Element, spoken: string): Range | null {
 function anchoredElement(root: Element, narration: ReturnType<typeof useReadAloud>): Element | null {
   const anchor = narration.currentAnchor;
   if (!anchor) return null;
+  if (anchor.type === "question") {
+    return [...document.querySelectorAll("[data-narration-question]")].find(
+      (element) =>
+        element.getAttribute("data-narration-question") === narration.anchorId,
+    ) ?? null;
+  }
   if (anchor.type === "figure") {
     return root.parentElement?.querySelector(
       `[data-narration-figure="${anchor.blockId}"]`,
@@ -140,6 +213,75 @@ function anchoredElement(root: Element, narration: ReturnType<typeof useReadAlou
   return root.querySelector(`[data-narration-block="${anchor.key}"]`);
 }
 
+/** The nearest element that owns vertical scrolling, if the page does not. */
+function scrollContainer(element: Element): HTMLElement | null {
+  const explicit = element.closest<HTMLElement>("[data-narration-scroll-container]");
+  if (explicit) return explicit;
+  let parent = element.parentElement;
+  while (parent && parent !== document.body) {
+    const overflow = window.getComputedStyle(parent).overflowY;
+    if (
+      /^(?:auto|scroll|overlay)$/.test(overflow) &&
+      parent.scrollHeight > parent.clientHeight
+    ) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Follow the spoken sentence, not merely the paragraph that contains it.
+ *
+ * A verbatim source block can be taller than the viewport. `scrollIntoView`
+ * on that block centers the paragraph while the highlighted sentence remains
+ * off screen. A Range carries the exact sentence rectangle, so move the
+ * nearest scroll owner by that delta. The comfortable band avoids a new
+ * smooth-scroll animation for every sentence that is already visible.
+ */
+function scrollToNarration(
+  range: Range | null,
+  fallback: Element,
+  behavior: ScrollBehavior,
+): void {
+  const origin = range?.startContainer.parentElement ?? fallback;
+  const scroller = scrollContainer(origin);
+  const rectangle =
+    range && typeof range.getBoundingClientRect === "function"
+      ? range.getBoundingClientRect()
+      : null;
+
+  // jsdom and a collapsed/unlaid-out range have no usable geometry. Keeping
+  // the element fallback also makes non-prose structures such as tables and
+  // figures follow correctly.
+  if (!rectangle || (!rectangle.height && !rectangle.width)) {
+    fallback.scrollIntoView({ block: "center", behavior });
+    return;
+  }
+
+  const bounds = scroller?.getBoundingClientRect();
+  const top = bounds?.top ?? 0;
+  const bottom = bounds?.bottom ?? window.innerHeight;
+  const height = Math.max(1, bottom - top);
+  const comfortableTop = top + Math.min(96, height * 0.2);
+  const comfortableBottom = bottom - Math.min(176, height * 0.3);
+  if (
+    rectangle.top >= comfortableTop &&
+    rectangle.bottom <= comfortableBottom
+  ) {
+    return;
+  }
+
+  const delta =
+    rectangle.top + rectangle.height / 2 - (comfortableTop + comfortableBottom) / 2;
+  if (scroller && typeof scroller.scrollBy === "function") {
+    scroller.scrollBy({ top: delta, behavior });
+  } else {
+    window.scrollBy({ top: delta, behavior });
+  }
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
   const whole = Math.max(0, Math.round(seconds));
@@ -148,7 +290,22 @@ function formatTime(seconds: number): string {
 
 function FollowAlong() {
   const narration = useReadAloud();
-  const suppressScrollAt = useRef<number | null>(null);
+  const [layoutRevision, setLayoutRevision] = useState(0);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    const refocus = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setLayoutRevision((value) => value + 1), 50);
+    };
+    window.addEventListener("resize", refocus);
+    window.visualViewport?.addEventListener("resize", refocus);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", refocus);
+      window.visualViewport?.removeEventListener("resize", refocus);
+    };
+  }, []);
 
   useEffect(() => {
     if (!narration.activeId || !narration.anchorId || !narration.currentText) {
@@ -160,14 +317,17 @@ function FollowAlong() {
     );
     if (!root) return;
     const anchored = anchoredElement(root, narration);
-    const range = highlightSentence(anchored ?? root, narration.currentText);
+    const range = highlightSentence(
+      anchored ?? root,
+      narration.currentText,
+      anchored ? narration.currentAnchor?.sentence : undefined,
+    );
     if (!range && anchored) anchored.setAttribute("data-narration-fallback", "");
-    const scrollTarget = anchored ?? range?.startContainer.parentElement;
+    const scrollTarget = range?.startContainer.parentElement ?? anchored;
     if (!scrollTarget || !narration.autoFollow) return;
-    if (suppressScrollAt.current === narration.chunkIndex) return;
-    suppressScrollAt.current = null;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scrollTarget.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    // Exact focus beats overlapping smooth-scroll animations when passages
+    // advance quickly or the browser zoom changes the line wrapping.
+    scrollToNarration(range, scrollTarget, "auto");
   }, [
     narration.activeId,
     narration.anchorId,
@@ -175,18 +335,32 @@ function FollowAlong() {
     narration.chunkIndex,
     narration.currentAnchor,
     narration.currentText,
+    layoutRevision,
   ]);
 
   useEffect(() => {
     if (!narration.autoFollow) return;
-    const suspend = () => { suppressScrollAt.current = narration.chunkIndex; };
+    // Manual scrolling means the reader chose a different place. Release the
+    // page for this reading instead of pulling it back on the next sentence;
+    // the eye button explicitly resumes following when wanted.
+    const suspend = (event: Event) => {
+      // Ctrl-wheel and multi-touch are zoom gestures. They reflow the page,
+      // and the resize listener above must be allowed to refocus the sentence.
+      if (typeof WheelEvent !== "undefined" && event instanceof WheelEvent && event.ctrlKey) return;
+      if (
+        typeof TouchEvent !== "undefined" &&
+        event instanceof TouchEvent &&
+        event.touches.length > 1
+      ) return;
+      narration.suspendAutoFollow();
+    };
     document.addEventListener("wheel", suspend, { passive: true });
     document.addEventListener("touchstart", suspend, { passive: true });
     return () => {
       document.removeEventListener("wheel", suspend);
       document.removeEventListener("touchstart", suspend);
     };
-  }, [narration.autoFollow, narration.chunkIndex]);
+  }, [narration.autoFollow, narration.suspendAutoFollow]);
 
   useEffect(() => clearHighlight, []);
   // Kept out of the Tailwind/PostCSS input: its optimizer currently warns on
@@ -194,7 +368,7 @@ function FollowAlong() {
   // support it and the rule is valid at runtime.
   return (
     <style>{`::highlight(${HIGHLIGHT_NAME}) {
-      background: var(--wash);
+      background-color: var(--wash);
       color: inherit;
     }`}</style>
   );

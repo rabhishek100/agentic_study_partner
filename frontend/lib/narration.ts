@@ -48,10 +48,15 @@ export interface NarrationSegment {
   figure?: FigureRef;
 }
 
-export type NarrationAnchor =
+export type NarrationAnchor = (
   | { type: "block"; key: string }
   | { type: "figure"; blockId: number }
-  | { type: "passage"; index: number };
+  | { type: "question" }
+  | { type: "passage"; index: number }
+) & {
+  /** Zero-based spoken sentence within this rendered source block. */
+  sentence?: number;
+};
 
 export interface NarrationScript {
   segments: NarrationSegment[];
@@ -160,9 +165,11 @@ export function speakableProse(block: string): string {
     // List controls are visual. Keep each item as a punctuated thought so a
     // compact Markdown list does not become one breathless run-on sentence.
     .replace(/^\s*[-*+]\s+\[[ xX]\]\s+(.+)$/gm, (_, item: string) => terminated(item))
-    .replace(/^\s{0,3}>\s?/gm, "")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+(.+)$/gm, (_, item: string) => terminated(item))
+    .replace(/^\s{0,3}>\s?/gm, "")
+    // Strip heading syntax after list controls. Reversing these two steps
+    // mistakes "## 1. Scope" for an ordered-list item and drops the spoken 1.
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     // A horizontal rule is a visual pause with nothing to say.
     .replace(/^\s*([-*_])\1{2,}\s*$/gm, "")
     .replace(/\s+/g, " ")
@@ -310,6 +317,13 @@ function blocks(markdown: string): Block[] {
       flush();
       continue;
     }
+    // Markdown permits lazy and indented continuation lines inside a list
+    // item. Keep them with the list's rendered <ul>/<ol> anchor; treating one
+    // as a new paragraph creates an anchor that cannot exist in the DOM.
+    if (current?.kind === "list") {
+      current.lines.push(line);
+      continue;
+    }
     if (current?.kind !== "prose") {
       flush();
       current = { kind: "prose", lines: [], startLine: lineIndex + 1 };
@@ -337,6 +351,26 @@ function announceTable(block: Block): string {
   return count > 0
     ? `Table with ${count} ${count === 1 ? "row" : "rows"}, shown on screen.`
     : "Table, shown on screen.";
+}
+
+/** Flatten visual list structure into the same item boundaries the DOM uses. */
+function speakableList(lines: string[]): string {
+  const items: string[] = [];
+  let current = "";
+  for (const line of lines) {
+    const match = /^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)(.*)$/.exec(line);
+    if (match) {
+      if (current) items.push(current);
+      current = match[1]!.trim();
+    } else if (line.trim()) {
+      current = `${current} ${line.trim()}`.trim();
+    }
+  }
+  if (current) items.push(current);
+  return items
+    .map((item) => terminated(speakableProse(item)))
+    .filter(Boolean)
+    .join(" ");
 }
 
 /**
@@ -373,11 +407,18 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
   };
 
   if (input.question?.trim()) {
-    segments.push({
-      kind: "prose",
-      pauseAfter: "paragraph",
-      text: `You asked: ${terminated(withoutMarkers(speakableProse(input.question)))}`,
-    });
+    const question = withoutMarkers(speakableProse(input.question));
+    const sentences = splitSentences(question);
+    for (const [sentenceIndex, sentence] of sentences.entries()) {
+      segments.push({
+        kind: "prose",
+        pauseAfter: sentenceIndex === sentences.length - 1 ? "paragraph" : "sentence",
+        text: sentenceIndex === 0
+          ? `You asked: ${terminated(sentence)}`
+          : terminated(sentence),
+        anchor: { type: "question", sentence: sentenceIndex },
+      });
+    }
   }
 
   for (const block of blocks(input.answer)) {
@@ -391,16 +432,22 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
       continue;
     }
 
-    const prose = speakableProse(block.lines.join("\n"));
+    const prose = block.kind === "list"
+      ? speakableList(block.lines)
+      : speakableProse(block.lines.join("\n"));
     if (!prose) continue;
 
-    const sentences = splitSentences(prose);
+    // A numbered heading such as "1. Clarify scope" is one semantic utterance,
+    // not a sentence containing only "1." followed by another passage.
+    const sentences = block.kind === "heading" ? [prose] : splitSentences(prose);
     for (const [sentenceIndex, sentence] of sentences.entries()) {
       const spoken = withoutMarkers(sentence);
       if (spoken) segments.push({
         kind: block.kind === "heading" ? "heading" : block.kind === "list" ? "list" : "prose",
         text: terminated(spoken),
-        anchor,
+        anchor: block.kind === "heading"
+          ? anchor
+          : { ...anchor, sentence: sentenceIndex },
         pauseAfter:
           block.kind === "heading"
             ? "heading"
@@ -524,7 +571,7 @@ export function buildPassageNarrationScript(
       ? speakMath(source.text ?? "") || passageSegmentText(source)
       : passageSegmentText(source);
     if (!prose) continue;
-    const sentences = splitSentences(prose);
+    const sentences = source.kind === "heading" ? [prose] : splitSentences(prose);
     for (const [sentenceIndex, sentence] of sentences.entries()) {
       const kind: NarrationKind =
         source.kind === "heading"
@@ -536,7 +583,9 @@ export function buildPassageNarrationScript(
               : "prose";
       segments.push({
         kind,
-        anchor,
+        anchor: source.kind === "heading"
+          ? anchor
+          : { ...anchor, sentence: sentenceIndex },
         text: terminated(sentence),
         pauseAfter:
           kind === "heading"
@@ -609,7 +658,12 @@ export function narrationItems(script: NarrationScript): NarrationItem[] {
         text: sentence,
         speechText: pronunciationText(sentence),
         kind: segment.kind,
-        anchor: segment.anchor,
+        anchor: segment.anchor?.sentence != null
+          ? {
+              ...segment.anchor,
+              sentence: segment.anchor.sentence + sentenceIndex,
+            }
+          : segment.anchor,
         pauseAfter:
           sentenceIndex === sentences.length - 1
             ? segment.pauseAfter ?? "sentence"

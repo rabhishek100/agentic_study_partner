@@ -18,6 +18,7 @@ import {
   snapshot,
   stop,
   subscribe,
+  suspendAutoFollow,
   toggle,
   type NarrationState,
 } from "@/lib/narration-player";
@@ -32,6 +33,7 @@ export interface ReadAloud extends NarrationState {
   setSpeed: typeof setSpeed;
   setPacing: typeof setPacing;
   setAutoFollow: typeof setAutoFollow;
+  suspendAutoFollow: typeof suspendAutoFollow;
   seekTo: typeof seekTo;
   seekBy: typeof seekBy;
   next: typeof next;
@@ -63,6 +65,7 @@ export function useReadAloud(): ReadAloud {
     setSpeed,
     setPacing,
     setAutoFollow,
+    suspendAutoFollow,
     seekTo,
     seekBy,
     next,

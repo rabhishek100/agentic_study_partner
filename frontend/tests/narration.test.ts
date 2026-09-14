@@ -197,6 +197,7 @@ describe("what the voice is given to say", () => {
     });
 
     expect(script.segments[0]!.text).toBe("You asked: Why does regularisation help?");
+    expect(script.segments[0]!.anchor).toEqual({ type: "question", sentence: 0 });
   });
 
   it("reports the figures it will reach, so their descriptions can be fetched", () => {
@@ -232,8 +233,33 @@ describe("splitting for the synthesiser", () => {
     }));
 
     expect(items[0]!.anchor).toEqual({ type: "block", key: "line-1" });
-    expect(items[1]!.anchor).toEqual({ type: "block", key: "line-3" });
+    expect(items[1]!.anchor).toEqual({ type: "block", key: "line-3", sentence: 0 });
     expect(items[2]!.anchor).toEqual({ type: "figure", blockId: 42 });
+  });
+
+  it("keeps wrapped list lines with their rendered list anchor", () => {
+    const items = narrationItems(buildNarrationScript({
+      answer: "- First item continues\n  on a wrapped line\n- Second item",
+    }));
+
+    expect(items.map((item) => item.text)).toEqual([
+      "First item continues on a wrapped line.",
+      "Second item.",
+    ]);
+    expect(items.map((item) => item.anchor)).toEqual([
+      { type: "block", key: "line-1", sentence: 0 },
+      { type: "block", key: "line-1", sentence: 1 },
+    ]);
+  });
+
+  it("reads a numbered heading as one highlighted utterance", () => {
+    const items = narrationItems(buildNarrationScript({
+      answer: "## 1. Clarify scope and quantify the workload",
+    }));
+
+    expect(items).toHaveLength(1);
+    expect(items[0]!.text).toBe("1. Clarify scope and quantify the workload.");
+    expect(items[0]!.anchor).toEqual({ type: "block", key: "line-1" });
   });
 
   it("adds conservative pronunciation hints for technical text", () => {

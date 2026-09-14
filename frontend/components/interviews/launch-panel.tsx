@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BookOpen, Loader2, Mic, RotateCw } from "lucide-react";
+import { ArrowRight, BookOpen, Headphones, Loader2, Mic, RotateCw } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,13 @@ export type SetupOperation =
   | "idle"
   | "creating_session"
   | "generating_question"
+  | "generating_ideal_flow"
   | "opening_workspace";
 
 const ACTIVITY: Record<Exclude<SetupOperation, "idle">, string> = {
   creating_session: "Creating your session…",
   generating_question: "Writing the first question…",
+  generating_ideal_flow: "Writing the complete interview…",
   opening_workspace: "Opening the interview…",
 };
 
@@ -76,6 +78,8 @@ export interface LaunchPanelProps {
   error: string;
   onRetryCheck: () => void;
   onStart: () => void;
+  onListen?: () => void;
+  listenAvailable?: boolean;
   onDropCodingExercise: () => void;
 }
 
@@ -102,9 +106,17 @@ export function LaunchPanel({
   error,
   onRetryCheck,
   onStart,
+  onListen,
+  listenAvailable = false,
   onDropCodingExercise,
 }: LaunchPanelProps) {
   const busy = operation !== "idle";
+  const activityText = operation === "idle" ? "" : ACTIVITY[operation];
+  const startingLiveInterview = [
+    "creating_session",
+    "generating_question",
+    "opening_workspace",
+  ].includes(operation);
   const sourceChosen = Boolean(summary.sourceTitle);
   const checked = Boolean(preflight) && !checking && !checkError;
   const canStart = checked && microphoneReady && !codingUnavailable && !busy;
@@ -267,14 +279,39 @@ export function LaunchPanel({
           ) : null}
 
           <Button className="w-full" size="lg" disabled={!canStart} onClick={onStart}>
-            {busy ? (
+            {startingLiveInterview ? (
               <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" />
             ) : (
               <Mic aria-hidden />
             )}
-            {busy ? ACTIVITY[operation] : "Start interview"}
-            {!busy ? <ArrowRight aria-hidden /> : null}
+            {startingLiveInterview ? activityText : "Start interview"}
+            {!startingLiveInterview ? <ArrowRight aria-hidden /> : null}
           </Button>
+
+          {onListen ? (
+            <Button
+              className="w-full"
+              size="lg"
+              variant="outline"
+              disabled={!checked || !listenAvailable || busy}
+              onClick={onListen}
+            >
+              {operation === "generating_ideal_flow" ? (
+                <Loader2 aria-hidden className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <Headphones aria-hidden />
+              )}
+              {operation === "generating_ideal_flow"
+                ? ACTIVITY.generating_ideal_flow
+                : "Listen to ideal interview"}
+            </Button>
+          ) : null}
+
+          {onListen && sourceChosen && !listenAvailable ? (
+            <p className="text-center text-xs leading-5 text-muted-foreground">
+              Ideal interview flows currently require a book chapter.
+            </p>
+          ) : null}
 
           {/*
             The reason sits under the button rather than replacing its label.
@@ -292,8 +329,9 @@ export function LaunchPanel({
               role="status"
               aria-live="polite"
             >
-              Keep this tab open. Your first question is being written from the
-              source.
+              Keep this tab open. {operation === "generating_ideal_flow"
+                ? "The complete grounded dialogue is being written from the chapter."
+                : "Your first question is being written from the source."}
             </p>
           ) : null}
         </Band>

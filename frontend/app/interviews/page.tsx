@@ -8,6 +8,7 @@ import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 import { InterviewSetup } from "@/components/interviews/interview-setup";
+import type { SetupOperation } from "@/components/interviews/launch-panel";
 import { RecentInterviews } from "@/components/interviews/recent-interviews";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { primeInterviewerSpeech } from "@/hooks/use-interviewer-speech";
@@ -21,6 +22,7 @@ import { apiFetch } from "@/lib/api";
 import type { ChapterListResponse } from "@/lib/deck-types";
 import type {
   InterviewPreflight,
+  IdealInterviewFlow,
   InterviewSession,
   InterviewSetupPayload,
 } from "@/lib/interview-types";
@@ -39,15 +41,17 @@ export default function InterviewsPage() {
   const [books, setBooks] = useState<BookSummary[]>([]);
   const [videos, setVideos] = useState<VideoSummary[]>([]);
   const [history, setHistory] = useState<InterviewSession[]>([]);
+  const [idealHistory, setIdealHistory] = useState<IdealInterviewFlow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [bookPayload, videoPayload, interviewPayload] = await Promise.all([
+      const [bookPayload, videoPayload, interviewPayload, idealPayload] = await Promise.all([
         apiFetch<BookListResponse>("/books"),
         apiFetch<VideoListResponse>("/videos"),
         apiFetch<{ sessions: InterviewSession[] }>("/interviews"),
+        apiFetch<{ flows: IdealInterviewFlow[] }>("/ideal-interviews"),
       ]);
       setBooks(bookPayload.books);
       setVideos(
@@ -56,6 +60,7 @@ export default function InterviewsPage() {
         ),
       );
       setHistory(interviewPayload.sessions);
+      setIdealHistory(idealPayload.flows);
       setLoadError("");
     } catch (failure) {
       setLoadError((failure as Error).message || "Could not load interview setup.");
@@ -110,6 +115,30 @@ export default function InterviewsPage() {
     [router],
   );
 
+  const createIdealInterview = useCallback(
+    async (
+      payload: InterviewSetupPayload,
+      report: (stage: SetupOperation) => void,
+    ) => {
+      if (payload.source_kind !== "book" || !payload.book_id || !payload.node_id) {
+        throw new Error("Choose a book chapter for an ideal interview flow.");
+      }
+      report("generating_ideal_flow");
+      const created = await apiFetch<{ flow_id: string }>("/ideal-interviews", {
+        method: "POST",
+        body: JSON.stringify({
+          book_id: payload.book_id,
+          node_id: payload.node_id,
+          target_level: payload.target_level,
+          interview_format: payload.interview_format,
+        }),
+      });
+      report("opening_workspace");
+      router.push(`/interviews/ideal/${created.flow_id}`);
+    },
+    [router],
+  );
+
   if (sessionLoading) {
     return (
       <div className="grid h-dvh place-items-center p-6">
@@ -150,7 +179,7 @@ export default function InterviewsPage() {
       account={<AccountMenu email={session.user.email} />}
       rail={
         <div className="flex h-full flex-col overflow-y-auto p-4">
-          <RecentInterviews sessions={history} />
+          <RecentInterviews sessions={history} idealFlows={idealHistory} />
         </div>
       }
     >
@@ -162,6 +191,7 @@ export default function InterviewsPage() {
         fetchChapters={fetchChapters}
         runPreflight={runPreflight}
         startInterview={startInterview}
+        createIdealInterview={createIdealInterview}
       />
     </AppShell>
   );

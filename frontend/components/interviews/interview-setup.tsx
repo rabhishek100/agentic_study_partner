@@ -151,6 +151,10 @@ export interface InterviewSetupProps {
     payload: InterviewSetupPayload,
     report: (stage: SetupOperation) => void,
   ) => Promise<void>;
+  createIdealInterview: (
+    payload: InterviewSetupPayload,
+    report: (stage: SetupOperation) => void,
+  ) => Promise<void>;
 }
 
 /**
@@ -168,6 +172,7 @@ export function InterviewSetup({
   fetchChapters,
   runPreflight,
   startInterview,
+  createIdealInterview,
 }: InterviewSetupProps) {
   const [sourceKind, setSourceKind] = useState<InterviewSourceKind>("book");
   const [bookId, setBookId] = useState("");
@@ -305,6 +310,18 @@ export function InterviewSetup({
       setOperation("idle");
     }
   }, [payload, startInterview]);
+
+  const listen = useCallback(async () => {
+    if (!payload || payload.source_kind !== "book") return;
+    setOperation("generating_ideal_flow");
+    setError("");
+    try {
+      await createIdealInterview(payload, setOperation);
+    } catch (failure) {
+      setError((failure as Error).message || "Could not create the ideal interview.");
+      setOperation("idle");
+    }
+  }, [createIdealInterview, payload]);
 
   const chosenBook = books.find((book) => String(book.book_id) === bookId);
   const chosenChapter = chapters.find((chapter) => String(chapter.node_id) === nodeId);
@@ -653,6 +670,8 @@ export function InterviewSetup({
             error={error}
             onRetryCheck={retryCheck}
             onStart={() => void start()}
+            onListen={() => void listen()}
+            listenAvailable={sourceKind === "book"}
             onDropCodingExercise={() => setCodingExerciseRequested(false)}
           />
         </div>

@@ -114,6 +114,7 @@ export function AskPane({
       */}
       <div
         ref={viewportRef}
+        data-narration-scroll-container=""
         className={`min-h-0 flex-1 overscroll-contain [scrollbar-gutter:stable] ${
           isEmpty ? "overflow-hidden" : "overflow-y-auto"
         }`}

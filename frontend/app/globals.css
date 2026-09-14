@@ -427,6 +427,7 @@
     [data-narration-fallback] {
       background: var(--wash);
       border-radius: 0.25rem;
+      box-shadow: 0 0 0 0.1rem var(--evidence);
     }
 
     .answer-prose > * + * {
