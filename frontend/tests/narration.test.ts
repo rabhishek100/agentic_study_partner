@@ -232,7 +232,7 @@ describe("splitting for the synthesiser", () => {
       descriptions: { 42: "A request flow." },
     }));
 
-    expect(items[0]!.anchor).toEqual({ type: "block", key: "line-1", sentence: 0 });
+    expect(items[0]!.anchor).toEqual({ type: "block", key: "line-1" });
     expect(items[1]!.anchor).toEqual({ type: "block", key: "line-3", sentence: 0 });
     expect(items[2]!.anchor).toEqual({ type: "figure", blockId: 42 });
   });
@@ -250,6 +250,16 @@ describe("splitting for the synthesiser", () => {
       { type: "block", key: "line-1", sentence: 0 },
       { type: "block", key: "line-1", sentence: 1 },
     ]);
+  });
+
+  it("reads a numbered heading as one highlighted utterance", () => {
+    const items = narrationItems(buildNarrationScript({
+      answer: "## 1. Clarify scope and quantify the workload",
+    }));
+
+    expect(items).toHaveLength(1);
+    expect(items[0]!.text).toBe("1. Clarify scope and quantify the workload.");
+    expect(items[0]!.anchor).toEqual({ type: "block", key: "line-1" });
   });
 
   it("adds conservative pronunciation hints for technical text", () => {
@@ -361,7 +371,7 @@ describe("complete chapter narration", () => {
     expect(items.map((item) => item.pauseAfter)).toEqual([
       "title", "heading", "sentence", "paragraph",
     ]);
-    expect(items[1]!.anchor).toEqual({ type: "passage", index: 1, sentence: 0 });
+    expect(items[1]!.anchor).toEqual({ type: "passage", index: 1 });
   });
 
   it("removes retained formatting before speech and announces visual structures", () => {

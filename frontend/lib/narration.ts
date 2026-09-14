@@ -165,9 +165,11 @@ export function speakableProse(block: string): string {
     // List controls are visual. Keep each item as a punctuated thought so a
     // compact Markdown list does not become one breathless run-on sentence.
     .replace(/^\s*[-*+]\s+\[[ xX]\]\s+(.+)$/gm, (_, item: string) => terminated(item))
-    .replace(/^\s{0,3}>\s?/gm, "")
-    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+(.+)$/gm, (_, item: string) => terminated(item))
+    .replace(/^\s{0,3}>\s?/gm, "")
+    // Strip heading syntax after list controls. Reversing these two steps
+    // mistakes "## 1. Scope" for an ordered-list item and drops the spoken 1.
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     // A horizontal rule is a visual pause with nothing to say.
     .replace(/^\s*([-*_])\1{2,}\s*$/gm, "")
     .replace(/\s+/g, " ")
@@ -435,13 +437,17 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
       : speakableProse(block.lines.join("\n"));
     if (!prose) continue;
 
-    const sentences = splitSentences(prose);
+    // A numbered heading such as "1. Clarify scope" is one semantic utterance,
+    // not a sentence containing only "1." followed by another passage.
+    const sentences = block.kind === "heading" ? [prose] : splitSentences(prose);
     for (const [sentenceIndex, sentence] of sentences.entries()) {
       const spoken = withoutMarkers(sentence);
       if (spoken) segments.push({
         kind: block.kind === "heading" ? "heading" : block.kind === "list" ? "list" : "prose",
         text: terminated(spoken),
-        anchor: { ...anchor, sentence: sentenceIndex },
+        anchor: block.kind === "heading"
+          ? anchor
+          : { ...anchor, sentence: sentenceIndex },
         pauseAfter:
           block.kind === "heading"
             ? "heading"
@@ -565,7 +571,7 @@ export function buildPassageNarrationScript(
       ? speakMath(source.text ?? "") || passageSegmentText(source)
       : passageSegmentText(source);
     if (!prose) continue;
-    const sentences = splitSentences(prose);
+    const sentences = source.kind === "heading" ? [prose] : splitSentences(prose);
     for (const [sentenceIndex, sentence] of sentences.entries()) {
       const kind: NarrationKind =
         source.kind === "heading"
@@ -577,7 +583,9 @@ export function buildPassageNarrationScript(
               : "prose";
       segments.push({
         kind,
-        anchor: { ...anchor, sentence: sentenceIndex },
+        anchor: source.kind === "heading"
+          ? anchor
+          : { ...anchor, sentence: sentenceIndex },
         text: terminated(sentence),
         pauseAfter:
           kind === "heading"
