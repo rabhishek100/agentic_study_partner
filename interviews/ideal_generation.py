@@ -183,8 +183,10 @@ def generate_ideal_exchange(
         )
     question = _clean_spoken(draft.interviewer_text)
     answer = _clean_spoken(draft.candidate_text)
+    if not question or not answer:
+        raise ValueError("ideal interview exchange must contain spoken dialogue")
     if not question.endswith("?"):
-        raise ValueError("ideal interview exchange must contain an audible question")
+        question = question.rstrip(".!;:") + "?"
     citations = resolve_citations(markers, topic)
     if not citations:
         raise ValueError("ideal interview answer has no resolvable citation")

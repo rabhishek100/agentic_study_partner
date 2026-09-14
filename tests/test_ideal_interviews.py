@@ -122,6 +122,28 @@ def test_exchange_strips_citation_markers_from_spoken_text():
     assert exchange.citations[0].marker == "[N10:P3]"
 
 
+def test_exchange_normalizes_missing_question_punctuation():
+    model = Model(IdealInterviewExchangeDraft(
+        interviewer_text="Walk me through the first requirement you would clarify.",
+        candidate_text=(
+            "I'd start with latency and durability because those constraints determine "
+            "whether synchronous delivery is acceptable. I'd also quantify normal traffic "
+            "and bursts, then acknowledge durable requests only after durable storage. "
+        ) * 2,
+        citation_markers=["[N10:P3]"],
+    ))
+
+    exchange, _ = generate_ideal_exchange(
+        inventory=source(), topic=source().topics[0],
+        interview_format="system_design", target_level="mid",
+        index=0, previous=[], model=model,
+    )
+
+    assert exchange.interviewer_text == (
+        "Walk me through the first requirement you would clarify?"
+    )
+
+
 def test_deterministic_eval_requires_exact_ordered_coverage():
     outputs = {"exchanges": [
         {
