@@ -46,6 +46,8 @@ resetting the scenario. For concept material, progress from intuition to
 mechanism, application, edge cases, and evaluation.
 """.strip()
 
+CITATION_MARKER = re.compile(r"\[(?:N\d+:P\d+|S\d+)\]")
+
 
 def prompt_version() -> str:
     return "ideal-chapter-interview-v2:" + sha256(
@@ -127,7 +129,14 @@ Evidence for this topic:
 
 
 def _clean_spoken(text: str) -> str:
-    return " ".join(text.split()).strip()
+    # Citation markers are required structured metadata, but models
+    # occasionally copy one into otherwise valid spoken text. Dropping a
+    # whole multi-exchange flow for that presentation-only leak is brittle;
+    # strip it from speech while the independently validated marker list below
+    # remains the grounding contract.
+    without_markers = CITATION_MARKER.sub("", text)
+    without_marker_spacing = re.sub(r"\s+([,.!?;:])", r"\1", without_markers)
+    return " ".join(without_marker_spacing.split()).strip()
 
 
 def generate_ideal_exchange(
@@ -174,8 +183,6 @@ def generate_ideal_exchange(
         )
     question = _clean_spoken(draft.interviewer_text)
     answer = _clean_spoken(draft.candidate_text)
-    if re.search(r"\[(?:N\d+:P\d+|S\d+)\]", f"{question} {answer}"):
-        raise ValueError("ideal interview spoken text cannot contain citation markers")
     if not question.endswith("?"):
         raise ValueError("ideal interview exchange must contain an audible question")
     citations = resolve_citations(markers, topic)

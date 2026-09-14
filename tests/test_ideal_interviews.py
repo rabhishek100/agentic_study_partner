@@ -98,6 +98,30 @@ def test_exchange_rejects_cross_topic_citations():
         )
 
 
+def test_exchange_strips_citation_markers_from_spoken_text():
+    model = Model(IdealInterviewExchangeDraft(
+        interviewer_text="What requirement would you clarify first [N10:P3]?",
+        candidate_text=(
+            "I'd start with latency and durability [N10:P3], because those constraints "
+            "determine whether synchronous delivery is acceptable. I'd also make the "
+            "expected request rate explicit, separating normal traffic from bursts. "
+            "For durable acceptance, I'd acknowledge only after durable storage. "
+        ) * 2,
+        citation_markers=["[N10:P3]"],
+    ))
+
+    exchange, _ = generate_ideal_exchange(
+        inventory=source(), topic=source().topics[0],
+        interview_format="system_design", target_level="mid",
+        index=0, previous=[], model=model,
+    )
+
+    assert "[N10:P3]" not in exchange.interviewer_text
+    assert "[N10:P3]" not in exchange.candidate_text
+    assert exchange.interviewer_text.endswith("?")
+    assert exchange.citations[0].marker == "[N10:P3]"
+
+
 def test_deterministic_eval_requires_exact_ordered_coverage():
     outputs = {"exchanges": [
         {
