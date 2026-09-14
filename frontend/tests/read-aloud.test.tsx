@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase", () => ({ accessToken: async () => "token" }));
 vi.mock("@/lib/api", () => ({
@@ -30,7 +30,7 @@ import { ReadAloud } from "@/components/conversation/read-aloud";
 import { Answer } from "@/components/conversation/answer";
 import { NarrationPlayerBar } from "@/components/conversation/narration-player-bar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { reset, setPacing } from "@/lib/narration-player";
+import { playScript, reset, setPacing } from "@/lib/narration-player";
 import type { FigureRef } from "@/lib/types";
 
 /**
@@ -117,6 +117,11 @@ beforeEach(() => {
     revokeObjectURL: () => {},
   });
   vi.stubGlobal("matchMedia", () => ({ matches: true }));
+});
+
+afterEach(() => {
+  Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+  vi.unstubAllGlobals();
 });
 
 const source = () => ({
@@ -341,6 +346,109 @@ describe("reading an answer aloud", () => {
 
     act(() => AudioStub.instances[0]!.onended?.());
     await waitFor(() => expect(secondScroll).toHaveBeenCalledOnce());
+  });
+
+  it("highlights and scrolls to the exact sentence in a long verbatim block", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    const highlights = new Map<string, { ranges: Range[] }>();
+    class HighlightStub {
+      ranges: Range[];
+      constructor(...ranges: Range[]) {
+        this.ranges = ranges;
+      }
+    }
+    vi.stubGlobal("Highlight", HighlightStub);
+    vi.stubGlobal("CSS", { highlights });
+    const scrollBy = vi.fn();
+    vi.stubGlobal("scrollBy", scrollBy);
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        top: 1_400,
+        bottom: 1_430,
+        left: 100,
+        right: 500,
+        width: 400,
+        height: 30,
+        x: 100,
+        y: 1_400,
+        toJSON: () => ({}),
+      }),
+    });
+
+    render(
+      <>
+        <div data-narration-anchor="reading-1">
+          <div data-narration-passage="7">
+            <p>First sentence. The exact second sentence. Third sentence.</p>
+          </div>
+        </div>
+        <NarrationPlayerBar />
+      </>,
+    );
+
+    act(() => {
+      void playScript(
+        "reading-1",
+        {
+          segments: [
+            {
+              kind: "prose",
+              text: "The exact second sentence.",
+              anchor: { type: "passage", index: 7 },
+            },
+          ],
+          figures: [],
+        },
+        { anchorId: "reading-1" },
+      );
+    });
+
+    await waitFor(() => expect(highlights.has("narration-current")).toBe(true));
+    expect(highlights.get("narration-current")?.ranges[0]?.toString()).toBe(
+      "The exact second sentence.",
+    );
+    expect(scrollBy).toHaveBeenCalledOnce();
+    expect(scrollBy.mock.calls[0]?.[0]).toMatchObject({ behavior: "auto" });
+  });
+
+  it("turns auto-follow off when the reader manually scrolls", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+
+    render(
+      <>
+        <div data-narration-anchor="reading-1">
+          <p data-narration-passage="1">A passage the reader leaves.</p>
+        </div>
+        <NarrationPlayerBar />
+      </>,
+    );
+    act(() => {
+      void playScript(
+        "reading-1",
+        {
+          segments: [
+            {
+              kind: "prose",
+              text: "A passage the reader leaves.",
+              anchor: { type: "passage", index: 1 },
+            },
+          ],
+          figures: [],
+        },
+        { anchorId: "reading-1" },
+      );
+    });
+
+    await screen.findByRole("button", { name: "Turn off auto-follow" });
+    fireEvent.wheel(document);
+
+    await screen.findByRole("button", { name: "Turn on auto-follow" });
+    expect(window.localStorage.getItem("narration-auto-follow")).toBe("false");
   });
 
   it("offers the guarded voice-question mode only for a saved book turn", async () => {

@@ -140,6 +140,73 @@ function anchoredElement(root: Element, narration: ReturnType<typeof useReadAlou
   return root.querySelector(`[data-narration-block="${anchor.key}"]`);
 }
 
+/** The nearest element that owns vertical scrolling, if the page does not. */
+function scrollContainer(element: Element): HTMLElement | null {
+  let parent = element.parentElement;
+  while (parent && parent !== document.body) {
+    const overflow = window.getComputedStyle(parent).overflowY;
+    if (
+      /^(?:auto|scroll|overlay)$/.test(overflow) &&
+      parent.scrollHeight > parent.clientHeight
+    ) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Follow the spoken sentence, not merely the paragraph that contains it.
+ *
+ * A verbatim source block can be taller than the viewport. `scrollIntoView`
+ * on that block centers the paragraph while the highlighted sentence remains
+ * off screen. A Range carries the exact sentence rectangle, so move the
+ * nearest scroll owner by that delta. The comfortable band avoids a new
+ * smooth-scroll animation for every sentence that is already visible.
+ */
+function scrollToNarration(
+  range: Range | null,
+  fallback: Element,
+  behavior: ScrollBehavior,
+): void {
+  const origin = range?.startContainer.parentElement ?? fallback;
+  const scroller = scrollContainer(origin);
+  const rectangle =
+    range && typeof range.getBoundingClientRect === "function"
+      ? range.getBoundingClientRect()
+      : null;
+
+  // jsdom and a collapsed/unlaid-out range have no usable geometry. Keeping
+  // the element fallback also makes non-prose structures such as tables and
+  // figures follow correctly.
+  if (!rectangle || (!rectangle.height && !rectangle.width)) {
+    fallback.scrollIntoView({ block: "center", behavior });
+    return;
+  }
+
+  const bounds = scroller?.getBoundingClientRect();
+  const top = bounds?.top ?? 0;
+  const bottom = bounds?.bottom ?? window.innerHeight;
+  const height = Math.max(1, bottom - top);
+  const comfortableTop = top + Math.min(96, height * 0.2);
+  const comfortableBottom = bottom - Math.min(176, height * 0.3);
+  if (
+    rectangle.top >= comfortableTop &&
+    rectangle.bottom <= comfortableBottom
+  ) {
+    return;
+  }
+
+  const delta =
+    rectangle.top + rectangle.height / 2 - (comfortableTop + comfortableBottom) / 2;
+  if (scroller && typeof scroller.scrollBy === "function") {
+    scroller.scrollBy({ top: delta, behavior });
+  } else {
+    window.scrollBy({ top: delta, behavior });
+  }
+}
+
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "0:00";
   const whole = Math.max(0, Math.round(seconds));
@@ -148,7 +215,6 @@ function formatTime(seconds: number): string {
 
 function FollowAlong() {
   const narration = useReadAloud();
-  const suppressScrollAt = useRef<number | null>(null);
 
   useEffect(() => {
     if (!narration.activeId || !narration.anchorId || !narration.currentText) {
@@ -162,12 +228,10 @@ function FollowAlong() {
     const anchored = anchoredElement(root, narration);
     const range = highlightSentence(anchored ?? root, narration.currentText);
     if (!range && anchored) anchored.setAttribute("data-narration-fallback", "");
-    const scrollTarget = anchored ?? range?.startContainer.parentElement;
+    const scrollTarget = range?.startContainer.parentElement ?? anchored;
     if (!scrollTarget || !narration.autoFollow) return;
-    if (suppressScrollAt.current === narration.chunkIndex) return;
-    suppressScrollAt.current = null;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scrollTarget.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    scrollToNarration(range, scrollTarget, reduced ? "auto" : "smooth");
   }, [
     narration.activeId,
     narration.anchorId,
@@ -179,14 +243,17 @@ function FollowAlong() {
 
   useEffect(() => {
     if (!narration.autoFollow) return;
-    const suspend = () => { suppressScrollAt.current = narration.chunkIndex; };
+    // Manual scrolling means the reader chose a different place. Persistently
+    // release the page instead of pulling it back on the next sentence; the
+    // eye button in the player explicitly resumes following when wanted.
+    const suspend = () => narration.setAutoFollow(false);
     document.addEventListener("wheel", suspend, { passive: true });
     document.addEventListener("touchstart", suspend, { passive: true });
     return () => {
       document.removeEventListener("wheel", suspend);
       document.removeEventListener("touchstart", suspend);
     };
-  }, [narration.autoFollow, narration.chunkIndex]);
+  }, [narration.autoFollow, narration.setAutoFollow]);
 
   useEffect(() => clearHighlight, []);
   // Kept out of the Tailwind/PostCSS input: its optimizer currently warns on
@@ -194,7 +261,7 @@ function FollowAlong() {
   // support it and the rule is valid at runtime.
   return (
     <style>{`::highlight(${HIGHLIGHT_NAME}) {
-      background: var(--wash);
+      background-color: var(--wash);
       color: inherit;
     }`}</style>
   );
