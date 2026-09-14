@@ -238,6 +238,52 @@ export interface InterviewReport {
 
 export const INTERVIEW_DURATIONS = [15, 30, 45, 60, 90, 120] as const;
 
+export type IdealInterviewPhase =
+  | "opening"
+  | "requirements"
+  | "estimation"
+  | "architecture"
+  | "deep_dive"
+  | "tradeoffs"
+  | "reliability"
+  | "evaluation"
+  | "closing";
+
+export interface IdealInterviewExchange {
+  exchange_index: number;
+  phase: IdealInterviewPhase;
+  topic_key: string;
+  topic_label: string;
+  interviewer_text: string;
+  candidate_text: string;
+  citations: InterviewCitation[];
+  pause_after_question_ms: number;
+  pause_after_answer_ms: number;
+}
+
+export interface IdealInterviewFlow {
+  flow_id: string;
+  book_id: number;
+  node_id: number;
+  scope_key: string;
+  title: string;
+  source_title: string;
+  interview_format: InterviewFormat;
+  target_level: TargetLevel;
+  status: "ready" | "complete" | "failed";
+  topic_count: number;
+  covered_topic_count: number;
+  coverage_ratio: number;
+  estimated_duration_seconds: number;
+  exchanges: IdealInterviewExchange[];
+  generation_model: string;
+  prompt_version: string;
+  total_cost_usd: number;
+  voice_cost_usd: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export function pendingTurn(session: InterviewSession): InterviewTurn | null {
   return [...session.turns].reverse().find((turn) => !turn.answer_text) ?? null;
 }

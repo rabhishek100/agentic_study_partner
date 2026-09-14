@@ -1,0 +1,74 @@
+{
+  "dataset_id": "ideal-chapter-interview-v1",
+  "review_status": "transcript-informed synthetic seed; human review required before publishing a quality claim",
+  "methodology": "The cases encode observable dialogue patterns found in public mock-interview transcripts: clarify scope before architecture, turn estimates into design decisions, maintain one scenario, expose trade-offs and failures, and close with validation. Transcript wording is not copied.",
+  "sources": [
+    {
+      "title": "Mock Interview Walkthrough — Notification System",
+      "url": "https://www.gyanbyte.com/crash-courses/cracking-system-design-interview/15-mock-interview-walkthrough/",
+      "supports": ["requirements-first progression", "interviewer-candidate turn shape", "delivery and retry deep dives"]
+    },
+    {
+      "title": "Mastering the System Design Mock Interview",
+      "url": "https://interviewloop.app/blog/system-design-mock-interviews",
+      "supports": ["spoken candidate reasoning", "scale assumptions", "decision-oriented answers"]
+    },
+    {
+      "title": "Mock Interview Transcript for a RAG Platform",
+      "url": "https://system-design.space/en/chapter/rag-mock-interview-transcript/",
+      "supports": ["one-hour phase progression", "evaluation and security discussion", "candidate self-correction"]
+    },
+    {
+      "title": "System Design Interview — Online Judge",
+      "url": "https://interviewing.io/mocks/facebook-system-design-design-online-judge",
+      "supports": ["real interviewer pacing", "candidate-led clarification", "natural spoken disfluency boundaries"]
+    },
+    {
+      "title": "System Design Interview — Unique ID Generation",
+      "url": "https://interviewing.io/mocks/microsoft-system-design-unique-id-generation",
+      "supports": ["adaptive probing", "interviewer guidance", "spoken trade-off exploration"]
+    }
+  ],
+  "cases": [
+    {
+      "id": "notification-system",
+      "inputs": {
+        "scope_title": "Designing a multi-channel notification system",
+        "source_title": "Synthetic system design chapter",
+        "target_level": "senior",
+        "interview_format": "system_design",
+        "topics": [
+          {"key": "requirements", "label": "Functional and non-functional requirements", "marker": "[N101:P1]", "evidence": "The design begins by identifying channels, delivery latency, durability, user preferences, and scale."},
+          {"key": "architecture", "label": "Asynchronous architecture", "marker": "[N102:P2]", "evidence": "An API accepts requests, durable queues absorb bursts, and channel-specific workers isolate provider behavior."},
+          {"key": "reliability", "label": "Retries and idempotency", "marker": "[N103:P3]", "evidence": "At-least-once delivery requires idempotency keys, exponential backoff, dead-letter queues, and delivery state."},
+          {"key": "evaluation", "label": "Operational validation", "marker": "[N104:P4]", "evidence": "Measure enqueue latency, end-to-end latency, provider error rates, duplicate rate, and queue age."}
+        ]
+      },
+      "reference_outputs": {
+        "topic_keys": ["requirements", "architecture", "reliability", "evaluation"],
+        "citation_markers": ["[N101:P1]", "[N102:P2]", "[N103:P3]", "[N104:P4]"],
+        "interview_format": "system_design"
+      }
+    },
+    {
+      "id": "rag-platform",
+      "inputs": {
+        "scope_title": "Designing an enterprise retrieval-augmented generation platform",
+        "source_title": "Synthetic AI system design chapter",
+        "target_level": "senior",
+        "interview_format": "system_design",
+        "topics": [
+          {"key": "requirements", "label": "Scope and access constraints", "marker": "[N201:P1]", "evidence": "Answers require citations and must enforce document access control at retrieval time."},
+          {"key": "architecture", "label": "Ingestion and serving paths", "marker": "[N202:P2]", "evidence": "Separate asynchronous parsing and indexing from the online retrieval and answer path."},
+          {"key": "retrieval", "label": "Retrieval quality", "marker": "[N203:P3]", "evidence": "Start with lexical retrieval, then add semantic search or reranking only for measured misses."},
+          {"key": "evaluation", "label": "Evaluation and monitoring", "marker": "[N204:P4]", "evidence": "Track retrieval recall, citation correctness, unsupported claims, latency, and cost using reviewed queries."}
+        ]
+      },
+      "reference_outputs": {
+        "topic_keys": ["requirements", "architecture", "retrieval", "evaluation"],
+        "citation_markers": ["[N201:P1]", "[N202:P2]", "[N203:P3]", "[N204:P4]"],
+        "interview_format": "system_design"
+      }
+    }
+  ]
+}
