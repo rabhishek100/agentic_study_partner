@@ -50,7 +50,7 @@ function IdealPlaybackControls({
 
   return (
     <section
-      className="mb-3 shrink-0 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg"
+      className="mb-3 mt-3 shrink-0 rounded-xl border bg-popover p-4 text-popover-foreground shadow-lg"
       aria-label="Playback controls"
     >
       <div className="mb-2 flex items-center justify-between gap-3 text-xs">
