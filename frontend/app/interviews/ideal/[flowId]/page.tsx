@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowLeft, Headphones, Loader2, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { ArrowLeft, Headphones, Loader2, Pause, Play, RotateCcw, RotateCw, SlidersHorizontal, SkipBack, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { AccountMenu } from "@/components/account-menu";
 import { AppShell } from "@/components/app-shell";
@@ -12,10 +12,12 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIdealInterviewPlayback } from "@/hooks/use-ideal-interview-playback";
 import { useSession } from "@/hooks/use-session";
 import { apiFetch } from "@/lib/api";
+import { formatInterviewTime } from "@/lib/ideal-interview-timeline";
 import type { IdealInterviewFlow } from "@/lib/interview-types";
 import { cn } from "@/lib/utils";
 
@@ -24,12 +26,16 @@ function duration(seconds: number): string {
   return `${minutes} min`;
 }
 
+const SPEEDS = [0.75, 0.9, 0.96, 1, 1.15, 1.25, 1.5];
+
 export default function IdealInterviewPage() {
   const { flowId } = useParams<{ flowId: string }>();
   const { session, sessionLoading } = useSession();
   const [flow, setFlow] = useState<IdealInterviewFlow | null>(null);
   const [loadError, setLoadError] = useState("");
-  const playback = useIdealInterviewPlayback(flowId);
+  const [scrubValue, setScrubValue] = useState<number | null>(null);
+  const scrubbing = useRef(false);
+  const playback = useIdealInterviewPlayback(flowId, flow?.exchanges ?? []);
 
   useEffect(() => {
     if (!session) return;
@@ -39,11 +45,13 @@ export default function IdealInterviewPage() {
   }, [flowId, session]);
 
   const exchange = flow?.exchanges[playback.exchangeIndex];
-  const progress = useMemo(() => {
-    if (!flow) return 0;
-    if (playback.status === "complete") return 100;
-    return Math.min(100, ((playback.exchangeIndex + (playback.speaker === "candidate" ? 0.5 : 0)) / flow.exchanges.length) * 100);
-  }, [flow, playback.exchangeIndex, playback.speaker, playback.status]);
+  const progress = scrubValue ?? playback.position;
+
+  const commitScrub = (value: number) => {
+    scrubbing.current = false;
+    setScrubValue(null);
+    void playback.seekTo(value);
+  };
 
   if (sessionLoading) return <div className="grid h-dvh place-items-center"><Loader2 className="animate-spin" /></div>;
   if (!session) return <div className="relative grid h-dvh place-items-center p-6"><div className="absolute right-3 top-3"><ThemeToggle /></div><AuthGate /></div>;
@@ -61,7 +69,7 @@ export default function IdealInterviewPage() {
               <li key={item.exchange_index}>
                 <button
                   type="button"
-                  onClick={() => playback.seek(item.exchange_index)}
+                  onClick={() => playback.seekExchange(item.exchange_index)}
                   className={cn(
                     "w-full rounded-md px-2 py-2 text-left text-xs leading-5 hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-action",
                     item.exchange_index === playback.exchangeIndex && "bg-wash text-foreground",
@@ -91,15 +99,76 @@ export default function IdealInterviewPage() {
               </header>
 
               <section className="sticky top-3 z-sticky rounded-xl border bg-popover p-4 text-popover-foreground shadow-sm" aria-label="Playback controls">
-                <div className="flex items-center gap-3">
-                  <Button size="icon" variant="outline" aria-label="Previous exchange" disabled={playback.exchangeIndex === 0} onClick={() => playback.seek(Math.max(0, playback.exchangeIndex - 1))}><SkipBack /></Button>
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                  <span className="truncate font-medium">
+                    {exchange?.topic_label.split(" :: ").at(-1) ?? "Whole interview"} · {Math.min(flow.exchanges.length, playback.exchangeIndex + 1)} of {flow.exchanges.length}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {formatInterviewTime(progress)} / ≈{formatInterviewTime(playback.duration)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(0.01, playback.duration)}
+                  step={0.1}
+                  value={progress}
+                  onPointerDown={(event) => {
+                    scrubbing.current = true;
+                    setScrubValue(Number(event.currentTarget.value));
+                  }}
+                  onInput={(event) => {
+                    if (scrubbing.current) setScrubValue(Number(event.currentTarget.value));
+                  }}
+                  onChange={(event) => {
+                    const value = Number(event.currentTarget.value);
+                    if (scrubbing.current) setScrubValue(value);
+                    else commitScrub(value);
+                  }}
+                  onPointerUp={(event) => commitScrub(Number(event.currentTarget.value))}
+                  onPointerCancel={() => {
+                    scrubbing.current = false;
+                    setScrubValue(null);
+                  }}
+                  aria-label="Interview position"
+                  className="block h-5 w-full cursor-pointer accent-primary"
+                />
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-1 sm:gap-2">
+                  <Button size="icon-sm" variant="ghost" aria-label="Previous exchange" disabled={playback.exchangeIndex === 0} onClick={() => playback.seekExchange(Math.max(0, playback.exchangeIndex - 1))}><SkipBack /></Button>
+                  <Button size="icon-sm" variant="ghost" aria-label="Rewind 15 seconds" onClick={() => playback.seekBy(-15)}><RotateCcw /></Button>
                   {playback.status === "playing" || playback.status === "connecting" ? (
-                    <Button className="min-w-28" onClick={() => void playback.pause()}><Pause />Pause</Button>
+                    <Button size="icon" variant="outline" aria-label="Pause interview" onClick={() => void playback.pause()}>{playback.status === "connecting" ? <Loader2 className="animate-spin" /> : <Pause />}</Button>
                   ) : (
-                    <Button className="min-w-28" onClick={() => void playback.play()}><Play /> {playback.status === "complete" ? "Replay" : "Play"}</Button>
+                    <Button size="icon" variant="outline" aria-label={playback.status === "complete" ? "Replay interview" : "Play interview"} onClick={() => void playback.play()}><Play /></Button>
                   )}
-                  <Button size="icon" variant="outline" aria-label="Next exchange" disabled={playback.exchangeIndex >= flow.exchanges.length - 1} onClick={() => playback.seek(Math.min(flow.exchanges.length - 1, playback.exchangeIndex + 1))}><SkipForward /></Button>
-                  <div className="min-w-0 flex-1"><Progress value={progress} /><p className="mt-1 text-right text-xs text-muted-foreground">{Math.min(flow.exchanges.length, playback.exchangeIndex + 1)} of {flow.exchanges.length}</p></div>
+                  <Button size="icon-sm" variant="ghost" aria-label="Forward 15 seconds" onClick={() => playback.seekBy(15)}><RotateCw /></Button>
+                  <Button size="icon-sm" variant="ghost" aria-label="Next exchange" disabled={playback.exchangeIndex >= flow.exchanges.length - 1} onClick={() => playback.seekExchange(Math.min(flow.exchanges.length - 1, playback.exchangeIndex + 1))}><SkipForward /></Button>
+                  <Select value={String(playback.settings.speed)} onValueChange={(value) => playback.applySettings({ ...playback.settings, speed: Number(value) })}>
+                    <SelectTrigger size="sm" className="h-8 w-[4.5rem]" aria-label="Interview speed"><SelectValue /></SelectTrigger>
+                    <SelectContent>{SPEEDS.map((speed) => <SelectItem key={speed} value={String(speed)}>{speed}×</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild><Button size="icon-sm" variant="ghost" aria-label="Voice customization"><SlidersHorizontal /></Button></PopoverTrigger>
+                    <PopoverContent align="end" className="w-[min(22rem,calc(100vw-1.5rem))] space-y-4 p-4">
+                      <PopoverHeader><PopoverTitle>Interview voices</PopoverTitle><PopoverDescription>Choose each role’s voice and overall delivery. Saved on this device.</PopoverDescription></PopoverHeader>
+                      <label className="grid gap-2 text-xs font-medium">Interviewer voice
+                        <Select value={playback.settings.interviewerVoice} onValueChange={(value: "voice_one" | "voice_two") => playback.applySettings({ ...playback.settings, interviewerVoice: value })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="voice_one">Voice one · focused</SelectItem><SelectItem value="voice_two">Voice two · warm</SelectItem></SelectContent>
+                        </Select>
+                      </label>
+                      <label className="grid gap-2 text-xs font-medium">Candidate voice
+                        <Select value={playback.settings.candidateVoice} onValueChange={(value: "voice_one" | "voice_two") => playback.applySettings({ ...playback.settings, candidateVoice: value })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="voice_one">Voice one · focused</SelectItem><SelectItem value="voice_two">Voice two · warm</SelectItem></SelectContent>
+                        </Select>
+                      </label>
+                      <label className="grid gap-2 text-xs font-medium">Delivery
+                        <Select value={playback.settings.delivery} onValueChange={(value: "balanced" | "calm" | "animated") => playback.applySettings({ ...playback.settings, delivery: value })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="balanced">Balanced</SelectItem><SelectItem value="calm">Calm</SelectItem><SelectItem value="animated">More animated</SelectItem></SelectContent>
+                        </Select>
+                      </label>
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => playback.applySettings({ ...playback.settings, interviewerVoice: playback.settings.candidateVoice, candidateVoice: playback.settings.interviewerVoice })}>Swap interviewer and candidate</Button>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 {playback.error ? <p className="mt-3 text-sm text-destructive" role="alert">{playback.error}</p> : null}
               </section>

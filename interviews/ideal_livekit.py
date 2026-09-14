@@ -42,6 +42,11 @@ class IdealVoiceCommand(ContractModel):
     request_id: str = Field(default="", max_length=80)
     start_exchange: int = Field(default=0, ge=0)
     start_speaker: Literal["interviewer", "candidate"] = "interviewer"
+    start_sentence: int = Field(default=0, ge=0)
+    speed: float = Field(default=0.96, ge=0.75, le=1.5)
+    interviewer_voice: Literal["voice_one", "voice_two"] = "voice_one"
+    candidate_voice: Literal["voice_one", "voice_two"] = "voice_two"
+    delivery: Literal["balanced", "calm", "animated"] = "balanced"
 
 
 def create_voice_connection(

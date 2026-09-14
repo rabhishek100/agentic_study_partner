@@ -7,6 +7,7 @@ from contextlib import suppress
 import json
 import logging
 import os
+import re
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -34,6 +35,13 @@ server = AgentServer(
     port=int(os.getenv("PORT", "8082")),
     drain_timeout=30,
 )
+
+
+def spoken_sentences(text: str) -> list[str]:
+    """Stable seek units without turning punctuation into stored markup."""
+
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+    return sentences or [text]
 
 
 class IdealInterviewMedia:
@@ -107,10 +115,40 @@ class IdealInterviewMedia:
         with suppress(RuntimeError):
             await self.speech.interrupt(force=True)
 
-    async def say(self, *, speaker: str, text: str, exchange_index: int):
-        voice = self.interviewer_voice if speaker == "interviewer" else self.candidate_voice
-        self.tts.update_options(voice=voice)
-        await self.emit("speaker_started", speaker=speaker, exchange_index=exchange_index)
+    def voice_for(self, command: IdealVoiceCommand, speaker: str) -> str:
+        selected = (
+            command.interviewer_voice
+            if speaker == "interviewer"
+            else command.candidate_voice
+        )
+        return self.interviewer_voice if selected == "voice_one" else self.candidate_voice
+
+    async def say(
+        self,
+        *,
+        command: IdealVoiceCommand,
+        speaker: str,
+        text: str,
+        exchange_index: int,
+        start_sentence: int = 0,
+    ):
+        sentences = spoken_sentences(text)
+        if start_sentence >= len(sentences):
+            start_sentence = max(0, len(sentences) - 1)
+        text = " ".join(sentences[start_sentence:])
+        options: dict[str, object] = {"speed": command.speed}
+        if command.delivery != "balanced":
+            options["emotion"] = "calm" if command.delivery == "calm" else "excited"
+        self.tts.update_options(
+            voice=self.voice_for(command, speaker),
+            extra_kwargs=options,
+        )
+        await self.emit(
+            "speaker_started",
+            speaker=speaker,
+            exchange_index=exchange_index,
+            sentence_index=start_sentence,
+        )
         handle = self.speech.say(
             pronunciation_text(text),
             allow_interruptions=False,
@@ -126,22 +164,29 @@ class IdealInterviewMedia:
             flow = await asyncio.to_thread(self.load_flow)
             if command.start_exchange >= len(flow.exchanges):
                 raise ValueError("playback start is outside the transcript")
+            first_utterance = True
             for exchange in flow.exchanges[command.start_exchange:]:
                 if not (
                     exchange.exchange_index == command.start_exchange
                     and command.start_speaker == "candidate"
                 ):
                     await self.say(
+                        command=command,
                         speaker="interviewer",
                         text=exchange.interviewer_text,
                         exchange_index=exchange.exchange_index,
+                        start_sentence=command.start_sentence if first_utterance else 0,
                     )
+                    first_utterance = False
                     await asyncio.sleep(exchange.pause_after_question_ms / 1_000)
                 await self.say(
+                    command=command,
                     speaker="candidate",
                     text=exchange.candidate_text,
                     exchange_index=exchange.exchange_index,
+                    start_sentence=command.start_sentence if first_utterance else 0,
                 )
+                first_utterance = False
                 await asyncio.sleep(exchange.pause_after_answer_ms / 1_000)
             await self.emit("playback_done", request_id=command.request_id)
         except asyncio.CancelledError:

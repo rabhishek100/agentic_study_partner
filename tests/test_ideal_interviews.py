@@ -8,7 +8,8 @@ from decks.topics import ScopeInventory, Topic
 from evals.ideal_interview import score_ideal_flow
 from interviews.ideal_contracts import IdealInterviewExchange, IdealInterviewExchangeDraft, IdealInterviewFlow
 from interviews.ideal_generation import generate_ideal_exchange
-from interviews.ideal_livekit import create_voice_connection, pronunciation_text
+from interviews.ideal_livekit import IdealVoiceCommand, create_voice_connection, pronunciation_text
+from interviews.ideal_voice_worker import spoken_sentences
 
 
 def source() -> ScopeInventory:
@@ -135,6 +136,28 @@ def test_pronunciation_map_uses_cartesia_inline_ipa(monkeypatch):
     assert pronunciation_text("PostgreSQL backs the RAG service") == (
         "<<ˈpoʊst|ɡrɛs|ˌkjuː|ˈɛl>> backs the <<ˈræɡ>> service"
     )
+
+
+def test_voice_command_validates_seek_speed_and_customization():
+    command = IdealVoiceCommand(
+        action="play",
+        start_exchange=3,
+        start_speaker="candidate",
+        start_sentence=2,
+        speed=1.25,
+        interviewer_voice="voice_two",
+        candidate_voice="voice_one",
+        delivery="calm",
+    )
+    assert command.start_sentence == 2
+    assert command.speed == 1.25
+    assert spoken_sentences("First decision. Then the trade-off? Finally, validate it.") == [
+        "First decision.",
+        "Then the trade-off?",
+        "Finally, validate it.",
+    ]
+    with pytest.raises(ValueError):
+        IdealVoiceCommand(action="play", speed=2)
 
 
 def test_listen_only_livekit_token_cannot_publish_a_microphone(monkeypatch):
