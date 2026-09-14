@@ -224,6 +224,44 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(decision.route, "clarify")
         self.assertEqual(decision.clarification_question, "Which approach do you mean?")
 
+    def test_agent_can_infer_a_natural_verbatim_request(self):
+        chapter = self.nodes["Chapter 7. Model Deployment and Prediction Service"]
+        model = FakeModel(
+            {
+                "route": "verbatim_reading",
+                "history_dependency": "independent",
+                "scope_node_id": chapter["id"],
+                "reason": "The reader wants the stored chapter text in the chat.",
+            }
+        )
+
+        decision = self.analyze(
+            "Let me read all of chapter 7 here instead of a summary.",
+            self.state(),
+            model,
+        )
+
+        self.assertEqual(decision.route, "verbatim_reading")
+        self.assertEqual(decision.resolved_scope.node_id, chapter["id"])
+
+    def test_agentic_verbatim_route_still_requires_a_canonical_scope(self):
+        model = FakeModel(
+            {
+                "route": "verbatim_reading",
+                "history_dependency": "independent",
+                "reason": "The reader wants source text but named no known scope.",
+            }
+        )
+
+        decision = self.analyze(
+            "Put the entire missing appendix here without summarizing it.",
+            self.state(),
+            model,
+        )
+
+        self.assertEqual(decision.route, "clarify")
+        self.assertIn("could not find", decision.clarification_question)
+
     def test_supplied_clarification_cannot_repeat_the_same_clarify_route(self):
         model = FakeModel(
             {

@@ -209,6 +209,17 @@ _VERBATIM_MARKER = (
 _READ_VERB = r"(?:read|show|give|display|open|render|make)"
 
 READ_VERBATIM = (
+    # "explain verbatim chapter 20" is semantically a reproduction request,
+    # despite using the ordinary explanation verb. Keep this narrow: a bare
+    # "explain chapter 20 in full" usually asks for a thorough explanation,
+    # not the source text, so only a marker immediately after "explain" is
+    # deterministic here. Less explicit natural language is handled by the
+    # conversation analyser's verbatim route.
+    re.compile(
+        rf"^explain\s+{_VERBATIM_MARKER}\s+"
+        r"(?:of\s+|for\s+)?(?P<scope>.+?)\s*[?.]?$",
+        re.IGNORECASE,
+    ),
     # "give me the full text of chapter 3", "show the complete text of the paper"
     re.compile(
         rf"^{_READ_VERB}\s+(?:me\s+)?(?:the\s+)?"

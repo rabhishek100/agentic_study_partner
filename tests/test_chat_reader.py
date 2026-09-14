@@ -155,6 +155,17 @@ class VerbatimGrammarTests(unittest.TestCase):
         self.assertEqual(request.scope_reference, "uber case study")
         self.assertEqual(request.book_reference, "Scaler HLD by Pragy Agarwal")
 
+    def test_explain_verbatim_is_an_unambiguous_reading_request(self) -> None:
+        request = parse_study_request(
+            "explain verbatim chapter 20 of "
+            "@[Scaler HLD by Pragy Agarwal]"
+        )
+
+        self.assertEqual(request.intent, "read_verbatim")
+        self.assertEqual(request.scope_kind, "chapter")
+        self.assertEqual(request.scope_reference, "20")
+        self.assertEqual(request.book_reference, "Scaler HLD by Pragy Agarwal")
+
     def test_the_book_first_order_works_for_summaries_too(self) -> None:
         """The gap was in the shared scope grammar, not in this feature."""
 
