@@ -261,7 +261,7 @@ describe("reading an answer aloud", () => {
     expect(Number(slider.getAttribute("max"))).toBeLessThan(10);
 
     await userEvent.click(screen.getByRole("button", { name: "Turn off auto-follow" }));
-    expect(window.localStorage.getItem("narration-auto-follow")).toBe("false");
+    expect(window.localStorage.getItem("narration-auto-follow-v2")).toBe("false");
     await userEvent.click(screen.getByRole("button", { name: "Stop reading" }));
     expect(screen.queryByRole("region", { name: "Read-aloud player" })).toBeNull();
   });
@@ -346,6 +346,108 @@ describe("reading an answer aloud", () => {
 
     act(() => AudioStub.instances[0]!.onended?.());
     await waitFor(() => expect(secondScroll).toHaveBeenCalledOnce());
+  });
+
+  it("tracks repeated sentences within the same normal answer paragraph", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    const highlights = new Map<string, { ranges: Range[] }>();
+    class HighlightStub {
+      ranges: Range[];
+      constructor(...ranges: Range[]) { this.ranges = ranges; }
+    }
+    vi.stubGlobal("Highlight", HighlightStub);
+    vi.stubGlobal("CSS", { highlights });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 200, bottom: 230, left: 0, right: 200, width: 200, height: 30 }),
+    });
+    const repeated = "Same sentence. Same sentence.";
+
+    render(
+      <TooltipProvider>
+        <Answer narrationId="turn-1" text={repeated} evidence={[]} citations={[]} />
+        <ReadAloud id="turn-1" source={() => ({ answer: repeated })} />
+        <NarrationPlayerBar />
+      </TooltipProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+
+    await waitFor(() => expect(highlights.has("narration-current")).toBe(true));
+    const first = highlights.get("narration-current")!.ranges[0]!.startOffset;
+    act(() => AudioStub.instances[0]!.onended?.());
+    await waitFor(() =>
+      expect(highlights.get("narration-current")!.ranges[0]!.startOffset).toBeGreaterThan(first),
+    );
+  });
+
+  it("keeps normal-answer speech aligned through entities, emphasis and maths", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    const highlights = new Map<string, { ranges: Range[] }>();
+    class HighlightStub {
+      ranges: Range[];
+      constructor(...ranges: Range[]) { this.ranges = ranges; }
+    }
+    vi.stubGlobal("Highlight", HighlightStub);
+    vi.stubGlobal("CSS", { highlights });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 200, bottom: 250, left: 0, right: 400, width: 400, height: 50 }),
+    });
+    const answer = "Use **replication** &amp; $x^2$ carefully. Then verify.";
+
+    render(
+      <TooltipProvider>
+        <Answer narrationId="turn-1" text={answer} evidence={[]} citations={[]} />
+        <ReadAloud id="turn-1" source={() => ({ answer })} />
+        <NarrationPlayerBar />
+      </TooltipProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+
+    await waitFor(() => expect(highlights.has("narration-current")).toBe(true));
+    const highlighted = highlights.get("narration-current")!.ranges[0]!.toString();
+    expect(highlighted).toContain("replication");
+    expect(highlighted).toContain("carefully.");
+    expect(highlighted).not.toContain("Then verify");
+  });
+
+  it("tracks unpunctuated list items as separate spoken passages", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    const highlights = new Map<string, { ranges: Range[] }>();
+    class HighlightStub {
+      ranges: Range[];
+      constructor(...ranges: Range[]) { this.ranges = ranges; }
+    }
+    vi.stubGlobal("Highlight", HighlightStub);
+    vi.stubGlobal("CSS", { highlights });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 200, bottom: 230, left: 0, right: 200, width: 200, height: 30 }),
+    });
+    const answer = "- First item\n- Second item";
+
+    render(
+      <TooltipProvider>
+        <Answer narrationId="turn-1" text={answer} evidence={[]} citations={[]} />
+        <ReadAloud id="turn-1" source={() => ({ answer })} />
+        <NarrationPlayerBar />
+      </TooltipProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    await waitFor(() =>
+      expect(highlights.get("narration-current")?.ranges[0]?.toString()).toBe("First item"),
+    );
+
+    act(() => AudioStub.instances[0]!.onended?.());
+    await waitFor(() =>
+      expect(highlights.get("narration-current")?.ranges[0]?.toString()).toBe("Second item"),
+    );
   });
 
   it("highlights and scrolls to the exact sentence in a long verbatim block", async () => {
@@ -448,7 +550,57 @@ describe("reading an answer aloud", () => {
     fireEvent.wheel(document);
 
     await screen.findByRole("button", { name: "Turn on auto-follow" });
-    expect(window.localStorage.getItem("narration-auto-follow")).toBe("false");
+    expect(window.localStorage.getItem("narration-auto-follow-v2")).toBeNull();
+
+    act(() => {
+      void playScript("reading-2", {
+        segments: [{ kind: "prose", text: "Another reading." }],
+        figures: [],
+      });
+    });
+    await screen.findByRole("button", { name: "Turn off auto-follow" });
+  });
+
+  it("refocuses the active sentence after browser zoom reflows the page", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    let top = 200;
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top, bottom: top + 30, left: 0, right: 200, width: 200, height: 30 }),
+    });
+    const scrollBy = vi.fn();
+    vi.stubGlobal("scrollBy", scrollBy);
+
+    render(
+      <>
+        <div data-narration-anchor="reading-1">
+          <p data-narration-passage="1">The active sentence.</p>
+        </div>
+        <NarrationPlayerBar />
+      </>,
+    );
+    act(() => {
+      void playScript("reading-1", {
+        segments: [{
+          kind: "prose",
+          text: "The active sentence.",
+          anchor: { type: "passage", index: 1, sentence: 0 },
+        }],
+        figures: [],
+      }, { anchorId: "reading-1" });
+    });
+    await screen.findByRole("region", { name: "Read-aloud player" });
+    expect(scrollBy).not.toHaveBeenCalled();
+
+    fireEvent.wheel(document, { ctrlKey: true });
+    expect(screen.getByRole("button", { name: "Turn off auto-follow" })).toBeInTheDocument();
+
+    top = 1_400;
+    fireEvent(window, new Event("resize"));
+    await waitFor(() => expect(scrollBy).toHaveBeenCalledOnce());
+    expect(scrollBy.mock.calls[0]?.[0]).toMatchObject({ behavior: "auto" });
   });
 
   it("offers the guarded voice-question mode only for a saved book turn", async () => {

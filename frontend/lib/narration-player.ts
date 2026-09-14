@@ -65,7 +65,9 @@ export const DEFAULT_PACING: NarrationPacing = {
 
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 const SPEED_STORAGE_KEY = "narration-speed";
-const FOLLOW_STORAGE_KEY = "narration-auto-follow";
+// v2 separates an explicit eye-button preference from the old implementation,
+// which accidentally persisted any wheel/touch navigation as a permanent opt-out.
+const FOLLOW_STORAGE_KEY = "narration-auto-follow-v2";
 const PACING_STORAGE_KEY = "narration-pacing";
 const DEFAULT_SPEED = 1;
 
@@ -114,6 +116,14 @@ function storedSpeed(): number {
   }
 }
 
+function storedAutoFollow(): boolean {
+  try {
+    return window.localStorage.getItem(FOLLOW_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
 function bounded(value: unknown, fallback: number, min: number, max: number): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.max(min, Math.min(max, value))
@@ -140,13 +150,11 @@ let hydrated = false;
 export function hydrate(): void {
   if (hydrated || typeof window === "undefined") return;
   hydrated = true;
-  let autoFollow = true;
-  try {
-    autoFollow = window.localStorage.getItem(FOLLOW_STORAGE_KEY) !== "false";
-  } catch {
-    // A preference must never prevent playback.
-  }
-  emit({ speed: storedSpeed(), pacing: storedPacing(), autoFollow });
+  emit({
+    speed: storedSpeed(),
+    pacing: storedPacing(),
+    autoFollow: storedAutoFollow(),
+  });
 }
 
 interface Session {
@@ -324,6 +332,11 @@ export function setAutoFollow(autoFollow: boolean): void {
   } catch {
     // Remembering the preference is optional.
   }
+}
+
+/** Suspend only this reading after direct page navigation. */
+export function suspendAutoFollow(): void {
+  emit({ autoFollow: false });
 }
 
 async function authorizedHeaders(): Promise<Record<string, string>> {
@@ -567,6 +580,7 @@ export async function play(
     currentAnchor: null,
     currentTime: 0,
     duration: 0,
+    autoFollow: storedAutoFollow(),
     voiceContext: options.voiceContext ?? null,
   });
 
@@ -612,6 +626,7 @@ export async function playScript(
       currentAnchor: null,
       currentTime: 0,
       duration: 0,
+      autoFollow: storedAutoFollow(),
       voiceContext: options.voiceContext ?? null,
     });
   }

@@ -113,6 +113,7 @@ export function TurnView({
       <div className="flex justify-end">
         <h3
           id={`question-${turn.id}`}
+          data-narration-question={`turn-${turn.id}`}
           className="max-w-[85%] rounded-2xl rounded-br-sm bg-secondary px-4 py-3 text-xs font-normal text-secondary-foreground"
         >
           {turn.question}

@@ -1,7 +1,7 @@
 "use client";
 
 import { FileText, Film, ImageIcon, Quote } from "lucide-react";
-import { createContext, useContext, useMemo } from "react";
+import { createContext, createElement, useContext, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -271,6 +271,7 @@ function VideoMarkdownCitation({ marker }: { marker: string }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          data-citation=""
           type="button"
           variant="ghost"
           size="sm"
@@ -322,10 +323,40 @@ function VideoMarkdownFrame({
   );
 }
 
+// react-markdown preserves source lines on its rendered nodes. Narration uses
+// the same keys, so repeated wording never makes follow-along jump backwards.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function narrationBlockKey(node: any): string | undefined {
+  const line = Number(node?.position?.start?.line);
+  return Number.isFinite(line) && line > 0 ? `line-${line}` : undefined;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function VideoNarrationBlock({ children, node, ...props }: any) {
+  const tag = String(node?.tagName ?? "div");
+  return createElement(
+    tag,
+    { ...props, "data-narration-block": narrationBlockKey(node) },
+    children,
+  );
+}
+
 /** Stable types stop React from remounting every cited frame on scroll/drag. */
 const VIDEO_ANSWER_MARKDOWN_COMPONENTS = {
   "citation-ref": VideoMarkdownCitation,
   "frame-figure": VideoMarkdownFrame,
+  p: VideoNarrationBlock,
+  h1: VideoNarrationBlock,
+  h2: VideoNarrationBlock,
+  h3: VideoNarrationBlock,
+  h4: VideoNarrationBlock,
+  h5: VideoNarrationBlock,
+  h6: VideoNarrationBlock,
+  blockquote: VideoNarrationBlock,
+  ul: VideoNarrationBlock,
+  ol: VideoNarrationBlock,
+  pre: VideoNarrationBlock,
+  table: VideoNarrationBlock,
 } as never;
 
 /**

@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { useReadAloud } from "@/hooks/use-read-aloud";
 import { useNarrationVoice } from "@/hooks/use-narration-voice";
+import { splitSentences } from "@/lib/narration";
 import { DEFAULT_PACING, SPEEDS, type NarrationPacing } from "@/lib/narration-player";
 import {
   emitNarrationVoiceQuestion,
@@ -45,18 +46,45 @@ const HIGHLIGHT_NAME = "narration-current";
 
 type Position = { node: Text; offset: number };
 
-function normalizedText(root: Element): { text: string; positions: Position[] } {
+const NARRATION_BLOCKS = "li, p, h1, h2, h3, h4, h5, h6, blockquote, figcaption, td, th";
+
+/**
+ * The text the reader can actually see, with every character mapped back to
+ * its DOM position. Structural stops are inserted between rendered blocks so
+ * adjacent list items cannot collapse into one unmatchable word stream.
+ */
+function renderedText(root: Element): { text: string; positions: Position[] } {
   const positions: Position[] = [];
   let text = "";
   let previousWhitespace = true;
+  let previousBlock: Element | null = null;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let node = walker.nextNode() as Text | null;
   while (node) {
     const parent = node.parentElement;
-    const ignored = parent?.closest(
-      "[data-citation], [aria-hidden='true'], pre, code, script, style",
-    );
+    const katexVisual = parent?.closest(".katex-html");
+    const ignored =
+      parent?.closest("[data-citation], .katex-mathml, pre, script, style") ||
+      (!katexVisual && parent?.closest("[aria-hidden='true']"));
     if (!ignored) {
+      const block = parent?.closest(NARRATION_BLOCKS) ?? root;
+      if (text && previousBlock && block !== previousBlock && node.data.trim()) {
+        // Markdown list markers provide a visual boundary but no text node.
+        // Mirror the prosody stop added by speakableProse for an unpunctuated
+        // item, mapping synthetic characters to the previous visible glyph.
+        while (text.endsWith(" ")) {
+          text = text.slice(0, -1);
+          positions.pop();
+        }
+        const position = positions.at(-1)!;
+        if (!/[.!?:;]$/.test(text)) {
+          text += ".";
+          positions.push(position);
+        }
+        text += " ";
+        positions.push(position);
+        previousWhitespace = true;
+      }
       for (let offset = 0; offset < node.data.length; offset += 1) {
         const character = node.data[offset]!;
         if (/\s/.test(character)) {
@@ -71,10 +99,15 @@ function normalizedText(root: Element): { text: string; positions: Position[] } 
           previousWhitespace = false;
         }
       }
+      if (node.data.trim()) previousBlock = block;
     }
     node = walker.nextNode() as Text | null;
   }
-  return { text: text.trim(), positions };
+  while (text.endsWith(" ")) {
+    text = text.slice(0, -1);
+    positions.pop();
+  }
+  return { text, positions };
 }
 
 function targetText(value: string): string {
@@ -91,25 +124,59 @@ function clearHighlight(): void {
   });
 }
 
-/** Highlight the exact rendered passage when the browser supports CSS ranges. */
-function highlightSentence(root: Element, spoken: string): Range | null {
-  clearHighlight();
-  let target = targetText(spoken);
-  if (!target || target.startsWith("you asked:")) return null;
-  const stream = normalizedText(root);
-  let start = stream.text.indexOf(target);
+function mappedRange(
+  stream: { text: string; positions: Position[] },
+  start: number,
+  length: number,
+): Range | null {
   // Headings and list labels gain punctuation for prosody that is not visible.
-  if (start < 0 && /[.!?:;]$/.test(target)) {
-    target = target.slice(0, -1).trimEnd();
-    start = stream.text.indexOf(target);
-  }
-  if (start < 0) return null;
   const first = stream.positions[start];
-  const last = stream.positions[start + target.length - 1];
+  const last = stream.positions[start + length - 1];
   if (!first || !last) return null;
   const range = document.createRange();
   range.setStart(first.node, first.offset);
   range.setEnd(last.node, Math.min(last.node.length, last.offset + 1));
+  return range;
+}
+
+/** Resolve the same sentence by order, independent of speech-only wording. */
+function sentenceRange(root: Element, sentenceIndex: number): Range | null {
+  const stream = renderedText(root);
+  const sentences = splitSentences(stream.text);
+  let cursor = 0;
+  for (const [index, sentence] of sentences.entries()) {
+    const start = stream.text.indexOf(sentence, cursor);
+    if (start < 0) return null;
+    if (index === sentenceIndex) return mappedRange(stream, start, sentence.length);
+    cursor = start + sentence.length;
+  }
+  return null;
+}
+
+/** Text matching retained for older scripts and intentionally unanchored text. */
+function matchingRange(root: Element, spoken: string): Range | null {
+  let target = targetText(spoken);
+  if (!target || target.startsWith("you asked:")) return null;
+  const stream = renderedText(root);
+  let start = stream.text.indexOf(target);
+  if (start < 0 && /[.!?:;]$/.test(target)) {
+    target = target.slice(0, -1).trimEnd();
+    start = stream.text.indexOf(target);
+  }
+  return start < 0 ? null : mappedRange(stream, start, target.length);
+}
+
+/** Highlight the exact rendered sentence when the browser supports CSS ranges. */
+function highlightSentence(
+  root: Element,
+  spoken: string,
+  sentenceIndex?: number,
+): Range | null {
+  clearHighlight();
+  const range = sentenceIndex == null
+    ? matchingRange(root, spoken)
+    : sentenceRange(root, sentenceIndex) ?? matchingRange(root, spoken);
+  if (!range) return null;
 
   const HighlightConstructor = (globalThis as typeof globalThis & {
     Highlight?: new (...ranges: Range[]) => unknown;
@@ -120,7 +187,7 @@ function highlightSentence(root: Element, spoken: string): Range | null {
   if (HighlightConstructor && css?.highlights) {
     css.highlights.set(HIGHLIGHT_NAME, new HighlightConstructor(range));
   } else {
-    const element = first.node.parentElement?.closest("p, li, h1, h2, h3, h4, blockquote");
+    const element = range.startContainer.parentElement?.closest(NARRATION_BLOCKS);
     element?.setAttribute("data-narration-fallback", "");
   }
   return range;
@@ -129,6 +196,12 @@ function highlightSentence(root: Element, spoken: string): Range | null {
 function anchoredElement(root: Element, narration: ReturnType<typeof useReadAloud>): Element | null {
   const anchor = narration.currentAnchor;
   if (!anchor) return null;
+  if (anchor.type === "question") {
+    return [...document.querySelectorAll("[data-narration-question]")].find(
+      (element) =>
+        element.getAttribute("data-narration-question") === narration.anchorId,
+    ) ?? null;
+  }
   if (anchor.type === "figure") {
     return root.parentElement?.querySelector(
       `[data-narration-figure="${anchor.blockId}"]`,
@@ -215,6 +288,22 @@ function formatTime(seconds: number): string {
 
 function FollowAlong() {
   const narration = useReadAloud();
+  const [layoutRevision, setLayoutRevision] = useState(0);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    const refocus = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setLayoutRevision((value) => value + 1), 50);
+    };
+    window.addEventListener("resize", refocus);
+    window.visualViewport?.addEventListener("resize", refocus);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", refocus);
+      window.visualViewport?.removeEventListener("resize", refocus);
+    };
+  }, []);
 
   useEffect(() => {
     if (!narration.activeId || !narration.anchorId || !narration.currentText) {
@@ -226,12 +315,17 @@ function FollowAlong() {
     );
     if (!root) return;
     const anchored = anchoredElement(root, narration);
-    const range = highlightSentence(anchored ?? root, narration.currentText);
+    const range = highlightSentence(
+      anchored ?? root,
+      narration.currentText,
+      anchored ? narration.currentAnchor?.sentence : undefined,
+    );
     if (!range && anchored) anchored.setAttribute("data-narration-fallback", "");
     const scrollTarget = range?.startContainer.parentElement ?? anchored;
     if (!scrollTarget || !narration.autoFollow) return;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    scrollToNarration(range, scrollTarget, reduced ? "auto" : "smooth");
+    // Exact focus beats overlapping smooth-scroll animations when passages
+    // advance quickly or the browser zoom changes the line wrapping.
+    scrollToNarration(range, scrollTarget, "auto");
   }, [
     narration.activeId,
     narration.anchorId,
@@ -239,21 +333,32 @@ function FollowAlong() {
     narration.chunkIndex,
     narration.currentAnchor,
     narration.currentText,
+    layoutRevision,
   ]);
 
   useEffect(() => {
     if (!narration.autoFollow) return;
-    // Manual scrolling means the reader chose a different place. Persistently
-    // release the page instead of pulling it back on the next sentence; the
-    // eye button in the player explicitly resumes following when wanted.
-    const suspend = () => narration.setAutoFollow(false);
+    // Manual scrolling means the reader chose a different place. Release the
+    // page for this reading instead of pulling it back on the next sentence;
+    // the eye button explicitly resumes following when wanted.
+    const suspend = (event: Event) => {
+      // Ctrl-wheel and multi-touch are zoom gestures. They reflow the page,
+      // and the resize listener above must be allowed to refocus the sentence.
+      if (typeof WheelEvent !== "undefined" && event instanceof WheelEvent && event.ctrlKey) return;
+      if (
+        typeof TouchEvent !== "undefined" &&
+        event instanceof TouchEvent &&
+        event.touches.length > 1
+      ) return;
+      narration.suspendAutoFollow();
+    };
     document.addEventListener("wheel", suspend, { passive: true });
     document.addEventListener("touchstart", suspend, { passive: true });
     return () => {
       document.removeEventListener("wheel", suspend);
       document.removeEventListener("touchstart", suspend);
     };
-  }, [narration.autoFollow, narration.setAutoFollow]);
+  }, [narration.autoFollow, narration.suspendAutoFollow]);
 
   useEffect(() => clearHighlight, []);
   // Kept out of the Tailwind/PostCSS input: its optimizer currently warns on

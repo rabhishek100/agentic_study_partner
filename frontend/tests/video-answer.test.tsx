@@ -71,6 +71,27 @@ function renderAnswer(
 }
 
 describe("VideoAnswer", () => {
+  it("renders the stable narration anchors used by shared follow-along", () => {
+    const view = renderAnswer(
+      "## Summary\n\nFirst point.\n\n- One\n- Two",
+      [],
+      [],
+    );
+
+    expect(view.container.querySelector("h2")).toHaveAttribute(
+      "data-narration-block",
+      "line-1",
+    );
+    expect(view.container.querySelector("p")).toHaveAttribute(
+      "data-narration-block",
+      "line-3",
+    );
+    expect(view.container.querySelector("ul")).toHaveAttribute(
+      "data-narration-block",
+      "line-5",
+    );
+  });
+
   it("turns a timestamp marker into a control that seeks the player", async () => {
     const onSeek = vi.fn();
     renderAnswer(
@@ -83,6 +104,7 @@ describe("VideoAnswer", () => {
     const control = screen.getByRole("button", {
       name: formatTimestamp(125_000),
     });
+    expect(control).toHaveAttribute("data-citation");
     await userEvent.click(control);
     expect(onSeek).toHaveBeenCalledWith(125_000);
   });
