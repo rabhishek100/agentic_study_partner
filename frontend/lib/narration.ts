@@ -440,18 +440,31 @@ export function buildNarrationScript(input: NarrationInput): NarrationScript {
     // A numbered heading such as "1. Clarify scope" is one semantic utterance,
     // not a sentence containing only "1." followed by another passage.
     const sentences = block.kind === "heading" ? [prose] : splitSentences(prose);
-    for (const [sentenceIndex, sentence] of sentences.entries()) {
-      const spoken = withoutMarkers(sentence);
-      if (spoken) segments.push({
+    const cleanedSentences = sentences.map(withoutMarkers);
+    let lastSpeakableSentence = -1;
+    for (const [index, sentence] of cleanedSentences.entries()) {
+      if (/[\p{L}\p{N}]/u.test(sentence)) lastSpeakableSentence = index;
+    }
+    let visibleSentenceIndex = 0;
+    for (const [rawSentenceIndex, sentence] of sentences.entries()) {
+      const spoken = cleanedSentences[rawSentenceIndex]!;
+      // A citation after terminal punctuation is split as its own sentence
+      // ("Claim. [N1:P2]"). It is not visible prose after the renderer turns
+      // it into a chip and it is not spoken, so it must not consume a DOM
+      // sentence ordinal. Counting it here made every later list item point
+      // farther ahead until follow-along fell back to highlighting the whole
+      // list.
+      const isSpeakable = /[\p{L}\p{N}]/u.test(spoken);
+      if (isSpeakable) segments.push({
         kind: block.kind === "heading" ? "heading" : block.kind === "list" ? "list" : "prose",
         text: terminated(spoken),
         anchor: block.kind === "heading"
           ? anchor
-          : { ...anchor, sentence: sentenceIndex },
+          : { ...anchor, sentence: visibleSentenceIndex++ },
         pauseAfter:
           block.kind === "heading"
             ? "heading"
-            : sentenceIndex === sentences.length - 1
+            : rawSentenceIndex === lastSpeakableSentence
               ? "paragraph"
               : "sentence",
       });

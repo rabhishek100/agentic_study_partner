@@ -252,6 +252,28 @@ describe("splitting for the synthesiser", () => {
     ]);
   });
 
+  it("does not count citation-only fragments as visible list sentences", () => {
+    const items = narrationItems(buildNarrationScript({
+      answer: [
+        "- First visible item. [N7:P84]",
+        "- Second visible item. [N7:P84] [N7:P85]",
+        "- Third visible item. [N7:P85]",
+      ].join("\n"),
+      evidence: [evidence(1, 7, [84, 85])],
+    }));
+
+    expect(items.map((item) => item.text)).toEqual([
+      "First visible item.",
+      "Second visible item.",
+      "Third visible item.",
+    ]);
+    expect(items.map((item) => item.anchor)).toEqual([
+      { type: "block", key: "line-1", sentence: 0 },
+      { type: "block", key: "line-1", sentence: 1 },
+      { type: "block", key: "line-1", sentence: 2 },
+    ]);
+  });
+
   it("reads a numbered heading as one highlighted utterance", () => {
     const items = narrationItems(buildNarrationScript({
       answer: "## 1. Clarify scope and quantify the workload",
