@@ -570,17 +570,25 @@ describe("reading an answer aloud", () => {
       configurable: true,
       value: () => ({ top, bottom: top + 30, left: 0, right: 200, width: 200, height: 30 }),
     });
-    const scrollBy = vi.fn();
-    vi.stubGlobal("scrollBy", scrollBy);
+    const windowScrollBy = vi.fn();
+    vi.stubGlobal("scrollBy", windowScrollBy);
 
-    render(
+    const view = render(
       <>
-        <div data-narration-anchor="reading-1">
-          <p data-narration-passage="1">The active sentence.</p>
+        <div data-narration-scroll-container="">
+          <div data-narration-anchor="reading-1">
+            <p data-narration-passage="1">The active sentence.</p>
+          </div>
         </div>
         <NarrationPlayerBar />
       </>,
     );
+    const paneScrollBy = vi.fn();
+    const pane = view.container.querySelector("[data-narration-scroll-container]")!;
+    Object.defineProperty(pane, "scrollBy", { value: paneScrollBy });
+    Object.defineProperty(pane, "getBoundingClientRect", {
+      value: () => ({ top: 0, bottom: 800, left: 0, right: 800, width: 800, height: 800 }),
+    });
     act(() => {
       void playScript("reading-1", {
         segments: [{
@@ -592,15 +600,16 @@ describe("reading an answer aloud", () => {
       }, { anchorId: "reading-1" });
     });
     await screen.findByRole("region", { name: "Read-aloud player" });
-    expect(scrollBy).not.toHaveBeenCalled();
+    expect(paneScrollBy).not.toHaveBeenCalled();
 
     fireEvent.wheel(document, { ctrlKey: true });
     expect(screen.getByRole("button", { name: "Turn off auto-follow" })).toBeInTheDocument();
 
     top = 1_400;
     fireEvent(window, new Event("resize"));
-    await waitFor(() => expect(scrollBy).toHaveBeenCalledOnce());
-    expect(scrollBy.mock.calls[0]?.[0]).toMatchObject({ behavior: "auto" });
+    await waitFor(() => expect(paneScrollBy).toHaveBeenCalledOnce());
+    expect(paneScrollBy.mock.calls[0]?.[0]).toMatchObject({ behavior: "auto" });
+    expect(windowScrollBy).not.toHaveBeenCalled();
   });
 
   it("offers the guarded voice-question mode only for a saved book turn", async () => {

@@ -215,6 +215,8 @@ function anchoredElement(root: Element, narration: ReturnType<typeof useReadAlou
 
 /** The nearest element that owns vertical scrolling, if the page does not. */
 function scrollContainer(element: Element): HTMLElement | null {
+  const explicit = element.closest<HTMLElement>("[data-narration-scroll-container]");
+  if (explicit) return explicit;
   let parent = element.parentElement;
   while (parent && parent !== document.body) {
     const overflow = window.getComputedStyle(parent).overflowY;
