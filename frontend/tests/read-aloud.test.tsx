@@ -450,6 +450,117 @@ describe("reading an answer aloud", () => {
     );
   });
 
+  it("keeps cited list speech on the same visible sentence through the final item", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+    const highlights = new Map<string, { ranges: Range[] }>();
+    class HighlightStub {
+      ranges: Range[];
+      constructor(...ranges: Range[]) { this.ranges = ranges; }
+    }
+    vi.stubGlobal("Highlight", HighlightStub);
+    vi.stubGlobal("CSS", { highlights });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 200, bottom: 230, left: 0, right: 200, width: 200, height: 30 }),
+    });
+    const answer = "- First cited item. [S1]\n- Second cited item. [S1]\n- Third cited item. [S1]";
+    const input = { ...source(), answer, figures: [] };
+    const view = render(
+      <TooltipProvider>
+        <Answer
+          narrationId="turn-1"
+          text={answer}
+          evidence={input.evidence}
+          citations={input.citations}
+        />
+        <ReadAloud id="turn-1" source={() => input} />
+        <NarrationPlayerBar />
+      </TooltipProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+
+    await waitFor(() =>
+      expect(highlights.get("narration-current")?.ranges[0]?.toString()).toBe("First cited item."),
+    );
+    act(() => AudioStub.instances[0]!.onended?.());
+    await waitFor(() =>
+      expect(highlights.get("narration-current")?.ranges[0]?.toString()).toBe("Second cited item."),
+    );
+    act(() => AudioStub.instances[1]!.onended?.());
+    await waitFor(() =>
+      expect(highlights.get("narration-current")?.ranges[0]?.toString()).toBe("Third cited item."),
+    );
+    expect(view.container.querySelector("ul")).not.toHaveAttribute("data-narration-fallback");
+  });
+
+  it("waits for audio playback before advancing the highlight", async () => {
+    AudioStub.autoEnd = false;
+    const highlights = new Map<string, { ranges: Range[] }>();
+    class HighlightStub {
+      ranges: Range[];
+      constructor(...ranges: Range[]) { this.ranges = ranges; }
+    }
+    vi.stubGlobal("Highlight", HighlightStub);
+    vi.stubGlobal("CSS", { highlights });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ top: 200, bottom: 230, left: 0, right: 200, width: 200, height: 30 }),
+    });
+
+    let releaseSpeech!: (response: Response) => void;
+    const speech = new Promise<Response>((resolve) => { releaseSpeech = resolve; });
+    const fetch = vi.fn(() => speech);
+    vi.stubGlobal("fetch", fetch);
+
+    render(
+      <TooltipProvider>
+        <Answer narrationId="turn-1" text="Sound starts here." evidence={[]} citations={[]} />
+        <ReadAloud id="turn-1" source={() => ({ answer: "Sound starts here." })} />
+        <NarrationPlayerBar />
+      </TooltipProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Read aloud" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(highlights.has("narration-current")).toBe(false);
+
+    releaseSpeech({ ok: true, blob: async () => new Blob(["mp3"]) } as Response);
+    await waitFor(() => expect(highlights.has("narration-current")).toBe(true));
+    expect(highlights.get("narration-current")?.ranges[0]?.toString()).toBe("Sound starts here.");
+  });
+
+  it("never highlights an entire list when a sentence anchor cannot resolve", async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal("fetch", stubFetch(calls));
+    AudioStub.autoEnd = false;
+
+    const view = render(
+      <>
+        <div data-narration-anchor="turn-1">
+          <ul data-narration-block="line-1">
+            <li>Only visible sentence.</li>
+          </ul>
+        </div>
+        <NarrationPlayerBar />
+      </>,
+    );
+    act(() => {
+      void playScript("turn-1", {
+        segments: [{
+          kind: "list",
+          text: "A sentence that is not rendered.",
+          anchor: { type: "block", key: "line-1", sentence: 99 },
+        }],
+        figures: [],
+      });
+    });
+    await waitFor(() => expect(AudioStub.instances).toHaveLength(1));
+    await waitFor(() => expect(screen.getByText(/passage 1 of 1/i)).toBeInTheDocument());
+
+    expect(view.container.querySelector("ul")).not.toHaveAttribute("data-narration-fallback");
+  });
+
   it("highlights and scrolls to the exact sentence in a long verbatim block", async () => {
     const calls: Call[] = [];
     vi.stubGlobal("fetch", stubFetch(calls));

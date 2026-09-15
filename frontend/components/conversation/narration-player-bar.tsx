@@ -322,7 +322,12 @@ function FollowAlong() {
       narration.currentText,
       anchored ? narration.currentAnchor?.sentence : undefined,
     );
-    if (!range && anchored) anchored.setAttribute("data-narration-fallback", "");
+    // Never paint a structural wrapper (a whole list, answer, or section) as
+    // the fallback. A missing range is safer left unpainted than represented
+    // as speech that is covering content the voice is not saying.
+    if (!range && anchored?.matches(NARRATION_BLOCKS)) {
+      anchored.setAttribute("data-narration-fallback", "");
+    }
     const scrollTarget = range?.startContainer.parentElement ?? anchored;
     if (!scrollTarget || !narration.autoFollow) return;
     // Exact focus beats overlapping smooth-scroll animations when passages

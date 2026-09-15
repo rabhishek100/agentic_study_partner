@@ -197,6 +197,23 @@ function timeline(current: Session, index: number, itemTime = 0): number {
     .reduce((sum, value) => sum + value, itemTime);
 }
 
+/** Publish a passage only when its sound has actually started. */
+function activateItem(
+  current: Session,
+  index: number,
+  itemTime = 0,
+  status: NarrationStatus = "speaking",
+): void {
+  const item = current.items[index]!;
+  emit({
+    status,
+    chunkIndex: index,
+    currentText: item.text,
+    currentAnchor: item.anchor ?? null,
+    currentTime: timeline(current, index, itemTime),
+  });
+}
+
 function refreshDuration(current: Session): void {
   emit({
     duration: current.durations.reduce((sum, value) => sum + value, 0),
@@ -423,13 +440,6 @@ async function speakOnDevice(current: Session, index: number, cursor: number): P
       if (current.run !== generation || cursor !== cursorGeneration) return true;
     }
     const item = current.items[at]!;
-    emit({
-      status: "speaking",
-      chunkIndex: at,
-      currentText: item.text,
-      currentAnchor: item.anchor ?? null,
-      currentTime: timeline(current, at),
-    });
     await new Promise<void>((resolve) => {
       const utterance = new SpeechSynthesisUtterance(item.speechText);
       utterance.voice =
@@ -437,6 +447,10 @@ async function speakOnDevice(current: Session, index: number, cursor: number): P
           /(premium|enhanced|natural|google|microsoft|samantha)/i.test(voice.name)) ??
         voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ?? null;
       utterance.rate = itemRate(item);
+      utterance.onstart = () => {
+        if (current.run !== generation || cursor !== cursorGeneration) return;
+        activateItem(current, at);
+      };
       utterance.onend = () => resolve();
       utterance.onerror = () => resolve();
       window.speechSynthesis.speak(utterance);
@@ -500,8 +514,9 @@ function playAudio(
       if (current.run !== generation || cursor !== cursorGeneration) return;
       if (state.status === "paused") {
         element.pause();
+        activateItem(current, index, offset, "paused");
       } else {
-        emit({ status: "speaking" });
+        activateItem(current, index, offset);
       }
     }, reject);
   });
@@ -518,13 +533,7 @@ async function playFrom(index: number, offset = 0): Promise<void> {
   for (let at = index; at < current.items.length; at += 1) {
     if (current.run !== generation || cursor !== cursorGeneration) return;
     const item = current.items[at]!;
-    emit({
-      status: state.status === "paused" ? "paused" : "preparing",
-      chunkIndex: at,
-      currentText: item.text,
-      currentAnchor: item.anchor ?? null,
-      currentTime: timeline(current, at, at === index ? offset : 0),
-    });
+    emit({ status: state.status === "paused" ? "paused" : "preparing" });
     const blobRequest = itemBlob(current, at, signal);
     if (at + 1 < current.items.length) void itemBlob(current, at + 1, signal);
     if (at + 2 < current.items.length) void itemBlob(current, at + 2, signal);
@@ -644,7 +653,7 @@ export async function playScript(
     durations: items.map((item) => estimateDuration(item.text)),
     mediaDurations: items.map(() => null),
   };
-  emit({ chunkCount: items.length, currentText: items[0]!.text });
+  emit({ chunkCount: items.length });
   refreshDuration(session);
   await playFrom(0);
 }
