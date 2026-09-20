@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
  *   longer in the mark — it stays the signature everywhere else it appears.
  *
  * The jade is the documented exception to "jade carries meaning": the mark is
- * identity, not state. See docs/mugensei-design-system.md.
+ * identity, not state.
  */
 export function BrandMark({
   className,

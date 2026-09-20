@@ -106,8 +106,7 @@ export interface FigureRef {
  *
  * A verbatim turn carries this instead of the chapter's text: the text is
  * canonical content and stays in canonical storage, so the interface fetches
- * it in installments from `/api/books/{book_id}/passage`. See
- * `docs/chat-reader-spec.md`.
+ * it in installments from `/api/books/{book_id}/passage`.
  */
 export interface ReadingRef {
   book_id: number;

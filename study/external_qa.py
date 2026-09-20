@@ -1,8 +1,8 @@
 """Execution logic for non-book / non-video queries via model knowledge or web search.
 
-This is rungs 3 and 4 of the grounding ladder described in
-`docs/source-first-study-spec.md`: what answers a question the reader's own
-sources could not, and how the answer says so.
+This is the external part of the grounding ladder summarized in
+`docs/flows.md`: what answers a question the reader's own sources could not,
+and how the answer says so.
 
 Two things make the difference between this being useful and being the
 "I need you to specify which part you mean" reply it used to produce:

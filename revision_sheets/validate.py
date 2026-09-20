@@ -4,8 +4,8 @@ import re
 
 from .html_render import max_pages
 
-# Per A4 page, from the tuning recorded in docs/revision-sheets-spec.md: the
-# two-page sheet targeted 450-550 words with a hard maximum of 650.
+# Per A4 page, tuned so the former two-page layout targeted 450-550 words with
+# a hard maximum of 650. The current flow is summarized in docs/flows.md.
 WORDS_LOW, WORDS_HIGH, WORDS_CEILING = 225, 275, 325
 from .contracts import RevisionError, Sheet
 

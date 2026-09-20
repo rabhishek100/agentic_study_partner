@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Mugensei semantic tokens. The contract is docs/mugensei-design-system.md;
- * this file implements it and must not extend it.
+ * Mugensei semantic tokens. This file is the contract and must not extend it
+ * without updating the token checker.
  *
  * Roles are the API. Components reference roles, never raw values. Every value
  * below was solved against its WCAG target rather than eyeballed — worst cases,
@@ -527,7 +527,7 @@
 
     /*
      * Source text reproduced into the conversation — a chapter or a paper read
-     * in full rather than summarized. See `docs/chat-reader-spec.md`.
+     * in full rather than summarized.
      *
      * It shares the serif stack with answer prose and then departs from it in
      * the two ways sustained reading needs and scanning an answer does not: a

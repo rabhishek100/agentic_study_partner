@@ -95,7 +95,7 @@ VECTOR_FALLBACK_JPEG_QUALITY = 85
 # Restricting OCR to regions the text layer does not cover halves the
 # per-page cost. Preflight only admits documents with a text layer, so the
 # full-page pass has nothing to contribute that pdfminer has not already
-# read - except text drawn inside a figure. See docs/parser-performance.md.
+# read - except text drawn inside a figure.
 BLOCK_OCR = "individual_blocks"
 FULL_PAGE_OCR = "entire_page"
 
@@ -677,8 +677,8 @@ def extract_selective(pdf_path: str | Path):
     Opt-in only, and unsafe for a document whose tables matter: measured
     against a full parse of the reference book this is 2.3x quicker but finds
     24 of its 32 tables, because borderless tables are visible to the layout
-    model and to no cheap detector. ``docs/parser-performance.md`` records the
-    comparison. Use it for a document known to have no tables, or not at all.
+    model and to no cheap detector. Use it for a document known to have no
+    tables, or not at all.
     """
 
     with fitz.open(pdf_path) as document:
@@ -726,7 +726,7 @@ def extract_elements(
         # selective extraction still misses 8 of 32 tables even with vector
         # drawings included: hi_res finds borderless tables visually and no
         # cheap classifier predicts that. Losing a quarter of a book's tables
-        # is not a trade worth 2.3x. See docs/parser-performance.md.
+        # is not a trade worth 2.3x.
         selective = os.getenv("PARSER_SELECTIVE_LAYOUT", "0").strip() == "1"
     elements = (
         extract_selective(pdf_path)

@@ -44,7 +44,7 @@ OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_CAPTION_MODEL = "google/gemini-2.5-flash-lite"
 
 # Both thresholds come from `scripts/evaluate_figures.py` over the real corpus
-# rather than from intuition; see evaluation/figure_selection_measurement.md.
+# rather than from intuition; see docs/evaluation.md.
 # An image whose exact bytes recur this many times is furniture, not a figure.
 BOILERPLATE_REPEAT_THRESHOLD = 3
 # Below this, an image is a rule, a logo, or a rendered heading. The median
