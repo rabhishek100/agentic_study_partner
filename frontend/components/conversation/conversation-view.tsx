@@ -12,6 +12,7 @@ import { Welcome } from "@/components/conversation/welcome";
 import { AskSelection } from "@/components/side-chat/ask-selection";
 import { Button } from "@/components/ui/button";
 import { useScrollAnchor } from "@/hooks/use-scroll-anchor";
+import { stop as stopNarration } from "@/lib/narration-player";
 import type {
   BookSummary,
   ChatTurn,
@@ -90,6 +91,10 @@ export function ConversationView({
   // viewport is reused. Without this, switching from a conversation that was
   // scrolled halfway up could open the next one at that arbitrary offset.
   useLayoutEffect(() => {
+    // Narration belongs to the conversation that started it. A globally
+    // mounted player must not keep speaking or cover the composer after the
+    // reader opens another chat (or returns here from another feature).
+    stopNarration();
     scrollToBottom("auto");
   }, [conversationId, scrollToBottom]);
 

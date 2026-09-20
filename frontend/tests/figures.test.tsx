@@ -142,6 +142,33 @@ describe("Figures", () => {
     );
     expect(screen.getByText("Also on cited pages")).toBeInTheDocument();
   });
+
+  it("renders a supplied gallery in page and source-block order", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        blob: async () => new Blob([new Uint8Array([1])], { type: "image/png" }),
+      })),
+    );
+
+    render(
+      <Figures
+        figures={[
+          figure({ block_id: 30, page: 82, caption: "Third" }),
+          figure({ block_id: 20, page: 81, caption: "Second" }),
+          figure({ block_id: 10, page: 81, caption: "First" }),
+        ]}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(3));
+    expect(screen.getAllByRole("img").map((image) => image.getAttribute("alt"))).toEqual([
+      "First",
+      "Second",
+      "Third",
+    ]);
+  });
 });
 
 describe("figure captions", () => {
@@ -192,5 +219,18 @@ describe("figure captions", () => {
     expect(
       await screen.findByText(/A scatter plot of sales against TV spend/),
     ).toBeInTheDocument();
+  });
+
+  it("can show the source caption while retaining the derived alt text", async () => {
+    render(
+      <InlineFigure
+        figure={figure({ caption: "A generated accessibility description." })}
+        visibleCaption="Figure 2.1: The source caption."
+      />,
+    );
+
+    expect(await screen.findByText("Figure 2.1: The source caption.")).toBeInTheDocument();
+    expect(screen.queryByText("A generated accessibility description.")).not.toBeInTheDocument();
+    expect(screen.getByAltText("A generated accessibility description.")).toBeInTheDocument();
   });
 });

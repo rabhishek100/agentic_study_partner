@@ -20,6 +20,22 @@ export function figureSource(figure: FigureRef): string {
   return `/api/books/${figure.book_id}/blocks/${figure.block_id}/image`;
 }
 
+/** Keep every figure surface in canonical front-to-back reading order. */
+export function figuresInReadingOrder(figures: FigureRef[]): FigureRef[] {
+  const bookOrder = new Map<number, number>();
+  for (const figure of figures) {
+    if (!bookOrder.has(figure.book_id)) {
+      bookOrder.set(figure.book_id, bookOrder.size);
+    }
+  }
+  return [...figures].sort(
+    (left, right) =>
+      bookOrder.get(left.book_id)! - bookOrder.get(right.book_id)! ||
+      left.page - right.page ||
+      left.block_id - right.block_id,
+  );
+}
+
 /** What a screen reader is told about a figure. */
 export function figureLabel(figure: FigureRef): string {
   // A caption written by the vision model at ingest is real alt text: it says
@@ -37,13 +53,26 @@ export function figureLabel(figure: FigureRef): string {
  * cites the figure where it discusses what it shows, and the figure lands
  * there rather than in a gallery the reader has to reconcile with the prose.
  */
-export function InlineFigure({ figure }: { figure: FigureRef }) {
+export function InlineFigure({
+  figure,
+  visibleCaption,
+  narrationPassageIndex,
+  captionNarrationPassageIndex,
+}: {
+  figure: FigureRef;
+  /** Override derived image copy with the source's own adjacent caption. */
+  visibleCaption?: string | null;
+  narrationPassageIndex?: number;
+  captionNarrationPassageIndex?: number;
+}) {
   const [opened, setOpened] = useState(false);
   const parts = formatPath(figure.path);
+  const caption = visibleCaption === undefined ? figure.caption : visibleCaption;
 
   return (
     <figure
       data-narration-figure={figure.block_id}
+      data-narration-passage={narrationPassageIndex}
       className="my-4 overflow-hidden rounded-lg border border-border bg-card"
     >
       <button
@@ -54,10 +83,13 @@ export function InlineFigure({ figure }: { figure: FigureRef }) {
       >
         <FigureImage figure={figure} className="max-h-80" />
       </button>
-      <figcaption className="border-t border-border px-3 py-2 font-sans text-xs leading-relaxed text-muted-foreground">
-        {figure.caption && (
+      <figcaption
+        data-narration-passage={captionNarrationPassageIndex}
+        className="border-t border-border px-3 py-2 font-sans text-xs leading-relaxed text-muted-foreground"
+      >
+        {caption && (
           <span className="block text-foreground">
-            <CaptionText>{figure.caption}</CaptionText>
+            <CaptionText>{caption}</CaptionText>
           </span>
         )}
         <span className="block">
@@ -162,6 +194,7 @@ export interface FiguresProps {
 export function Figures({ figures }: FiguresProps) {
   const [opened, setOpened] = useState<FigureRef | null>(null);
   if (figures.length === 0) return null;
+  const orderedFigures = figuresInReadingOrder(figures);
 
   return (
     <section aria-labelledby="figures-heading" className="space-y-2">
@@ -176,12 +209,9 @@ export function Figures({ figures }: FiguresProps) {
       </h4>
 
       <ul
-        className={cn(
-          "grid gap-2",
-          figures.length === 1 ? "grid-cols-1" : "grid-cols-2",
-        )}
+        className="grid grid-cols-1 gap-3"
       >
-        {figures.map((figure) => (
+        {orderedFigures.map((figure) => (
           <Figure
             key={figure.block_id}
             figure={figure}

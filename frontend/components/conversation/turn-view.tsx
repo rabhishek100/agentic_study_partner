@@ -123,7 +123,7 @@ export function TurnView({
       <div className="space-y-3">
         {showThinking && <ThinkingIndicator label="Checking the book…" />}
 
-        {turn.answer && (
+        {turn.answer && !result?.reading && (
           <Answer
             narrationId={`turn-${turn.id}`}
             text={turn.answer}
@@ -233,7 +233,7 @@ export function TurnView({
 
         {turn.status !== "streaming" && (
           <div className="flex flex-wrap items-center gap-1">
-            {turn.answer && <CopyButton text={turn.answer} />}
+            {turn.answer && !result?.reading && <CopyButton text={turn.answer} />}
             {turn.answer && !result?.reading && (
               <ReadAloud
                 id={`turn-${turn.id}`}

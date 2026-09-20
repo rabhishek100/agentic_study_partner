@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationView } from "@/components/conversation/conversation-view";
+import * as narrationPlayer from "@/lib/narration-player";
 
 const noop = () => {};
 
@@ -50,5 +51,29 @@ describe("ConversationView scrolling", () => {
     );
 
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
+  });
+
+  it("stops the old read-aloud session when the active conversation changes", () => {
+    const stopNarration = vi.spyOn(narrationPlayer, "stop");
+    const props = {
+      turns: [],
+      isStreaming: false,
+      hasBooks: false,
+      canSend: false,
+      onSend: noop,
+      onStop: noop,
+      onRetry: noop,
+      responseDepth: "quick" as const,
+      onResponseDepthChange: noop,
+      books: [],
+    };
+    const { rerender } = render(
+      <ConversationView {...props} conversationId="conversation-a" />,
+    );
+    stopNarration.mockClear();
+
+    rerender(<ConversationView {...props} conversationId="conversation-b" />);
+
+    expect(stopNarration).toHaveBeenCalledOnce();
   });
 });
