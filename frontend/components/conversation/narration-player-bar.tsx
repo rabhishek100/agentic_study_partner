@@ -308,6 +308,24 @@ function FollowAlong() {
   }, []);
 
   useEffect(() => {
+    if (!narration.anchorId) return;
+    const root = [...document.querySelectorAll("[data-narration-anchor]")].find(
+      (element) => element.getAttribute("data-narration-anchor") === narration.anchorId,
+    );
+    if (!root || typeof MutationObserver === "undefined") return;
+    let timer: number | undefined;
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setLayoutRevision((value) => value + 1), 0);
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [narration.anchorId]);
+
+  useEffect(() => {
     if (!narration.activeId || !narration.anchorId || !narration.currentText) {
       clearHighlight();
       return;
@@ -325,7 +343,10 @@ function FollowAlong() {
     // Never paint a structural wrapper (a whole list, answer, or section) as
     // the fallback. A missing range is safer left unpainted than represented
     // as speech that is covering content the voice is not saying.
-    if (!range && anchored?.matches(NARRATION_BLOCKS)) {
+    if (
+      !range &&
+      (anchored?.matches(NARRATION_BLOCKS) || anchored?.hasAttribute("data-narration-figure"))
+    ) {
       anchored.setAttribute("data-narration-fallback", "");
     }
     const scrollTarget = range?.startContainer.parentElement ?? anchored;

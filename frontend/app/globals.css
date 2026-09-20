@@ -562,6 +562,10 @@
         margin-top: 1.0588em;
     }
 
+    .reading-passage > p {
+        text-wrap: pretty;
+    }
+
     /* A paragraph after a heading belongs to it; the heading owns the space. */
     .reading-passage > .reading-heading + * {
         margin-top: 0.5294em;

@@ -59,38 +59,6 @@ function progress(
   };
 }
 
-function Heading({
-  segment,
-  baseLevel,
-}: {
-  segment: PassageSegment;
-  baseLevel: number;
-}) {
-  // Depth is the book's, not the document's: the scope root sits at whatever
-  // level it occupies in the table of contents, so headings are rendered
-  // relative to each other rather than mapped onto h1–h4 absolutely.
-  const depth = Math.max(0, (segment.level ?? baseLevel) - baseLevel);
-  if (depth === 0) {
-    return (
-      <h3 className="reading-heading reading-heading-primary">
-        {segment.text}
-      </h3>
-    );
-  }
-  if (depth === 1) {
-    return (
-      <h4 className="reading-heading reading-heading-secondary">
-        {segment.text}
-      </h4>
-    );
-  }
-  return (
-    <h5 className="reading-heading reading-heading-tertiary">
-      {segment.text}
-    </h5>
-  );
-}
-
 function Table({ segment }: { segment: PassageSegment }) {
   return (
     <div className="reading-table overflow-x-auto rounded-lg border border-border bg-raised">
@@ -126,20 +94,38 @@ function PageTick({ page }: { page: number }) {
 function Body({
   segment,
   baseHeadingLevel,
+  sourceCaption,
+  captionIndex,
 }: {
   segment: PassageSegment;
   baseHeadingLevel: number;
+  sourceCaption?: string | null;
+  captionIndex?: number;
 }) {
+  const narration = { "data-narration-passage": segment.index };
   switch (segment.kind) {
     case "heading":
-      return <Heading segment={segment} baseLevel={baseHeadingLevel} />;
+      if (Math.max(0, (segment.level ?? baseHeadingLevel) - baseHeadingLevel) === 0) {
+        return <h3 {...narration} className="reading-heading reading-heading-primary">{segment.text}</h3>;
+      }
+      if (Math.max(0, (segment.level ?? baseHeadingLevel) - baseHeadingLevel) === 1) {
+        return <h4 {...narration} className="reading-heading reading-heading-secondary">{segment.text}</h4>;
+      }
+      return <h5 {...narration} className="reading-heading reading-heading-tertiary">{segment.text}</h5>;
     case "table":
-      return <Table segment={segment} />;
+      return <div {...narration}><Table segment={segment} /></div>;
     case "figure":
-      return segment.figure ? <InlineFigure figure={segment.figure} /> : null;
+      return segment.figure ? (
+        <InlineFigure
+          figure={segment.figure}
+          visibleCaption={sourceCaption ?? null}
+          narrationPassageIndex={segment.index}
+          captionNarrationPassageIndex={captionIndex}
+        />
+      ) : null;
     case "caption":
       return (
-        <p className="reading-caption">
+        <p {...narration} className="reading-caption">
           {segment.text}
         </p>
       );
@@ -148,7 +134,7 @@ function Body({
       // rendering it through KaTeX would be guessing at markup it never had.
       // A monospaced, scrollable line is honest about that.
       return (
-        <div className="reading-formula" role="group" aria-label="Formula">
+        <div {...narration} className="reading-formula" role="group" aria-label="Formula">
           <span className="reading-formula-label" aria-hidden>
             Formula
           </span>
@@ -157,7 +143,7 @@ function Body({
       );
     default:
       return (
-        <p>
+        <p {...narration}>
           {segment.text && !/<[a-z][\s\S]*>/i.test(segment.text) ? (
             <CaptionText>{segment.text}</CaptionText>
           ) : (
@@ -182,12 +168,15 @@ function grouped(segments: PassageSegment[]): Run[] {
   for (const segment of segments) {
     const last = runs[runs.length - 1];
     const continues =
-      segment.kind === "list_item" &&
       last !== undefined &&
-      last[0].kind === "list_item" &&
-      // A list broken by a page turn is two lists, so the page tick lands
-      // between them rather than inside a single <ul>.
-      readerPage(last[last.length - 1]!) === readerPage(segment);
+      readerPage(last[last.length - 1]!) === readerPage(segment) &&
+      ((segment.kind === "list_item" && last[0].kind === "list_item") ||
+        // A source caption belongs to the image immediately before it. Keeping
+        // them in one figure prevents derived alt copy and the printed caption
+        // from looking like two unrelated paragraphs.
+        (segment.kind === "caption" &&
+          last.length === 1 &&
+          last[0].kind === "figure"));
     if (continues) last!.push(segment);
     else runs.push([segment]);
   }
@@ -254,9 +243,12 @@ function RunView({
           );
         })()
       ) : (
-        <div className="contents" data-narration-passage={first.index}>
-          <Body segment={first} baseHeadingLevel={baseHeadingLevel} />
-        </div>
+        <Body
+          segment={first}
+          baseHeadingLevel={baseHeadingLevel}
+          sourceCaption={run[1]?.kind === "caption" ? run[1].text : undefined}
+          captionIndex={run[1]?.kind === "caption" ? run[1].index : undefined}
+        />
       )}
     </>
   );
@@ -301,6 +293,19 @@ export function ReadingPassage({ reading }: ReadingPassageProps) {
   useEffect(() => () => {
     prepareRun.current += 1;
   }, []);
+
+  useEffect(() => {
+    const anchor = narration.currentAnchor;
+    if (
+      !isActive ||
+      anchor?.type !== "passage" ||
+      status === "loading" ||
+      status === "extending" ||
+      !hasMore
+    ) return;
+    const lastIndex = segments.at(-1)?.index ?? -1;
+    if (anchor.index > lastIndex) loadMore();
+  }, [hasMore, isActive, loadMore, narration.currentAnchor, segments, status]);
 
   const toggleChapterNarration = async () => {
     if (isActive) {

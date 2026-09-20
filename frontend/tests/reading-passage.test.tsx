@@ -17,6 +17,7 @@ vi.mock("@/lib/api", () => ({ apiFetch, API_BASE: "/api" }));
 const narration = vi.hoisted(() => ({
   activeId: null as string | null,
   status: "idle" as "idle" | "preparing" | "speaking" | "paused",
+  currentAnchor: null as { type: "passage"; index: number } | null,
   playScript: vi.fn((id: string) => {
     narration.activeId = id;
     narration.status = "speaking";
@@ -79,6 +80,7 @@ describe("ReadingPassage", () => {
     apiFetch.mockReset();
     narration.activeId = null;
     narration.status = "idle";
+    narration.currentAnchor = null;
     narration.playScript.mockClear();
     narration.pause.mockClear();
     narration.resume.mockClear();
@@ -178,8 +180,62 @@ describe("ReadingPassage", () => {
     ).toBeInTheDocument();
     expect(container.querySelector("table")).toBeTruthy();
     expect(
-      screen.getByText("A log-structured segment file"),
+      screen.getByAltText("A log-structured segment file"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("A log-structured segment file")).not.toBeInTheDocument();
+  });
+
+  it("keeps an image and its printed caption together without showing derived copy", async () => {
+    apiFetch.mockResolvedValue(
+      page(
+        [
+          segment(0, {
+            kind: "figure",
+            text: null,
+            figure: {
+              book_id: 4,
+              node_id: 91,
+              block_id: 12,
+              page: 72,
+              mime_type: "image/png",
+              path: "Chapter 3 > Hash Indexes",
+              caption: "A generated description that is not source text.",
+              evidence_rank: null,
+            },
+          }),
+          segment(1, { kind: "caption", text: "Figure 3.1: Hash table index." }),
+          segment(2, { text: "The explanation after the figure." }),
+        ],
+        0,
+        null,
+      ),
+    );
+
+    const { container } = render(<ReadingPassage reading={reading} />);
+
+    const figure = await screen.findByRole("figure");
+    expect(figure).toHaveTextContent("Figure 3.1: Hash table index.");
+    expect(figure).not.toHaveTextContent("generated description");
+    expect(container.querySelectorAll(".reading-caption")).toHaveLength(0);
+    expect(figure.compareDocumentPosition(screen.getByText("The explanation after the figure.")))
+      .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("loads the installment containing the active narrated passage", async () => {
+    narration.activeId = "reading-4-91";
+    narration.status = "speaking";
+    narration.currentAnchor = { type: "passage", index: 2 };
+    apiFetch
+      .mockResolvedValueOnce(page([segment(0)], 0, 1))
+      .mockResolvedValueOnce(page([segment(1), segment(2)], 1, null));
+
+    render(<ReadingPassage reading={reading} />);
+
+    await screen.findByText("paragraph 2");
+    expect(apiFetch.mock.calls.map((call) => call[0])).toEqual([
+      "/books/4/passage?offset=0&node_id=91",
+      "/books/4/passage?offset=1&node_id=91",
+    ]);
   });
 
   it("preserves the source hierarchy as accessible heading levels", async () => {
@@ -470,6 +526,7 @@ describe("a verbatim turn in the conversation", () => {
         name: /Chapter 3\. Storage and Retrieval, read in full/,
       }),
     ).toBeInTheDocument();
+    expect(screen.getAllByText("Chapter 3. Storage and Retrieval")).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /read.*aloud/i })).toHaveLength(1);
   });
 });

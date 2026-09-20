@@ -10,7 +10,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { InlineFigure } from "@/components/conversation/figures";
+import {
+  InlineFigure,
+  figuresInReadingOrder,
+} from "@/components/conversation/figures";
 import {
   ambiguousCitationPages,
   figuresForMarker,
@@ -324,6 +327,10 @@ export function Answer({
     [evidence, citations],
   );
   const source = useMemo(() => normalizeMath(text), [text]);
+  const orderedFigures = useMemo(
+    () => figuresInReadingOrder(figures),
+    [figures],
+  );
   // Each markdown pass needs a fresh set so the first mention wins again. The
   // renderer *types* above stay static, which is what preserves their DOM and
   // hook state while this context value updates.
@@ -334,7 +341,7 @@ export function Answer({
   const renderState: AnswerRenderState = {
     evidence,
     citations,
-    figures,
+    figures: orderedFigures,
     onOpenReference,
     renderedFigures: new Set<number>(),
     ambiguousPages,
