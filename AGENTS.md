@@ -37,7 +37,7 @@ day per day).
   accessible (keyboard-operable, WCAG AA contrast, reduced-motion aware) and
   free of the state bugs that make a demo stall. It must not, however, grow
   logic of its own: it consumes the grounded API and generates nothing.
-  See [`docs/chat-interface-spec.md`](docs/chat-interface-spec.md).
+  See [`docs/interface.md`](docs/interface.md).
 - **Evaluation**: a gold set with measured retrieval, citation, and
   hallucination metrics, plus a report on what improved and why.
 - **Observability with LangSmith**: every LangGraph run and LLM call traced

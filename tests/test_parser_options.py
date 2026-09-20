@@ -1,8 +1,7 @@
 """The options `hi_res` is asked for.
 
 These are the settings that decide what canonical content a book ends up
-holding, and how long a parse takes. The measured cost of each is recorded in
-`docs/parser-performance.md`; these tests pin the settings themselves, since a
+holding, and how long a parse takes. These tests pin the settings themselves, since a
 silent change to any of them changes every book ingested afterwards.
 """
 

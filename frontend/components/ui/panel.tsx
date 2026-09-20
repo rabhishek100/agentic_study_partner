@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
  * The border stays present-but-transparent in dark so the two themes keep
  * identical geometry.
  *
- * See docs/mugensei-design-system.md.
+ * The semantic token contract is implemented in app/globals.css.
  */
 function Panel({
   className,

@@ -19,9 +19,8 @@ is the failure mode a generative transcription introduces and a dumb one
 cannot, and it is invisible downstream: a fabricated sentence reads perfectly
 and cites perfectly.
 
-The gate flags and never blocks. Its thresholds are guesses until the gold set
-in `docs/ocr-ingestion.md` exists, and a guess that can halt a 400-page book
-over one noisy diagram page trades a small risk for a certain one.
+The gate flags and never blocks. Its thresholds are not a reason to halt a
+400-page book over one noisy diagram page; see docs/evaluation.md.
 """
 
 import logging
@@ -79,7 +78,7 @@ OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 # model reads every page, the dearer one is the fallback and the second opinion
 # on the pages the gate flags, which are the pages it is better at.
 #
-# See evaluation/transcription_measurement.md, including what that measurement
+# See docs/evaluation.md, including what that measurement
 # still cannot support - in particular the table F1 gap, most of which is a
 # disagreement about cell granularity rather than a misread.
 #

@@ -21,8 +21,7 @@ DEFAULT_SOURCE_BUCKET = "book-sources"
 DEFAULT_MAX_SOURCE_BYTES = 52_428_800  # 50 MB, the Supabase free-plan ceiling
 # The design target, reachable now that parsing runs as bounded page batches
 # across a process pool: each batch holds a fixed slice of the document, so
-# parse memory no longer grows with book length. docs/parser-performance.md
-# records the measurements behind this.
+# parse memory no longer grows with book length.
 DEFAULT_MAX_PAGES = 1000
 DEFAULT_MAX_QUEUED_JOBS_PER_OWNER = 3
 DEFAULT_ALLOWED_CONTENT_TYPES = ("application/pdf",)

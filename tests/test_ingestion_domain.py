@@ -299,8 +299,7 @@ class LimitTests(unittest.TestCase):
 
         It sat at 400 while parsing held a whole document in memory, which
         cost one production worker an OOM kill. Batches bound per-process
-        memory, so the target is now supportable; docs/parser-performance.md
-        carries the numbers.
+        memory, so the target is now supportable.
         """
 
         limits = IngestionLimits()

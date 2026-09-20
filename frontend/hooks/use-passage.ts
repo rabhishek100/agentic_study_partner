@@ -23,7 +23,7 @@ export interface PassageState {
  *
  * The whole chapter is available; it arrives the way a reader consumes it.
  * Fetching all of it at once would put 90KB of prose into one message and,
- * on a phone, into one layout pass — see `docs/chat-reader-spec.md`.
+ * on a phone, into one layout pass.
  *
  * The server decides where installments end, at whole segments, so an offset
  * this hook sends back always names a boundary the server gave it.

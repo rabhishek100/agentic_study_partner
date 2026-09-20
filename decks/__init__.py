@@ -5,5 +5,5 @@ parts that already exist — the canonical evidence loaders, the citation
 contracts, and the coverage machinery the summary paths use — plus a card
 model, a scheduler, and deterministic quality metrics.
 
-See `docs/flashcard-decks-spec.md` for why it is shaped this way.
+See `docs/flows.md` for the current workflow.
 """

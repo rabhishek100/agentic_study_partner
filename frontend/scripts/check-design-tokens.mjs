@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Enforces the Mugensei design system contract (docs/mugensei-design-system.md).
+ * Enforces the semantic token contract implemented in app/globals.css.
  *
  * The contract is only real if it cannot be violated silently. This scans the
  * component tree for the four things the system forbids — raw colour, derived
@@ -202,7 +202,7 @@ if (added.length) {
   console.error("\nNew design-system violations:\n");
   for (const { k, n, allowed } of added) console.error(`  ${k}  (${allowed} allowed, ${n} found)`);
   console.error(
-    "\nUse a semantic role from docs/mugensei-design-system.md, or if this is a\n" +
+    "\nUse a semantic role from app/globals.css, or if this is a\n" +
       "deliberate reduction elsewhere, run: npm run lint:tokens -- --write\n",
   );
   process.exit(1);

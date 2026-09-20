@@ -1,8 +1,7 @@
 """Capping inference thread pools to the container's share.
 
-Whether the cap helps is a measurement, recorded in
-`docs/parser-performance.md`. These tests cover what must hold regardless of
-the answer: it is off unless asked for, it reaches both libraries, and it
+Whether the cap helps is a measurement. These tests cover what must hold
+regardless of the answer: it is off unless asked for, it reaches both libraries, and it
 never silently ignores a bad setting.
 """
 
