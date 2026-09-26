@@ -11,29 +11,24 @@ An evaluation-driven study companion that ingests technical books, retrieves
 grounded evidence, summarizes chapters, and generates interview-style
 questions — using hierarchical RAG and an inspectable agentic workflow.
 
-I'm building this to prepare for ML/AI engineering interviews while
-demonstrating the exact skills those interviews test: retrieval system
-design, evaluation methodology, and agentic orchestration I can defend by
-explaining tradeoffs, not just describe as working. Every tool choice must be
-justifiable in that conversation — technology is never the goal by itself.
-
-Budget: roughly 100–120 focused hours over four weeks (about half a working
-day per day).
+The project is meant to show retrieval system design, evaluation methodology,
+and agentic orchestration whose tradeoffs can be explained, not just described
+as working. Every tool choice must be justifiable on those terms — technology
+is never the goal by itself.
 
 ## Skills this project must demonstrate
 
-- **Retrieval**: BM25/FTS5 baseline first; add semantic retrieval or
+- **Retrieval**: BM25 (Postgres full-text search) baseline first; add semantic retrieval or
   reranking only where evaluation shows the baseline misses.
 - **Agentic RAG with LangGraph**: explicit state, routing, retries,
   decomposition — a workflow you can diagram and step through, not a
   black-box agent loop.
 - **LangChain**: models, prompts, tools, retrievers, structured output.
 - **FastAPI**: async execution, streaming.
-- **A React interface that presents the work credibly.** This was originally
-  scoped as "functional, not polished." That was wrong: the portfolio output —
-  the demo, the example chapter summary, the interview session — is delivered
-  *through* the interface, so a provisional-looking one undercuts the
-  retrieval and evaluation work it exists to present. The interface must be
+- **A React interface that presents the work credibly.** The demo, chapter
+  summaries, and interview sessions are experienced *through* the interface,
+  so a provisional-looking one undercuts the retrieval and evaluation work it
+  exists to present. The interface must be
   accessible (keyboard-operable, WCAG AA contrast, reduced-motion aware) and
   free of the state bugs that make a demo stall. It must not, however, grow
   logic of its own: it consumes the grounded API and generates nothing.
@@ -62,9 +57,9 @@ day per day).
 5. **Admit insufficient evidence** rather than inventing an answer when
    retrieval comes up empty or contradictory.
 6. **Production-shaped, not production-scaled.** Validation, tests,
-   idempotency, structured logs, and clear module boundaries: yes. Auth,
-   multi-tenancy, Kubernetes, distributed infra, custom vector databases,
-   complex multi-agent systems: no, unless explicitly requested.
+   idempotency, structured logs, and clear module boundaries: yes.
+   Kubernetes, distributed infra, custom vector databases, and complex
+   multi-agent systems: no, unless explicitly requested.
 
 ## Scope
 
@@ -75,7 +70,7 @@ day per day).
 - Chapter/section selection and complete chapter summarization with
   citations.
 - Grounded question answering.
-- BM25/FTS5 retrieval baseline.
+- BM25 retrieval baseline.
 - Interview-question generation with model answers verified against
   evidence.
 - A small LangGraph workflow: plan → retrieve → check sufficiency → retry.
@@ -90,12 +85,11 @@ day per day).
 - PowerPoint ingestion using the same canonical content model.
 - Streaming progress for long chapter/book operations.
 
-### Explicit stretch goal — do not let this eat the month
+### Beyond the core
 
-Video transcript ingestion, episode notes/blog generation, timestamp-aligned
-screenshot extraction, whole-book topic inventories, hosted deployment.
-Transcript alignment and multimodal QC could consume the whole month without
-improving the core RAG demonstration.
+Video ingestion and hosted deployment began as stretch goals beyond the core
+book RAG path. Work in these areas must not weaken core book retrieval,
+grounding, or evaluation.
 
 ## Architecture
 
@@ -106,7 +100,7 @@ PDF / PPT
     -> Hierarchy-aware retrieval
     -> LangGraph planning, validation, and retry   (traced end to end in LangSmith)
     -> Grounded answer or summary with citations
-    -> FastAPI + minimal React interface
+    -> FastAPI + Next.js interface
 ```
 
 The agent plans and coordinates retrieval. It does not replace BM25 or
@@ -154,13 +148,13 @@ Every new technique must improve at least one measured failure.
 8. Expose a small API and usable interface.
 9. Be explainable end to end in a short architecture walkthrough.
 
-## Portfolio output
+## Deliverables
 
 Clear README and architecture diagram, one-command local setup, a short demo
 video, an example chapter summary and interview session, retrieval/answer
 evaluation results, and a short engineering log of decisions, failed
 experiments, tradeoffs, and next steps.
 
-The project must demonstrate not just that it works, but that I can explain
-why it's designed this way, how its quality is measured, and where I chose
-simplicity over unnecessary complexity.
+The documentation should show not just that the system works, but why it is
+designed this way, how its quality is measured, and where simplicity was
+chosen over unnecessary complexity.

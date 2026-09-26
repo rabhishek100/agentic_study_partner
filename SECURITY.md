@@ -3,9 +3,9 @@
 ## Reporting a vulnerability
 
 Do not open a public issue for a suspected vulnerability or exposed secret.
-While this repository is private, contact the repository owner directly. Before
-public release, enable GitHub private vulnerability reporting and replace this
-paragraph with the repository's monitored security contact and response window.
+Instead, email the maintainer privately at the address on their GitHub profile
+([@rabhishek100](https://github.com/rabhishek100)), with steps to reproduce and
+the affected commit.
 
 ## Supported version
 
