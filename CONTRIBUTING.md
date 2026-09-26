@@ -34,14 +34,3 @@ how it was verified, and any remaining limitation. Schema changes need a new
 ordered migration; never rewrite an existing migration. Changes to parsing,
 chunking, prompts, models, or evaluation rubrics need a version/provenance
 change so old and new outputs cannot be confused.
-
-## Before making the repository public
-
-- Choose and add an explicit open-source license.
-- Confirm that tracked source/evaluation excerpts are legally redistributable.
-- Run secret and large-file scans over full Git history.
-- Replace personal deployment/account references with neutral examples.
-- Configure private vulnerability reporting and repository contact details.
-- Add screenshots or a demo video made only from redistributable sources.
-- Re-run CI from a clean clone and verify the setup instructions on a second
-  machine.

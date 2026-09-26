@@ -1,6 +1,6 @@
-# Interview guide
+# Design decisions
 
-## The 60-second explanation
+## Overview
 
 Agentic Study Partner is a multi-source RAG system for studying technical
 books, papers, and lectures. It ingests source material into a canonical,
@@ -29,7 +29,7 @@ project also keeps failed experiments and evaluation limitations visible.
 7. Frozen evaluation sets measure retrieval, routing, coverage, citations,
    OCR, and interview behavior separately.
 
-## Decisions worth defending
+## Key decisions
 
 ### Why not use vector search for everything?
 
@@ -89,26 +89,24 @@ topics receive one primary question and at most one focused follow-up.
 - A proposed multi-turn routing change was rejected because measured accuracy
   decreased.
 
-### What would you improve next?
+### What comes next
 
 Human-review the interview evidence set, add claim-level entailment checks,
 label figure relevance, broaden the corpus, and collect latency/cost
 distributions. Only then consider approximate vector indexes or more complex
 retrieval.
 
-## Honest limitations
+## Limitations
 
 - Retrieval results come from a small source-specific seed.
 - Several generative eval sets are synthetic or model judged.
 - The system depends on hosted model availability and pricing.
 - Live voice adds operational complexity and is optional.
-- No study proves improved learning or hiring outcomes.
-- The repository needs a license before it is truly open source.
+- No study yet shows improved learning outcomes.
 
-## Demo path
+## Quick tour
 
-A concise interview demo is: upload/open one book → ask an exact question →
-open the cited page → summarize a complete chapter → ask an anchored follow-up
-with the source lock on → show the LangSmith trace → compare retrieval metrics
-→ run or replay an adaptive interview. Keep the focus on evidence boundaries
-and measured tradeoffs rather than the number of features.
+To see the main ideas end to end: upload or open one book → ask an exact
+question → open the cited page → summarize a complete chapter → ask an anchored
+follow-up with the source lock on → inspect the LangSmith trace → compare
+retrieval metrics → run or replay an adaptive interview.

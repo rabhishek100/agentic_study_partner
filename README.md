@@ -5,8 +5,7 @@ It turns source material into cited answers, summaries, revision sheets,
 flashcards, and interview practice while keeping every important claim linked
 to a page or timestamp.
 
-This repository is a working portfolio project, not a hosted public service.
-Its strongest evidence is the inspectable retrieval and evaluation pipeline;
+It is a personal project, not a hosted public service. Its strongest evidence is the inspectable retrieval and evaluation pipeline;
 some generative quality sets are still synthetic and are labelled as such.
 
 ## What it does
@@ -98,7 +97,7 @@ and parses a real generated PDF inside the container.
 | [Evaluation](docs/evaluation.md) | Datasets, metrics, results, improvements, and limitations |
 | [Interface](docs/interface.md) | Current screens, interaction rules, and accessibility contract |
 | [Development and operations](docs/operations.md) | Setup, configuration, workers, deployment shape, and recovery |
-| [Interview guide](docs/interview-guide.md) | A short, defensible project walkthrough and likely questions |
+| [Design decisions](docs/design-decisions.md) | The key design choices, their trade-offs, and known limitations |
 | [Contributing](CONTRIBUTING.md) | Change process and evidence rules |
 | [Security](SECURITY.md) | Security boundaries and reporting guidance |
 
@@ -120,9 +119,7 @@ is running. That is the source of truth for request and response schemas.
 | `supabase/migrations/` | Versioned database schema and owner isolation |
 | `tests/` | Backend integration/unit coverage; frontend tests live beside UI code |
 
-## Open-source status
+## License
 
-The code has contribution and security guidance, but the repository does not
-yet contain a license. Until a license is chosen, others can inspect the code
-but do not have an explicit open-source grant. The remaining release checklist
-is in [Contributing](CONTRIBUTING.md#before-making-the-repository-public).
+No license has been chosen yet, so all rights are reserved: you are welcome to
+read the code, but reuse or redistribution needs permission from the author.
