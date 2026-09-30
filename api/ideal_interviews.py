@@ -50,6 +50,8 @@ async def create(
     request: CreateIdealInterviewRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> IdealInterviewFlow:
+    """Generate and save an ideal interview flow for the requested source scope."""
+
     def run():
         with database_connection() as connection:
             return create_ideal_interview(
@@ -74,6 +76,8 @@ async def create(
 async def list_ideal_interviews(
     owner_id: UUID = Depends(current_owner),
 ) -> IdealInterviewList:
+    """List the signed-in user’s saved ideal interview flows."""
+
     def load():
         with database_connection(readonly=True) as connection:
             return ideal_store.list_flows(connection, owner_id=owner_id)
@@ -86,6 +90,8 @@ async def get_flow(
     flow_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> IdealInterviewFlow:
+    """Load an owned ideal interview flow and its generated exchanges."""
+
     def load():
         with database_connection(readonly=True) as connection:
             return ideal_store.load_flow(connection, flow_id, owner_id=owner_id)
@@ -102,6 +108,8 @@ async def voice_connection(
     response: Response,
     owner_id: UUID = Depends(current_owner),
 ) -> IdealVoiceConnection:
+    """Create an optional voice playback connection for an owned ideal interview flow."""
+
     def connect():
         with database_connection(readonly=True) as connection:
             flow = ideal_store.load_flow(connection, flow_id, owner_id=owner_id)

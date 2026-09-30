@@ -376,7 +376,11 @@ def _presigned_upload_for(job: IngestionJob) -> PresignedUploadResponse | None:
     )
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    responses={200: {"model": CreateIngestionResponse, "description": "Idempotent replay of the existing reservation or job"}},
+)
 async def create_ingestion(
     request: CreateIngestionRequest,
     response: Response,
@@ -516,6 +520,8 @@ async def list_ingestions(
     owner_id: Annotated[UUID, Depends(current_owner)],
     limit: int = 20,
 ) -> JobListResponse:
+    """List the signed-in user’s recent PDF ingestion jobs and durable progress."""
+
     def load() -> list[IngestionJob]:
         with database_connection(readonly=True) as connection:
             return list_jobs(connection, owner_id=owner_id, limit=min(limit, 100))
@@ -527,8 +533,7 @@ async def list_ingestions(
 
 @router.get("/limits")
 async def read_limits() -> IngestionLimitsResponse:
-    """The active upload limits. Declared before `/{job_id}` so the literal
-    path is not read as a job identifier."""
+    """Return active PDF upload limits: maximum bytes, pages, and allowed media types."""
 
     limits = load_limits()
     return IngestionLimitsResponse(

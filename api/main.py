@@ -27,6 +27,14 @@ from starlette.concurrency import run_in_threadpool
 load_dotenv()
 
 from api.auth import current_owner
+from api.documentation import (
+    API_DESCRIPTION,
+    SSE_RESPONSES,
+    TAGS,
+    binary_body,
+    binary_responses,
+    configure_openapi,
+)
 from storage.book_images import load_figure
 from video.media_store import MediaStoreError
 from api.courses import router as course_router
@@ -100,6 +108,7 @@ from study.contracts import (
 from study.conversation import execute_conversation_turn, new_conversation_state
 from study.grounding import GroundingPolicy
 from study.dictation import (
+    QUESTION_MEDIA_TYPES,
     MAXIMUM_QUESTION_BYTES,
     DictationError,
     audio_extension,
@@ -147,7 +156,12 @@ RetrievalMode = Literal["bm25", "vector", "hybrid", "hybrid_rerank"]
 
 
 class ChatRequest(ContractModel):
-    question: str = Field(min_length=1, max_length=10_000)
+    question: str = Field(
+        min_length=1,
+        max_length=10_000,
+        description="Question or study instruction grounded in the selected sources.",
+        examples=["Explain the main idea of chapter 1"],
+    )
     # Chosen from the frozen gold-set comparison in
     # evaluation/retrieval_comparison_artifact.json, where reranking wins
     # on every metric: Recall@5 1.00 against 0.93 for hybrid alone, and
@@ -158,7 +172,12 @@ class ChatRequest(ContractModel):
     # deliberately no default and an empty list is rejected: a chat turn must
     # never fall back to book 1, and it must never silently widen to the whole
     # library either. The client sends the reader's selection explicitly.
-    book_ids: list[int] = Field(min_length=1, max_length=50)
+    book_ids: list[int] = Field(
+        min_length=1,
+        max_length=50,
+        description="Ready source IDs returned by GET /api/books; replace example IDs with your own.",
+        examples=[[1]],
+    )
     # Book ids explicitly tagged with @ in this turn. These narrow retrieval
     # for the turn without rewriting the conversation's default selection.
     mentioned_book_ids: list[int] = Field(default_factory=list, max_length=50)
@@ -574,7 +593,13 @@ def _allowed_origins() -> list[str]:
 app = FastAPI(
     title="Agentic Study Partner API",
     version="0.1.0",
-    description="Grounded book questions and complete-scope summaries.",
+    description=API_DESCRIPTION,
+    openapi_tags=TAGS,
+    swagger_ui_parameters={
+        "docExpansion": "none",
+        "filter": True,
+        "displayRequestDuration": True,
+    },
 )
 app.add_middleware(
     CORSMiddleware,
@@ -614,8 +639,15 @@ async def _close_database_pools() -> None:
     close_pools()
 
 
-@app.get("/api/health", response_model=HealthResponse)
+@app.get(
+    "/api/health",
+    response_model=HealthResponse,
+    tags=['health'],
+    responses={503: {"model": HealthResponse, "description": "Canonical or retrieval database is not ready"}},
+)
 async def health(response: Response) -> HealthResponse:
+    """Check database readiness and return the running build identity."""
+
     canonical_ready, retrieval_ready = await run_in_threadpool(database_readiness)
     if not (canonical_ready and retrieval_ready):
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -628,7 +660,11 @@ async def health(response: Response) -> HealthResponse:
     )
 
 
-@app.get("/api/health/queue", response_model=QueueHealthResponse)
+@app.get(
+    "/api/health/queue",
+    response_model=QueueHealthResponse,
+    tags=['health'],
+)
 async def queue_health() -> QueueHealthResponse:
     """Ingestion queue depth, age, and worker liveness.
 
@@ -676,7 +712,11 @@ async def queue_health() -> QueueHealthResponse:
     return await run_in_threadpool(load)
 
 
-@app.get("/api/books", response_model=BookListResponse)
+@app.get(
+    "/api/books",
+    response_model=BookListResponse,
+    tags=['books'],
+)
 async def books(
     owner_id: UUID = Depends(current_owner),
     document_type: str | None = Query("book"),
@@ -713,7 +753,11 @@ async def books(
     return BookListResponse(books=await run_in_threadpool(load))
 
 
-@app.get("/api/papers", response_model=BookListResponse)
+@app.get(
+    "/api/papers",
+    response_model=BookListResponse,
+    tags=['books'],
+)
 async def papers(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
     """List the caller's ready scientific papers."""
 
@@ -743,7 +787,11 @@ async def papers(owner_id: UUID = Depends(current_owner)) -> BookListResponse:
     return BookListResponse(books=await run_in_threadpool(load))
 
 
-@app.patch("/api/books/{book_id}", response_model=RenamedBookResponse)
+@app.patch(
+    "/api/books/{book_id}",
+    response_model=RenamedBookResponse,
+    tags=['books'],
+)
 async def rename_book_title(
     book_id: int,
     request: RenameBookRequest,
@@ -777,7 +825,11 @@ async def rename_book_title(
     )
 
 
-@app.get("/api/books/{book_id}/chapters", response_model=ChapterListResponse)
+@app.get(
+    "/api/books/{book_id}/chapters",
+    response_model=ChapterListResponse,
+    tags=['books'],
+)
 async def book_chapters(
     book_id: int,
     owner_id: UUID = Depends(current_owner),
@@ -810,7 +862,11 @@ async def book_chapters(
     )
 
 
-@app.get("/api/books/{book_id}/passage", response_model=PassageResponse)
+@app.get(
+    "/api/books/{book_id}/passage",
+    response_model=PassageResponse,
+    tags=['books'],
+)
 async def book_passage(
     book_id: int,
     node_id: int | None = Query(
@@ -874,7 +930,11 @@ async def book_passage(
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 
-@app.get("/api/books/suggested-questions", response_model=SuggestedQuestionsResponse)
+@app.get(
+    "/api/books/suggested-questions",
+    response_model=SuggestedQuestionsResponse,
+    tags=['books'],
+)
 async def book_suggested_questions(
     book_ids: str | None = Query(default=None, description="Comma-separated book IDs"),
     refresh: bool = Query(default=False),
@@ -936,7 +996,11 @@ async def book_suggested_questions(
     return await run_in_threadpool(load)
 
 
-@app.post("/api/books/suggested-questions/refresh", response_model=SuggestedQuestionsResponse)
+@app.post(
+    "/api/books/suggested-questions/refresh",
+    response_model=SuggestedQuestionsResponse,
+    tags=['books'],
+)
 async def refresh_book_suggested_questions(
     book_ids: str | None = Query(default=None, description="Comma-separated book IDs"),
     owner_id: UUID = Depends(current_owner),
@@ -1474,7 +1538,12 @@ def _open_reading_session(
     return _reading_session(created, book=book, question_count=0)
 
 
-@app.post("/api/reading-sessions", response_model=ReadingSession, status_code=201)
+@app.post(
+    "/api/reading-sessions",
+    response_model=ReadingSession,
+    status_code=201,
+    tags=['reading'],
+)
 async def open_reading_session(
     request: OpenReadingSessionRequest,
     owner_id: UUID = Depends(current_owner),
@@ -1484,7 +1553,11 @@ async def open_reading_session(
     return await run_in_threadpool(_open_reading_session, owner_id, request)
 
 
-@app.get("/api/reading-sessions", response_model=ReadingSessionListResponse)
+@app.get(
+    "/api/reading-sessions",
+    response_model=ReadingSessionListResponse,
+    tags=['reading'],
+)
 async def reading_sessions(
     owner_id: UUID = Depends(current_owner),
 ) -> ReadingSessionListResponse:
@@ -1550,6 +1623,7 @@ def _resolve_anchor(
 @app.post(
     "/api/reading-sessions/{conversation_id}/anchors/resolve",
     response_model=ResolvedAnchorResponse,
+    tags=['reading'],
 )
 async def resolve_anchor(
     conversation_id: UUID,
@@ -1569,6 +1643,7 @@ async def resolve_anchor(
 @app.patch(
     "/api/reading-sessions/{conversation_id}/position",
     response_model=ReadingSession,
+    tags=['reading'],
 )
 async def update_reading_position(
     conversation_id: UUID,
@@ -1621,6 +1696,7 @@ async def update_reading_position(
     "/api/conversations/{conversation_id}/side-chats",
     response_model=SideChatSummary,
     status_code=201,
+    tags=['reading'],
 )
 async def open_side_chat(
     conversation_id: UUID,
@@ -1640,6 +1716,7 @@ async def open_side_chat(
 @app.get(
     "/api/conversations/{conversation_id}/side-chats",
     response_model=SideChatListResponse,
+    tags=['reading'],
 )
 async def side_chats(
     conversation_id: UUID,
@@ -1663,7 +1740,11 @@ async def side_chats(
     return SideChatListResponse(side_chats=await run_in_threadpool(load))
 
 
-@app.patch("/api/side-chats/{side_chat_id}", response_model=SideChatSummary)
+@app.patch(
+    "/api/side-chats/{side_chat_id}",
+    response_model=SideChatSummary,
+    tags=['reading'],
+)
 async def update_side_chat(
     side_chat_id: UUID,
     request: UpdateSideChatRequest,
@@ -1716,7 +1797,12 @@ async def update_side_chat(
     return await run_in_threadpool(apply)
 
 
-@app.post("/api/side-chats/{side_chat_id}/turns/stream")
+@app.post(
+    "/api/side-chats/{side_chat_id}/turns/stream",
+    tags=['reading'],
+    response_class=Response,
+    responses=SSE_RESPONSES,
+)
 async def side_chat_turn_stream(
     side_chat_id: UUID,
     request: SideChatTurnRequest,
@@ -1751,10 +1837,16 @@ def _prompt_settings(profile: PromptProfile) -> PromptSettingsResponse:
     )
 
 
-@app.get("/api/prompt-settings", response_model=PromptSettingsResponse)
+@app.get(
+    "/api/prompt-settings",
+    response_model=PromptSettingsResponse,
+    tags=['prompts'],
+)
 async def prompt_settings(
     owner_id: UUID = Depends(current_owner),
 ) -> PromptSettingsResponse:
+    """Read the signed-in user’s saved answer-style profile and effective prompt."""
+
     def load() -> PromptSettingsResponse:
         with database_connection(readonly=True) as connection:
             stored = load_prompt_profile(connection, owner_id=owner_id)
@@ -1763,11 +1855,17 @@ async def prompt_settings(
     return await run_in_threadpool(load)
 
 
-@app.patch("/api/prompt-settings", response_model=PromptSettingsResponse)
+@app.patch(
+    "/api/prompt-settings",
+    response_model=PromptSettingsResponse,
+    tags=['prompts'],
+)
 async def update_prompt_settings(
     request: UpdatePromptSettingsRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> PromptSettingsResponse:
+    """Save an answer-style profile while retaining the server’s grounding rules."""
+
     def save() -> PromptSettingsResponse:
         with database_connection() as connection:
             stored = save_prompt_profile(
@@ -1780,11 +1878,17 @@ async def update_prompt_settings(
     return await run_in_threadpool(save)
 
 
-@app.post("/api/prompt-settings/preview", response_model=PromptSettingsResponse)
+@app.post(
+    "/api/prompt-settings/preview",
+    response_model=PromptSettingsResponse,
+    tags=['prompts'],
+)
 async def preview_prompt_settings(
     request: PromptPreviewRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> PromptSettingsResponse:
+    """Preview the effective prompt for a proposed profile without saving it or calling a model."""
+
     del owner_id
     preview = prompt_preview(
         request.profile,
@@ -1801,7 +1905,12 @@ async def preview_prompt_settings(
     )
 
 
-@app.post("/api/transcriptions", response_model=TranscriptionResponse)
+@app.post(
+    "/api/transcriptions",
+    response_model=TranscriptionResponse,
+    tags=['transcription'],
+    openapi_extra=binary_body(*QUESTION_MEDIA_TYPES),
+)
 async def transcribe(
     request: Request,
     owner_id: UUID = Depends(current_owner),
@@ -1845,11 +1954,17 @@ async def transcribe(
     return TranscriptionResponse(text=text)
 
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post(
+    "/api/chat",
+    response_model=ChatResponse,
+    tags=['study'],
+)
 async def chat(
     request: ChatRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ChatResponse:
+    """Run one grounded book/paper study turn and return the complete answer, evidence, and saved conversation state."""
+
     await run_in_threadpool(
         _require_ready_books,
         owner_id,
@@ -1956,7 +2071,12 @@ def _streamed_turn(
     )
 
 
-@app.post("/api/chat/stream")
+@app.post(
+    "/api/chat/stream",
+    tags=['study'],
+    response_class=Response,
+    responses=SSE_RESPONSES,
+)
 async def chat_stream(
     request: ChatRequest,
     owner_id: UUID = Depends(current_owner),
@@ -1979,7 +2099,11 @@ async def chat_stream(
     )
 
 
-@app.get("/api/conversations", response_model=ConversationListResponse)
+@app.get(
+    "/api/conversations",
+    response_model=ConversationListResponse,
+    tags=['study'],
+)
 async def conversations(
     owner_id: UUID = Depends(current_owner),
     document_type: str | None = Query(None),
@@ -2019,6 +2143,7 @@ async def conversations(
 @app.get(
     "/api/conversations/{conversation_id}",
     response_model=ConversationDetail,
+    tags=['study'],
 )
 async def conversation_detail(
     conversation_id: UUID,
@@ -2063,12 +2188,15 @@ async def conversation_detail(
 @app.patch(
     "/api/conversations/{conversation_id}",
     response_model=ConversationSummary,
+    tags=['study'],
 )
 async def rename_conversation(
     conversation_id: UUID,
     request: UpdateConversationRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ConversationSummary:
+    """Rename a saved conversation belonging to the signed-in user."""
+
     def apply() -> ConversationSummary:
         with database_connection() as connection:
             record = update_conversation(
@@ -2113,11 +2241,17 @@ async def rename_conversation(
     return await run_in_threadpool(apply)
 
 
-@app.delete("/api/conversations/{conversation_id}", status_code=204)
+@app.delete(
+    "/api/conversations/{conversation_id}",
+    status_code=204,
+    tags=['study'],
+)
 async def remove_conversation(
     conversation_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> Response:
+    """Delete a saved conversation belonging to the signed-in user."""
+
     def remove() -> bool:
         with database_connection() as connection:
             return delete_conversation(connection, conversation_id, owner_id=owner_id)
@@ -2133,7 +2267,12 @@ IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 MAXIMUM_IMAGE_BYTES = 8 * 1024 * 1024
 
 
-@app.get("/api/books/{book_id}/blocks/{block_id}/image")
+@app.get(
+    "/api/books/{book_id}/blocks/{block_id}/image",
+    tags=['books'],
+    response_class=Response,
+    responses={**binary_responses("image/*", description="Canonical figure bytes"), 304: {"description": "ETag matches; no response body"}},
+)
 async def block_image(
     book_id: int,
     block_id: int,
@@ -2205,7 +2344,11 @@ SOURCE_UNAVAILABLE = HTTPException(
 SOURCE_URL_TTL_SECONDS = 900
 
 
-@app.get("/api/books/{book_id}/source", response_model=BookSourceResponse)
+@app.get(
+    "/api/books/{book_id}/source",
+    response_model=BookSourceResponse,
+    tags=['books'],
+)
 async def book_source(
     book_id: int,
     owner_id: UUID = Depends(current_owner),
@@ -2276,3 +2419,6 @@ async def book_source(
         )
 
     return await run_in_threadpool(sign)
+
+
+configure_openapi(app)

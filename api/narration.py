@@ -18,6 +18,9 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
+from api.documentation import (
+    binary_responses,
+)
 from narration import cache
 from narration.figures import (
     MAXIMUM_FIGURES_PER_REQUEST,
@@ -99,6 +102,8 @@ async def figure_narration(
     request: FigureNarrationRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> FigureNarrationResponse:
+    """Return available spoken descriptions for owned figure blocks, keyed by block ID. A missing entry means no description is available."""
+
     def run() -> dict[int, str]:
         with database_connection() as connection:
             return spoken_descriptions(
@@ -116,7 +121,11 @@ async def figure_narration(
     )
 
 
-@router.post("/speech")
+@router.post(
+    "/speech",
+    response_class=Response,
+    responses=binary_responses("audio/*", description="Synthesized read-aloud audio"),
+)
 async def speech(
     request: SpeechRequest,
     owner_id: UUID = Depends(current_owner),

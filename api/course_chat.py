@@ -17,6 +17,7 @@ from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
+from api.documentation import SSE_RESPONSES
 from storage.database import connection as database_connection
 from study.contracts import ContractModel
 from video.answers import VideoAnswerDependencies
@@ -144,6 +145,8 @@ async def start_conversation(
     request: CreateConversationRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ConversationSummary:
+    """Start a saved course conversation with an explicit lecture selection."""
+
     def create():
         with database_connection() as connection:
             state = new_course_conversation_state(course_id=course_id)
@@ -174,6 +177,8 @@ async def start_conversation(
 async def course_conversations(
     course_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> ConversationListResponse:
+    """List saved conversations for one owned course."""
+
     def load():
         with database_connection(readonly=True) as connection:
             if load_course(connection, course_id, owner_id=owner_id) is None:
@@ -194,6 +199,8 @@ async def course_conversations(
 async def conversation_detail(
     conversation_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> ConversationDetail:
+    """Load an owned course conversation, lecture selection, and saved turns."""
+
     def load():
         with database_connection(readonly=True) as connection:
             record = load_conversation(
@@ -238,6 +245,8 @@ async def patch_conversation(
     request: RenameRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ConversationSummary:
+    """Rename an owned course conversation or update its selected lectures."""
+
     def rename():
         with database_connection() as connection:
             row = rename_conversation(
@@ -261,6 +270,8 @@ async def patch_conversation(
 async def remove_conversation(
     conversation_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> Response:
+    """Delete an owned course conversation."""
+
     def remove():
         with database_connection() as connection:
             return delete_conversation(
@@ -345,6 +356,8 @@ async def ask(
     request: AskRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> AskResponse:
+    """Execute one grounded turn across the conversation’s selected course lectures."""
+
     try:
         return await run_in_threadpool(
             _run_turn, owner_id, conversation_id, request.question.strip()
@@ -400,12 +413,18 @@ def _stream(
     )
 
 
-@router.post("/api/course-conversations/{conversation_id}/turns/stream")
+@router.post(
+    "/api/course-conversations/{conversation_id}/turns/stream",
+    response_class=Response,
+    responses=SSE_RESPONSES,
+)
 async def ask_stream(
     conversation_id: UUID,
     request: AskRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> StreamingResponse:
+    """Stream a grounded course answer as token events, followed by a final result or error. Use a streaming HTTP client to consume events incrementally."""
+
     question = request.question.strip()
     return _stream(
         lambda callback: _run_turn(

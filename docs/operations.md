@@ -25,6 +25,9 @@ local Supabase data.
 | Local auth mail | `http://127.0.0.1:54324` |
 | Postgres | `127.0.0.1:54322` |
 
+API schemas, Swagger authorization, request examples, and endpoint catalog:
+[API reference](api.md).
+
 `scripts/local_postgres.sh` provides schema-only database testing without Auth
 or Storage. Logs: `scripts/local.sh logs app` and `scripts/local.sh logs web`.
 

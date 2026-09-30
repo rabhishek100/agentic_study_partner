@@ -8,6 +8,15 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
+from api.documentation import (
+    RevisionDetail,
+    RevisionFollowup,
+    RevisionJob,
+    RevisionJobResult,
+    RevisionList,
+    RevisionSheetResult,
+    binary_responses,
+)
 from storage.database import connection
 from revision_sheets import store
 from revision_sheets.ask import Question, ask
@@ -27,17 +36,27 @@ async def run(operation):
         raise HTTPException(code, detail=str(error)) from error
 
 
-@router.get("/revision-sheets")
+@router.get(
+    "/revision-sheets",
+    responses={200: {"model": RevisionList}},
+)
 async def listing(document_type: Literal["book", "paper"] = "book", owner: UUID = Depends(current_owner)):
+    """List the latest revision sheet for each owned scope and recent generation jobs. Filter books or papers with document_type."""
+
     def operation():
         with connection() as db:
             return store.list_sheets(db, owner, document_type)
     return await run(operation)
 
 
-@router.post("/revision-sheets")
+@router.post(
+    "/revision-sheets",
+    responses={200: {"model": RevisionSheetResult, "description": "Matching existing revision sheet"}, 202: {"model": RevisionJobResult, "description": "Queued or existing generation job"}},
+)
 async def create(request: ScopeRequest, response: Response,
                  idempotency_key: str = Header(min_length=1, max_length=128), owner: UUID = Depends(current_owner)):
+    """Reuse a matching revision sheet (200) or return a queued/existing generation job (202). Idempotency-Key is required; poll the job endpoint until ready."""
+
     def operation():
         with connection() as db:
             source = load_source(db, owner_id=owner, request=request)
@@ -47,8 +66,13 @@ async def create(request: ScopeRequest, response: Response,
     return result
 
 
-@router.get("/revision-sheets/{sheet_id}")
+@router.get(
+    "/revision-sheets/{sheet_id}",
+    responses={200: {"model": RevisionDetail}},
+)
 async def detail(sheet_id: UUID, owner: UUID = Depends(current_owner)):
+    """Load an owned revision sheet with its content, provenance, citation references, layout, and source/settings change flags."""
+
     def operation():
         with connection() as db:
             row = store.read_sheet(db, owner, sheet_id)
@@ -64,8 +88,14 @@ async def detail(sheet_id: UUID, owner: UUID = Depends(current_owner)):
     return await run(operation)
 
 
-@router.get("/revision-sheets/{sheet_id}/pdf")
+@router.get(
+    "/revision-sheets/{sheet_id}/pdf",
+    response_class=Response,
+    responses=binary_responses("application/pdf", description="Revision sheet PDF"),
+)
 async def pdf(sheet_id: UUID, owner: UUID = Depends(current_owner)):
+    """Download the owned revision sheet’s PDF bytes with a private cache policy and ETag."""
+
     def operation():
         with connection() as db:
             return bytes(store.read_sheet(db, owner, sheet_id, pdf=True)["pdf_bytes"])
@@ -75,9 +105,15 @@ async def pdf(sheet_id: UUID, owner: UUID = Depends(current_owner)):
         "Cache-Control": "private, max-age=86400, immutable", "ETag": f'"{sha256(payload).hexdigest()}"'})
 
 
-@router.post("/revision-sheets/{sheet_id}/regenerate", status_code=202)
+@router.post(
+    "/revision-sheets/{sheet_id}/regenerate",
+    status_code=202,
+    responses={202: {"model": RevisionJobResult}},
+)
 async def regenerate(sheet_id: UUID, idempotency_key: str = Header(min_length=1, max_length=128),
                      owner: UUID = Depends(current_owner)):
+    """Queue a fresh version of an owned revision sheet using the current source/settings. Idempotency-Key is required."""
+
     def operation():
         with connection() as db:
             row = store.read_sheet(db, owner, sheet_id)
@@ -86,25 +122,41 @@ async def regenerate(sheet_id: UUID, idempotency_key: str = Header(min_length=1,
     return await run(operation)
 
 
-@router.get("/revision-sheet-jobs/{job_id}")
+@router.get(
+    "/revision-sheet-jobs/{job_id}",
+    responses={200: {"model": RevisionJob}},
+)
 async def job(job_id: UUID, owner: UUID = Depends(current_owner)):
+    """Read an owned revision generation job’s status, stage, result identity, and error details."""
+
     def operation():
         with connection() as db:
             return store.public_job(store.read_job(db, owner, job_id))
     return await run(operation)
 
 
-@router.post("/revision-sheet-jobs/{job_id}/cancel")
+@router.post(
+    "/revision-sheet-jobs/{job_id}/cancel",
+    responses={200: {"model": RevisionJob}},
+)
 async def cancel(job_id: UUID, owner: UUID = Depends(current_owner)):
+    """Request cancellation of an owned revision generation job and return its updated public state."""
+
     def operation():
         with connection() as db:
             return store.cancel(db, owner, job_id)
     return await run(operation)
 
 
-@router.post("/revision-sheet-jobs/{job_id}/retry", status_code=202)
+@router.post(
+    "/revision-sheet-jobs/{job_id}/retry",
+    status_code=202,
+    responses={202: {"model": RevisionJobResult}},
+)
 async def retry(job_id: UUID, idempotency_key: str = Header(min_length=1, max_length=128),
                 owner: UUID = Depends(current_owner)):
+    """Queue a fresh attempt for a failed or cancelled revision job. Other states are rejected; Idempotency-Key is required."""
+
     def operation():
         with connection() as db:
             row = store.read_job(db, owner, job_id)
@@ -115,8 +167,13 @@ async def retry(job_id: UUID, idempotency_key: str = Header(min_length=1, max_le
     return await run(operation)
 
 
-@router.post("/revision-sheets/{sheet_id}/ask")
+@router.post(
+    "/revision-sheets/{sheet_id}/ask",
+    responses={200: {"model": RevisionFollowup}},
+)
 async def followup(sheet_id: UUID, request: Question, owner: UUID = Depends(current_owner)):
+    """Answer a question using the complete canonical source scope behind an owned revision sheet, with validated citations or an insufficient-evidence explanation."""
+
     def operation():
         with connection() as db:
             row = store.read_sheet(db, owner, sheet_id)

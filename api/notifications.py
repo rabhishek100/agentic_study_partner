@@ -27,6 +27,8 @@ router = APIRouter(prefix="/api", tags=["notifications"])
 async def reminder_preferences(
     owner_id: UUID = Depends(current_owner),
 ) -> ReminderPreferences:
+    """Read the signed-in user’s daily review reminder opt-in, local time, timezone, and next scheduled instant."""
+
     def run() -> ReminderPreferences:
         with database_connection(readonly=True) as connection:
             return store.get_reminder_preferences(
@@ -43,6 +45,8 @@ async def update_reminder_preferences(
     request: ReminderPreferencesUpdate,
     owner_id: UUID = Depends(current_owner),
 ) -> ReminderPreferences:
+    """Save daily review reminder preferences and schedule the next future occurrence. The worker creates notifications."""
+
     def run() -> ReminderPreferences:
         with database_connection() as connection:
             return store.save_reminder_preferences(
@@ -58,6 +62,8 @@ async def notifications(
     limit: int = Query(default=50, ge=1, le=100),
     owner_id: UUID = Depends(current_owner),
 ) -> NotificationList:
+    """List non-dismissed notifications and the unread count for the signed-in user."""
+
     def run() -> NotificationList:
         with database_connection(readonly=True) as connection:
             items, unread = store.list_notifications(
@@ -75,6 +81,8 @@ async def notifications(
 async def read_all_notifications(
     owner_id: UUID = Depends(current_owner),
 ) -> Response:
+    """Mark all active notifications as read; return an empty 204 response."""
+
     def run() -> None:
         with database_connection() as connection:
             store.mark_all_read(connection, owner_id=owner_id)
@@ -94,6 +102,8 @@ async def read_notification(
     notification_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> Notification:
+    """Mark one owned notification as read. Repeated acknowledgements preserve its first read time."""
+
     def run() -> Notification:
         with database_connection() as connection:
             try:
@@ -115,6 +125,8 @@ async def dismiss_notification(
     notification_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> Notification:
+    """Dismiss one owned notification and mark it as read."""
+
     def run() -> Notification:
         with database_connection() as connection:
             try:
