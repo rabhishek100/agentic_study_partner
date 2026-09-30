@@ -1,112 +1,75 @@
 # Design decisions
 
-## Overview
+Deterministic code handles repeatable work; models handle language and
+judgment. Decisions prioritize grounding, inspectability, and measured value.
 
-Agentic Study Partner is a multi-source RAG system for studying technical
-books, papers, and lectures. It ingests source material into a canonical,
-owner-scoped Postgres model and builds replaceable lexical and semantic
-indexes. LangGraph is used only where decisions matter: routing a turn,
-checking evidence sufficiency, widening scope, or adapting an interview. Every
-answer cites pages or timestamps, complete summaries load the whole requested
-scope, and insufficient evidence produces an abstention. Evaluation drove the
-main complexity: BM25 was the baseline, hybrid retrieval improved coverage,
-and reranking reached 100% Recall@5 on the small frozen retrieval set. The
-project also keeps failed experiments and evaluation limitations visible.
+## Architecture tradeoffs
 
-## Walkthrough
+| Choice | Reason | Tradeoff |
+|---|---|---|
+| Postgres for content, search, and queues | Transactions and owner-scoped state in one system | Search/job load shares the database |
+| Hierarchical, page-aware source data | Evidence retains chapter/section/page identity | Outline and extraction quality need explicit gates |
+| BM25 → hybrid → reranking | Measured recall/order failures justified each layer | Additional model calls and provider dependency |
+| Exact vector search | Current scale does not justify approximate indexes | Search cost grows with corpus size |
+| Complete-scope explanations | Relevant top-k matches cannot establish coverage | Explicit context ceilings and potentially higher cost |
+| LangGraph for decision loops | State, branches, retries, and stopping are inspectable | More state contracts than a single prompt |
+| Durable worker queues | Long work survives reloads and process failure | Leases, checkpoints, and idempotency are required |
+| Supabase Auth | Managed sessions, refresh, and token verification | Identity is separate from database/storage deployment |
+| Optional LiveKit | Streaming speech without replacing interview logic | Separate media workers and configuration |
 
-1. A PDF or lecture is uploaded to private storage and processed by a durable,
-   lease-based worker.
-2. Canonical text, hierarchy, media, and provenance are stored separately from
-   rebuildable search artifacts.
-3. A graph classifies the request: complete-scope operation, retrieval QA,
-   transformation, clarification, or external answer.
-4. Retrieval combines lexical and semantic rankings; the default reranks a
-   20-item fused shortlist.
-5. Generation receives bounded evidence and must return resolvable citations.
-6. Conversations, decisions, costs, provenance, and optional LangSmith traces
-   make the result inspectable.
-7. Frozen evaluation sets measure retrieval, routing, coverage, citations,
-   OCR, and interview behavior separately.
+## Model defaults
 
-## Key decisions
+Environment variables override repository defaults; artifact provenance records
+actual usage. STT is speech-to-text; TTS is text-to-speech.
+Configuration: [.env.example](../.env.example).
 
-### Why not use vector search for everything?
+| Role | Default | Selection basis / fallback |
+|---|---|---|
+| Answers, routing, cards, interviews, revision composition/review | `openai/gpt-5.6-luna` | Shared structured/vision default; cost control |
+| Text embeddings | `openai/text-embedding-3-large` | Shared text model; evaluated as part of hybrid retrieval |
+| Reranking | `cohere/rerank-4-pro` | Measured Recall@5 gain; hybrid fallback on failure |
+| Scanned-page OCR | `qwen/qwen3-vl-32b-instruct` | Measured prose quality/cost; Gemini fallback |
+| OCR fallback / general evaluation judge | `google/gemini-3-flash-preview` | Difficult-page fallback; separate quality judging |
+| Figure captions / spoken figure descriptions | `google/gemini-2.5-flash-lite` | Bounded vision descriptions |
+| Video frame analysis | `openai/gpt-5.6-luna` | Shared vision default; timed observations |
+| Video region embeddings | `google/gemini-embedding-2` | Question/diagram similarity in a separate space |
+| Lecture audio / composer dictation | `openai/whisper-1` | Timed speech; captions preferred for lectures |
+| HTTP interview transcription | `openai/whisper-large-v3-turbo` | Short ephemeral clips |
+| HTTP interview / reading speech | `mistralai/voxtral-mini-tts-2603` | Shared speech default; reading overrides supported |
+| LiveKit interview / narration | STT `deepgram/nova-3`; TTS `cartesia/sonic-3` | Streaming; narration inherits defaults |
+| LiveKit ideal interview | TTS `cartesia/sonic-3.6` | Two-voice saved-flow playback |
 
-Exact terms were already strong with BM25, and lexical search is cheap and
-inspectable. Vector search helped some semantic cases but lowered first-hit
-rank in the seed set. RRF avoids pretending raw BM25 and cosine scores are
-calibrated; reranking improved final ordering. Each layer remains selectable so
-the evaluation can isolate its value.
+Revision review is a separate pass using the composition model unless
+overridden. Generation/speech defaults lack comparative model benchmarks.
 
-### Why are summaries not RAG?
+### Embedding size and precision
 
-Top-k retrieval optimizes relevance, not coverage. A chapter summary must
-account for the complete subtree, so the system loads that scope directly,
-chunks it only for context management, and fails if the configured budget
-cannot hold it.
+Books use 3,072 text dimensions, video text 1,024, image regions 768; database
+vectors use half precision. Half precision preserved measured recall. Reducing
+text to 1,024 dimensions lowered video recall 0.912 → 0.897 and book recall
+0.931 → 0.889. Only video accepted that loss for storage savings. These
+measurements cover retrieval encoding, not answer quality.
 
-### What is agentic here?
+Evidence: [encoding evaluation](../evals/embedding_encoding.py),
+[migration rationale](../supabase/migrations/20260903170000_halfvec_embeddings.sql).
+Model implementations: [text vectors](../retrieval/vector.py), [video vectors](../video/embeddings.py),
+[OCR](../ingestion/ocr.py), [generation](../study/query.py), [speech](../narration/synthesis.py).
 
-The graphs own explicit choices and bounded loops: route, retrieve, check,
-retry, synthesize; or evaluate, verify, adapt, continue/finish. Parsing,
-persistence, and job orchestration stay deterministic. This makes a graph
-trace useful instead of using an agent as decoration.
+## Grounding and stopping
 
-### How is hallucination controlled?
+Source answers cite pages/timestamps; external answers are labelled separately.
+Insufficient evidence can abstain or widen under explicit policy. Valid
+citations establish provenance, not claim entailment.
 
-Evidence is delimited, citation markers must resolve, unsupported searches
-abstain, scope widening is recorded, and complete operations use complete
-source data. This controls provenance, not truth by itself. The source-first
-evaluation demonstrated that valid citations can still fail entailment, so
-claim-level judging remains an explicit gap.
+Loops are bounded: each grounding rung once; lecture/course retrieval one
+broader retry; generated cards one coverage repair; book/paper summaries two
+repairs; revision sheets bounded content repairs, one fit repair, and two
+quality repairs. Interviews limit focused follow-ups and stop at coverage or
+duration boundaries. Full behavior: [study flows](flows.md).
 
-### Why Postgres?
+## Evaluation-driven changes
 
-It holds canonical content, queues, conversations, FTS, and vectors with
-transactions and owner constraints. The current scale does not justify a
-separate vector database or distributed queue. Large bytes stay in object
-storage.
-
-### How do retries stop?
-
-Every graph loop has a monotone counter or rung. Book grounding can visit each
-rung once. Lecture/course retrieval broadens once. Decks get one repair pass.
-Revision content gets at most two quality repairs and one fit repair. Interview
-topics receive one primary question and at most one focused follow-up.
-
-### What did evaluation change?
-
-- Retrieval moved from BM25 to reranked hybrid after Recall@5 improved from
-  88.9% to 100% on 12 answerable questions.
-- Video retrieval added modality balancing, timeline coalescing, and query
-  rewriting after evidence recall failures.
-- Interview follow-ups became neutral and bounded after the development
-  interaction set passed only 1/4 cases; the final development and held-out
-  sets passed 4/4 each.
-- OCR moved from Tesseract to Qwen with Gemini fallback after independently
-  transcribed pages showed roughly 15% versus 38% character error.
-- A proposed multi-turn routing change was rejected because measured accuracy
-  decreased.
-
-### What comes next
-
-Human-review the interview evidence set, add claim-level entailment checks,
-label figure relevance, broaden the corpus, and collect latency/cost
-distributions. Only then consider approximate vector indexes or more complex
-retrieval.
-
-## Limitations
-
-- Retrieval results come from a small source-specific seed.
-- Several generative eval sets are synthetic or model judged.
-- The system depends on hosted model availability and pricing.
-- Live voice adds operational complexity and is optional.
-- No study yet shows improved learning outcomes.
-
-## Quick tour
-
-To see the main ideas end to end: upload or open one book → ask an exact
-question → open the cited page → summarize a complete chapter → ask an anchored
-follow-up with the source lock on → inspect the LangSmith trace → compare
-retrieval metrics → run or replay an adaptive interview.
+Hybrid reranking improved book recall; video balancing/rewriting improved
+evidence recall; bounded interview policies improved interaction cases; vision
+OCR beat Tesseract. A routing experiment reduced accuracy. Dataset sizes,
+review status, and results: [evaluation](evaluation.md).

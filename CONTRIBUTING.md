@@ -26,6 +26,9 @@ private media, or generated run directories that contain user content.
 - Never turn a single-source result into a general benchmark claim.
 - Record failed experiments when they affect an architecture decision.
 - Keep diagrams aligned with executable graph nodes and worker stages.
+- Describe current repository behavior in neutral language; omit conversational
+  references and personal plans. Reuse the existing guide for each flow, with
+  short explanations, simple diagrams, and links to implementation.
 
 ## Pull requests
 

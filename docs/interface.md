@@ -1,55 +1,43 @@
 # Interface
 
-The Next.js client is a presentation and interaction layer over the grounded
-API. It may select scopes, render evidence, play media, and submit commands; it
-must not create unsupported answers or duplicate server policy.
+The Next.js client presents the grounded API: it selects scope, renders source
+evidence, submits commands, and plays media. It does not generate study claims.
 
-## Current screens
+## Screens
 
 | Route | Purpose |
 |---|---|
-| `/` | Book library, uploads, and main conversations |
-| `/papers` | Paper library and whole-paper study |
-| `/read/[bookId]` | Paginated source reader, citations, side chats, read-aloud |
-| `/videos`, `/videos/[videoId]` | Lecture library and ingestion state |
-| `/watch/[videoId]` | Video playback, transcript/evidence, grounded chat |
-| `/courses`, `/courses/[courseId]` | Ordered lecture courses and cross-lecture chat |
-| `/decks`, `/decks/[deckId]` | Flashcard review, coverage, and card side chats |
-| `/interviews`, `/interviews/[sessionId]` | Adaptive interview setup, session, and report |
-| `/interviews/ideal/[flowId]` | Listen-only generated chapter interview |
+| `/`, `/papers` | Book/paper library, upload, outline review, conversations |
+| `/read/[bookId]` | PDF reader, saved position, anchored questions |
+| `/videos`, `/videos/[videoId]`, `/watch/[videoId]` | Lecture library, ingestion state, playback and study |
+| `/courses`, `/courses/[courseId]` | Ordered lectures and course-wide questions |
+| `/decks`, `/decks/[deckId]` | Card generation, coverage, review, card side chats |
+| `/interviews`, `/interviews/[sessionId]` | Setup, adaptive session, grading report |
+| `/interviews/ideal/[flowId]` | Listen-only ideal interview |
 | `/prompts` | Stored answer-style controls and preview |
 
-## Interaction contract
+Revision sheets, read-aloud, side chats, and the notification center are
+integrated surfaces. Feature logic: [study flows](flows.md).
 
-- Citations are interactive evidence, not decorative footnotes. Selecting one
-  opens the exact page/timestamp when possible and an honest page-level fallback
-  otherwise.
-- Long chapter/paper text is fetched in server-defined installments at segment
-  boundaries, not loaded as one large mobile layout.
-- Side chats keep their selected passage/evidence as explicit context and
-  report anchors that could not be resolved after a source version changed.
-- Streaming answers reconcile with the saved server turn; reloads must not
-  create a second conversation or lose a finished response.
-- Job screens show durable server state and recover after navigation/reload.
-- Voice is optional. Text submission and playback controls remain usable when
-  microphone, speech, or LiveKit services are unavailable.
+## Interaction rules
 
-## Accessibility
+- Citations open the source page/timestamp; text-matching misses fall back to
+  page focus. Stale anchors are reported.
+- Streaming output reconciles with the saved turn. Reload/retry must not
+  duplicate conversations or submissions.
+- Job screens use durable server state. Long verbatim passages load at segment
+  boundaries. Reading/watch sessions retain position and question threads.
+- Voice remains optional; editable text and playback controls remain available
+  after media failure.
 
-- All controls must be keyboard operable and have visible focus.
-- Text and interactive states must meet WCAG AA contrast.
-- Color cannot be the only carrier of state.
-- Dialogs trap focus and restore it on close.
-- Motion respects `prefers-reduced-motion`.
-- Playback exposes play/pause, seek, speed, time, and transcript alternatives.
-- Loading, error, empty, disabled, and recovery states require explicit text.
+## Accessibility and verification
 
-Semantic color/spacing tokens are defined in `frontend/app/globals.css` and
-checked by `npm run lint:tokens`. Shared primitives live in
-`frontend/components/ui`; new screens should reuse them before adding another
-visual grammar.
+Keyboard controls and visible focus, WCAG AA contrast, text alternatives to
+color, dialog focus restoration, reduced-motion support, labelled recovery
+states, and accessible playback are the interface contract.
 
-## Verification
+Shared primitives: [components/ui](../frontend/components/ui).
+Tokens: [globals.css](../frontend/app/globals.css).
 
 ```bash
 cd frontend
@@ -59,5 +47,5 @@ npm test
 npm run build
 ```
 
-Use browser testing for keyboard order, narrow/mobile layouts, source/citation
-navigation, interrupted streams, worker failures, and reduced-motion behavior.
+Browser checks cover keyboard order, narrow layouts, citation navigation,
+interrupted streams, media failures, and reduced motion.

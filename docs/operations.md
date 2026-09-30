@@ -1,8 +1,8 @@
-# Development and operations
+# Operations
 
-## Local stack
+## Local setup
 
-Required tools: Docker, Node.js 24, `npm`, and `uv`.
+Prerequisites: Docker, Node.js 24, `npm`, and `uv`.
 
 ```bash
 cp .env.example .env
@@ -12,146 +12,88 @@ scripts/local.sh up
 scripts/local.sh doctor
 ```
 
-Services:
+`setup` starts local Supabase, applies migrations, installs locked dependencies,
+and writes local credentials to ignored environment files. `up` starts the web
+and combined API/worker. `down` preserves data; `reset` destroys and rebuilds
+local Supabase data.
 
-| Service | Local address | Role |
-|---|---|---|
-| Web | `http://localhost:3000` | Next.js UI |
-| API | `http://localhost:8000` | FastAPI and OpenAPI `/docs` |
-| Supabase | `http://127.0.0.1:54321` | Local Auth, Storage, REST |
-| Mail inbox | `http://127.0.0.1:54324` | Local auth email capture |
-| Postgres | `127.0.0.1:54322` | Migrated application database |
+| Service | Address |
+|---|---|
+| Web | `http://localhost:3000` |
+| API / OpenAPI | `http://localhost:8000` / `/docs` |
+| Supabase | `http://127.0.0.1:54321` |
+| Local auth mail | `http://127.0.0.1:54324` |
+| Postgres | `127.0.0.1:54322` |
 
-Useful commands:
-
-```bash
-scripts/local.sh logs app
-scripts/local.sh logs web
-scripts/local.sh down
-scripts/local.sh reset       # destructive: rebuilds only local Supabase data
-```
-
-`scripts/local_postgres.sh` is a schema-only fallback when Supabase cannot run.
-It supports database tests but not Auth or Storage-backed ingestion.
+`scripts/local_postgres.sh` provides schema-only database testing without Auth
+or Storage. Logs: `scripts/local.sh logs app` and `scripts/local.sh logs web`.
 
 ## Configuration
 
-`.env.example` is the complete annotated reference. The minimum model-backed
-local setup is:
+[.env.example](../.env.example) is the annotated reference.
 
-```text
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
-AUTH_SUPABASE_URL=http://127.0.0.1:54321
-OPENROUTER_API_KEY=...
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=...
-LANGSMITH_PROJECT=agentic-study-partner
-```
+| Group | Purpose |
+|---|---|
+| `DATABASE_URL`, `AUTH_*` | Application database and Supabase token issuer |
+| `OPENROUTER_*`, `TAVILY_API_KEY` | Model roles and optional web-search provider |
+| `LANGSMITH_*` | Graph/model tracing and project |
+| `SOURCE_*`, `BOOK_IMAGE_*`, `VIDEO_*` | Storage backends and ingestion settings |
+| `INGESTION_*` | Upload, page, lease, queue, and cleanup limits |
+| `SUMMARY_*`, `REVISION_*` | Context/output budgets |
+| `LIVEKIT_*` and enable flags | Optional speech transport and voices |
 
-The setup script fills local Auth/Storage credentials automatically. Do not put
-database URLs, service-role keys, OpenRouter keys, or LiveKit secrets in
-`NEXT_PUBLIC_*` variables. Browser-visible demo credentials must belong only to
-a disposable, restricted account.
-
-Important optional groups:
-
-- `OPENROUTER_*`: generation, control, embedding, reranking, OCR, video, and
-  speech models;
-- `SOURCE_*`, `BOOK_IMAGE_*`, `VIDEO_*`: filesystem or S3-compatible object
-  storage;
-- `LIVEKIT_*`: optional interview and narration voice transport;
-- `INGESTION_*`: upload, queue, lease, cleanup, and page limits;
-- `SUMMARY_*`, `REVISION_*`: explicit context/output budgets.
-
-Install optional LiveKit dependencies with `uv sync --extra voice`.
+Database, service-role, provider, and LiveKit secrets must not use
+`NEXT_PUBLIC_*`. Browser demo credentials must identify a restricted disposable
+account. Model selection: [design decisions](design-decisions.md#model-defaults).
 
 ## Processes
 
 ```bash
 # API only
 uv run uvicorn api.main:app --host 0.0.0.0 --port 8000
-
-# All durable queues
+# Durable queues, card reconciliation, reminders, retention
 uv run python -m worker.main
-
-# Local combined supervisor used by scripts/local.sh
+# Combined local supervisor
 uv run python -m scripts.serve
 ```
 
-The worker polls book ingestion, video ingestion, deck, and revision queues. It
-also reconciles initial decks/review reminders and performs guarded retention
-cleanup. `SIGTERM` stops new claims and lets the current stage reach a safe
-boundary.
+Optional voice workers require `uv sync --extra voice`:
 
-## Ingestion operations
-
-Book uploads are reserved with an `Idempotency-Key`, uploaded directly to
-private storage, verified, then queued. A digital book with an unsafe outline
-pauses at `needs_toc_review`; confirming the proposed hierarchy resumes the same
-job. Failed jobs can retry only when classified retryable.
-
-Video jobs run these versioned stages:
-
-```text
-acquire source → media metadata → transcript → linked resources → frame selection
-→ OCR → visual analysis → spatial regions → evidence index → embeddings
-→ quality gates → publish
+```bash
+uv run --extra voice python -m interviews.voice_worker dev
+uv run --extra voice python -m interviews.ideal_voice_worker dev
+uv run --extra voice python -m narration.voice_worker dev
 ```
 
-Caption coverage below 90% can trigger the paid audio fallback when the course
-or request permits it. Every stage stores a dependency hash so unchanged work
-is reused safely.
+Voice setup and transport recovery: [interview voice](interview-voice.md).
 
-## Database and storage
+## Persistence and recovery
 
-Apply schema changes by adding an ordered file under `supabase/migrations/`.
-Never edit a deployed migration. Local setup and CI apply the entire chain.
+- Add ordered migrations under `supabase/migrations/`; deployed migrations are
+  immutable. Local setup and CI apply the full chain.
+- Storage rows record backend ownership. Book figures and video media use
+  separate buckets/retention ledgers.
+- Expired leases return work to the queue. Checkpoints and dependency hashes
+  govern safe reuse; derived indexes can be rebuilt from canonical records.
+- Cleanup uses dry-run options, grace periods, and orphan-fraction guards.
+  Source restoration verifies hashes before replacing references.
+- Book outline review resumes the same job; failed jobs retry only when
+  classified retryable. Video replacement versions publish after quality gates.
 
-Source backends can be Supabase Storage, filesystem, or S3-compatible R2.
-Rows record which backend owns each object, allowing a staged migration. Book
-figures and video media must use separate buckets because their retention
-sweeps have different ownership ledgers.
+Publication paths: [ingestion](ingestion.md). Worker code: [worker/main.py](../worker/main.py).
 
-Before enabling cleanup against existing object storage, run with the relevant
-dry-run flag and inspect structured logs. Orphan-fraction guards intentionally
-stop deletion when the database cannot account for the bucket.
+## Deployment and CI
 
-## Production shape
+Railway uses `web`, combined `api`/worker, and optional voice services. API and
+worker share one service because the media volume cannot mount to multiple
+services. The standalone Railway worker definition is vestigial.
 
-Railway production uses a `web` service, an `api` service that supervises both
-FastAPI and the background worker, and optional voice-worker services. The
-standalone Railway `worker` service is vestigial and should not be deployed.
-The API and worker share a container because a Railway volume can mount to only
-one service. Deploy through `scripts/deploy.sh`, which records the Git revision
-and uses the correct upload root for each image. A sound deployment order is:
+Deployment through [scripts/deploy.sh](../scripts/deploy.sh) records the revision:
+backup database/object ledgers → apply migrations → deploy API/worker → deploy
+web at the same revision → check `/api/health`, `/api/health/queue`, an
+authenticated read, and a queued job. Provider-account provisioning is outside
+the repository.
 
-1. back up the database and object ledgers;
-2. apply migrations through the direct migration connection;
-3. deploy the combined API/worker service from the release revision;
-4. deploy the web service from the same revision;
-5. check `/api/health` and `/api/health/queue`;
-6. run one authenticated read and one queued-job smoke test.
-
-The repository does not include infrastructure-as-code for provisioning
-Railway, Supabase, R2, OpenRouter, LangSmith, or LiveKit accounts.
-
-## CI
-
-`.github/workflows/ci.yml` runs:
-
-- locked Python dependency installation;
-- optional LiveKit tests;
-- migrated local Supabase plus the backend suite;
-- frontend dependency audit, type-check, tests, and production build;
-- production Docker build and dependency-boundary checks;
-- a real generated-PDF parse inside the image.
-
-## Recovery rules
-
-- Expired worker leases return jobs to the queue.
-- Book and video stages resume from committed canonical checkpoints.
-- Derived chunks and embeddings can be rebuilt from canonical records.
-- Source/media restoration scripts verify hashes before changing database
-  references.
-- Never point clone, cleanup, or migration scripts at an environment without
-  first checking their `--help`, target URL, and dry-run behavior.
+[CI](../.github/workflows/ci.yml) checks locked Python dependencies, optional
+voice tests, migrated Supabase/backend tests, frontend audit/typecheck/tests/build,
+and the production Docker image with a real PDF parse.
