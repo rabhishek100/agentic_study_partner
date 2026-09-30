@@ -19,6 +19,8 @@ jobs:
           enable-cache: true
       - name: Install Python dependencies
         run: uv sync --frozen
+      - name: Check generated LangGraph diagrams
+        run: uv run --frozen python -m scripts.export_langgraph_diagrams --check
       - name: Test optional LiveKit voice transport
         run: uv run --frozen --extra voice python -m pytest tests/test_livekit_voice.py tests/test_livekit_worker.py -q
       - name: Install Chromium for PDF rendering tests

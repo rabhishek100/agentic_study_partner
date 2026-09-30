@@ -48,6 +48,7 @@ reference guides.
 | Guide | Contents |
 |---|---|
 | [Architecture](docs/architecture.md) | Stack, storage, retrieval, authentication, reliability |
+| [LangGraph workflows](docs/langgraph.md) | Graphs exported from compiled workflows, state, routing, regeneration |
 | [Database schema](docs/database.md) | Table inventory, core relationships, ownership, migration reference |
 | [Ingestion](docs/ingestion.md) | Digital books, OCR and human review, papers, multimodal video |
 | [Study flows](docs/flows.md) | Questions, reading, generated artifacts, interviews, audio |

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
@@ -113,7 +113,7 @@ def evaluate_answer(
     }
 
 
-def verification_route(state: AnswerGraphState) -> str:
+def verification_route(state: AnswerGraphState) -> Literal["verify_extension", "adapt"]:
     return (
         "verify_extension"
         if state["evaluation"].needs_external_verification
@@ -248,7 +248,7 @@ def adapt(state: AnswerGraphState) -> dict:
     return {"checkpoint": checkpoint}
 
 
-def next_route(state: AnswerGraphState) -> str:
+def next_route(state: AnswerGraphState) -> Literal["finish", "compose_next"]:
     session = state["session"]
     checkpoint = state["checkpoint"]
     if session.elapsed_seconds >= (

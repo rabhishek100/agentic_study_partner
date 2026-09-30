@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 from uuid import UUID, uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -58,7 +58,9 @@ def plan_turn(state: CourseGraphState, runtime: Runtime[CourseTurnContext]) -> d
     return {"decision": decision, "attempts": 0}
 
 
-def route_after_plan(state: CourseGraphState) -> str:
+def route_after_plan(
+    state: CourseGraphState,
+) -> Literal["clarify", "transform_prior", "retrieve"]:
     if state["decision"].route == "clarify":
         return "clarify"
     if state["decision"].route == "prior_answer_transform":
@@ -89,7 +91,7 @@ def check(state: CourseGraphState) -> dict:
     return {"sufficient": sufficient, "sufficiency_reason": reason}
 
 
-def route_after_check(state: CourseGraphState) -> str:
+def route_after_check(state: CourseGraphState) -> Literal["synthesize", "retrieve"]:
     return "synthesize" if state["sufficient"] or state["attempts"] >= 2 else "retrieve"
 
 

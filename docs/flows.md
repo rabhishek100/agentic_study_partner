@@ -4,6 +4,9 @@ These flows describe implemented behavior. LangGraph coordinates decision
 loops; some generation routines use bounded Python loops. Parsing, scope
 loading, scheduling, and persistence remain deterministic.
 Source processing: [ingestion](ingestion.md).
+Exact LangGraph topology, exported from the executable workflows:
+[LangGraph workflows](langgraph.md). The diagrams below describe product flows
+and can include work inside or outside individual graph nodes.
 
 ## Questions
 

@@ -5,19 +5,18 @@ from __future__ import annotations
 from base64 import b64encode
 import json
 import os
-from typing import TypedDict
 
 import pymupdf
 import tiktoken
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.exceptions import OutputParserException
 from langchain_core.tracers.run_collector import RunCollectorCallbackHandler
-from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
 from storage.book_images import load_figure
 from video.media_store import MediaStoreError
 from .contracts import Contract, RevisionError, Sheet, Item, Diagram, SCHEMA_VERSION
+from .graph import State, build_revision_graph
 from .html_render import LAYOUT_VERSION, make_html, max_pages, render_html_pdf
 from .review import (Inventory, FigureBatch, Review, RUBRIC_VERSION, make_inventory, judge_sheet)
 from .source import Source
@@ -200,26 +199,6 @@ def read_all_figures(source: Source, client, progress):
     return assets, readings
 
 
-class State(TypedDict, total=False):
-    sheet: Sheet
-    pdf: bytes
-    html: str
-    summary_figure_ids: list[int]
-    layout_profile: str
-    inventory: Inventory
-    review: Review
-    reviews: list[dict]
-    quality_repairs: int
-    advisories: list
-    outstanding_findings: list
-    quality_patch: bool
-    feedback: str
-    content_repairs: int
-    fit_repairs: int
-    resolved_inventory_references: int
-    next: str
-
-
 def generate(source: Source, *, model=None, progress=lambda stage: None,
              images=None, review_clients=None, on_draft=lambda sheet: None, on_review=lambda review: None, job_id=None) -> tuple[Sheet, bytes, dict]:
     progress("reading_source")
@@ -378,18 +357,12 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
                         c.concept_id in {i.id for i in state["inventory"].concepts if i.importance == "essential"}]), "next": "compose"}
         return {"review": review, "reviews": history, "next": "done"}
 
-    graph = StateGraph(State)
-    graph.add_node("inventory", inventory)
-    graph.add_node("judge", judge)
-    graph.add_node("compose", compose)
-    graph.add_node("validate", validate)
-    graph.add_node("render", render)
-    graph.add_edge(START, "inventory")
-    for name in ("inventory", "compose", "validate", "render", "judge"):
-        graph.add_conditional_edges(name, lambda s: s["next"],
-                                    {"compose": "compose", "validate": "validate", "render": "render", "judge": "judge", "done": END})
+    graph = build_revision_graph({
+        "inventory": inventory, "compose": compose, "validate": validate,
+        "render": render, "judge": judge,
+    })
     collector = RunCollectorCallbackHandler()
-    result = graph.compile().invoke({}, config={"run_name": "revision_sheet", "callbacks": [collector],
+    result = graph.invoke({}, config={"run_name": "revision_sheet", "callbacks": [collector],
         "metadata": {"scope": source.request.key, "source_fingerprint": source.fingerprint,
                      "prompt_version": PROMPT_VERSION, "model": model_name(), "job_id": job_id},
         # Every permitted repair is another pass through compose,

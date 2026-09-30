@@ -281,4 +281,5 @@ system without adding a separate queue broker.
 - Models never execute unrestricted SQL or shell commands.
 
 Selection rationale and model defaults: [design decisions](design-decisions.md).
+Executable workflow diagrams: [LangGraph workflows](langgraph.md).
 Process layout and deployment: [operations](operations.md).
