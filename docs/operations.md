@@ -57,6 +57,11 @@ uv run python -m worker.main
 uv run python -m scripts.serve
 ```
 
+Daily reminders run in a separate thread of the long-running worker, with a
+60-second interval and Postgres-backed preferences/events. Keep the worker
+running even when no ingestion jobs are pending. Scheduling and browser
+delivery: [daily notifications](flows.md#daily-notifications).
+
 Optional voice workers require `uv sync --extra voice`:
 
 ```bash

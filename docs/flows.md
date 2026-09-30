@@ -210,22 +210,49 @@ Code: [scheduler](../decks/scheduler.py), [review persistence](../decks/store.py
 
 ```mermaid
 flowchart TD
-    P[Reminder preferences] --> W[Check reminder time]
+    P[Postgres reminder preferences] --> W[Python worker checks every 60 seconds]
     W --> Q[Build daily queue]
     Q --> E{Cards available?}
-    E -->|yes| N[Save daily notification]
+    E -->|yes| N[Save notification in Postgres]
     E -->|no| S[Schedule next reminder]
     N --> S
-    N --> U[In-app or browser alert]
+    N --> F[Frontend polls API every 30 seconds]
+    F --> U[In-app or browser alert]
     U --> R[Open daily review]
 ```
 
-Reminders default to disabled. Locks and a unique daily identity prevent
-repeated notifications; missed days do not create a backlog. The notification
-center polls every 30 seconds and supports read/dismiss. Browser alerts require
-permission and the running app; this is not background push or email delivery.
+Daily reminders use plain Python scheduling logic and Postgres persistence.
+The long-running `python -m worker.main` process starts a separate
+`daily-card-reminders` thread, checks immediately, and waits 60 seconds between
+passes. This thread shares the ingestion/card/revision worker process but runs
+independently of long queue jobs. The Railway worker configuration starts this
+same process. An API-only process does not create reminders; `--once` processes
+at most one queue job and does not start the reminder loop. There is no Celery,
+Redis, external scheduler, or notification delivery service in this flow.
 
-Code: [reminder worker](../notifications/reminders.py), [notification store](../notifications/store.py),
+`public.deck_preferences` stores opt-in status, local reminder time, IANA
+timezone, and the next due instant (`next_review_reminder_at`). These preference
+rows act as the reminder claim queue rather than a separate jobs table. Each
+pass selects due rows with `FOR UPDATE SKIP LOCKED`, builds each owner's review
+queue, and inserts into `public.notifications` only when cards are available.
+It then advances the next due instant to a future occurrence. Reminders default
+to disabled. A unique `(owner_id, kind, dedupe_key)` identity, with the owner's
+local date as the key, prevents duplicate daily events. Missed days do not
+create a backlog; after downtime the worker considers the current local day's
+queue and schedules the next occurrence.
+
+The notification center reads owner-scoped records through
+`GET /api/notifications` every 30 seconds, on mount, and when the page regains
+focus or visibility. It supports read/dismiss and opens the Today review queue.
+Optional desktop alerts use the browser's built-in `Notification` API with
+permission and the running app. A closed app receives no background push;
+persisted notifications remain available when it is reopened. There is no
+email delivery.
+
+Code: [worker loop](../worker/main.py), [Railway worker configuration](../railway.worker.json),
+[reminder reconciliation](../notifications/reminders.py), [notification store](../notifications/store.py),
+[notification API](../api/notifications.py), [scheduling helpers](../decks/review_time.py),
+[schema migration](../supabase/migrations/20260821220000_review_notifications.sql),
 [notification UI](../frontend/components/notifications/notification-center.tsx).
 
 ## Revision sheets
