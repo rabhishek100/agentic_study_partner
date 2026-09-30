@@ -111,3 +111,8 @@ the repository.
 [CI](../.github/workflows/ci.yml) checks locked Python dependencies, optional
 voice tests, migrated Supabase/backend tests, frontend audit/typecheck/tests/build,
 and the production Docker image with a real PDF parse.
+
+The frontend manifest requires Next.js 16.3.6 or newer within major version 16,
+and the lockfile selects 16.3.6. This is the patched release for
+[GHSA-vcvr-r3jv-pc5j](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j);
+keep the production dependency audit passing when updating the framework.
