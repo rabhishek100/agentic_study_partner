@@ -93,6 +93,7 @@ and parses a real generated PDF inside the container.
 | Read this | For |
 |---|---|
 | [Architecture](docs/architecture.md) | Components, data ownership, and technology choices |
+| [Ingestion guide](docs/ingestion.md) | Digital books, scanned books, papers, and video stages with diagrams |
 | [RAG and agent flows](docs/flows.md) | Every retrieval or agentic workflow, with diagrams |
 | [Evaluation](docs/evaluation.md) | Datasets, metrics, results, improvements, and limitations |
 | [Interface](docs/interface.md) | Current screens, interaction rules, and accessibility contract |

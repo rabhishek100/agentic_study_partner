@@ -10,12 +10,14 @@ Python on purpose.
 flowchart LR
     A[Reserve upload] --> B[Private object storage]
     B --> C[Preflight and classify]
-    C -->|safe outline| E[Parse]
-    C -->|book outline uncertain| D[Human TOC review]
+    C -->|safe outline or paper scope| E[Parse PDF]
+    C -->|digital book outline uncertain| D[Human TOC review]
     D --> E
     C -->|scanned| O[Vision OCR + deterministic comparison]
-    O --> D
+    O --> R[Human TOC review]
+    R --> T[Build sections from stored transcription]
     E --> F[Persist canonical hierarchy]
+    T --> F
     F --> G[Caption figures]
     G --> H[Build chunks + BM25]
     H --> I[Build embeddings]
@@ -27,6 +29,8 @@ The worker validates structure, text volume, canonical restoration, chunk
 lineage, and one embedding per chunk before a source becomes selectable.
 Papers may fall back to one whole-document scope; books with uncertain chapter
 boundaries pause for review rather than inventing a hierarchy.
+See the [ingestion guide](ingestion.md) for separate digital-book,
+scanned-book, paper, and video diagrams with their checkpoints and limits.
 
 ## 2. Book and paper conversation
 
