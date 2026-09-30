@@ -69,12 +69,17 @@ Voice setup and transport recovery: [interview voice](interview-voice.md).
 
 ## Persistence and recovery
 
+Queue tables, SQL claims, leases, and worker polling:
+[Postgres job queues](architecture.md#postgres-job-queues).
+
 - Add ordered migrations under `supabase/migrations/`; deployed migrations are
   immutable. Local setup and CI apply the full chain.
 - Storage rows record backend ownership. Book figures and video media use
   separate buckets/retention ledgers.
-- Expired leases return work to the queue. Checkpoints and dependency hashes
-  govern safe reuse; derived indexes can be rebuilt from canonical records.
+- Expired leases requeue eligible PDF, video, and card work under each queue's
+  attempt rules. Interrupted revision-sheet jobs fail for an explicit user
+  retry. Checkpoints and dependency hashes govern safe reuse; derived indexes
+  can be rebuilt from canonical records.
 - Cleanup uses dry-run options, grace periods, and orphan-fraction guards.
   Source restoration verifies hashes before replacing references.
 - Book outline review resumes the same job; failed jobs retry only when

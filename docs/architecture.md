@@ -115,6 +115,46 @@ Code: [browser auth](../frontend/lib/supabase.ts), [token verification](../api/a
 
 ## Reliability and observability
 
+### Postgres job queues
+
+The queues are ordinary Postgres tables plus Python code that enqueues,
+claims, processes, and recovers jobs. They live in the same database as source
+content and study artifacts; the queue box in the diagram describes a role,
+not a separate database service. Postgres stores the work; the Python worker
+executes it.
+
+| Queue table | Work | Queue implementation |
+|---|---|---|
+| `public.ingestion_jobs` | Book/paper PDF ingestion | [ingestion/jobs.py](../ingestion/jobs.py) |
+| `video.ingestion_jobs` | Lecture ingestion | [video/jobs.py](../video/jobs.py) |
+| `public.deck_jobs` | Flashcard generation | [decks/jobs.py](../decks/jobs.py) |
+| `public.revision_sheet_jobs` | Revision-sheet generation | [revision_sheets/store.py](../revision_sheets/store.py) |
+
+For example, completing a PDF upload queues its job and returns a job ID to
+the browser. The worker polls for eligible rows, claims one in a short
+transaction using `FOR UPDATE SKIP LOCKED`, and records its worker identity
+and lease expiry. The lock prevents concurrent claimers from taking the same
+row; `SKIP LOCKED` lets another worker select other available work. The claim
+commits before expensive parsing or model calls, so a database row lock is
+not held for the duration of the job.
+
+A lease is a time-limited claim. Heartbeats renew it while processing runs.
+The worker saves stages/progress and eventually completion or failure; the API
+reads that durable state for the UI. If a worker crashes, the job remains in
+Postgres and its lease expires. Eligible PDF, video, and card jobs can be
+requeued under their recovery/attempt rules; interrupted revision-sheet jobs
+are marked failed for an explicit user retry. Recovery can repeat work, so
+idempotency and reusable checkpoints matter; this is not an exactly-once
+execution guarantee.
+
+[worker/main.py](../worker/main.py) rotates among the four queues, processes
+at most one job per `run_once`, and waits between polls when none is available.
+Persisting a row alone would not perform any work without this worker loop.
+Using Postgres keeps job state and application data in one transactional
+system without adding a separate queue broker.
+
+### Other reliability controls
+
 - Book, video, card, and sheet jobs use durable queues, leases, heartbeats,
   checkpoints, and expired-attempt recovery.
 - Source hashes, build/dependency hashes, and idempotency keys prevent duplicate
