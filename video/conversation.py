@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Any, NotRequired, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 from uuid import UUID, uuid4
 
 from langgraph.graph import END, START, StateGraph
@@ -128,7 +128,9 @@ def plan_turn(state: VideoGraphState, runtime: Runtime[VideoTurnContext]) -> dic
     }
 
 
-def route_after_plan(state: VideoGraphState) -> str:
+def route_after_plan(
+    state: VideoGraphState,
+) -> Literal["clarify", "transform_prior", "whole_lecture", "retrieve_evidence"]:
     route = state["decision"].route
     if route == "clarify":
         return "clarify"
@@ -286,7 +288,9 @@ def check_sufficiency(state: VideoGraphState) -> dict:
     return {"sufficient": sufficient, "sufficiency_reason": reason}
 
 
-def route_after_sufficiency(state: VideoGraphState) -> str:
+def route_after_sufficiency(
+    state: VideoGraphState,
+) -> Literal["synthesize", "retrieve_evidence"]:
     # Exactly one broadened retry: a second miss means the lecture does not
     # contain it, and repeating the search would only cost more.
     if state["sufficient"] or state.get("attempts", 1) >= 2:

@@ -1,0 +1,29 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	plan(plan)
+	retrieve(retrieve)
+	check(check)
+	synthesize(synthesize)
+	transform_prior(transform_prior)
+	clarify(clarify)
+	record(record)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> plan;
+	check -.-> retrieve;
+	check -.-> synthesize;
+	clarify --> record;
+	plan -.-> clarify;
+	plan -.-> retrieve;
+	plan -.-> transform_prior;
+	retrieve --> check;
+	synthesize --> record;
+	transform_prior --> record;
+	record --> __end__;
+	classDef default fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2
+	classDef first fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2
+	classDef last fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2

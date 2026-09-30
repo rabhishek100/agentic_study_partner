@@ -1,0 +1,37 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	plan_turn(plan_turn)
+	execute_library(execute_library)
+	execute_hierarchy(execute_hierarchy)
+	execute_retrieval(execute_retrieval)
+	transform_answer(transform_answer)
+	clarify(clarify)
+	execute_external(execute_external)
+	check_sufficiency(check_sufficiency)
+	update_state(update_state)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> plan_turn;
+	check_sufficiency -.-> execute_external;
+	check_sufficiency -.-> execute_retrieval;
+	check_sufficiency -.-> update_state;
+	clarify --> update_state;
+	execute_external --> update_state;
+	execute_hierarchy --> update_state;
+	execute_library --> update_state;
+	execute_retrieval --> check_sufficiency;
+	plan_turn -.-> clarify;
+	plan_turn -.-> execute_external;
+	plan_turn -.-> execute_hierarchy;
+	plan_turn -.-> execute_library;
+	plan_turn -.-> execute_retrieval;
+	plan_turn -.-> transform_answer;
+	transform_answer --> update_state;
+	update_state --> __end__;
+	classDef default fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2
+	classDef first fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2
+	classDef last fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2

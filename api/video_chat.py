@@ -26,6 +26,10 @@ from pydantic import Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
+from api.documentation import (
+    SSE_RESPONSES,
+    binary_responses,
+)
 from storage.database import connection as database_connection
 from storage.suggested_questions import (
     get_cached_suggested_questions,
@@ -514,6 +518,8 @@ async def start_conversation(
     request: CreateConversationRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ConversationSummary:
+    """Start a saved conversation scoped to one owned lecture."""
+
     def create() -> dict[str, Any]:
         with database_connection() as connection:
             video = _require_video(connection, video_id, owner_id)
@@ -545,6 +551,8 @@ async def start_conversation(
 async def video_conversations(
     video_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> ConversationListResponse:
+    """List saved conversations for one owned lecture."""
+
     def load():
         with database_connection(readonly=True) as connection:
             _require_video(connection, video_id, owner_id)
@@ -620,6 +628,8 @@ async def refresh_video_suggested_questions(
 async def all_conversations(
     owner_id: UUID = Depends(current_owner), limit: int = 50
 ) -> ConversationListResponse:
+    """List the signed-in user’s lecture conversations."""
+
     def load():
         with database_connection(readonly=True) as connection:
             return list_conversations(connection, owner_id=owner_id, limit=limit)
@@ -633,6 +643,8 @@ async def all_conversations(
 async def conversation_detail(
     conversation_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> ConversationDetail:
+    """Load an owned lecture conversation and its saved turns."""
+
     def load():
         with database_connection(readonly=True) as connection:
             record = load_conversation(
@@ -674,6 +686,8 @@ async def rename(
     request: RenameRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ConversationSummary:
+    """Rename an owned lecture conversation."""
+
     def save():
         with database_connection() as connection:
             record = rename_conversation(
@@ -702,6 +716,8 @@ async def rename(
 async def remove(
     conversation_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> Response:
+    """Delete an owned lecture conversation."""
+
     def delete() -> bool:
         with database_connection() as connection:
             return delete_conversation(
@@ -903,6 +919,8 @@ async def ask(
     request: AskRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> AskResponse:
+    """Execute one grounded lecture turn and return the complete answer and conversation state."""
+
     try:
         return await run_in_threadpool(
             _run_turn, owner_id, conversation_id, request.question.strip()
@@ -974,7 +992,11 @@ def _streamed_video_turn(
     )
 
 
-@chat_router.post("/api/video-conversations/{conversation_id}/turns/stream")
+@chat_router.post(
+    "/api/video-conversations/{conversation_id}/turns/stream",
+    response_class=Response,
+    responses=SSE_RESPONSES,
+)
 async def ask_stream(
     conversation_id: UUID,
     request: AskRequest,
@@ -1227,7 +1249,11 @@ async def update_video_side_chat(
     return await run_in_threadpool(apply)
 
 
-@chat_router.post("/api/video-side-chats/{side_chat_id}/turns/stream")
+@chat_router.post(
+    "/api/video-side-chats/{side_chat_id}/turns/stream",
+    response_class=Response,
+    responses=SSE_RESPONSES,
+)
 async def video_side_chat_turn_stream(
     side_chat_id: UUID,
     request: AskRequest,
@@ -1286,7 +1312,11 @@ async def timeline(
     )
 
 
-@chat_router.get("/api/videos/{video_id}/stream")
+@chat_router.get(
+    "/api/videos/{video_id}/stream",
+    response_class=Response,
+    responses={**binary_responses("video/mp4", description="Full private video; token query parameter is a signed playback link"), 206: binary_responses("video/mp4", description="Requested byte range")[200], 403: {"description": "Invalid or expired signed playback token"}, 416: {"description": "Invalid or unsatisfiable byte range"}},
+)
 async def stream_source(video_id: UUID, request: Request, token: str = "") -> Response:
     """Serve the canonical video to a player, honouring range requests.
 
@@ -1363,7 +1393,11 @@ async def stream_source(video_id: UUID, request: Request, token: str = "") -> Re
     )
 
 
-@chat_router.get("/api/videos/{video_id}/resources/{resource_id}/content")
+@chat_router.get(
+    "/api/videos/{video_id}/resources/{resource_id}/content",
+    response_class=Response,
+    responses=binary_responses("application/pdf", description="Supporting PDF bytes"),
+)
 async def resource_content(
     video_id: UUID, resource_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> Response:
@@ -1407,7 +1441,9 @@ async def resource_content(
 
 
 @chat_router.get(
-    "/api/videos/{video_id}/resources/{resource_id}/pages/{page_number}/image"
+    "/api/videos/{video_id}/resources/{resource_id}/pages/{page_number}/image",
+    response_class=Response,
+    responses=binary_responses("image/jpeg", description="Supporting PDF page image"),
 )
 async def resource_page_image(
     video_id: UUID,
@@ -1495,7 +1531,11 @@ async def resource_page_image(
     )
 
 
-@chat_router.get("/api/videos/{video_id}/frames/{frame_id}/image")
+@chat_router.get(
+    "/api/videos/{video_id}/frames/{frame_id}/image",
+    response_class=Response,
+    responses=binary_responses("image/jpeg", description="Canonical lecture frame"),
+)
 async def frame_image(
     video_id: UUID,
     frame_id: int,

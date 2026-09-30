@@ -12,6 +12,10 @@ from pydantic import Field, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
+from api.documentation import (
+    binary_body,
+    binary_responses,
+)
 from interviews import store
 from interviews.contracts import (
     DURATION_OPTIONS,
@@ -54,6 +58,7 @@ from interviews.speech import (
 from storage.database import connection as database_connection
 from study.dictation import (
     MAXIMUM_QUESTION_BYTES,
+    QUESTION_MEDIA_TYPES,
     DictationError,
     audio_extension,
     is_probable_silence_hallucination,
@@ -229,6 +234,8 @@ async def interview_preflight(
     request: InterviewSetupRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewPreflight:
+    """Validate interview scope and settings before creating a session."""
+
     try:
         service_request = request.service_request()
     except ValueError as error:
@@ -249,6 +256,8 @@ async def create(
     request: InterviewSetupRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Create an interview session for validated source scope and settings."""
+
     try:
         service_request = request.service_request()
     except ValueError as error:
@@ -268,6 +277,8 @@ async def create(
 
 @router.get("", response_model=InterviewListResponse)
 async def list_interviews(owner_id: UUID = Depends(current_owner)) -> InterviewListResponse:
+    """List the signed-in user’s saved interview sessions."""
+
     def load():
         with database_connection(readonly=True) as connection:
             return store.list_sessions(connection, owner_id=owner_id)
@@ -282,6 +293,8 @@ async def get_interview(
     session_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Load an owned interview session with its current question, checkpoint, and evaluated turns."""
+
     def load():
         with database_connection(readonly=True) as connection:
             return store.load_session(connection, session_id, owner_id=owner_id)
@@ -298,6 +311,8 @@ async def start(
     session_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Start or resume an owned interview session and prepare its active question."""
+
     def run():
         with database_connection() as connection:
             return start_interview(connection, session_id, owner_id=owner_id)
@@ -313,6 +328,8 @@ async def pause(
     session_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Pause an owned interview session while preserving its resumable checkpoint."""
+
     def run():
         with database_connection() as connection:
             return store.pause_session(connection, session_id, owner_id=owner_id)
@@ -329,6 +346,8 @@ async def answer(
     request: AnswerRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Evaluate a submitted answer against source evidence and advance the owned interview session."""
+
     def run():
         with database_connection() as connection:
             return answer_interview(
@@ -354,6 +373,8 @@ async def voice_connection(
     response: Response,
     owner_id: UUID = Depends(current_owner),
 ) -> VoiceConnection:
+    """Create an optional LiveKit voice connection after verifying interview ownership and feature availability."""
+
     def connect():
         with database_connection() as connection:
             session = store.load_session(connection, session_id, owner_id=owner_id)
@@ -373,6 +394,8 @@ async def coding_hint(
     session_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Provide a bounded hint for the active interview coding task."""
+
     def run():
         with database_connection() as connection:
             return reveal_coding_hint(connection, session_id, owner_id=owner_id)
@@ -415,6 +438,8 @@ async def finish(
     session_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Finish an owned interview session and persist its assessed state."""
+
     def run():
         with database_connection() as connection:
             return finish_interview(connection, session_id, owner_id=owner_id)
@@ -430,6 +455,8 @@ async def report(
     session_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> SessionReport:
+    """Load the assessment report for an owned interview session."""
+
     def load():
         with database_connection(readonly=True) as connection:
             session = store.load_session(connection, session_id, owner_id=owner_id)
@@ -443,12 +470,18 @@ async def report(
         raise _translate(error) from error
 
 
-@router.post("/{session_id}/screen-checkpoints", response_model=InterviewSession)
+@router.post(
+    "/{session_id}/screen-checkpoints",
+    response_model=InterviewSession,
+    openapi_extra=binary_body("image/png", "image/jpeg", "image/webp"),
+)
 async def screen_checkpoint(
     session_id: UUID,
     request: Request,
     owner_id: UUID = Depends(current_owner),
 ) -> InterviewSession:
+    """Analyze raw image bytes for the active work-sample question and save the observation. Raw screenshots are not stored."""
+
     media_type = request.headers.get("content-type", "").split(";", 1)[0].lower()
     payload = bytearray()
     async for chunk in request.stream():
@@ -503,6 +536,7 @@ async def screen_checkpoint(
 @router.post(
     "/{session_id}/transcriptions",
     response_model=InterviewTranscriptionResponse,
+    openapi_extra=binary_body(*QUESTION_MEDIA_TYPES),
 )
 async def transcribe_answer(
     session_id: UUID,
@@ -564,12 +598,18 @@ async def transcribe_answer(
     )
 
 
-@router.get("/{session_id}/turns/{turn_index}/speech")
+@router.get(
+    "/{session_id}/turns/{turn_index}/speech",
+    response_class=Response,
+    responses=binary_responses("audio/*", description="Synthesized interview question audio"),
+)
 async def speech(
     session_id: UUID,
     turn_index: int,
     owner_id: UUID = Depends(current_owner),
 ) -> Response:
+    """Synthesize audio for one question in an owned interview session."""
+
     def synthesize():
         with database_connection() as connection:
             session = store.load_session(connection, session_id, owner_id=owner_id)
@@ -608,7 +648,11 @@ async def speech(
     )
 
 
-@router.get("/{session_id}/turns/{turn_index}/reaction-speech")
+@router.get(
+    "/{session_id}/turns/{turn_index}/reaction-speech",
+    response_class=Response,
+    responses=binary_responses("audio/*", description="Synthesized interview feedback audio"),
+)
 async def reaction_speech(
     session_id: UUID,
     turn_index: int,
@@ -661,7 +705,9 @@ async def reaction_speech(
 
 
 @router.get(
-    "/{session_id}/turns/{turn_index}/clarifications/{clarification_index}/speech"
+    "/{session_id}/turns/{turn_index}/clarifications/{clarification_index}/speech",
+    response_class=Response,
+    responses=binary_responses("audio/*", description="Synthesized clarification audio"),
 )
 async def clarification_speech(
     session_id: UUID,

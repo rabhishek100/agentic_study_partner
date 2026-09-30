@@ -298,6 +298,8 @@ async def generate_deck(
 
 @router.get("", response_model=DeckListResponse)
 async def list_decks(owner_id: UUID = Depends(current_owner)) -> DeckListResponse:
+    """List the signed-in user’s flashcard decks and their review/generation state."""
+
     def run() -> DeckListResponse:
         with database_connection(readonly=True) as connection:
             return DeckListResponse(
@@ -355,6 +357,8 @@ async def review_queue(
 
 @router.get("/preferences", response_model=DeckPreferences)
 async def preferences(owner_id: UUID = Depends(current_owner)) -> DeckPreferences:
+    """Read the signed-in user’s daily new-card and review limits."""
+
     def run() -> DeckPreferences:
         with database_connection(readonly=True) as connection:
             return store.get_preferences(connection, owner_id=owner_id)
@@ -367,6 +371,8 @@ async def update_preferences(
     request: DeckPreferences,
     owner_id: UUID = Depends(current_owner),
 ) -> DeckPreferences:
+    """Update the signed-in user’s daily new-card and review limits."""
+
     def run() -> DeckPreferences:
         with database_connection() as connection:
             return store.save_preferences(
@@ -540,6 +546,8 @@ async def deck_job(
     job_id: str,
     owner_id: UUID = Depends(current_owner),
 ) -> DeckJobResponse:
+    """Read an owned flashcard generation job’s progress and result."""
+
     def run() -> DeckJobResponse:
         with database_connection(readonly=True) as connection:
             try:
@@ -559,6 +567,8 @@ async def cancel_deck_job(
     job_id: str,
     owner_id: UUID = Depends(current_owner),
 ) -> None:
+    """Request cancellation of an owned flashcard generation job; return an empty 204 response."""
+
     def run() -> None:
         with database_connection() as connection:
             deck_jobs.request_cancellation(
@@ -606,6 +616,8 @@ async def deck_detail(
     deck_id: str,
     owner_id: UUID = Depends(current_owner),
 ) -> DeckDetailResponse:
+    """Load an owned deck with its cited cards and generation metadata."""
+
     def run() -> DeckDetailResponse:
         with database_connection(readonly=True) as connection:
             try:
@@ -630,6 +642,8 @@ async def grade_card(
     request: GradeRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> GradeResponse:
+    """Record a review grade for an owned card and return its updated review schedule."""
+
     def run() -> GradeResponse:
         with database_connection() as connection:
             try:

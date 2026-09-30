@@ -25,6 +25,9 @@ local Supabase data.
 | Local auth mail | `http://127.0.0.1:54324` |
 | Postgres | `127.0.0.1:54322` |
 
+API schemas, Swagger authorization, request examples, and endpoint catalog:
+[API reference](api.md).
+
 `scripts/local_postgres.sh` provides schema-only database testing without Auth
 or Storage. Logs: `scripts/local.sh logs app` and `scripts/local.sh logs web`.
 
@@ -57,6 +60,11 @@ uv run python -m worker.main
 uv run python -m scripts.serve
 ```
 
+Daily reminders run in a separate thread of the long-running worker, with a
+60-second interval and Postgres-backed preferences/events. Keep the worker
+running even when no ingestion jobs are pending. Scheduling and browser
+delivery: [daily notifications](flows.md#daily-notifications).
+
 Optional voice workers require `uv sync --extra voice`:
 
 ```bash
@@ -69,12 +77,18 @@ Voice setup and transport recovery: [interview voice](interview-voice.md).
 
 ## Persistence and recovery
 
+Queue tables, SQL claims, leases, and worker polling:
+[Postgres job queues](architecture.md#postgres-job-queues).
+Table inventory and applied-schema inspection: [database schema](database.md).
+
 - Add ordered migrations under `supabase/migrations/`; deployed migrations are
   immutable. Local setup and CI apply the full chain.
 - Storage rows record backend ownership. Book figures and video media use
   separate buckets/retention ledgers.
-- Expired leases return work to the queue. Checkpoints and dependency hashes
-  govern safe reuse; derived indexes can be rebuilt from canonical records.
+- Expired leases requeue eligible PDF, video, and card work under each queue's
+  attempt rules. Interrupted revision-sheet jobs fail for an explicit user
+  retry. Checkpoints and dependency hashes govern safe reuse; derived indexes
+  can be rebuilt from canonical records.
 - Cleanup uses dry-run options, grace periods, and orphan-fraction guards.
   Source restoration verifies hashes before replacing references.
 - Book outline review resumes the same job; failed jobs retry only when
@@ -97,3 +111,8 @@ the repository.
 [CI](../.github/workflows/ci.yml) checks locked Python dependencies, optional
 voice tests, migrated Supabase/backend tests, frontend audit/typecheck/tests/build,
 and the production Docker image with a real PDF parse.
+
+The frontend manifest requires Next.js 16.3.6 or newer within major version 16,
+and the lockfile selects 16.3.6. This is the patched release for
+[GHSA-vcvr-r3jv-pc5j](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j);
+keep the production dependency audit passing when updating the framework.

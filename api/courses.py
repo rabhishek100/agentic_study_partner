@@ -207,13 +207,20 @@ def _detail(connection, course_id: UUID, owner_id: UUID) -> CourseDetail:
     )
 
 
-@router.post("", response_model=CourseDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=CourseDetail,
+    status_code=status.HTTP_201_CREATED,
+    responses={200: {"model": CourseDetail, "description": "Idempotent replay of the existing reservation or job"}},
+)
 async def create_empty_course(
     request: CreateCourseRequest,
     response: Response,
     owner_id: UUID = Depends(current_owner),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> CourseDetail:
+    """Create an empty course owned by the signed-in user."""
+
     def create() -> tuple[CourseDetail, bool]:
         with database_connection() as connection:
             created = create_course(
@@ -236,6 +243,7 @@ async def create_empty_course(
     "/batch-youtube",
     response_model=BatchCourseResponse,
     status_code=status.HTTP_201_CREATED,
+    responses={200: {"model": BatchCourseResponse, "description": "Idempotent replay of the existing reservation or job"}},
 )
 async def create_course_from_youtube(
     request: CreateYouTubeCourseRequest,
@@ -243,6 +251,8 @@ async def create_course_from_youtube(
     owner_id: UUID = Depends(current_owner),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> BatchCourseResponse:
+    """Create an ordered course from a batch of YouTube lectures and queue ingestion work."""
+
     def create():
         with database_connection() as connection:
             return create_youtube_course(
@@ -279,6 +289,7 @@ async def create_course_from_youtube(
     "/from-youtube-playlist",
     response_model=PlaylistCourseResponse,
     status_code=status.HTTP_201_CREATED,
+    responses={200: {"model": PlaylistCourseResponse, "description": "Idempotent replay of the existing reservation or job"}},
 )
 async def create_course_from_playlist(
     request: CreatePlaylistCourseRequest,
@@ -286,6 +297,8 @@ async def create_course_from_playlist(
     owner_id: UUID = Depends(current_owner),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> PlaylistCourseResponse:
+    """Create a course from a YouTube playlist and queue its selected lectures for ingestion."""
+
     key = _key(idempotency_key)
 
     def discover_and_create():
@@ -345,6 +358,8 @@ async def create_course_from_playlist(
 async def courses(
     owner_id: UUID = Depends(current_owner), limit: int = 50
 ) -> CourseListResponse:
+    """List the signed-in user’s courses."""
+
     def load():
         with database_connection(readonly=True) as connection:
             return list_courses(connection, owner_id=owner_id, limit=limit)
@@ -363,6 +378,8 @@ async def upgrade_quality(
     owner_id: UUID = Depends(current_owner),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> UpgradeCourseQualityResponse:
+    """Queue higher-quality ingestion for eligible lectures in an owned course."""
+
     def queue():
         with database_connection() as connection:
             return upgrade_course_quality(
@@ -397,6 +414,8 @@ async def upgrade_quality(
 async def course_detail(
     course_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> CourseDetail:
+    """Load an owned course and its ordered lectures."""
+
     def load():
         with database_connection(readonly=True) as connection:
             return _detail(connection, course_id, owner_id)
@@ -410,6 +429,8 @@ async def patch_course(
     request: UpdateCourseRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> CourseDetail:
+    """Update an owned course’s title or description."""
+
     def update():
         with database_connection() as connection:
             row = update_course(
@@ -431,6 +452,8 @@ async def patch_course(
 async def remove_course(
     course_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> Response:
+    """Delete an owned course."""
+
     def remove():
         with database_connection() as connection:
             return delete_course(connection, course_id, owner_id=owner_id)
@@ -450,6 +473,8 @@ async def attach_lecture(
     request: AttachLectureRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> CourseDetail:
+    """Attach an owned lecture to a course with its position and course-specific metadata."""
+
     def attach():
         with database_connection() as connection:
             attach_course_lecture(
@@ -476,6 +501,8 @@ async def patch_lecture(
     request: UpdateLectureRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> CourseDetail:
+    """Update a lecture’s position or metadata within an owned course."""
+
     def update():
         with database_connection() as connection:
             update_course_lecture(
@@ -504,6 +531,8 @@ async def detach_lecture(
     video_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> CourseDetail:
+    """Remove a lecture’s membership from a course and return the updated course."""
+
     def detach():
         with database_connection() as connection:
             if not detach_course_lecture(

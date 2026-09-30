@@ -256,7 +256,11 @@ def verify_access_token(token: str) -> AuthenticatedIdentity:
     )
 
 
-_bearer_scheme = HTTPBearer(auto_error=False, description="Access token")
+_bearer_scheme = HTTPBearer(
+    auto_error=False,
+    bearerFormat="JWT",
+    description="Supabase session access JWT. Paste the raw token without the Bearer prefix; do not use the anon key or refresh token.",
+)
 
 UNAUTHENTICATED = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,

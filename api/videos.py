@@ -13,6 +13,7 @@ from pydantic import Field, HttpUrl, model_validator
 from starlette.concurrency import run_in_threadpool
 
 from api.auth import current_owner
+from api.documentation import binary_body
 from storage.database import connection as database_connection
 from study.contracts import ContractModel
 from video.jobs import (
@@ -492,13 +493,19 @@ def _resource(row) -> ResourceView:
     )
 
 
-@videos_router.post("/youtube", status_code=status.HTTP_201_CREATED)
+@videos_router.post(
+    "/youtube",
+    status_code=status.HTTP_201_CREATED,
+    responses={200: {"model": CreateVideoResponse, "description": "Idempotent replay of the existing reservation or job"}},
+)
 async def create_youtube(
     request: CreateYouTubeVideoRequest,
     response: Response,
     owner_id: Annotated[UUID, Depends(current_owner)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> CreateVideoResponse:
+    """Reserve an idempotent YouTube lecture ingestion job. The worker acquires and processes the source."""
+
     def create():
         with database_connection() as database:
             return create_youtube_video(
@@ -527,13 +534,19 @@ async def create_youtube(
     )
 
 
-@videos_router.post("/uploads", status_code=status.HTTP_201_CREATED)
+@videos_router.post(
+    "/uploads",
+    status_code=status.HTTP_201_CREATED,
+    responses={200: {"model": CreateVideoResponse, "description": "Idempotent replay of the existing reservation or job"}},
+)
 async def initialize_upload(
     request: InitializeVideoUploadRequest,
     response: Response,
     owner_id: Annotated[UUID, Depends(current_owner)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> CreateVideoResponse:
+    """Reserve a lecture upload and return the ingestion identity before sending source bytes."""
+
     def create():
         with database_connection() as database:
             return initialize_video_upload(
@@ -570,6 +583,8 @@ async def initialize_upload(
 async def list_videos(
     owner_id: Annotated[UUID, Depends(current_owner)], limit: int = 50
 ) -> VideoListResponse:
+    """List the signed-in user’s lectures with publication status and ingestion progress."""
+
     def load():
         with database_connection(readonly=True) as database:
             return list_standalone_videos(database, owner_id=owner_id, limit=limit)
@@ -608,6 +623,8 @@ def _load_detail(owner_id: UUID, video_id: UUID) -> VideoDetail:
 
 @videos_router.get("/{video_id}")
 async def get_video(video_id: UUID, owner_id: UUID = Depends(current_owner)) -> VideoDetail:
+    """Load one owned lecture, its chapters, resources, and quality-gate results."""
+
     return await run_in_threadpool(_load_detail, owner_id, video_id)
 
 
@@ -616,6 +633,8 @@ async def patch_video(
     video_id: UUID, request: UpdateVideoRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> VideoDetail:
+    """Update an owned lecture’s title or description."""
+
     def update():
         with database_connection() as database:
             return update_video_metadata(
@@ -678,7 +697,10 @@ def _unlink_media(owner_id: UUID, storage_keys: tuple[str, ...]) -> None:
             logger.exception("Could not remove video media object")
 
 
-@videos_router.put("/{video_id}/captions")
+@videos_router.put(
+    "/{video_id}/captions",
+    openapi_extra=binary_body("text/vtt", "text/plain", "application/octet-stream"),
+)
 async def upload_captions(
     video_id: UUID,
     request: Request,
@@ -774,7 +796,11 @@ async def upload_captions(
     )
 
 
-@videos_router.post("/{video_id}/reingest", status_code=status.HTTP_202_ACCEPTED)
+@videos_router.post(
+    "/{video_id}/reingest",
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={200: {"model": CreateVideoResponse, "description": "Idempotent replay of the existing reservation or job"}},
+)
 async def reingest(
     video_id: UUID,
     response: Response,
@@ -816,6 +842,8 @@ async def reingest(
 
 @videos_router.get("/{video_id}/resources")
 async def resources(video_id: UUID, owner_id: UUID = Depends(current_owner)) -> ResourceListResponse:
+    """List supporting resources attached to an owned lecture."""
+
     def load():
         with database_connection(readonly=True) as database:
             return list_video_resources(database, video_id, owner_id=owner_id)
@@ -830,6 +858,8 @@ async def attach_resource(
     video_id: UUID, request: AttachUrlResourceRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ResourceView:
+    """Attach a supporting resource URL to an owned lecture."""
+
     def create():
         with database_connection() as database:
             return create_url_resource(
@@ -849,6 +879,8 @@ async def initialize_resource_upload_endpoint(
     request: InitializeResourceUploadRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ResourceUploadReservation:
+    """Reserve a supporting PDF upload and return the PUT URL and byte limit."""
+
     def create():
         with database_connection() as database:
             return initialize_resource_upload(
@@ -877,7 +909,10 @@ async def initialize_resource_upload_endpoint(
     )
 
 
-@videos_router.put("/{video_id}/resources/{resource_id}/content")
+@videos_router.put(
+    "/{video_id}/resources/{resource_id}/content",
+    openapi_extra=binary_body("application/pdf"),
+)
 async def upload_resource_content(
     video_id: UUID,
     resource_id: UUID,
@@ -959,6 +994,8 @@ async def upload_resource_content(
 async def detach_resource(
     video_id: UUID, resource_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> Response:
+    """Detach a supporting resource from an owned lecture."""
+
     def detach():
         with database_connection() as database:
             return detach_video_resource(
@@ -977,6 +1014,8 @@ async def detach_resource(
 async def suggestions(
     video_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> SuggestionListResponse:
+    """List discovered supporting-resource suggestions for an owned lecture."""
+
     def load():
         with database_connection(readonly=True) as database:
             return list_resource_suggestions(database, video_id, owner_id=owner_id)
@@ -1018,6 +1057,8 @@ async def confirm_suggestion(
     video_id: UUID, suggestion_id: UUID, request: ResolveSuggestionRequest,
     owner_id: UUID = Depends(current_owner),
 ) -> ResourceView:
+    """Confirm a discovered resource suggestion with its role and required status."""
+
     return _resource(await _resolve_suggestion(
         video_id, suggestion_id, request, owner_id, True
     ))
@@ -1028,6 +1069,8 @@ async def dismiss_suggestion(
     video_id: UUID, suggestion_id: UUID,
     owner_id: UUID = Depends(current_owner),
 ) -> SuggestionView:
+    """Dismiss a discovered supporting-resource suggestion."""
+
     row = await _resolve_suggestion(
         video_id, suggestion_id, ResolveSuggestionRequest(), owner_id, False
     )
@@ -1043,6 +1086,8 @@ async def dismiss_suggestion(
 async def get_video_ingestion(
     job_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> VideoIngestionView:
+    """Read an owned lecture ingestion job’s status, stage, progress, and failure information."""
+
     def load():
         with database_connection(readonly=True) as database:
             return load_ingestion_job(database, job_id, owner_id=owner_id)
@@ -1052,7 +1097,12 @@ async def get_video_ingestion(
     return _job(row)
 
 
-@jobs_router.put("/{job_id}/source", status_code=status.HTTP_202_ACCEPTED)
+@jobs_router.put(
+    "/{job_id}/source",
+    status_code=status.HTTP_202_ACCEPTED,
+    openapi_extra=binary_body("video/mp4", "video/webm", "video/quicktime"),
+    responses={200: {"model": UploadSourceResponse, "description": "Idempotent replay of the existing reservation or job"}},
+)
 async def upload_video_source(
     job_id: UUID,
     request: Request,
@@ -1148,6 +1198,8 @@ async def upload_video_source(
 async def video_ingestion_events(
     job_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> JobEventListResponse:
+    """Read durable ingestion events after the supplied event cursor. This returns JSON, not an SSE stream."""
+
     def load():
         with database_connection(readonly=True) as database:
             return list_job_events(database, job_id, owner_id=owner_id)
@@ -1166,6 +1218,8 @@ async def video_ingestion_events(
 async def cancel_video_ingestion(
     job_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> VideoIngestionView:
+    """Request cancellation of an owned lecture ingestion job at a safe worker boundary."""
+
     def cancel():
         with database_connection() as database:
             request_video_cancellation(
@@ -1185,6 +1239,8 @@ async def cancel_video_ingestion(
 async def retry_video_ingestion(
     job_id: UUID, owner_id: UUID = Depends(current_owner)
 ) -> VideoIngestionView:
+    """Retry an eligible failed lecture ingestion job using its durable source."""
+
     def retry():
         with database_connection() as database:
             retry_video_job(database, owner_id=owner_id, job_id=job_id)

@@ -75,9 +75,9 @@ Code: [OCR stage](../ingestion/ocr_stage.py), [transcription](../ingestion/ocr.p
 
 ```mermaid
 flowchart TD
-    P[Paper preflight] --> O{Safe sections?}
-    O -->|yes| N[Keep native sections]
-    O -->|no| F[Use Full paper scope]
+    P[Paper preflight] --> O{Trustworthy embedded PDF outline?}
+    O -->|yes| N[Preserve source sections and subsections]
+    O -->|no| F[Use one section covering the entire paper]
     N --> E[Parse and validate]
     F --> E
     E --> C[Store paper]
@@ -90,7 +90,40 @@ human TOC review. Title selection is metadata → page-one title → filename.
 **Scanned papers do not enter the book vision-OCR route** and can fail the
 text-quality gate. PDFs attached to videos use a separate page-extraction path.
 
-Code: [paper routing](../ingestion/pipeline.py).
+The outline decision controls how parsed content is grouped:
+
+- **Safe sections** means the PDF's embedded outline/bookmarks passed
+  deterministic preflight checks. The exact branch requires
+  `report.supported` (the preflight decision is `parse`) and a nonempty
+  `report.normalized_toc`. Checks cover readable digital text, valid page
+  destinations and hierarchy levels, page order, and heuristics for incomplete
+  outlines, suspicious titles, heading/page mismatches, and OCR-generated junk.
+  This is confidence in section boundaries, not a judgment of the paper's
+  scientific correctness. Visible headings alone do not establish a trusted
+  embedded outline.
+- **Keep native sections** means preserve the source's accepted section titles,
+  nesting, and start pages after harmless encoding/whitespace normalization.
+  For example, `Introduction`, `Methods`, and `Results` remain separate study
+  scopes, with any subsections nested beneath them. Papers are stored as
+  sections/subsections rather than book chapters.
+- **Use Full paper scope** means supply the parser with one synthetic outline
+  entry, `(1, "Full paper", 1)`, covering page 1 through the final page. This
+  groups the paper as one study scope when its embedded outline is missing or
+  untrusted. It does not summarize or discard the paper: parsing, page-linked
+  content storage, chunking, and indexing still run. Section-specific scopes
+  are unavailable through that outline, but page citations and retrieval remain
+  available. Normal content-quality checks still apply.
+
+For example, a readable 12-page paper without bookmarks uses one `Full paper`
+section spanning all 12 pages instead of guessing boundaries from its visible
+headings. The chosen strategy is recorded as `native_sections` or
+`whole_document` in ingestion provenance.
+
+Code: [paper routing and `_paper_outline`](../ingestion/pipeline.py),
+[preflight](../ingestion/preflight.py),
+[outline assessment](../ingestion/outlines.py),
+[paper hierarchy storage](../storage/postgres.py).
+Verification: [paper outline tests](../tests/test_ingestion_pipeline.py).
 
 ## Video ingestion
 

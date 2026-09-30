@@ -48,17 +48,21 @@ reference guides.
 | Guide | Contents |
 |---|---|
 | [Architecture](docs/architecture.md) | Stack, storage, retrieval, authentication, reliability |
+| [LangGraph workflows](docs/langgraph.md) | Graphs exported from compiled workflows, state, routing, regeneration |
+| [Database schema](docs/database.md) | Table inventory, core relationships, ownership, migration reference |
+| [API reference](docs/api.md) | Swagger/ReDoc, JWT authorization, request examples, generated endpoint catalog |
 | [Ingestion](docs/ingestion.md) | Digital books, OCR and human review, papers, multimodal video |
 | [Study flows](docs/flows.md) | Questions, reading, generated artifacts, interviews, audio |
 | [Design decisions](docs/design-decisions.md) | Model defaults, selection rationale, tradeoffs |
 | [Evaluation](docs/evaluation.md) | Measurements, datasets, failed experiments, limits |
-| [Interface](docs/interface.md) | Screens, interaction rules, accessibility |
+| [Interface](docs/interface.md) | Rendering and data fetching, screens, interaction rules, accessibility |
 | [Interview voice](docs/interview-voice.md) | LiveKit and HTTP speech transport, recovery, privacy |
 | [Operations](docs/operations.md) | Setup, configuration, workers, deployment, CI |
 
 [Contributing](CONTRIBUTING.md) covers change policy;
 [Security](SECURITY.md) covers security boundaries. The running API exposes
-request/response schemas at `/docs`.
+interactive Swagger UI at `/docs`, ReDoc at `/redoc`, and the OpenAPI contract
+at `/openapi.json`; see the [API guide](docs/api.md).
 
 ## Run locally
 
