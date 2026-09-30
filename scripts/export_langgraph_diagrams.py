@@ -6,8 +6,18 @@ import argparse
 from importlib import import_module
 from pathlib import Path
 
+from langchain_core.runnables.graph import NodeStyles
+
 
 ROOT = Path(__file__).resolve().parents[1]
+# GitHub's dark theme supplies light labels, while LangGraph's default fills
+# are pale. Set both label and fill colors for every class; leave edges and
+# edge labels to the surrounding Mermaid theme.
+NODE_STYLES = NodeStyles(
+    default="fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2",
+    first="fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2",
+    last="fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2",
+)
 GRAPH_SPECS = {
     "study-turn": ("study.graph", "study_turn_graph"),
     "lecture-turn": ("video.conversation", "video_turn_graph"),
@@ -39,7 +49,7 @@ def render_outputs(root: Path = ROOT) -> dict[Path, str]:
     document = document_path.read_text()
     outputs = {}
     for name, graph in compiled_graphs().items():
-        mermaid = graph.get_graph().draw_mermaid()
+        mermaid = graph.get_graph().draw_mermaid(node_colors=NODE_STYLES)
         outputs[root / f"docs/graphs/{name}.mmd"] = mermaid
         begin = f"<!-- BEGIN GENERATED: {name} -->"
         end = f"<!-- END GENERATED: {name} -->"

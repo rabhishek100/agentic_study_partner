@@ -5,6 +5,9 @@ by the application: `compiled_graph.get_graph().draw_mermaid()`. Node names,
 edges, and conditional branches come from executable graph definitions, not a
 separately drawn approximation. Dashed arrows are conditional routes; solid
 arrows are unconditional. `__start__` and `__end__` are LangGraph boundaries.
+The exporter sets explicit dark label colors on light node fills, including
+start/end nodes, so GitHub's light and dark themes retain readable contrast.
+Edges and edge labels follow the surrounding Mermaid theme.
 
 The repository has five LangGraph workflows. Reading sessions, side chats, and
 card conversations reuse study workflows. PDF/video ingestion, flashcard
@@ -54,9 +57,9 @@ graph TD;
 	plan_turn -.-> transform_answer;
 	transform_answer --> update_state;
 	update_state --> __end__;
-	classDef default fill:#f2f0ff,line-height:1.2
-	classDef first fill-opacity:0
-	classDef last fill:#bfb6fc
+	classDef default fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2
+	classDef first fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2
+	classDef last fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2
 ```
 <!-- END GENERATED: study-turn -->
 
@@ -111,9 +114,9 @@ graph TD;
 	transform_prior --> record_turn;
 	whole_lecture --> record_turn;
 	record_turn --> __end__;
-	classDef default fill:#f2f0ff,line-height:1.2
-	classDef first fill-opacity:0
-	classDef last fill:#bfb6fc
+	classDef default fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2
+	classDef first fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2
+	classDef last fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2
 ```
 <!-- END GENERATED: lecture-turn -->
 
@@ -162,9 +165,9 @@ graph TD;
 	synthesize --> record;
 	transform_prior --> record;
 	record --> __end__;
-	classDef default fill:#f2f0ff,line-height:1.2
-	classDef first fill-opacity:0
-	classDef last fill:#bfb6fc
+	classDef default fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2
+	classDef first fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2
+	classDef last fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2
 ```
 <!-- END GENERATED: course-turn -->
 
@@ -207,9 +210,9 @@ graph TD;
 	verify_extension --> adapt;
 	compose_next --> __end__;
 	finish --> __end__;
-	classDef default fill:#f2f0ff,line-height:1.2
-	classDef first fill-opacity:0
-	classDef last fill:#bfb6fc
+	classDef default fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2
+	classDef first fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2
+	classDef last fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2
 ```
 <!-- END GENERATED: interview-answer -->
 
@@ -258,9 +261,9 @@ graph TD;
 	validate -.-> compose;
 	validate -.-> render;
 	compose -.-> compose;
-	classDef default fill:#f2f0ff,line-height:1.2
-	classDef first fill-opacity:0
-	classDef last fill:#bfb6fc
+	classDef default fill:#f3f4f6,color:#111827,stroke:#6b7280,line-height:1.2
+	classDef first fill:#dbeafe,color:#111827,stroke:#2563eb,line-height:1.2
+	classDef last fill:#dcfce7,color:#111827,stroke:#15803d,line-height:1.2
 ```
 <!-- END GENERATED: revision-sheet -->
 
