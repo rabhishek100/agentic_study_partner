@@ -28,8 +28,8 @@ Configuration: [.env.example](../.env.example).
 | Answers, routing, cards, interviews, revision composition/review | `openai/gpt-5.6-luna` | Shared structured/vision default; cost control |
 | Text embeddings | `openai/text-embedding-3-large` | Shared text model; evaluated as part of hybrid retrieval |
 | Reranking | `cohere/rerank-4-pro` | Measured Recall@5 gain; hybrid fallback on failure |
-| Scanned-page OCR | `qwen/qwen3-vl-32b-instruct` | Measured prose quality/cost; Gemini fallback |
-| OCR fallback / general evaluation judge | `google/gemini-3-flash-preview` | Difficult-page fallback; separate quality judging |
+| Scanned-page OCR | `qwen/qwen3-vl-32b-instruct` | Measured prose quality/cost |
+| OCR evaluation fallback / general evaluation judge | `google/gemini-3-flash-preview` | Difficult-page fallback in the transcription evaluation script; separate quality judging |
 | Figure captions / spoken figure descriptions | `google/gemini-2.5-flash-lite` | Bounded vision descriptions |
 | Video frame analysis | `openai/gpt-5.6-luna` | Shared vision default; timed observations |
 | Video region embeddings | `google/gemini-embedding-2` | Question/diagram similarity in a separate space |
@@ -41,6 +41,63 @@ Configuration: [.env.example](../.env.example).
 
 Revision review is a separate pass using the composition model unless
 overridden. Generation/speech defaults lack comparative model benchmarks.
+
+### Where models are configured and called
+
+There is no single model registry. Model clients and fallback identifiers live
+in the Python module for each feature. Runtime environment variables select
+overrides; [.env.example](../.env.example) documents the main settings, and
+local entrypoints load `.env`. The default table above describes repository
+choices, not a guarantee of the model selected by a running process.
+
+Most study, vision, retrieval, and HTTP speech model calls go to hosted
+providers through OpenRouter. Optional voice workers use LiveKit Inference.
+Next.js displays the results and does not host or invoke these models directly.
+
+| Role | Model client / selection code | Environment override |
+|---|---|---|
+| Book/paper answers and summaries | [study/query.py](../study/query.py), `openrouter_model` | `OPENROUTER_GENERATION_MODEL` |
+| Book/paper request analysis and control | [study/analyze.py](../study/analyze.py), `_openrouter_model`; [study/query.py](../study/query.py), `control_model` | `OPENROUTER_CONTROL_MODEL` |
+| Library suggested questions | [study/question_generator.py](../study/question_generator.py) | `OPENROUTER_GENERATION_MODEL` |
+| Book/paper embeddings | [retrieval/vector.py](../retrieval/vector.py), `build_embedder` | `OPENROUTER_EMBEDDING_MODEL` |
+| Retrieval reranking | [retrieval/reranker.py](../retrieval/reranker.py), `build_reranker` | `OPENROUTER_RERANKER_MODEL` |
+| Scanned-page OCR | [ingestion/ocr.py](../ingestion/ocr.py); [ingestion/pipeline.py](../ingestion/pipeline.py) constructs the provider | `OPENROUTER_OCR_MODEL` |
+| OCR evaluation fallback | [scripts/evaluate_transcription.py](../scripts/evaluate_transcription.py) constructs a second provider | Explicit `DEFAULT_OCR_FALLBACK_MODEL` from [ingestion/ocr.py](../ingestion/ocr.py) |
+| Book figure captions | [ingestion/captions.py](../ingestion/captions.py) | `OPENROUTER_CAPTION_MODEL` |
+| Lecture/course answers and control | [video/models.py](../video/models.py), `answer_model`, `control_model` | `OPENROUTER_VIDEO_ANSWER_MODEL` → `OPENROUTER_GENERATION_MODEL`; control uses `OPENROUTER_CONTROL_MODEL` |
+| Video frame analysis | [video/vision.py](../video/vision.py); [video/pipeline.py](../video/pipeline.py) selects ingestion settings | `OPENROUTER_VIDEO_VISION_MODEL` |
+| Video text and image-region embeddings | [video/embeddings.py](../video/embeddings.py) | `OPENROUTER_VIDEO_TEXT_EMBEDDING_MODEL`, `OPENROUTER_VIDEO_IMAGE_EMBEDDING_MODEL` |
+| Lecture audio transcription | [video/audio.py](../video/audio.py) | `OPENROUTER_AUDIO_MODEL` |
+| Composer dictation | [study/dictation.py](../study/dictation.py) | `OPENROUTER_AUDIO_MODEL` |
+| Flashcard generation and extraction | [decks/generate.py](../decks/generate.py), `card_model`; [decks/extraction.py](../decks/extraction.py) | `OPENROUTER_DECK_MODEL` → `OPENROUTER_GENERATION_MODEL` |
+| Revision composition and review | [revision_sheets/generate.py](../revision_sheets/generate.py), `revision_model` | `OPENROUTER_REVISION_MODEL`; review uses `OPENROUTER_REVISION_JUDGE_MODEL` → composition model |
+| Adaptive and ideal interview generation | [interviews/models.py](../interviews/models.py), `structured_model` | `OPENROUTER_INTERVIEW_MODEL` → `OPENROUTER_GENERATION_MODEL` |
+| HTTP interview transcription | [api/interviews.py](../api/interviews.py) selects the model; [study/dictation.py](../study/dictation.py) calls it | `OPENROUTER_INTERVIEW_STT_MODEL` |
+| HTTP interview and reading speech | [narration/synthesis.py](../narration/synthesis.py), `configured_model`, `synthesize_speech` | `OPENROUTER_TTS_MODEL`; reading uses `OPENROUTER_READING_TTS_MODEL` → shared TTS model |
+| Spoken figure descriptions | [narration/figures.py](../narration/figures.py) | `OPENROUTER_NARRATION_FIGURE_MODEL` → `OPENROUTER_CAPTION_MODEL` |
+| LiveKit interview speech | [interviews/voice_worker.py](../interviews/voice_worker.py) | `LIVEKIT_INTERVIEW_STT_MODEL`, `LIVEKIT_INTERVIEW_TTS_MODEL` |
+| LiveKit narration speech | [narration/voice_worker.py](../narration/voice_worker.py) | `LIVEKIT_NARRATION_STT_MODEL`, `LIVEKIT_NARRATION_TTS_MODEL` (inherit interview settings when absent) |
+| LiveKit ideal interview playback | [interviews/ideal_voice_worker.py](../interviews/ideal_voice_worker.py) | `LIVEKIT_IDEAL_TTS_MODEL` |
+| Evaluation judges | [evals/judge.py](../evals/judge.py); [evals/ideal_interview.py](../evals/ideal_interview.py) | `OPENROUTER_JUDGE_MODEL` |
+
+An arrow in the override column means the first setting falls back to the
+second before using the module's default. Revision composition is independent
+of `OPENROUTER_GENERATION_MODEL`. Video text embeddings also have their own
+setting rather than inheriting the book embedding setting.
+
+`OPENROUTER_OCR_FALLBACK_MODEL` appears in `.env.example` but is not read by
+the current implementation. The Gemini OCR fallback is explicitly selected
+by the transcription evaluation script, not automatically by normal ingestion.
+
+Suggested-question generation uses the configured generation model (Luna in
+`.env.example`), but its code fallback is `anthropic/claude-3.5-sonnet` when
+`OPENROUTER_GENERATION_MODEL` is absent. Experiment-only choices also exist in
+[experiments/video_course](../experiments/video_course), including its
+[evaluation](../experiments/video_course/evaluation.py) and
+[retrieval](../experiments/video_course/retrieval.py) modules; those are separate
+from the application defaults. Local PDF layout detection is handled by
+Unstructured in [parsing/parser.py](../parsing/parser.py), separate from hosted
+OCR and study models.
 
 ### Embedding size and precision
 

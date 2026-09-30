@@ -35,6 +35,11 @@ flowchart TD
 | Optional voice | LiveKit Inference and workers | Streaming speech recognition and playback |
 | Verification | Python unittest, Vitest, Docker, GitHub Actions | Contracts, frontend behavior, integration and image checks |
 
+The Next.js interface prerenders its initial UI, then hydrates Client Components
+and loads authenticated study data in the browser. See
+[rendering and data fetching](interface.md#rendering-and-data-fetching) for the
+component boundaries and request path.
+
 ## Source and derived data
 
 ```mermaid

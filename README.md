@@ -52,7 +52,7 @@ reference guides.
 | [Study flows](docs/flows.md) | Questions, reading, generated artifacts, interviews, audio |
 | [Design decisions](docs/design-decisions.md) | Model defaults, selection rationale, tradeoffs |
 | [Evaluation](docs/evaluation.md) | Measurements, datasets, failed experiments, limits |
-| [Interface](docs/interface.md) | Screens, interaction rules, accessibility |
+| [Interface](docs/interface.md) | Rendering and data fetching, screens, interaction rules, accessibility |
 | [Interview voice](docs/interview-voice.md) | LiveKit and HTTP speech transport, recovery, privacy |
 | [Operations](docs/operations.md) | Setup, configuration, workers, deployment, CI |
 
