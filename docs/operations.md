@@ -71,6 +71,7 @@ Voice setup and transport recovery: [interview voice](interview-voice.md).
 
 Queue tables, SQL claims, leases, and worker polling:
 [Postgres job queues](architecture.md#postgres-job-queues).
+Table inventory and applied-schema inspection: [database schema](database.md).
 
 - Add ordered migrations under `supabase/migrations/`; deployed migrations are
   immutable. Local setup and CI apply the full chain.

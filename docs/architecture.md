@@ -56,6 +56,8 @@ cues, chapters, resources, and timestamped media metadata. Derived artifacts
 carry input/configuration provenance and can be rebuilt. Search corrections
 must not hand-edit canonical content.
 
+Tables, relationships, and migration definitions: [database schema](database.md).
+
 ## Retrieval
 
 ```mermaid
