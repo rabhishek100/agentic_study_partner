@@ -64,6 +64,8 @@ Important optional groups:
 - `SUMMARY_*`, `REVISION_*`: explicit context/output budgets.
 
 Install optional LiveKit dependencies with `uv sync --extra voice`.
+The [interview voice guide](interview-voice.md) lists the separate media worker,
+frontend build flag, STT/TTS defaults, and recovery behavior.
 
 ## Processes
 

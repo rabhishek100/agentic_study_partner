@@ -95,6 +95,7 @@ and parses a real generated PDF inside the container.
 | [Architecture](docs/architecture.md) | Components, data ownership, and technology choices |
 | [Ingestion guide](docs/ingestion.md) | Digital books, scanned books, papers, and video stages with diagrams |
 | [RAG and agent flows](docs/flows.md) | Every retrieval or agentic workflow, with diagrams |
+| [Interview voice flow](docs/interview-voice.md) | LiveKit room, streaming speech, API handoff, fallbacks, and model choices |
 | [Evaluation](docs/evaluation.md) | Datasets, metrics, results, improvements, and limitations |
 | [Interface](docs/interface.md) | Current screens, interaction rules, and accessibility contract |
 | [Development and operations](docs/operations.md) | Setup, configuration, workers, deployment shape, and recovery |

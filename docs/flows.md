@@ -182,6 +182,8 @@ questions and evaluates answers; the graph limits each topic to one primary
 question plus at most one focused follow-up. The next route is based on
 structured scores and explicit clarification/depth flags. Optional speech and
 screen checkpoints do not replace the saved text/rubric state.
+The [interview voice guide](interview-voice.md) traces the LiveKit room, STT,
+TTS, frontend draft, and API handoff for this same adaptive session.
 
 ## 8. Ideal chapter interview
 
