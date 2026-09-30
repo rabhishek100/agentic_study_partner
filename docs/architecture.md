@@ -40,6 +40,99 @@ and loads authenticated study data in the browser. See
 [rendering and data fetching](interface.md#rendering-and-data-fetching) for the
 component boundaries and request path.
 
+## Browser-to-API request path
+
+Next.js has two roles here: it serves the React interface and forwards ordinary
+API traffic to the separate FastAPI service. Once hydrated, the React page's
+request code runs in the browser. The Next.js server receives that HTTP request
+and applies an external rewrite configured in
+[next.config.mjs](../frontend/next.config.mjs). A rewrite proxies the request
+while keeping its frontend URL, as described in the
+[Next.js rewrite reference](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites).
+
+For example, the library page calls `apiFetch("/books")`:
+
+```mermaid
+sequenceDiagram
+    participant B as Browser / React
+    participant N as Next.js server
+    participant A as FastAPI
+    participant D as Application Postgres
+    B->>B: Read Supabase session access JWT
+    B->>N: GET /api/books + Authorization Bearer JWT
+    N->>A: Forward GET /api/books + same bearer token
+    A->>A: Verify JWT and determine owner_id
+    A->>D: Load owner's ready books
+    D-->>A: Book records
+    A-->>N: JSON response
+    N-->>B: JSON response
+    B->>B: Update React state and render library
+```
+
+1. [apiFetch](../frontend/lib/api.ts) adds `/api` to the supplied path, reads
+   the Supabase access token, and attaches `Authorization: Bearer <JWT>`.
+   A relative URL uses the current page's origin: for a page at
+   `http://localhost:3000`, the request goes to
+   `http://localhost:3000/api/books`.
+2. Next.js matches `/api/:path*` and forwards it to
+   `${BACKEND_URL}/api/:path*`. With the default
+   `BACKEND_URL=http://127.0.0.1:8000`, the upstream URL is
+   `http://127.0.0.1:8000/api/books`. In Docker Compose it is
+   `http://api:8000/api/books`; the Next.js container can resolve the `api`
+   service name. The request method, query, body, and bearer header travel
+   through this proxy.
+3. [FastAPI's books endpoint](../api/main.py) uses `Depends(current_owner)`
+   to verify identity and queries Postgres with the verified owner UUID.
+   Other endpoints validate their request contracts and perform the relevant
+   study operation or create a durable worker job.
+4. The response returns through Next.js. `apiFetch` parses successful JSON
+   (or handles an empty 204), and raises `ApiError` for a failed HTTP status.
+   The React caller updates its state to render the result or error.
+
+There are no `frontend/app/api/.../route.ts` handlers implementing these API
+endpoints. The `/api` prefix is a routing convention shared by the frontend
+helper, Next.js rewrite, and FastAPI routes. Next.js forwards transport;
+FastAPI owns authentication, authorization, and study operations. Because the
+browser calls its own frontend origin, ordinary proxied requests do not need
+a cross-origin browser hop to the backend. This routing does not authenticate
+the user: FastAPI still verifies the bearer token.
+
+### Streaming and direct requests
+
+Chat follows the same proxy route, but
+[useChat](../frontend/hooks/use-chat.ts) calls `fetch("/api/chat/stream")`
+and reads a streamed response instead of using the JSON helper. FastAPI emits
+Server-Sent Events; the browser consumes events and updates the answer as they
+arrive. The Next.js configuration sets `compress: false` to avoid compression
+buffering this stream.
+
+Binary requests using `uploadUrl` take a different path when
+`NEXT_PUBLIC_API_ORIGIN` is configured:
+
+```text
+Browser → NEXT_PUBLIC_API_ORIGIN/api/... → FastAPI → Browser
+```
+
+This includes video/media uploads and audio transcription requests. It avoids
+the Next.js proxy's request-body buffering for large payloads. The browser
+still sends the bearer JWT, and FastAPI's `CORS_ALLOWED_ORIGINS` must allow the
+frontend origin. Without `NEXT_PUBLIC_API_ORIGIN`, `uploadUrl` falls back to
+the same-origin `/api` proxy. Supabase sign-in/session refresh goes directly
+from the browser SDK to Supabase Auth; signed storage URLs can also take the
+browser directly to the file storage service.
+
+| Setting | Used by | Purpose |
+|---|---|---|
+| `BACKEND_URL` | Next.js server/configuration | FastAPI origin for `/api` rewrites; omit the `/api` suffix |
+| `NEXT_PUBLIC_API_ORIGIN` | Browser bundle | Browser-reachable FastAPI origin for direct binary requests; omit `/api` |
+| `CORS_ALLOWED_ORIGINS` | FastAPI | Allowed frontend origins for direct browser requests |
+
+Request sources: [library page](../frontend/app/page.tsx),
+[API/token helpers](../frontend/lib/api.ts),
+[browser session](../frontend/lib/supabase.ts),
+[API auth](../api/auth.py), [Docker routing](../docker-compose.yml).
+Token verification details: [authentication and ownership](#authentication-and-ownership).
+
 ## Source and derived data
 
 ```mermaid

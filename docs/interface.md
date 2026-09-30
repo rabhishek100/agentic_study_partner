@@ -23,6 +23,9 @@ Ordinary JSON requests use the browser's `apiFetch` helper, which attaches the
 access token and calls `/api`. Next.js rewrites those requests to FastAPI.
 That proxy handles transport; FastAPI performs retrieval and study generation,
 and the browser renders the results.
+See [browser-to-API request path](architecture.md#browser-to-api-request-path)
+for a complete request/response walkthrough, streaming, and direct-upload
+exceptions.
 
 Code: [root layout](../frontend/app/layout.tsx),
 [library page](../frontend/app/page.tsx),
