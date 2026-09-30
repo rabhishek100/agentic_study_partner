@@ -91,29 +91,142 @@ sequenceDiagram
     participant UI as Browser
     participant Auth as Supabase Auth
     participant API as FastAPI
-    participant DB as Postgres
+    participant DB as Application Postgres
     UI->>Auth: Email/password sign-in
-    Auth-->>UI: Session and access token
-    UI->>API: Request with bearer token
-    API->>API: Verify access token
-    API->>DB: Register identity and scope query
+    Auth-->>UI: Session, access JWT, refresh token
+    UI->>API: Authorization Bearer access JWT
+    API->>API: Verify signature and claims
+    API->>DB: Register verified UUID if needed
+    API->>DB: Query using verified UUID as owner_id
     DB-->>API: Owner-scoped records
     API-->>UI: Result or signed file access
 ```
 
-The browser SDK persists and refreshes the session. Sign-up may require email
-confirmation; demo login, when configured, uses the same auth path. Only the
-verified token subject determines `owner_id`. Asymmetric public signing keys
-come from cached JWKS; local/legacy HS256 tokens require a configured secret. Invalid tokens
-receive 401.
+Supabase Auth is the identity provider; Railway Postgres is the deployed
+application database. They are separate systems connected through the identity
+in a verified token. Supabase does not need to connect to Railway Postgres to
+authenticate a user, and the browser does not connect to Railway Postgres.
 
-API/store queries and object keys enforce ownership. Database RLS definitions
-are additional controls where enabled, not a substitute for API checks.
-Source/media files are private. Provider, database, and service-role secrets
-remain server-side. `DEFAULT_OWNER_ID` is restricted to scripts/evaluations.
+### Login, session, and tokens
 
-Code: [browser auth](../frontend/lib/supabase.ts), [token verification](../api/auth.py),
-[identity registry](../storage/application_users.py). See [security](../SECURITY.md).
+[AuthGate](../frontend/components/auth-gate.tsx) calls
+`supabase.auth.signInWithPassword` with email/password. Supabase checks the
+credentials and returns a session containing a user, an **access token**, and
+a **refresh token**. Sign-up calls `signUp`; a project requiring email
+confirmation may return a user without a session until confirmation and login.
+The optional demo account uses the same password-login path.
+
+The access token is a signed JWT, with the form
+`header.payload.signature`. Its payload is readable encoded JSON, not encrypted
+application data. Claims identify the issuer (`iss`), user UUID (`sub`), intended
+audience (`aud`), issued time (`iat`), expiry (`exp`), and role. Changing the
+payload invalidates the signature. A refresh token is a separate opaque string
+that the SDK exchanges with Supabase Auth for a new access/refresh token pair;
+it is not sent to the study API. See Supabase's
+[JWT reference](https://supabase.com/docs/guides/auth/jwts) and
+[session reference](https://supabase.com/docs/guides/auth/sessions).
+
+[frontend/lib/supabase.ts](../frontend/lib/supabase.ts) enables `persistSession`
+and `autoRefreshToken`. With no custom storage adapter, the browser SDK uses
+localStorage when available (memory otherwise). This implementation uses
+browser-managed sessions, not server-managed HTTP-only session cookies.
+[useSession](../frontend/hooks/use-session.ts) restores the session and listens
+for auth changes. [apiFetch](../frontend/lib/api.ts) reads `session.access_token`
+and sends it as:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+The bearer token authenticates the API request. The browser's Supabase anon
+key identifies the Supabase project/client; it is not the signed-in user's
+access token and cannot pass this API's authenticated-role check.
+
+### How FastAPI establishes identity
+
+[api/auth.py](../api/auth.py) handles the request through
+`authenticated_identity` and `current_owner`:
+
+1. Extract the bearer token and reject missing/malformed credentials.
+2. Verify its signature with PyJWT. For supported asymmetric algorithms
+   (`ES256`, `RS256`, `EdDSA`), fetch public signing keys from the configured
+   issuer's `/.well-known/jwks.json` and select by `kid`. The API caches keys
+   for 600 seconds and rate-limits unknown-key refreshes. For local/legacy
+   `HS256`, use the server-only `AUTH_JWT_SECRET` instead.
+3. Require `exp`, `iat`, `sub`, `aud`, and `iss`; validate time claims, issuer,
+   and audience with 10 seconds of clock-skew allowance. Require
+   `role = authenticated` and a UUID subject.
+4. Set `owner_id` from the verified `sub`, register that identity in the
+   application database if needed, and pass the UUID into the endpoint.
+
+Invalid tokens receive 401. The email claim can update the identity registry,
+but the UUID determines ownership. Public keys verify signatures; the API does
+not need Supabase's private signing key. Verification normally uses cached
+keys rather than a Supabase login/session lookup on every request. Public-key
+discovery is described in Supabase's
+[signing-key reference](https://supabase.com/docs/guides/auth/signing-keys).
+
+### Supabase identity in Railway Postgres
+
+Supabase owns the real login account and session. Railway has a separate,
+minimal `auth.users` table created by
+[ops/postgres/bootstrap.sql](../ops/postgres/bootstrap.sql), with `id`, `email`,
+metadata, and creation time. This compatibility table satisfies the existing
+`owner_id` foreign keys; it does not store password hashes or refresh tokens
+and does not authenticate anyone.
+
+After verification, [storage/application_users.py](../storage/application_users.py)
+upserts `(id, email)` using the JWT's UUID and email. The same UUID therefore
+appears as Supabase's user ID, Railway's identity ID, and `books.owner_id`.
+Registration is idempotent and cached per process. An email already belonging
+to another UUID is refused with 409 rather than reassigned.
+
+FastAPI connects to Railway using the server's `DATABASE_URL` and the pooled
+Psycopg connections in [storage/database.py](../storage/database.py). This is a
+database service credential, separate from the user's JWT. For example,
+`GET /api/books` takes `Depends(current_owner)` and
+[list_books](../storage/postgres.py) filters `WHERE owner_id = %s` with that
+verified UUID. A request-supplied UUID never determines ownership.
+
+### Authorization and deployment settings
+
+In Railway's configured deployment, the API/worker use the `app_runtime`
+database role. They do not set per-user JWT claims on database connections.
+Consequently `auth.uid()` would be null: the migration-defined Supabase RLS
+policies would match no rows. Deployment SQL
+[harden_runtime_role.sql](../ops/postgres/harden_runtime_role.sql) removes those
+policies and disables RLS on application tables; subsequent migrations use
+[disable_inert_rls.sql](../ops/postgres/disable_inert_rls.sql) to maintain that
+posture. User isolation there relies on verified identity and owner-scoped
+application SQL, with composite foreign keys keeping related owners aligned.
+Local Supabase retains RLS policies for paths using authenticated database
+roles and JWT claims. RLS is not a replacement for API ownership checks.
+
+| Setting | Used by | Meaning |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Browser | Supabase Auth project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Browser | Public client credential |
+| `AUTH_SUPABASE_URL` | FastAPI | Trusted Supabase Auth project |
+| `AUTH_JWT_ISSUER` | FastAPI | Defaults to `<AUTH_SUPABASE_URL>/auth/v1` |
+| `AUTH_JWT_AUDIENCE` | FastAPI | Defaults to `authenticated` |
+| `AUTH_JWT_SECRET` | FastAPI | Required only for shared-secret HS256 verification |
+| `DATABASE_URL` | API/worker | Application Postgres connection credential |
+
+Frontend and backend must refer to the same intended Auth issuer; the database
+URL independently points to Railway (or local Postgres). A Supabase service-role
+key is not the user's token or the Railway connection credential. Source/media
+files remain private and owner-scoped; provider, database, and service-role
+secrets stay server-side. `DEFAULT_OWNER_ID` is restricted to scripts/evaluations.
+
+Sign-out uses `supabase.auth.signOut`. The API does not check Supabase's live
+`auth.sessions` on each request, so an already-issued JWT can remain acceptable
+until expiry while its signature/key remains trusted; clearing the browser's
+session is distinct from instantly invalidating every copy of that JWT.
+
+Verification coverage: [token tests](../tests/test_auth.py),
+[identity registry tests](../tests/test_application_users.py),
+[user isolation tests](../tests/test_multi_user_isolation.py).
+See [security](../SECURITY.md) and [database schema](database.md).
 
 ## Reliability and observability
 
