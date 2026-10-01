@@ -33,15 +33,16 @@ class OpenRouterAnswerJudge:
             model=os.getenv("OPENROUTER_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
             api_key=key,
             base_url="https://openrouter.ai/api/v1",
+            use_responses_api=False,
             max_retries=int(os.getenv("OPENROUTER_JUDGE_MAX_RETRIES", "1")),
             timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
-            reasoning={
+            extra_body={"reasoning": {
                 "effort": os.getenv(
                     "OPENROUTER_JUDGE_REASONING",
                     "high",
                 ),
                 "exclude": True,
-            },
+            }},
         )
         self.model = model.with_structured_output(
             AnswerQualityJudgment, method="json_schema"
@@ -108,15 +109,16 @@ class OpenRouterInterviewJudge:
             model=os.getenv("OPENROUTER_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
             api_key=key,
             base_url="https://openrouter.ai/api/v1",
+            use_responses_api=False,
             max_retries=int(os.getenv("OPENROUTER_JUDGE_MAX_RETRIES", "1")),
             timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
-            reasoning={
+            extra_body={"reasoning": {
                 "effort": os.getenv(
                     "OPENROUTER_JUDGE_REASONING",
                     "high",
                 ),
                 "exclude": True,
-            },
+            }},
         )
         self.model = model.with_structured_output(
             InterviewAnswerJudgment,
@@ -192,16 +194,17 @@ class OpenRouterInterviewSequenceJudge:
             model=os.getenv("OPENROUTER_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
             api_key=key,
             base_url="https://openrouter.ai/api/v1",
+            use_responses_api=False,
             # The schema caps the explanation and violation count, so 900
             # tokens leaves headroom for valid JSON without reserving an
             # unnecessarily expensive response from the provider.
             max_tokens=900,
             max_retries=int(os.getenv("OPENROUTER_JUDGE_MAX_RETRIES", "0")),
             timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
-            reasoning={
+            extra_body={"reasoning": {
                 "effort": os.getenv("OPENROUTER_JUDGE_REASONING", "high"),
                 "exclude": True,
-            },
+            }},
         )
         self.model = model.with_structured_output(
             InterviewSequenceJudgment,
@@ -261,13 +264,14 @@ class OpenRouterInterviewInteractionJudge:
             model=os.getenv("OPENROUTER_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
             api_key=key,
             base_url="https://openrouter.ai/api/v1",
+            use_responses_api=False,
             max_tokens=2_500,
             max_retries=int(os.getenv("OPENROUTER_JUDGE_MAX_RETRIES", "0")),
             timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
-            reasoning={
+            extra_body={"reasoning": {
                 "effort": os.getenv("OPENROUTER_JUDGE_REASONING", "high"),
                 "exclude": True,
-            },
+            }},
         )
         self.model = model.with_structured_output(
             InterviewInteractionJudgment,

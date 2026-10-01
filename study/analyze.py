@@ -453,13 +453,14 @@ def _openrouter_model() -> AnalysisModel:
         model=os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL,
         api_key=key,
         base_url="https://openrouter.ai/api/v1",
+        use_responses_api=False,
         max_retries=0,
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         temperature=0,
-        reasoning={
+        extra_body={"reasoning": {
             "effort": os.getenv("OPENROUTER_CONTROL_REASONING", "low"),
             "exclude": True,
-        },
+        }},
     )
     return model.with_structured_output(ModelDecision, method="json_schema")
 

@@ -142,6 +142,17 @@ repository-wide and independent of this five-flow selection.
   used as independent gold. Human importance and PDF calibration remain pending.
   58 evaluator/review/adapter/budget cases passed (1.02s); manifest check passed.
 
+- Unit 7b transport repair: the first live baseline saved a supported Chapter 3
+  summary, then stopped before transmitting the planner request because the
+  SDK selected `/responses`. Total $0.008091475; no unknown reservations.
+  Changed book/video structured control and four legacy judges to explicit
+  Chat Completions with provider reasoning in `extra_body`. Six tests inspect
+  real installed SDK requests without transmission. Related 75 cases and
+  42 subtests passed (4.76s). Original bundle remains immutable at
+  `evaluation/runs/unit7b-bm25-baseline`; the corrected baseline uses a new
+  $1.99 ceiling, keeping both attempts together below $2.
+  Configuration reference: https://reference.langchain.com/python/langchain-openai/chat_models/base/BaseChatOpenAI
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
