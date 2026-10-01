@@ -282,11 +282,8 @@ def execute_decision(
         if is_hierarchy
         else decision.standalone_query or question
     )
-    # A hierarchy decision already names one book. `execute_query` re-derives
-    # the scope from the rendered sentence, and that sentence carries no book,
-    # so resolving it against the whole selection made "summarize chapter 1"
-    # ambiguous across every book the reader had open - after the analyser had
-    # already decided which one they meant.
+    # Execute the owner-checked canonical IDs selected by the planner. Display
+    # paths are for readers and cannot reliably be parsed back into a scope.
     execution_book_ids = (
         (decision.resolved_scope.book_id,)
         if is_hierarchy and decision.resolved_scope
@@ -301,6 +298,7 @@ def execute_decision(
         model=model,
         token_callback=token_callback,
         force_retrieval=decision.route == "retrieval_qa",
+        planned_scope=decision.resolved_scope if is_hierarchy else None,
         prompt_profile=profile,
         response_depth=resolved_depth,
         routing_reason=decision.reason,

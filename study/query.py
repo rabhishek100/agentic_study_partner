@@ -52,6 +52,8 @@ from .request import (
 from .scope import (
     ResolvedScope,
     ScopeNotFoundError,
+    resolve_book,
+    resolve_node,
 )
 from .streaming import TokenCallback, invoke_with_streaming
 from .summarize import (
@@ -180,6 +182,7 @@ def _resolve_hierarchy_request(
     owner_id: str | UUID,
     book_id: int | None,
     book_ids: Sequence[int] | None = None,
+    planned_scope: ScopeRef | None = None,
 ) -> tuple[StudyRequest, ResolvedScope] | None:
     """Return a resolved study request, or None for ordinary retrieval."""
 
@@ -190,15 +193,28 @@ def _resolve_hierarchy_request(
 
     try:
         with database_connection(database_url, readonly=True) as source:
-            scope = resolve_study_request(
-                source,
-                request,
-                owner_id=owner_id,
-                book_id=book_id,
-                book_ids=book_ids,
-            )
+            if planned_scope is not None:
+                selected = book_scope(book_id, book_ids)
+                if selected is not None and planned_scope.book_id not in selected:
+                    raise QueryExecutionError("Planned scope is outside the selected books.")
+                if planned_scope.kind == "book" and planned_scope.node_id is None:
+                    scope = resolve_book(source, owner_id=owner_id, book_id=planned_scope.book_id)
+                elif planned_scope.kind != "book" and planned_scope.node_id is not None:
+                    scope = resolve_node(source, planned_scope.node_id, owner_id=owner_id)
+                else:
+                    raise QueryExecutionError("Planned scope has no valid canonical identity.")
+                if scope.book_id != planned_scope.book_id or scope.kind != planned_scope.kind:
+                    raise QueryExecutionError("Planned scope does not match its canonical source.")
+            else:
+                scope = resolve_study_request(
+                    source,
+                    request,
+                    owner_id=owner_id,
+                    book_id=book_id,
+                    book_ids=book_ids,
+                )
     except ScopeNotFoundError:
-        if request.scope_kind == "named":
+        if planned_scope is None and request.scope_kind == "named":
             return None
         raise
     return request, scope
@@ -811,6 +827,7 @@ def execute_query(
     # it; the retrieval path is self-contained by design.
     conversation: ConversationState | None = None,
     send_figures: bool = False,
+    planned_scope: ScopeRef | None = None,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
@@ -824,6 +841,7 @@ def execute_query(
             owner_id=owner_id,
             book_id=book_id,
             book_ids=book_ids,
+            planned_scope=planned_scope,
         )
     if hierarchy is not None:
         # A hierarchy answer loads its whole canonical scope, so pinning

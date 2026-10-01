@@ -192,6 +192,15 @@ repository-wide and independent of this five-flow selection.
   and five subtests passed (83.58s). Explicit journey command:
   `TEST_DATABASE_URL=...study_partner_eval_test uv run --frozen --extra voice python -m tests.check_five_flow_journeys`.
 
+- Unit 8a: canonical section IDs now survive planner-to-execution without
+  reparsing display paths. Owner, selected-book, canonical kind/identity are
+  checked against live storage. Five real-database regressions include the
+  conversation boundary and foreign-owner/unselected/mislabeled source cases;
+  related 34 tests and three subtests passed (1.62s). Two formerly failed
+  summary cases rerun with unchanged gold/source in a separate $0.30-capped
+  experiment: `evaluation/runs/unit8-scope-corrected`. Generation, checks,
+  diagnostic judgment and spend are retained there; original baseline intact.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
