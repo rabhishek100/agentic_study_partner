@@ -1851,6 +1851,229 @@
       ]
     },
     {
+      "id": "paper-scaled-attention",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "Why does scaled dot-product attention divide the query-key dot products by the square root of the key dimension?",
+      "tier": "source_backed_author_labels_human_calibration_pending",
+      "inputs": {
+        "dataset": "evaluation/paper_gold.json",
+        "conversation_id": "paper-scaled-attention",
+        "question": "Why does scaled dot-product attention divide the query-key dot products by the square root of the key dimension?"
+      },
+      "expected": {
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_scope": null,
+        "expected_evidence": [
+          {
+            "node_id": 6,
+            "pages": [
+              4
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 7,
+            "pages": [
+              4
+            ],
+            "role": "optional"
+          }
+        ],
+        "coverage_points": [
+          "Larger key dimensions can increase the magnitude of unscaled query-key dot products.",
+          "Large logits push softmax toward regions with very small gradients.",
+          "Dividing by sqrt(d_k) counters this effect before softmax; do not confuse it with scaling the values.",
+          "The independent-component illustration gives dot-product variance d_k and is an assumption, not a universal data guarantee."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+        "title": "Attention Is All You Need"
+      },
+      "depends_on": [],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "paper-complete-summary",
+      "flow": "summary",
+      "adapter": "book",
+      "title": "Summarize this entire paper, including the architecture, attention equation, position information, training, main results and limitations. Cite the original sections and pages.",
+      "tier": "source_backed_author_labels_human_calibration_pending",
+      "inputs": {
+        "dataset": "evaluation/paper_gold.json",
+        "conversation_id": "paper-complete-summary",
+        "question": "Summarize this entire paper, including the architecture, attention equation, position information, training, main results and limitations. Cite the original sections and pages."
+      },
+      "expected": {
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_scope": {
+          "kind": "book",
+          "node_id": null
+        },
+        "expected_evidence": [
+          {
+            "node_id": 4,
+            "pages": [
+              3
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 6,
+            "pages": [
+              4
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 7,
+            "pages": [
+              4,
+              5
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 11,
+            "pages": [
+              6
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 19,
+            "pages": [
+              8
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 22,
+            "pages": [
+              10
+            ],
+            "role": "required"
+          }
+        ],
+        "coverage_points": [
+          "Describe the encoder-decoder architecture, self-attention, decoder masking and encoder-decoder attention.",
+          "Explain Attention(Q,K,V)=softmax(QK^T/sqrt(d_k))V and parallel projected attention heads.",
+          "Explain why position information is needed and how sinusoidal and learned encodings were compared.",
+          "Discuss parallelism, path lengths and complexity tradeoffs without claiming attention is always cheaper.",
+          "Cover training data, optimization schedule, regularization and reported experimental conditions.",
+          "Report the big model's 28.4 English-German and 41.0 English-French BLEU with the correct tasks and qualification.",
+          "Include model variations, constituency parsing and the conclusion's future directions; separate reported findings from hypotheses or later Transformer developments."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+        "title": "Attention Is All You Need"
+      },
+      "depends_on": [],
+      "aspects": [
+        "complete_scope",
+        "concepts",
+        "figures_equations",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "sheet-attention-paper",
+      "flow": "revision_sheet",
+      "adapter": "sheet",
+      "title": "Revision sheet — complete Attention Is All You Need paper",
+      "tier": "source_backed_author_labels_human_calibration_pending",
+      "inputs": {
+        "scope_kind": "paper",
+        "dataset": "evaluation/paper_gold.json"
+      },
+      "expected": {
+        "coverage_points": [
+          "Describe the encoder-decoder architecture, self-attention, decoder masking and encoder-decoder attention.",
+          "Explain Attention(Q,K,V)=softmax(QK^T/sqrt(d_k))V and parallel projected attention heads.",
+          "Explain why position information is needed and how sinusoidal and learned encodings were compared.",
+          "Discuss parallelism, path lengths and complexity tradeoffs without claiming attention is always cheaper.",
+          "Cover training data, optimization schedule, regularization and reported experimental conditions.",
+          "Report the big model's 28.4 English-German and 41.0 English-French BLEU with the correct tasks and qualification.",
+          "Include model variations, constituency parsing and the conclusion's future directions; separate reported findings from hypotheses or later Transformer developments."
+        ],
+        "expected_evidence": [
+          {
+            "node_id": 4,
+            "pages": [
+              3
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 6,
+            "pages": [
+              4
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 7,
+            "pages": [
+              4,
+              5
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 11,
+            "pages": [
+              6
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 19,
+            "pages": [
+              8
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 22,
+            "pages": [
+              10
+            ],
+            "role": "required"
+          }
+        ],
+        "layout": "A4 readable, original equations and figures faithful, no clipping"
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+        "title": "Attention Is All You Need"
+      },
+      "depends_on": [],
+      "aspects": [
+        "scope",
+        "concepts",
+        "grounding",
+        "figures",
+        "layout",
+        "repair",
+        "efficiency"
+      ]
+    },
+    {
       "id": "vc-002-t1",
       "flow": "video_course",
       "adapter": "video",
@@ -2443,6 +2666,44 @@
         "source_exclusion",
         "history",
         "abstention",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "course-spanner-indexed",
+      "flow": "video_course",
+      "adapter": "course",
+      "title": "Explain Spanner's per-shard Paxos groups and replication, using only the Spanner lecture.",
+      "tier": "source_backed_author_labels_human_calibration_pending",
+      "inputs": {
+        "question": "Explain Spanner's per-shard Paxos groups and replication, using only the Spanner lecture.",
+        "lecture_title_filter": "Spanner"
+      },
+      "expected": {
+        "answerable": true,
+        "coverage_points": [
+          "Each shard's replicas form an independent Paxos group with its own leader.",
+          "Independent shards/groups support parallel throughput for many concurrent clients.",
+          "Writes go to the relevant shard leader, which replicates an ordered log to followers.",
+          "Exclude other lectures and ground these claims in the selected Spanner evidence."
+        ],
+        "source_intervals_ms": [
+          [
+            320000,
+            485000
+          ]
+        ],
+        "methodology": "Authored from the indexed Spanner transcript before candidate generation; added coverage, not a replacement score for unavailable RPC/GFS/Raft sources."
+      },
+      "source": {
+        "kind": "course",
+        "title": "MIT 6.824 Distributed Systems (Spring 2020)"
+      },
+      "depends_on": [],
+      "aspects": [
+        "course",
+        "source_exclusion",
         "grounding",
         "efficiency"
       ]
@@ -3546,7 +3807,8 @@
         "mt-008-t4",
         "mt-009-t1",
         "mt-009-t2",
-        "mt-010-t1"
+        "mt-010-t1",
+        "paper-scaled-attention"
       ],
       "contract_tests": [
         "tests/test_multiturn_evaluation.py",
@@ -3603,7 +3865,8 @@
         "mt-008-t2",
         "mt-008-t3",
         "mt-009-t2",
-        "mt-010-t1"
+        "mt-010-t1",
+        "paper-scaled-attention"
       ],
       "contract_tests": [
         "tests/test_multiturn_evaluation.py",
@@ -3636,7 +3899,8 @@
         "mt-008-t4",
         "mt-009-t1",
         "mt-009-t2",
-        "mt-010-t1"
+        "mt-010-t1",
+        "paper-scaled-attention"
       ],
       "contract_tests": [
         "tests/test_multiturn_evaluation.py",
@@ -3711,7 +3975,8 @@
         "mt-008-t4",
         "mt-009-t1",
         "mt-009-t2",
-        "mt-010-t1"
+        "mt-010-t1",
+        "paper-scaled-attention"
       ],
       "contract_tests": [
         "tests/test_multiturn_evaluation.py",
@@ -3731,7 +3996,8 @@
         "mt-004-t1",
         "mt-006-t1",
         "mt-011-t1",
-        "mt-011-t2"
+        "mt-011-t2",
+        "paper-complete-summary"
       ],
       "contract_tests": [
         "tests/test_study_summary.py"
@@ -3749,7 +4015,8 @@
         "mt-004-t1",
         "mt-006-t1",
         "mt-011-t1",
-        "mt-011-t2"
+        "mt-011-t2",
+        "paper-complete-summary"
       ],
       "contract_tests": [
         "tests/test_study_summary.py"
@@ -3767,7 +4034,8 @@
         "mt-004-t1",
         "mt-006-t1",
         "mt-011-t1",
-        "mt-011-t2"
+        "mt-011-t2",
+        "paper-complete-summary"
       ],
       "contract_tests": [
         "tests/test_study_summary.py"
@@ -3818,7 +4086,8 @@
         "mt-004-t1",
         "mt-006-t1",
         "mt-011-t1",
-        "mt-011-t2"
+        "mt-011-t2",
+        "paper-complete-summary"
       ],
       "contract_tests": [
         "tests/test_study_summary.py"
@@ -3857,7 +4126,8 @@
         "course-synthesis",
         "course-exclusion",
         "course-unanswerable",
-        "course-followup"
+        "course-followup",
+        "course-spanner-indexed"
       ],
       "contract_tests": [
         "tests/test_video_evaluation.py",
@@ -3936,7 +4206,8 @@
         "course-synthesis",
         "course-exclusion",
         "course-unanswerable",
-        "course-followup"
+        "course-followup",
+        "course-spanner-indexed"
       ],
       "contract_tests": [
         "tests/test_video_evaluation.py",
@@ -3991,7 +4262,8 @@
         "course-synthesis",
         "course-exclusion",
         "course-unanswerable",
-        "course-followup"
+        "course-followup",
+        "course-spanner-indexed"
       ],
       "contract_tests": [
         "tests/test_video_evaluation.py",
@@ -4007,6 +4279,7 @@
     "revision_sheet.scope": {
       "flow": "revision_sheet",
       "cases": [
+        "sheet-attention-paper",
         "sheet-chapter-1",
         "sheet-chapter-3",
         "sheet-chapter-6",
@@ -4027,6 +4300,7 @@
     "revision_sheet.concepts": {
       "flow": "revision_sheet",
       "cases": [
+        "sheet-attention-paper",
         "sheet-chapter-1",
         "sheet-chapter-3",
         "sheet-chapter-6",
@@ -4047,6 +4321,7 @@
     "revision_sheet.grounding": {
       "flow": "revision_sheet",
       "cases": [
+        "sheet-attention-paper",
         "sheet-chapter-1",
         "sheet-chapter-3",
         "sheet-chapter-6",
@@ -4067,6 +4342,7 @@
     "revision_sheet.figures": {
       "flow": "revision_sheet",
       "cases": [
+        "sheet-attention-paper",
         "sheet-chapter-1",
         "sheet-chapter-3",
         "sheet-chapter-6",
@@ -4087,6 +4363,7 @@
     "revision_sheet.layout": {
       "flow": "revision_sheet",
       "cases": [
+        "sheet-attention-paper",
         "sheet-chapter-1",
         "sheet-chapter-3",
         "sheet-chapter-6",
@@ -4107,6 +4384,7 @@
     "revision_sheet.repair": {
       "flow": "revision_sheet",
       "cases": [
+        "sheet-attention-paper",
         "sheet-chapter-1",
         "sheet-chapter-3",
         "sheet-chapter-6",
@@ -4169,6 +4447,7 @@
     "revision_sheet.efficiency": {
       "flow": "revision_sheet",
       "cases": [
+        "sheet-attention-paper",
         "sheet-chapter-1",
         "sheet-chapter-3",
         "sheet-chapter-6",

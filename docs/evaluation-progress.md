@@ -219,6 +219,16 @@ repository-wide and independent of this five-flow selection.
   attempt. Related 42 ideal/adapter/budget cases passed (1.82s). Paired live
   dialogue verification remains next; this test result alone is not quality.
 
+- Unit 8d: expanded manifest to 54 cases with independently authored paper QA,
+  full paper summary and full paper revision sheet, plus an indexed Spanner
+  course case. Paper criteria were authored from canonical text/TOC before
+  generation and all locators rebound/page-validated against the exact owned
+  source hash. Spanner criteria derive from transcript 320–485s. These add
+  coverage; they do not replace failed/missing-source baseline cases. The sheet
+  adapter now calls the native entire-paper scope. Nineteen adapter/runner
+  checks passed (0.79s); manifest regeneration and read-only source binding
+  passed. Live variant output and human equation/PDF review remain pending.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`

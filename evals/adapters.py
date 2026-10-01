@@ -258,11 +258,14 @@ class NativeAdapters:
         book = self.book_binding(case)
         self.dataset(case)
         gold = remap_gold(case.expected, book)
-        chapters = [node for node in book["nodes"].values() if node["node_type"] == "chapter" and node["parent_id"] is None]
-        matches = [node for node in chapters if re.match(rf"Chapter\s+{case.inputs['chapter']}[.\s]", node["title"], re.I)]
-        if len(matches) != 1:
-            raise ValueError("Chapter number must bind exactly one canonical chapter")
-        request = ScopeRequest(scope_kind="chapter", book_id=book["id"], chapter_node_id=matches[0]["id"])
+        if case.inputs.get("scope_kind") == "paper":
+            request = ScopeRequest(scope_kind="paper", book_id=book["id"])
+        else:
+            chapters = [node for node in book["nodes"].values() if node["node_type"] == "chapter" and node["parent_id"] is None]
+            matches = [node for node in chapters if re.match(rf"Chapter\s+{case.inputs['chapter']}[.\s]", node["title"], re.I)]
+            if len(matches) != 1:
+                raise ValueError("Chapter number must bind exactly one canonical chapter")
+            request = ScopeRequest(scope_kind="chapter", book_id=book["id"], chapter_node_id=matches[0]["id"])
         with connection(self.database_url, readonly=True) as current:
             source = load_source(current, owner_id=self.owner, request=request)
         atomic_json(Path(directory) / "artifacts" / case.id / "source.json",

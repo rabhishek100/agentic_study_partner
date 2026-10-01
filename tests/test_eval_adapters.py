@@ -180,12 +180,14 @@ def test_course_filter_is_passed_to_native_retrieval_and_drift_is_rejected(monke
     assert len(calls) == 1
 
 
-def test_sheet_adapter_persists_pdf_provenance_and_explicit_review_gaps(monkeypatch, tmp_path):
+@pytest.mark.parametrize("case_id, scope_kind, node_id", [
+    ("sheet-chapter-1", "chapter", 2585), ("sheet-attention-paper", "paper", None)])
+def test_sheet_adapter_persists_pdf_provenance_and_explicit_review_gaps(monkeypatch, tmp_path, case_id, scope_kind, node_id):
     import evals.adapters as module
     import revision_sheets.source as source_module
     import importlib
     generation = importlib.import_module("revision_sheets.generate")
-    case = next(c for c in load_manifest("evaluation/five_flow_manifest.json").cases if c.id == "sheet-chapter-1")
+    case = next(c for c in load_manifest("evaluation/five_flow_manifest.json").cases if c.id == case_id)
     bound = {"id": 526, "nodes": {"14": {"id": 2585, "node_type": "chapter", "parent_id": None,
                                            "title": "Chapter 1. Overview"}}}
     adapters = NativeAdapters({"owner_id": "00000000-0000-4000-8000-000000000001"})
@@ -203,7 +205,8 @@ def test_sheet_adapter_persists_pdf_provenance_and_explicit_review_gaps(monkeypa
         SimpleNamespace(model_dump=lambda **kwargs: {"title": "Sheet"}), b"%PDF-fixture",
         {"outstanding_findings": ["Missing concept"], "page_count": 1}))
     result = adapters.sheet(case, [], tmp_path)
-    assert requested[0].chapter_node_id == 2585 and requested[0].book_id == 526
+    assert requested[0].chapter_node_id == node_id and requested[0].book_id == 526
+    assert requested[0].scope_kind == scope_kind
     assert (tmp_path / result["artifacts"]["pdf"]["path"]).read_bytes() == b"%PDF-fixture"
     assert result["checks"] == {"production_findings_clear": False, "independent_concept_coverage": None, "human_layout_review": None}
     assert result["evidence"]["bound_expected"]["coverage_points"] == ["Independent fixture criterion"]

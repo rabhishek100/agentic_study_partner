@@ -1,0 +1,57 @@
+{
+  "dataset_id": "attention-paper-author-gold-v1",
+  "review_status": "source_backed_author_labels_human_calibration_pending",
+  "methodology": "Criteria authored from canonical paper text, TOC and equations before generating candidates. Node IDs are TOC ordinals, rebound and page-validated by the runner. The parsed equation text is imperfect; visual equation fidelity requires the original figure/page and human review.",
+  "paper": {
+    "title": "Attention Is All You Need",
+    "source_file_sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697"
+  },
+  "cases": [
+    {
+      "id": "paper-scaled-attention",
+      "flow": "chat",
+      "question": "Why does scaled dot-product attention divide the query-key dot products by the square root of the key dimension?",
+      "expected": {
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_scope": null,
+        "expected_evidence": [{"node_id": 6, "pages": [4], "role": "required"}, {"node_id": 7, "pages": [4], "role": "optional"}],
+        "coverage_points": [
+          "Larger key dimensions can increase the magnitude of unscaled query-key dot products.",
+          "Large logits push softmax toward regions with very small gradients.",
+          "Dividing by sqrt(d_k) counters this effect before softmax; do not confuse it with scaling the values.",
+          "The independent-component illustration gives dot-product variance d_k and is an assumption, not a universal data guarantee."
+        ]
+      }
+    },
+    {
+      "id": "paper-complete-summary",
+      "flow": "summary",
+      "question": "Summarize this entire paper, including the architecture, attention equation, position information, training, main results and limitations. Cite the original sections and pages.",
+      "expected": {
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_scope": {"kind": "book", "node_id": null},
+        "expected_evidence": [
+          {"node_id": 4, "pages": [3], "role": "required"},
+          {"node_id": 6, "pages": [4], "role": "required"},
+          {"node_id": 7, "pages": [4, 5], "role": "required"},
+          {"node_id": 11, "pages": [6], "role": "required"},
+          {"node_id": 19, "pages": [8], "role": "required"},
+          {"node_id": 22, "pages": [10], "role": "required"}
+        ],
+        "coverage_points": [
+          "Describe the encoder-decoder architecture, self-attention, decoder masking and encoder-decoder attention.",
+          "Explain Attention(Q,K,V)=softmax(QK^T/sqrt(d_k))V and parallel projected attention heads.",
+          "Explain why position information is needed and how sinusoidal and learned encodings were compared.",
+          "Discuss parallelism, path lengths and complexity tradeoffs without claiming attention is always cheaper.",
+          "Cover training data, optimization schedule, regularization and reported experimental conditions.",
+          "Report the big model's 28.4 English-German and 41.0 English-French BLEU with the correct tasks and qualification.",
+          "Include model variations, constituency parsing and the conclusion's future directions; separate reported findings from hypotheses or later Transformer developments."
+        ]
+      }
+    }
+  ]
+}

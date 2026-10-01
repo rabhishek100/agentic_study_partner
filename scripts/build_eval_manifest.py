@@ -16,6 +16,7 @@ def build():
     candidate = json.loads((ROOT / "evaluation/interview_candidate_profiles.json").read_text())
     ideal = json.loads((ROOT / "evaluation/ideal_interview_flow_seed.json").read_text())
     sheets = json.loads((ROOT / "evaluation/revision_sheet_gold.json").read_text())
+    paper = json.loads((ROOT / "evaluation/paper_gold.json").read_text())
     wanted = {f"mt-{c:03}-t{t}" for c, turns in [(1, [1, 2, 3, 4]), (2, [2]), (3, [1, 2, 3, 4]),
                (4, [1]), (5, [1, 2, 3, 4]), (6, [1]), (8, [1, 2, 3, 4]), (9, [1, 2]),
                (10, [1]), (11, [1, 2])] for t in turns}
@@ -39,6 +40,24 @@ def build():
                                        (["retrieval"] if turn["expected_route"] == "retrieval_qa" else []) +
                                        (["abstention"] if not turn.get("answerable", True) else []))))
             previous = turn["turn_id"]
+    for item in paper["cases"]:
+        cases.append(Case(id=item["id"], flow=item["flow"], adapter="book", title=item["question"],
+            tier=paper["review_status"], inputs={"dataset": "evaluation/paper_gold.json",
+                "conversation_id": item["id"], "question": item["question"]}, expected=item["expected"],
+            source={"kind": "book", "file_hash": paper["paper"]["source_file_sha256"],
+                    "title": paper["paper"]["title"]},
+            aspects=["input", "grounding", "efficiency", "retrieval"] if item["flow"] == "chat" else
+                    ["complete_scope", "concepts", "figures_equations", "grounding", "efficiency"]))
+    paper_summary = next(item for item in paper["cases"] if item["flow"] == "summary")
+    cases.append(Case(id="sheet-attention-paper", flow="revision_sheet", adapter="sheet",
+        title="Revision sheet — complete Attention Is All You Need paper", tier=paper["review_status"],
+        inputs={"scope_kind": "paper", "dataset": "evaluation/paper_gold.json"},
+        expected={"coverage_points": paper_summary["expected"]["coverage_points"],
+                  "expected_evidence": paper_summary["expected"]["expected_evidence"],
+                  "layout": "A4 readable, original equations and figures faithful, no clipping"},
+        source={"kind": "book", "file_hash": paper["paper"]["source_file_sha256"],
+                "title": paper["paper"]["title"]},
+        aspects=["scope", "concepts", "grounding", "figures", "layout", "repair", "efficiency"]))
     for conversation_id in ("vc-002", "vc-003", "vc-004", "vc-005", "vc-006", "vc-007", "vc-011", "vc-012"):
         conversation = next(c for c in video["conversations"] if c["id"] == conversation_id)
         turn = conversation["turns"][0]
@@ -65,6 +84,20 @@ def build():
                           source={"kind": "course", "title": "MIT 6.824 Distributed Systems (Spring 2020)"},
                           depends_on=["course-synthesis"] if id_ == "course-followup" else [],
                           aspects=["course", "source_exclusion", "history", "abstention", "grounding", "efficiency"]))
+    cases.append(Case(id="course-spanner-indexed", flow="video_course", adapter="course",
+        title="Explain Spanner's per-shard Paxos groups and replication, using only the Spanner lecture.",
+        tier="source_backed_author_labels_human_calibration_pending",
+        inputs={"question": "Explain Spanner's per-shard Paxos groups and replication, using only the Spanner lecture.",
+                "lecture_title_filter": "Spanner"},
+        expected={"answerable": True, "coverage_points": [
+            "Each shard's replicas form an independent Paxos group with its own leader.",
+            "Independent shards/groups support parallel throughput for many concurrent clients.",
+            "Writes go to the relevant shard leader, which replicates an ordered log to followers.",
+            "Exclude other lectures and ground these claims in the selected Spanner evidence."],
+            "source_intervals_ms": [[320000, 485000]],
+            "methodology": "Authored from the indexed Spanner transcript before candidate generation; added coverage, not a replacement score for unavailable RPC/GFS/Raft sources."},
+        source={"kind": "course", "title": "MIT 6.824 Distributed Systems (Spring 2020)"},
+        aspects=["course", "source_exclusion", "grounding", "efficiency"]))
     for chapter in (1, 3, 6, 8, 10):
         criteria = next(item["criteria"] for item in sheets["chapters"] if item["chapter"] == chapter)
         cases.append(Case(id=f"sheet-chapter-{chapter}", flow="revision_sheet", adapter="sheet",
