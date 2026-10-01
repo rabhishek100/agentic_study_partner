@@ -92,13 +92,24 @@ Free Grafana operational monitoring and PostHog UI analytics:
 
 ```bash
 uv sync --frozen
-uv run --frozen --extra voice python -m pytest tests -q
+# Use a migrated test database, separate from the application corpus/queues.
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/study_partner_eval_test \
+  uv run --frozen --extra voice python -m pytest tests -q
 cd frontend
 npm ci
 npm run typecheck
 npm test
 npm run build
 ```
+
+Provision the test database once, then run
+`scripts.bootstrap_postgres --url-env TEST_DATABASE_URL` to apply the schema.
+CI provides an empty migrated Supabase instance. Local Storage integration tests
+also need loopback `SUPABASE_URL` and its local development service-role key;
+missing Storage/corpus fixtures are reported as skips. Pytest keeps hosted media,
+provider keys and telemetry out of ordinary tests, and skips global queue tests
+when the selected database already has live jobs. See the
+[isolation verification](docs/test-suite-audit.md#test-isolation-and-baseline-triage).
 
 ## Code map
 

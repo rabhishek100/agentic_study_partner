@@ -2,6 +2,7 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
 import fitz
 
@@ -198,8 +199,8 @@ class ProviderContractTests(unittest.TestCase):
     every page is paid for twice. That happened; these assertions are the guard.
     """
 
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key-not-used"})
     def test_the_hosted_adapter_exposes_its_reading(self) -> None:
-        os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-used")
         provider = OpenRouterOcrProvider(model_id="test/vision-1")
         self.addCleanup(provider.close)
 
@@ -208,8 +209,8 @@ class ProviderContractTests(unittest.TestCase):
         self.assertEqual(provider.prompt_hash, prompt_hash(PAGE_INSTRUCTION))
         self.assertTrue(provider.name)
 
+    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key-not-used"})
     def test_a_changed_instruction_changes_the_adapter_hash(self) -> None:
-        os.environ.setdefault("OPENROUTER_API_KEY", "test-key-not-used")
         default = OpenRouterOcrProvider(model_id="test/vision-1")
         self.addCleanup(default.close)
         altered = OpenRouterOcrProvider(

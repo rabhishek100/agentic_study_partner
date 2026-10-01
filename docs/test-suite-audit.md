@@ -130,3 +130,36 @@ was unchanged by this audit; the preceding run passed all 753 frontend cases.
 API catalog and all five generated LangGraph diagram checks passed; CI YAML
 parsed and the edited tests compile. The test count did not grow: the live
 search case was strengthened and dead duplicated code removed.
+
+## Test isolation and baseline triage
+
+The six known failures were reproduced, then all passed against the new migrated
+`study_partner_eval_test` database with hermetic media defaults. Three local-media
+fixtures had inherited `VIDEO_MEDIA_BACKEND=r2` from `.env`; the expired-lease
+test's global reclaim saw stale application jobs; two cache tests correctly
+identified restored grants inconsistent with the existing privacy migration.
+No application generation/lease assertions were weakened.
+
+`tests/conftest.py` establishes local filesystem/Supabase defaults before API
+imports load `.env`, clears ambient inference keys, disables hosted telemetry,
+rejects hosted Storage endpoints and honors `TEST_DATABASE_URL`. Queue modules
+are checked once before fixtures run; an existing book/video queue causes an
+explicit skip rather than a foreign claim. An idle external worker can still race
+tests, so a dedicated database with no worker remains the correct setup.
+Two OCR constructor tests now scope their fake key with `patch.dict`, rather
+than leaking it into later tests with `setdefault`.
+
+The application queue audit found no committed events/updates from this run for
+the configured owner; its last video-job updates remained 2026-09-07. The existing
+cache-privacy migration was reapplied to the local app database and direct
+authenticated access was verified rejected, including revoked truncate grants.
+No canonical content or existing application jobs were reset.
+
+Verification: the isolated full run passed **2,059 cases and 952 subtests** in
+112.13s, with 38 explicit skips. The 35 Storage-dependent skips subsequently
+passed against the existing loopback Supabase Storage service in a targeted
+79-case run (30.94s). Its uploads/deletes were limited to unique fixture-owner
+paths. The remaining three corpus-only checks require backfilled gold data and
+remain separate from deterministic CI. The six-failure group plus queue guards
+passed 45 cases (8.69s). These results verify the environment repairs; they do
+not establish live output quality or a hosted CI run.

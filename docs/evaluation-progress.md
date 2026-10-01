@@ -22,6 +22,9 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 5c | Production adapters and trace-backed reporting | Complete | Canonical source identity; all five output types; exact generation inputs; real LangSmith metrics |
 | 6 | Simple local evidence/artifact review UI | Complete | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
+| 7a | Test isolation and six baseline failures | Complete | Reproduction; dedicated migrated database; local Storage fixtures; privacy and queue protection |
+| 7b | Independent sheet criteria and live baselines | Pending | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
+| 7c | Connected five-flow journeys | Pending | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
@@ -120,6 +123,18 @@ repository-wide and independent of this five-flow selection.
   request capture hashes now bind source/image review to the saved output.
   The earlier unit-5c smoke predates capture hashes and is marked legacy.
 
+- Unit 7a: reproduced six failures (37 passed, six failed), then the isolated
+  group passed 45 cases (8.69s). Full isolated run: 2,059 passed, 38 skipped,
+  952 subtests (112.13s). The 35 Storage-dependent skips passed in a 79-case
+  loopback Storage run (30.94s); only three corpus-dependent checks remain
+  skipped. New pytest defaults prevent `.env` media/provider leakage; global
+  queue modules check empty book/video queues before fixtures. OCR fake keys
+  are scoped. Existing cache privacy migration reapplied locally; RLS and
+  direct-access/truncate rejection verified. Queue audit found no recent
+  committed user-job changes; existing updates remained 2026-09-07.
+  Resume test DB: `study_partner_eval_test` on the local 54322 cluster, all
+  54 migrations applied. Application data/jobs remain separate and unchanged.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -129,7 +144,6 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Implement unit 7 in small checkpoints: first reproduce/fix the six documented
-backend failures, then close independent sheet-gold gaps, run budgeted live
-baselines and verify connected journeys. Do not call authored-scenario interview
+Continue unit 7b: close independent sheet-gold gaps, run budgeted live baselines,
+then unit 7c verifies connected journeys. Do not call authored-scenario interview
 checks a live adaptive session/voice journey. Unit 8 measures paired improvements.
