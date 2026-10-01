@@ -122,11 +122,45 @@ isolated Python process, including background telemetry and excluding remote
 models and child browsers. First-content latency is unmeasured in these
 non-streaming native evaluations. `report.md` keeps failures and unknowns visible.
 
-## Verification
+## Local human review
+
+```bash
+uv run --frozen --extra voice python -m scripts.review_evaluations \
+  evaluation/runs/baseline --port 8766
+```
+
+Open the local session link printed by the command. The server binds only to
+loopback and requires a per-launch session token for source/artifact access.
+The page shows planned/generated counts, a flow filter, saved outputs, original
+source text/images and sheet PDFs. Grading feedback and ideal dialogues are
+readable without opening raw JSON. Diagnostic model scores are initially hidden.
+Choose supported/unsupported/unknown, 0–4 scores or unknown, optional concept
+labels and layout findings. **Save & next** moves to the next unreviewed generated
+case; **Save** keeps the current case. Source tabs retain unsaved drafts.
+
+Labels persist in private `reviews.json`, tied to the experiment fingerprint and
+exact output hash. Edits retain history; reload resumes saved labels; export
+downloads only labels and their diagnostic agreement summary. Saving also updates
+the report's human-review section. The UI never calls a generator or judge.
+Changed capture/artifact bytes invalidate their integrity checks. Older captures
+without hashes are marked legacy snapshots. Failed generation may show partial
+draft/source artifacts but cannot be labelled as a completed output.
+
+Review-token access, same-origin writes, unsafe-content handling, source integrity,
+PDF bytes and blind diagnostics have API tests. The explicit browser smoke covers
+save/reload/export, unsaved tab drafts, PDFs, keyboard focus, a 390px viewport,
+reduced-motion mode and hostile content. It uses fixtures and never creates a real
+human quality label:
+
+```bash
+uv run --frozen --extra voice python -m tests.check_eval_review_browser
+```
+
+## Automated checks
 
 ```bash
 LANGSMITH_TRACING=false OTEL_ENABLED=false uv run --frozen --extra voice \
-  python -m pytest tests/test_eval_adapters.py tests/test_eval_suite.py \
+  python -m pytest tests/test_eval_reviews.py tests/test_eval_adapters.py tests/test_eval_suite.py \
   tests/test_eval_budget.py tests/test_eval_integrity.py -q
 ```
 

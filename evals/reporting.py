@@ -108,6 +108,9 @@ def traced_adapters(adapters, *, budget, project, experiment_id, client):
                     metrics.update(read_trace(client, str(run.id)), status="available")
                 except Exception as error:
                     metrics["readback_error_kind"] = type(error).__name__
+            from hashlib import sha256
+            value.setdefault("evidence", {})["generation_capture_hashes"] = {
+                relative: sha256((Path(directory) / relative).read_bytes()).hexdigest() for relative in captures}
             value.update(trace, metrics=metrics)
             return value
         result[name] = execute
@@ -127,6 +130,8 @@ def refresh_metrics(bundle, directory, client):
 
 
 def write_report(bundle, directory):
+    from evals.reviews import valid_reviews, review_stats
+    labels = valid_reviews(directory, bundle)
     lines = ["# Five-flow evaluation", "", f"Execution layer: {bundle['config']['execution_layer']}", "",
              "Native generation does not establish API/browser, voice or ingestion journey coverage.", "",
              "| Case | Status | Deterministic failures | Judge grounding | Seconds | Trace USD |",
@@ -140,7 +145,15 @@ def write_report(bundle, directory):
         lines.append(f"| {row['id']} | {row['status']} | {failed} | {row.get('judgment', {}).get('grounding_status', 'unjudged')} | {measured('latency_seconds')} | {measured('cost_usd')} |")
     lines += ["", "Budget ledger (includes judging and unknown reservations):", "",
               "```json", json.dumps(bundle.get("budget", {}), indent=2), "```", "",
-              "Human review is pending. Citation locator validity alone does not prove supported claims."]
+              "Human review:", "", "```json", json.dumps(review_stats(bundle, labels), indent=2), "```", "",
+              "| Case | Reviewer | Grounding | Correctness | Coverage | Usefulness | Verdict |",
+              "| --- | --- | --- | --- | --- | --- | --- |"]
+    def safe(value):
+        return str(value if value is not None else "unknown").replace("|", "\\|").replace("\n", " ")
+    for label in labels:
+        lines.append("| " + " | ".join(safe(label.get(key)) for key in
+            ("case_id", "reviewer", "grounding", "correctness", "coverage", "usefulness", "verdict")) + " |")
+    lines += ["", "Citation locator validity alone does not prove supported claims."]
     path = Path(directory) / "report.md"
     path.write_text("\n".join(lines) + "\n")
     path.chmod(0o600)

@@ -20,7 +20,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 5a | Durable inference budget and request capture | Complete | Sync/async/retry transport; unknown receipts; concurrency; crash/resume; no over-cap request sent |
 | 5b | Coverage manifest and resumable orchestration | Complete | Five-flow mapping; durable generation before judging; source/configuration fingerprints; fixture resume |
 | 5c | Production adapters and trace-backed reporting | Complete | Canonical source identity; all five output types; exact generation inputs; real LangSmith metrics |
-| 6 | Simple local evidence/artifact review UI | Pending | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
+| 6 | Simple local evidence/artifact review UI | Complete | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
 
@@ -110,6 +110,16 @@ repository-wide and independent of this five-flow selection.
   live outputs and human calibration remain unit 7/8 work. Rerank pricing is
   unbounded by available metadata, so guarded baselines use labelled BM25.
 
+- Unit 6: 58 review/adapter/runner/budget/integrity cases passed (0.94s).
+  Explicit Chromium fixture smoke passed save/reload/export, preserved tab
+  drafts, PDF route, keyboard focus, reduced motion, 390px layout, hostile
+  text and remote-image checks. Desktop/mobile screenshots of the real grading
+  output were visually inspected. The local server runs on 127.0.0.1:8766;
+  the Codex panel-open request was queued. No real human quality label was
+  submitted by the agent. Labels and history persist separately from bundles;
+  request capture hashes now bind source/image review to the saved output.
+  The earlier unit-5c smoke predates capture hashes and is marked legacy.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -119,8 +129,7 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Implement unit 6: a simple local review UI consuming private saved bundles.
-Support grounded text, video evidence, course sources, sheet PDFs and interview
-artifacts. Human labels must bind output hashes, save/resume/export and preserve
-unknowns. After that, unit 7 handles connected journeys, six baseline failures
-and live baselines; unit 8 measures paired improvements.
+Implement unit 7 in small checkpoints: first reproduce/fix the six documented
+backend failures, then close independent sheet-gold gaps, run budgeted live
+baselines and verify connected journeys. Do not call authored-scenario interview
+checks a live adaptive session/voice journey. Unit 8 measures paired improvements.

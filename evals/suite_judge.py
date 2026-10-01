@@ -33,6 +33,10 @@ def judge_payload(case, row, directory):
         path = (Path(directory) / relative).resolve()
         if not path.is_relative_to(Path(directory).resolve() / "requests"):
             raise ValueError("Generation capture must remain inside requests/")
+        from hashlib import sha256
+        expected_hash = row.get("evidence", {}).get("generation_capture_hashes", {}).get(relative)
+        if expected_hash and sha256(path.read_bytes()).hexdigest() != expected_hash:
+            raise ValueError("Frozen generation capture changed")
         payload = json.loads(path.read_text())
         messages = []
         for message in payload.get("messages", []):
