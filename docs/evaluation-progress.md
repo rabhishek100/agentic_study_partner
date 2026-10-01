@@ -23,7 +23,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 6 | Simple local evidence/artifact review UI | Complete | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
 | 7a | Test isolation and six baseline failures | Complete | Reproduction; dedicated migrated database; local Storage fixtures; privacy and queue protection |
-| 7b | Independent sheet criteria and live baselines | In progress | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
+| 7b | Independent sheet criteria and live baselines | Complete | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
 | 7c | Connected five-flow journeys | Pending | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
 
@@ -169,6 +169,17 @@ repository-wide and independent of this five-flow selection.
 
 ## Workspace exclusions
 
+- Unit 7b complete baseline: all 50 cases attempted; 43 generated/judged and
+  seven failed safely (two canonical section scope resolution errors, three
+  complete-source sheet context limits, two ideal-answer citation rejections).
+  Provider generation/judging total $0.348342240, zero unknown reservations;
+  together with the aborted transport attempt, $0.356433715. Immutable sanitized
+  results: `evaluation/five_flow_baseline_20261001.json`. Completion is not a
+  quality pass. Course RPC/OCC members lack indexed evidence; human calibration
+  remains pending. Six pages across two native PDFs were visually inspected:
+  legible, no observed clipping, but uneven whitespace and unresolved content
+  findings. This agent inspection is not a human review label.
+
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
 contains unrelated/unreviewed local artifacts. Preserve both; exclude them
 from task commits. Local `.env` and `frontend/.env.local` contain credentials
@@ -176,6 +187,8 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Continue unit 7b: close independent sheet-gold gaps, run budgeted live baselines,
-then unit 7c verifies connected journeys. Do not call authored-scenario interview
-checks a live adaptive session/voice journey. Unit 8 measures paired improvements.
+Continue unit 7c: fix the reproduced starter-question SQL failure, complete
+connected browser journeys, then repair measured canonical scope and abstention
+failures in unit 8. Paper gold is prepared but unbound/unexecuted. Preserve the
+original 50-case baseline. Human calibration and full-source large-sheet/ideal
+answer improvements remain explicit work.
