@@ -212,6 +212,13 @@ repository-wide and independent of this five-flow selection.
   and affirmative-evidence regressions are included; 40 related cases and
   49 subtests passed (1.78s).
 
+- Unit 8c: ideal dialogue now makes at most one explicit citation repair with
+  the same full topic evidence and exact missing/unexpected-marker feedback.
+  It regenerates the answer rather than attaching invented markers, keeps
+  both call costs, traces the repair, and still rejects an invalid second
+  attempt. Related 42 ideal/adapter/budget cases passed (1.82s). Paired live
+  dialogue verification remains next; this test result alone is not quality.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`

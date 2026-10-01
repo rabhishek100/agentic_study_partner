@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 from uuid import UUID
+from unittest.mock import patch
+from dataclasses import replace
 
 import jwt
 import pytest
@@ -96,6 +98,34 @@ def test_exchange_rejects_cross_topic_citations():
             interview_format="system_design", target_level="mid",
             index=0, previous=[], model=model,
         )
+
+
+def test_missing_ideal_citations_get_one_grounded_repair_and_cost_is_retained():
+    broken = IdealInterviewExchangeDraft(interviewer_text="What would you clarify first?",
+        candidate_text="I'd clarify durability and latency because they determine the design. " * 8,
+        citation_markers=["[N10:P3]"])
+    topic = replace(source().topics[0], allowed_markers=frozenset({"[N10:P3]", "[N11:P4]"}),
+        evidence_text="[N10:P3]\nClarify latency.\n[N11:P4]\nClarify durability.")
+    repaired = broken.model_copy(update={"citation_markers": ["[N10:P3]", "[N11:P4]"]})
+    with patch("interviews.ideal_generation.invoke_structured",
+               side_effect=[(broken, 0.01), (repaired, 0.02)]) as invoke:
+        exchange, cost = generate_ideal_exchange(inventory=source(), topic=topic,
+            interview_format="system_design", target_level="mid", index=0, previous=[], model=object())
+    assert invoke.call_count == 2
+    assert exchange.citations[0].marker == "[N10:P3]"
+    assert cost == pytest.approx(0.03)
+    assert invoke.call_args.kwargs["config"]["metadata"]["repair_attempt"] == 1
+
+
+def test_ideal_citation_repair_stops_after_one_attempt():
+    broken = IdealInterviewExchangeDraft(interviewer_text="What would you clarify first?",
+        candidate_text="I'd clarify latency because it changes the design. " * 10,
+        citation_markers=["[N11:P4]"])
+    with patch("interviews.ideal_generation.invoke_structured", return_value=(broken, 0.01)) as invoke:
+        with pytest.raises(ValueError, match="every marker"):
+            generate_ideal_exchange(inventory=source(), topic=source().topics[0],
+                interview_format="system_design", target_level="mid", index=0, previous=[], model=object())
+    assert invoke.call_count == 2
 
 
 def test_exchange_strips_citation_markers_from_spoken_text():
