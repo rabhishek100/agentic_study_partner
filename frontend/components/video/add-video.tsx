@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -24,7 +26,7 @@ interface ResourceReservation {
 
 async function putBytes(url: string, file: File, contentType: string) {
   const token = await accessToken();
-  const response = await fetch(uploadUrl(url), {
+  const response = await trackedFetch(uploadUrl(url), {
     method: "PUT",
     headers: {
       "Content-Type": contentType,
@@ -56,7 +58,7 @@ export function AddVideo({ onAdded }: { onAdded(): void }) {
   async function attachCaptions(videoId: string) {
     if (!captionFile) return;
     const token = await accessToken();
-    const response = await fetch(uploadUrl(`/videos/${videoId}/captions`), {
+    const response = await trackedFetch(uploadUrl(`/videos/${videoId}/captions`), {
       method: "PUT",
       headers: {
         "Content-Type": "text/vtt",

@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -146,7 +148,7 @@ export function RevisionSheets({ books, selectedBookIds, noun }: {
     void (async () => {
       try {
         const token = await accessToken();
-        const response = await fetch(`/api/revision-sheets/${sheetId}/pdf`, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        const response = await trackedFetch(`/api/revision-sheets/${sheetId}/pdf`, { signal: controller.signal, headers: token ? { Authorization: `Bearer ${token}` } : {} });
         if (!response.ok) throw new Error(await errorDetail(response));
         const blob = await response.blob();
         if (!controller.signal.aborted) { url = URL.createObjectURL(blob); setPdf(url); }
@@ -202,7 +204,7 @@ export function RevisionSheets({ books, selectedBookIds, noun }: {
 
   return <>
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger asChild><Button type="button" variant="ghost" size="sm" disabled={!books.length}><FileText aria-hidden className="size-3.5" />Revision sheet</Button></DialogTrigger>
+      <DialogTrigger asChild><Button data-analytics-action="revision_sheets_open" type="button" variant="ghost" size="sm" disabled={!books.length}><FileText aria-hidden className="size-3.5" />Revision sheet</Button></DialogTrigger>
       <DialogContent className="flex max-h-[92dvh] flex-col gap-4 overflow-hidden sm:max-w-5xl">
         <div className="shrink-0 pr-8"><DialogTitle>{sheet ? sheet.scope_title : "Revision sheets"}</DialogTitle>
           <DialogDescription>{sheet ? `${sheet.source_title} · Saved version ${sheet.version}` : "One chapter or an entire paper, condensed for repeated review. Up to five printable A4 pages."}</DialogDescription></div>
@@ -269,7 +271,7 @@ export function RevisionSheets({ books, selectedBookIds, noun }: {
               <select id="revision-source" className={selectStyle} value={bookId} onChange={e => { setBookId(e.target.value); setJob(null); }}><option value="">Choose a {noun}</option>{books.map(b => <option key={b.book_id} value={b.book_id}>{b.title}</option>)}</select></div>
               {noun === "book" ? <div className="space-y-2"><Label htmlFor="revision-chapter">Chapter</Label><select id="revision-chapter" className={selectStyle} value={chapterId} disabled={!bookId || loadingChapters} onChange={e => { setChapterId(e.target.value); setJob(null); }}><option value="">{loadingChapters ? "Loading chapters…" : "Choose a chapter"}</option>{chapters.map(c => <option key={c.node_id} value={c.node_id}>{c.title} · pp. {c.start_page}–{c.end_page}</option>)}</select></div> : <p className="self-end py-3 text-sm text-muted-foreground">Scope: Entire paper</p>}
             </div>
-            <Button type="button" disabled={!scopeKey || submitting} onClick={() => {
+            <Button data-analytics-action="revision_sheet_generate" type="button" disabled={!scopeKey || submitting} onClick={() => {
               if (saved) showSheet(saved.id);
               else if (scopeJob) setJob(scopeJob);
               else void mutate("/revision-sheets", { scope_kind: noun === "paper" ? "paper" : "chapter", book_id: Number(bookId), ...(noun === "book" ? { chapter_node_id: Number(chapterId) } : {}) });

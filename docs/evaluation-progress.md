@@ -13,7 +13,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | --- | --- | --- | --- |
 | 0 | Versioned plan and resume tracker | Complete | Plan matches confirmed five flows and $2 experiment ceiling |
 | 1 | Repository-wide LangSmith and operational telemetry | Complete | SDK/context/stream/error/privacy tests; container imports; hosted delivery |
-| 2 | PostHog analytics and monitoring dashboard configuration | Pending verification/commit | Frontend tests, types/build; hosted UI events and Grafana panel queries |
+| 2 | PostHog analytics and monitoring dashboard configuration | Complete | Frontend tests, types/build; hosted UI events and Grafana panel queries |
 | 3 | Test cleanup and complete CI discovery | Pending verification/commit | Edited suites and generated-doc checks; preserve documented baseline failures |
 | 4 | Evaluator integrity | Pending | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
 | 5 | Shared five-flow manifest, resumable runner and cost guard | Pending | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
@@ -61,6 +61,12 @@ repository-wide and independent of this five-flow selection.
   setup; no exporter code changed since that check. Checkpoint: backend tracing
   and operational telemetry commit following the plan commit `590c70b`.
 
+- Unit 2: all 753 frontend tests in 88 files passed (24.55s); TypeScript and
+  production Next build passed. Prior hosted PostHog page/control events and
+  dashboard rendering remain verified; implementation has not changed since
+  that hosted check. Analytics remains opt-in, with payload/profile filtering.
+  Build-generated `next-env.d.ts` route-path churn was restored before commit.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -70,5 +76,5 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Verify and commit unit 2 (frontend analytics/build configuration), then push.
-Continue with test cleanup before changing evaluators.
+Verify and commit unit 3 (test cleanup and CI discovery), then push.
+Continue with evaluator integrity before building the unified runner.

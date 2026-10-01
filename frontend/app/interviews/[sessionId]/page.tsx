@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import {
   ArrowLeft,
   CheckCircle2,
@@ -779,7 +781,7 @@ export default function InterviewWorkspace() {
     try {
       const blob = await screen.capture();
       const token = await accessToken();
-      const response = await fetch(uploadUrl(`/interviews/${sessionId}/screen-checkpoints`), { method: "POST", headers: { "Content-Type": blob.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: blob });
+      const response = await trackedFetch(uploadUrl(`/interviews/${sessionId}/screen-checkpoints`), { method: "POST", headers: { "Content-Type": blob.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: blob });
       if (!response.ok) throw new ApiError(await errorDetail(response), response.status);
       const updated = (await response.json()) as InterviewSession;
       if (draftEpoch === draftEpochRef.current) setInterview(updated);

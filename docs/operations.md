@@ -39,7 +39,9 @@ or Storage. Logs: `scripts/local.sh logs app` and `scripts/local.sh logs web`.
 |---|---|
 | `DATABASE_URL`, `AUTH_*` | Application database and Supabase token issuer |
 | `OPENROUTER_*`, `TAVILY_API_KEY` | Model roles and optional web-search provider |
-| `LANGSMITH_*` | Graph/model tracing and project |
+| `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_*` | Optional Grafana Cloud Free logs/traces/CPU/RSS; see [operational observability](operational-observability.md) |
+| `NEXT_PUBLIC_ANALYTICS_ENABLED`, `NEXT_PUBLIC_POSTHOG_*` | Optional PostHog browser events; web build-time variables |
+| `LANGSMITH_*` | Repository-wide HTTP/workflow/provider tracing and project; see [observability](observability.md) |
 | `SOURCE_*`, `BOOK_IMAGE_*`, `VIDEO_*` | Storage backends and ingestion settings |
 | `INGESTION_*` | Upload, page, lease, queue, and cleanup limits |
 | `SUMMARY_*`, `REVISION_*` | Context/output budgets |

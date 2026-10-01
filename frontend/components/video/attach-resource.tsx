@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import { AlertCircle, Loader2, Paperclip } from "lucide-react";
 import { useState } from "react";
 
@@ -55,7 +57,7 @@ export function AttachResource({
           },
         );
         const token = await accessToken();
-        const response = await fetch(uploadUrl(reservation.upload_url), {
+        const response = await trackedFetch(uploadUrl(reservation.upload_url), {
           method: "PUT",
           headers: {
             "Content-Type": "application/pdf",

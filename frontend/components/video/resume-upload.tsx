@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import { AlertCircle, Loader2, Upload } from "lucide-react";
 import { useState } from "react";
 
@@ -41,7 +43,7 @@ export function ResumeUpload({
     setError("");
     try {
       const token = await accessToken();
-      const response = await fetch(
+      const response = await trackedFetch(
         uploadUrl(`/video-ingestions/${jobId}/source`),
         {
           method: "PUT",

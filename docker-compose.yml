@@ -56,6 +56,9 @@ services:
       context: frontend
       dockerfile: Dockerfile
       args:
+        NEXT_PUBLIC_ANALYTICS_ENABLED: ${NEXT_PUBLIC_ANALYTICS_ENABLED:-false}
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
         BACKEND_URL: http://api:8000
         # The browser signs in and uploads against Supabase directly, so these
         # must be reachable from the host browser, not from inside Compose.

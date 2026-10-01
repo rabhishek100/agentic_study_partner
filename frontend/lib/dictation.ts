@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import { ApiError, errorDetail, uploadUrl } from "./api";
 import { accessToken } from "./supabase";
 
@@ -53,7 +55,7 @@ export async function transcribeRecording(
   signal?: AbortSignal,
 ): Promise<string> {
   const token = await accessToken();
-  const response = await fetch(uploadUrl("/transcriptions"), {
+  const response = await trackedFetch(uploadUrl("/transcriptions"), {
     method: "POST",
     headers: {
       // A recorder that chose its own container still names it on the blob.
@@ -77,7 +79,7 @@ export async function transcribeInterviewRecording(
   signal?: AbortSignal,
 ): Promise<string> {
   const token = await accessToken();
-  const response = await fetch(
+  const response = await trackedFetch(
     uploadUrl(`/interviews/${sessionId}/transcriptions`),
     {
       method: "POST",
