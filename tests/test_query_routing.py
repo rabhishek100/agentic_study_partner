@@ -359,6 +359,24 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertIn("evidence is insufficient", result.answer)
         self.assertNotIn("INSUFFICIENT_EVIDENCE", result.answer)
 
+    def test_contracted_refusal_is_not_published_as_an_answer(self):
+        document = SimpleNamespace(page_content="Low-rank factorization compresses tensors.",
+            metadata={"book_id": self.book_id, "node_id": 1, "path": "Core idea",
+                      "start_page": 2, "end_page": 2})
+        for text, outcome in (
+            ("There isn't enough evidence here to prescribe LoRA rank. [S1]", "abstain"),
+            ("There isn’t enough evidence here to choose target modules. [S1]", "abstain"),
+            ("There is not enough evidence for that recommendation. [S1]", "abstain"),
+            ("The evidence is sufficient to explain tensor factorization. [S1]", "answer"),
+        ):
+            with self.subTest(text=text), patch("study.query.BookRetriever") as retriever:
+                retriever.return_value.invoke.return_value = [document]
+                model = MagicMock()
+                model.invoke.return_value = SimpleNamespace(content=text)
+                result = execute_query("How should I choose LoRA rank?", database_url=self.database_url,
+                    book_id=self.book_id, owner_id=self.owner_id, model=model, allow_external_fallback=False)
+                self.assertEqual(result.outcome, outcome)
+
     def test_model_falls_back_to_external_qa_when_evidence_insufficient(self):
         document = SimpleNamespace(
             page_content="Low-rank factorization can compress model tensors.",

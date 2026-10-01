@@ -32,6 +32,7 @@ SOURCE_CITATION = re.compile(r"\[S(\d+)]")
 INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\b(?:the\s+)?evidence\s+is\s+insufficient\b|"
     r"\bnot\s+enough\s+evidence\b|"
+    r"\b(?:isn['’]t|is\s+not)\s+enough\s+evidence\b|"
     r"\bcannot\s+be\s+answered\s+from\s+(?:the|this)\s+(?:lecture|evidence)\b",
     re.IGNORECASE,
 )

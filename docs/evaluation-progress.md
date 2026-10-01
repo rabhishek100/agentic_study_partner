@@ -200,6 +200,17 @@ repository-wide and independent of this five-flow selection.
   summary cases rerun with unchanged gold/source in a separate $0.30-capped
   experiment: `evaluation/runs/unit8-scope-corrected`. Generation, checks,
   diagnostic judgment and spend are retained there; original baseline intact.
+  Both formerly failed cases now completed: scope/outcome/citation checks pass,
+  evidence recall 1.0, diagnostic grounding supported. Total $0.007109685,
+  including the required preceding clarification turn; zero unknown costs.
+
+- Unit 8b: book and video refusal classifiers recognize straight/curly
+  apostrophe `isn't/isn’t enough evidence` and `is not enough evidence`.
+  Replaying the exact saved LoRA response changes missed refusal to detected
+  abstention with zero model calls; this is a classification repair, not a
+  claim of improved generated prose or model quality. Production-path refusal
+  and affirmative-evidence regressions are included; 40 related cases and
+  49 subtests passed (1.78s).
 
 ## Workspace exclusions
 

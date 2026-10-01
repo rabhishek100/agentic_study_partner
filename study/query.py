@@ -82,6 +82,7 @@ INSUFFICIENT_EVIDENCE_MARKER = "INSUFFICIENT_EVIDENCE:"
 INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\b(?:the\s+)?evidence\s+is\s+insufficient\b|"
     r"\bnot\s+enough\s+evidence\b|"
+    r"\b(?:isn['’]t|is\s+not)\s+enough\s+evidence\b|"
     r"\bcannot\s+be\s+answered\s+from\s+(?:the|this)\s+evidence\b|"
     r"\bcannot\s+recommend\s+(?:a|an|the|any)\b",
     re.IGNORECASE,
