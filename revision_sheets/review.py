@@ -153,7 +153,7 @@ def judge_sheet(source, sheet, inventory, pdf, client):
     evidence = ("CANONICAL SOURCE\n" + source.text + "\nINDEPENDENT INVENTORY\n" + inventory.model_dump_json()
                 + "\nRENDERED CONTENT\n" + sheet.model_dump_json())
     reserved = len(tiktoken.get_encoding("cl100k_base").encode(evidence + JUDGE_PROMPT + str(Review.model_json_schema()))) + 16000 + 4000 * len(images)
-    if reserved > int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "64000")):
+    if reserved > int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "128000")):
         raise RevisionError("scope_too_large", "Complete evidence and visual review exceed the configured context budget. No evidence was truncated.")
     result = client.invoke([SystemMessage(content=JUDGE_PROMPT),
         HumanMessage(content=[{"type": "text", "text": evidence}, *images])])

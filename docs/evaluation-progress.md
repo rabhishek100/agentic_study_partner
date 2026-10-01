@@ -269,6 +269,22 @@ repository-wide and independent of this five-flow selection.
   55 subtests passed (4.55s). The unchanged paper case is next for paired live
   verification in a separate experiment.
 
+- Unit 8f paired live: unchanged full-paper case now takes `hierarchy_summary`,
+  validates citations and reaches recall 1.0 (previous 0.5/top-k route),
+  $0.0064758, zero unknown receipts. Luna still flags contradictory addenda:
+  missing heading-only Training/Results evidence prompted false claims that
+  the paper lacks details already present in its child sections. This is a
+  distinct measured repair-context failure, now reproduced by a regression.
+
+- Unit 8g: promoted the measured 128k revision context capacity consistently
+  in composition, figure allocation, review and follow-up, plus setup template.
+  All three formerly blocked large chapters generated under the same 128k
+  experiment; quality warnings remain visible, not accepted as clean sheets.
+  Explicit smaller overrides and full-source fail-closed checks remain.
+  Related 61 revision/budget cases passed (62.92s). The local override is unset.
+  The user confirmed retaining labelled general-knowledge fallback; preserve
+  that policy and distinguish old source-only gold mismatches in reports.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`

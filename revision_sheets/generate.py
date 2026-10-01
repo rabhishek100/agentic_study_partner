@@ -214,7 +214,7 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
     # Check full source before any model call; figure batches are bounded separately.
     tokens = len(tiktoken.get_encoding("cl100k_base").encode(PROMPT + human_text + json.dumps(Draft.model_json_schema())))
     budget = tokens + 12000 + 2000 + 4000 * len(inspected)
-    window = int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "64000"))
+    window = int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "128000"))
     if budget > window:
         raise RevisionError("scope_too_large", f"Complete source needs approximately {budget:,} reserved tokens; configured limit is {window:,}. No evidence was truncated.")
     client = model or revision_model()
@@ -402,7 +402,7 @@ def image_inputs(source: Source) -> tuple[list[dict], list[int], list[int]]:
     """Bounded image inspection; identity is labelled per image, never positional."""
     candidates = [f for f in source.figures if f["skipped_reason"] in (None, "failed")]
     text_tokens = len(tiktoken.get_encoding("cl100k_base").encode(source.text + PROMPT + json.dumps(Draft.model_json_schema())))
-    available = int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "64000")) - text_tokens - 22000
+    available = int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "128000")) - text_tokens - 22000
     limit = min(8, len(candidates), max(0, available // 4000))
     # Sample across the complete source, including the final architecture;
     # taking the first eight would overrepresent introductory diagrams.
