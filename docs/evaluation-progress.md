@@ -1,6 +1,6 @@
 # Evaluation and observability delivery tracker
 
-Updated: 2026-10-01. Branch: `codex/gpt-6-luna`.
+Updated: 2026-10-02. Branch: `codex/gpt-6-luna`.
 
 This is the resume point for the five-flow evaluation and repository-wide
 observability work. Complete and verify one dependency-coherent unit, update
@@ -295,6 +295,14 @@ repository-wide and independent of this five-flow selection.
   recheck is next; new model draws are not a controlled fixed-draft replay.
 
 ## Workspace exclusions
+
+- Unit 8h verification correction: the runtime repair was pushed before one
+  legacy prompt assertion was checked. That assertion expected covered source
+  nodes to be excluded. It now requires full source and exact retention of the
+  initial answer; coverage/citation checks remain. A new regression verifies
+  that an oversized full-source repair stops before a second model call.
+  Summary/routing/conversation group: 55 passed, 20 subtests (2.05s).
+  The next live paper recheck uses a new run directory and unchanged gold.
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
 contains unrelated/unreviewed local artifacts. Preserve both; exclude them

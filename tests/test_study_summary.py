@@ -589,8 +589,28 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             "Write only a concise Markdown coverage addendum", repair_system[1]
         )
         self.assertIn(f"Node {missing_id}", repair_human[1])
+        self.assertTrue(result.text.startswith(f"Initial safe summary. {initial_citations}"))
         for covered_id in ordered_ids[:-1]:
-            self.assertNotIn(f"## Node {covered_id}:", repair_human[1])
+            self.assertIn(f"## Node {covered_id}:", repair_human[1])
+
+    def test_full_source_repair_checks_context_budget_before_model_call(self) -> None:
+        scope, context = self._chapter_context()
+        missing = max(context.expected_node_ids)
+        initial = "Previously covered details. " * 1500 + " ".join(
+            f"[N{node}:P{page}]"
+            for node, page in sorted(context.allowed_citations)
+            if node != missing
+        )
+        model = SequenceSummaryModel(initial, "Must not be called.")
+        with self.assertRaises(ContextWindowExceededError):
+            summarize_scope_with_repair(
+                model, scope=scope, context=context,
+                config=SummaryConfig(
+                    context_window_tokens=12000, max_output_tokens=8000,
+                    safety_margin_tokens=1000,
+                ),
+            )
+        self.assertEqual(len(model.messages), 1)
 
     def test_returns_best_citation_safe_draft_when_coverage_repair_stalls(
         self,
