@@ -2,8 +2,8 @@
 
 The shared five-flow runner is being delivered in the units tracked in
 [evaluation-progress.md](evaluation-progress.md). The budget guard, manifest and
-resumable orchestration are implemented; production adapters and the review UI
-are separate units.
+resumable orchestration and native production adapters are implemented. The
+review UI and connected journeys are separate units.
 
 ## Manifest and resume
 
@@ -73,11 +73,61 @@ Current OpenRouter contracts were checked on 2026-10-01:
 and [credit limits](https://openrouter.ai/docs/api_reference/limits).
 Metadata is fetched and frozen per experiment; prices are not hardcoded.
 
+## Native generation and reports
+
+```bash
+# No inference: inventory and save/resume smoke.
+uv run --frozen --extra voice python -m scripts.run_evaluations --plan
+uv run --frozen --extra voice python -m scripts.run_evaluations --fixture \
+  --output evaluation/runs/fixture-smoke
+
+# Paid generation and Luna judging share a $2 ceiling. Repeating the same
+# command resumes saved outputs; add --retry-failed only to retry generation.
+uv run --frozen --extra voice python -m scripts.run_evaluations --live \
+  --case proximity-strong --output evaluation/runs/baseline --max-usd 2
+```
+
+Remove `--case` to target all 50 cases; `--flow` selects one flow and its state
+prerequisites. The runner calls production book/video/course conversations,
+sheet generation, candidate grading and ideal dialogue generation. It does not
+persist new user conversations or enqueue/replace user artifacts. Exact generation
+requests, sheet PDFs/provenance, partial failed dialogue drafts, expected values,
+checks, diagnostic judgments and LangSmith links are inspectable in the private
+bundle. The judge receives complete captured contexts and original supplied
+images; text-only PDF layout and missing independent sheet labels remain unknown.
+Luna judging is a diagnostic from the same model family, pending human calibration.
+
+Book binding requires the original file hash and unique owned canonical TOC.
+Gold node ordinals are rebound to current IDs with page/citation validation.
+Canonical content, images and retrieval builds are fingerprinted. Video/course
+binding freezes published versions, evidence, frames, resource membership and
+ready course members. Source drift rejects a resumed experiment. Dataset bytes,
+implementation bytes and prompt-affecting configuration are also frozen; a
+changed experiment requires a distinct directory. These safeguards intentionally
+reject a stale resume rather than quietly mixing results.
+
+`--retrieval-mode bm25` is the default baseline. Production currently uses
+`hybrid_rerank`; the command records this difference. `hybrid` enables priced
+embedding retrieval. Reranking remains fail-closed because public Cohere rerank
+metadata did not supply a usable request charge bound; a zero token price is not
+treated as proof of a free endpoint. See the current
+[OpenRouter model discovery contract](https://openrouter.ai/docs/guides/overview/models).
+
+Each generated case gets an organized LangSmith root and model children. Reported
+latency, model tokens and model cost come from hosted trace readback, counting
+physical model leaves to avoid double counting nested totals. Missing receipts
+stay unknown. The budget rollup includes generation and judging; the generation
+trace metric is labelled separately. CPU seconds and sampled peak RSS cover the
+isolated Python process, including background telemetry and excluding remote
+models and child browsers. First-content latency is unmeasured in these
+non-streaming native evaluations. `report.md` keeps failures and unknowns visible.
+
 ## Verification
 
 ```bash
 LANGSMITH_TRACING=false OTEL_ENABLED=false uv run --frozen --extra voice \
-  python -m pytest tests/test_eval_suite.py tests/test_eval_budget.py tests/test_eval_integrity.py -q
+  python -m pytest tests/test_eval_adapters.py tests/test_eval_suite.py \
+  tests/test_eval_budget.py tests/test_eval_integrity.py -q
 ```
 
 Tests use real httpx clients with fixture transports: no paid inference. They

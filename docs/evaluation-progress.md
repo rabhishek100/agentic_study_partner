@@ -16,10 +16,10 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 2 | PostHog analytics and monitoring dashboard configuration | Complete | Frontend tests, types/build; hosted UI events and Grafana panel queries |
 | 3 | Test cleanup and complete CI discovery | Complete | Edited suites and generated-doc checks; preserve documented baseline failures |
 | 4 | Evaluator integrity | Complete | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
-| 5 | Shared five-flow manifest, resumable runner and cost guard | In progress | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
+| 5 | Shared five-flow manifest, resumable runner and cost guard | Complete | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
 | 5a | Durable inference budget and request capture | Complete | Sync/async/retry transport; unknown receipts; concurrency; crash/resume; no over-cap request sent |
 | 5b | Coverage manifest and resumable orchestration | Complete | Five-flow mapping; durable generation before judging; source/configuration fingerprints; fixture resume |
-| 5c | Production adapters and trace-backed reporting | Pending | Canonical source identity; all five output types; exact generation inputs; real LangSmith metrics |
+| 5c | Production adapters and trace-backed reporting | Complete | Canonical source identity; all five output types; exact generation inputs; real LangSmith metrics |
 | 6 | Simple local evidence/artifact review UI | Pending | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
@@ -97,6 +97,19 @@ repository-wide and independent of this five-flow selection.
   Production adapters have not run; sheet independent concept labels, several
   contract-only aspects and connected browser journeys remain explicit gaps.
 
+- Unit 5c: 52 adapter/runner/budget/integrity cases passed (0.91s). Native
+  boundaries verify saved book state, canonical locator mapping, video versions
+  and media requirements, course exclusions, private PDFs/provenance and failed
+  interview generation. All 50 fixture cases completed and reused on resume.
+  Read-only live binding validated one matching book, four published lectures
+  and one course; unavailable/unpublished course lectures are excluded explicitly.
+  One live `proximity-strong` grading plus Luna judge passed: provider ledger
+  $0.001332350, no unknown reservations. Hosted generation trace: 8.021803s,
+  2,454 tokens, $0.000521925; all four deterministic checks passed. This is a
+  transport/native grading smoke, not a five-flow quality baseline. All-flow
+  live outputs and human calibration remain unit 7/8 work. Rerank pricing is
+  unbounded by available metadata, so guarded baselines use labelled BM25.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -106,6 +119,8 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Implement unit 5c: production adapters and trace-backed reports. The manifest
-contains 50 cases; preserve their dependency state, source identity, tier and
-coverage gaps. Budget/capture is already implemented in `evals.budget`.
+Implement unit 6: a simple local review UI consuming private saved bundles.
+Support grounded text, video evidence, course sources, sheet PDFs and interview
+artifacts. Human labels must bind output hashes, save/resume/export and preserve
+unknowns. After that, unit 7 handles connected journeys, six baseline failures
+and live baselines; unit 8 measures paired improvements.

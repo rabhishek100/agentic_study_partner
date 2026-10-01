@@ -1,5 +1,6 @@
 """One resumable bundle for all five flows; adapters own production behavior."""
 from collections import Counter
+from decimal import Decimal
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -117,7 +118,7 @@ def run_suite(manifest, directory, *, adapters, config, budget=None, judge=None,
             if budget is not None:
                 bundle["budget"] = {"cap_usd": budget.data["cap_usd"],
                                      "committed_usd": str(budget.committed),
-                                     "reported_usd": str(sum(float(c.get("cost_usd", 0)) for c in budget.data["calls"])),
+                                     "reported_usd": str(sum((Decimal(str(c.get("cost_usd", 0))) for c in budget.data["calls"]), Decimal(0))),
                                      "unknown_reservations": sum(c["status"] == "reserved" for c in budget.data["calls"])}
             atomic_json(path, bundle)
         save()
