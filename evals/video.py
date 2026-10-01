@@ -37,6 +37,7 @@ from uuid import UUID
 from psycopg import Connection
 
 from evals.video_citations import classify_citation_gaps
+from evals.scoring import VIDEO_ANSWER_ROUTES, SCORING_VERSION, mean, metric_counts, video_citations
 from evals.video_coverage import SummarySubstance, measure_summary_substance
 from video.answers import (
     VideoAnswerDependencies,
@@ -132,12 +133,12 @@ def _overlaps(item: VideoEvidenceRef, anchor: dict[str, Any]) -> bool:
 
 def anchor_recall(
     anchors: list[dict[str, Any]], evidence: list[VideoEvidenceRef]
-) -> float:
+) -> float | None:
     """Fraction of required stretches that any retrieved item reached."""
 
     required = [anchor for anchor in anchors if anchor.get("role") == "required"]
     if not required:
-        return 1.0
+        return None
     hit = sum(
         1
         for anchor in required
@@ -172,7 +173,6 @@ def _expected_outcome(turn: dict[str, Any]) -> str:
 
 
 def _score(turn: dict[str, Any], result: VideoTurnResult) -> dict[str, Any]:
-    evidence_ranks = {item.rank for item in result.evidence}
     checks: dict[str, Any] = {
         "route": result.route == turn["expected_route"],
         "history_dependency": (
@@ -182,10 +182,8 @@ def _score(turn: dict[str, Any], result: VideoTurnResult) -> dict[str, Any]:
         # Every marker in the answer must point at evidence that was actually
         # supplied to the model; a marker for rank 9 in an eight-item set is a
         # fabricated locator whatever the prose around it says.
-        "citations_valid": all(
-            citation.evidence_rank in evidence_ranks
-            for citation in result.citations
-        ),
+        "citations_valid": video_citations(result, required=turn.get("answerable", True)
+                                          and turn["expected_route"] in VIDEO_ANSWER_ROUTES),
     }
     anchors = turn.get("expected_evidence") or []
     if turn.get("answerable", True):
@@ -224,7 +222,7 @@ def _rewrite_arms(
     """
 
     anchors = turn.get("expected_evidence") or []
-    if not turn.get("rewrite_probe") or not anchors:
+    if not turn.get("rewrite_probe") or not any(anchor.get("role") == "required" for anchor in anchors):
         return None
     queries = {
         "raw": turn["user"],
@@ -258,13 +256,7 @@ def _summary_substance(
     )
 
 
-def _mean(rows: list[dict], field_name: str) -> float:
-    values = [
-        row["checks"][field_name]
-        for row in rows
-        if field_name in (row.get("checks") or {})
-    ]
-    return sum(values) / len(values) if values else 0.0
+_mean = mean
 
 
 def _rewrite_summary(rows: list[dict]) -> dict[str, Any]:
@@ -352,7 +344,7 @@ def evaluate_retrieval_only(
             # Whole-lecture routes never search: they load the complete
             # transcript. Scoring them here would measure a retrieval that
             # production does not perform for these questions.
-            if not anchors or turn["expected_route"] != "evidence_qa":
+            if not any(anchor.get("role") == "required" for anchor in anchors) or turn["expected_route"] != "evidence_qa":
                 continue
             if on_turn:
                 on_turn(turn["turn_id"])
@@ -403,7 +395,7 @@ def evaluate_retrieval_only(
                 sum(row["recall"] for row in rows) / len(rows), 4
             )
             if rows
-            else 0.0,
+            else None,
             "turns_fully_covered": sum(1 for row in rows if row["recall"] == 1.0),
             "turns_missing_everything": sum(
                 1 for row in rows if row["recall"] == 0.0
@@ -426,6 +418,7 @@ def evaluate_video_conversations(
 
     rows: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
+    judge_errors: list[dict[str, str]] = []
     for conversation in conversations:
         state = new_video_conversation_state(
             video_id=runner.video_id, conversation_id=conversation["id"]
@@ -441,6 +434,7 @@ def evaluate_video_conversations(
                 "gold": turn,
             }
             try:
+                previous_state = state.model_dump(mode="json")
                 result, state = runner(turn["user"], state)
             except Exception as error:  # noqa: BLE001 - one failed turn, not a run
                 errors.append({"turn_id": turn_id, "error": str(error)})
@@ -452,7 +446,9 @@ def evaluate_video_conversations(
                             "route": False,
                             "history_dependency": False,
                             "outcome": False,
-                            "citations_valid": False,
+                            "citations_valid": False if turn.get("answerable", True) and turn["expected_route"] in VIDEO_ANSWER_ROUTES else None,
+                            **({"evidence_recall": 0.0, "cited_evidence_recall": 0.0}
+                               if turn.get("answerable", True) and any(item.get("role") == "required" for item in turn.get("expected_evidence", [])) else {}),
                         },
                         "error": str(error),
                     }
@@ -482,17 +478,25 @@ def evaluate_video_conversations(
                 if arms is not None:
                     row["rewrite_arms"] = arms
             if answer_judge is not None:
-                row["answer_judgment"] = answer_judge.evaluate(
-                    question=turn["user"],
-                    reference_answer=turn["reference_answer"],
-                    candidate_answer=result.answer,
-                    expected_route=turn["expected_route"],
-                    answerable=turn.get("answerable", True),
-                    turn_id=turn_id,
-                ).model_dump(mode="json")
+                try:
+                    row["answer_judgment"] = answer_judge.evaluate(
+                        question=turn["user"], reference_answer=turn["reference_answer"],
+                        candidate_answer=result.answer, expected_route=turn["expected_route"],
+                        answerable=turn.get("answerable", True), turn_id=turn_id,
+                        evidence=[item.model_dump(mode="json") for item in result.evidence],
+                        citations=[item.model_dump(mode="json") for item in result.citations],
+                        history=previous_state, expected_evidence=turn.get("expected_evidence", []),
+                        deterministic_citation_validity=row["checks"]["citations_valid"],
+                    ).model_dump(mode="json")
+                except Exception as error:
+                    row["answer_judgment"] = None
+                    row["judge_error"] = str(error)
+                    judge_errors.append({"turn_id": turn_id, "error": str(error)})
             rows.append(row)
 
     return {
+        "scoring_version": SCORING_VERSION,
+        "metric_counts": metric_counts(rows),
         "summary": {
             "turns": len(rows),
             "route_accuracy": _mean(rows, "route"),
@@ -503,6 +507,9 @@ def evaluate_video_conversations(
             "citation_validity": _mean(rows, "citations_valid"),
             "visual_evidence_present": _mean(rows, "visual_evidence_present"),
             "errors": len(errors),
+            "judge_errors": len(judge_errors),
+            "generated": sum(row["prediction"] is not None for row in rows),
+            "judged": sum(row.get("answer_judgment") is not None for row in rows),
         },
         "summary_coverage": _coverage_summary(rows),
         # Reported beside the number it explains: the shortfall has three
@@ -510,6 +517,7 @@ def evaluate_video_conversations(
         "citation_gap": classify_citation_gaps(rows),
         "rewrite_ablation": _rewrite_summary(rows),
         "turns": rows,
+        "judge_errors": judge_errors,
         "errors": errors,
     }
 

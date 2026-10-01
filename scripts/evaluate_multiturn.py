@@ -26,7 +26,7 @@ def _arguments():
     parser.add_argument("--gold", type=Path, default=DEFAULT_GOLD)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--book-id", type=int)
-    parser.add_argument("--retrieval-mode", default="hybrid")
+    parser.add_argument("--retrieval-mode", default="hybrid_rerank")
     parser.add_argument(
         "--owner-id",
         help="Owner UUID; defaults to DEFAULT_OWNER_ID",

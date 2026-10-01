@@ -83,9 +83,9 @@ prove WCAG contrast, responsive layout or visible keyboard focus in a browser.
    unsupported claims fail against supplied source evidence; missing expected
    evidence is not perfect recall; judge failure preserves the generated output
    and remains distinct from application failure. In `evals.multiturn`,
-   `all([])` currently makes an empty citation list valid, absent requirements
-   yield perfect recall, and a judge exception discards a successful prediction.
-   Fix those behaviors with regression tests as part of the eval workstream.
+   the original empty-citation, missing-gold and judge-failure defects are now
+   fixed for book/video evaluators with regression tests. Complete source/image
+   evidence, budget integrity and connected five-flow baselines remain pending.
 4. **The $1–$2 evaluation budget**: once the shared budget guard is implemented,
    test that generation, judging and retries share the cap; insufficient/unknown
    price or usage cannot silently bypass it; stopped runs retain completed cases

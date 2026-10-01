@@ -198,6 +198,7 @@ def _card(row):
   <details><summary>Raw checks and optional judge</summary>
     <pre>{escape(str(checks))}</pre>
     <pre>{escape(str(row.get("answer_judgment") or "Not run"))}</pre>
+    <pre>{escape(str(row.get("judge_error") or ""))}</pre>
   </details>
 </article>
 """
@@ -291,7 +292,7 @@ pre {{ white-space:pre-wrap;overflow-wrap:anywhere;background:#f6f8fa;padding:10
  .turn header {{ display:block }} }}
 </style></head><body><main>
 <h1>Lecture conversation evaluation</h1>
-<p class="muted">{summary["turns"]} turns · {summary["errors"]} execution errors ·
+<p class="muted">{summary["turns"]} turns · {summary["errors"]} execution errors · {summary.get("judge_errors", 0)} judge errors ·
  evidence judged by overlap with a stretch of lecture, not by evidence id.</p>
 <div class="metrics">{_headline(evaluation)}</div>
 {_ablation_note(evaluation)}

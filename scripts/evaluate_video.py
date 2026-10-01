@@ -156,7 +156,7 @@ def main():
             )
             print(json.dumps(evaluation["summary"], indent=2))
             for row in evaluation["turns"]:
-                if row["recall"] < 1.0:
+                if row["recall"] is not None and row["recall"] < 1.0:
                     print(
                         f"  {row['turn_id']:12s} recall={row['recall']:.2f} "
                         f"{row['modalities']}"

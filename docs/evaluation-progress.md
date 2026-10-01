@@ -15,8 +15,8 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 1 | Repository-wide LangSmith and operational telemetry | Complete | SDK/context/stream/error/privacy tests; container imports; hosted delivery |
 | 2 | PostHog analytics and monitoring dashboard configuration | Complete | Frontend tests, types/build; hosted UI events and Grafana panel queries |
 | 3 | Test cleanup and complete CI discovery | Complete | Edited suites and generated-doc checks; preserve documented baseline failures |
-| 4 | Evaluator integrity | Pending | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
-| 5 | Shared five-flow manifest, resumable runner and cost guard | Pending | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
+| 4 | Evaluator integrity | Complete | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
+| 5 | Shared five-flow manifest, resumable runner and cost guard | In progress | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
 | 6 | Simple local evidence/artifact review UI | Pending | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
@@ -74,6 +74,14 @@ repository-wide and independent of this five-flow selection.
   no assertion was weakened to hide them. Remote CI currently triggers on main
   or PRs, so branch pushes alone do not establish a hosted CI pass.
 
+- Unit 4: 67 evaluator/provider/source-first/interview regression cases and
+  58 subtests passed (3.41s). New failure cases cover empty/fabricated citations,
+  wrong source/page/rank/timestamp/resource, missing gold and failed judges.
+  Version `evidence-v2` prevents direct comparison with historical scores.
+  Book evaluation now defaults to production `hybrid_rerank`. General judging
+  receives available evidence/citations/prior history and explicit insufficient-
+  evidence outcomes; full captured prompts/images remain unit 5 work.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -83,5 +91,5 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Implement unit 4: evaluator integrity with explicit eligibility/unknowns,
-source-aware judging, and preserved predictions on judge failures.
+Implement unit 5: a shared manifest, durable per-case output/state, production
+adapters, model-call budget guard and explicit coverage/unknown accounting.

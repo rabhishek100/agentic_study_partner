@@ -49,6 +49,19 @@ OCR scoring method was discarded. Encoding/storage measurements are separate:
 
 ## Dataset review status
 
+The book/video conversation scorers now label results `evidence-v2`. They reject
+empty or fabricated citations on grounded factual answers, check the cited
+page/source/rank or timestamp/frame/resource against supplied evidence, and
+exclude missing required-evidence labels from recall rather than awarding 100%.
+Reports include scored versus unknown/ineligible counts. Judge failures retain
+generated answers and predicted state and are counted separately from application
+failures. The general answer judge receives evidence, citations and prior history;
+truncated excerpts or missing visual evidence must remain insufficient evidence.
+These locator checks do not establish claim support, and the old recorded scores
+above have not been recomputed under the new scoring version. The shared five-flow
+runner, complete evidence capture, budget guard and human review remain tracked in
+[evaluation-progress.md](evaluation-progress.md).
+
 | Set | Size | Status |
 |---|---|---|
 | [Multi-turn](../evaluation/multiturn_gold.json) | 11 conversations / 44 turns | Synthetic, separately model-reviewed |
