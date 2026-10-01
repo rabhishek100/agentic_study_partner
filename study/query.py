@@ -4,6 +4,7 @@
 import os
 import re
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Protocol
 from uuid import UUID
 
@@ -52,6 +53,7 @@ from .request import (
 from .scope import (
     ResolvedScope,
     ScopeNotFoundError,
+    TOP_LEVEL_ROLES,
     resolve_book,
     resolve_node,
 )
@@ -204,6 +206,14 @@ def _resolve_hierarchy_request(
                     scope = resolve_node(source, planned_scope.node_id, owner_id=owner_id)
                 else:
                     raise QueryExecutionError("Planned scope has no valid canonical identity.")
+                # Title-based chapter requests also allow top-level prefaces,
+                # parts and appendices. Keep that resolver's semantic kind
+                # while retaining the exact owner-checked canonical subtree.
+                if planned_scope.kind == "chapter" and scope.kind == "section" and any(
+                    node.id == scope.root_node_id and node.parent_id is None
+                    and node.node_type in TOP_LEVEL_ROLES for node in scope.nodes
+                ):
+                    scope = replace(scope, kind="chapter")
                 if scope.book_id != planned_scope.book_id or scope.kind != planned_scope.kind:
                     raise QueryExecutionError("Planned scope does not match its canonical source.")
             else:

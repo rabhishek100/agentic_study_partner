@@ -60,3 +60,18 @@ class ResolvedScopeExecutionTests(PostgresOwnerMixin,unittest.TestCase):
             retrieval_mode="bm25", model=CitationSummaryModel())
         self.assertEqual(result.route,"hierarchy_summary")
         self.assertEqual(result.resolved_scope.node_id,self.section)
+
+    def test_preface_chapter_request_keeps_canonical_subtree(self):
+        # The existing title resolver treats top-level front matter as a
+        # chapter request; resolving its ID must not reject that valid plan.
+        from study.scope import resolve_chapter
+        from study.query import _scope_ref
+        with connection(self.database_url) as db:
+            chapter = db.execute("select id from nodes where book_id=%s and toc_index=0",
+                (self.book,)).fetchone()["id"]
+            db.execute("update nodes set node_type='front_matter', title='Preface' where id=%s", (chapter,))
+            planned = _scope_ref(resolve_chapter(db,"Preface",owner_id=self.owner_id,book_id=self.book))
+        _, scope = _resolve_hierarchy_request("Summarize Chapter Preface.", database_url=self.database_url,
+            owner_id=self.owner_id, book_id=self.book, planned_scope=planned)
+        self.assertEqual(scope.root_node_id, chapter)
+        self.assertGreater(len(scope.nodes), 1)

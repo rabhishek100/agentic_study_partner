@@ -146,6 +146,18 @@ class ConversationDecisionTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(decision.resolved_scope.book_id, self.book_id)
         self.assertIsNone(decision.resolved_scope.node_id)
 
+    def test_complete_paper_with_coverage_instructions_uses_full_scope(self):
+        for question in (
+            "Summarize this entire paper, including architecture, training and limitations.",
+            "Summarize the complete paper, covering its equations and experimental results.",
+            "Explain this whole document, including its main findings.",
+        ):
+            with self.subTest(question=question):
+                decision = self.analyze(question, self.state(), FailIfCalled())
+                self.assertEqual(decision.route, "hierarchy_summary")
+                self.assertEqual(decision.resolved_scope.kind, "book")
+                self.assertIsNone(decision.resolved_scope.node_id)
+
     def test_ordinal_chapter_is_resolved_by_toc_order_without_the_model(self):
         decision = self.analyze(
             "Explain the first chapter.",

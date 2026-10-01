@@ -253,6 +253,22 @@ repository-wide and independent of this five-flow selection.
   Connected journeys remain verified at unit 7c. Newly added paper-routing
   regression is intentionally red pending the measured parser repair.
 
+- Unit 8e complete: all ten selected outputs generated/judged for
+  $0.497982575, zero unknown reservations. Both previously failed ideal
+  dialogues now pass all nine deterministic dialogue/citation gates. Three
+  previously blocked chapter sheets now generate at 128k but retain production
+  findings; diagnostic concept coverage is not a complete-quality pass. Paper
+  QA/sheet and indexed Spanner course produced native artifacts. Fresh LoRA
+  fallback and complete-paper routing failures remain recorded unchanged.
+
+- Unit 8f: whole-document grammar now recognizes entire/complete/whole scope
+  and appended coverage instructions, without turning explicit part requests
+  into full-document requests. Canonical-ID execution also preserves existing
+  top-level preface/part/appendix chapter semantics. Both failures reproduced
+  before repair; 119 related parser/analyzer/summary/ownership cases and
+  55 subtests passed (4.55s). The unchanged paper case is next for paired live
+  verification in a separate experiment.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
