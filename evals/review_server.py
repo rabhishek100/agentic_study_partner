@@ -69,7 +69,8 @@ def create_app(directory, *, token, port):
         return {"experiment": directory.name, "fingerprint": data["fingerprint"], "config": {
                     key: data["config"].get(key) for key in ("execution_layer", "retrieval_mode")},
                 "budget": data.get("budget"), "stats": review_stats(data, labels), "reviews": labels,
-                "cases": [{key: row.get(key) for key in ("id", "flow", "title", "tier", "status", "output_hash")} for row in data["cases"]]}
+                "cases": [{**{key: row.get(key) for key in ("id", "flow", "title", "tier", "status", "output_hash")},
+                           "automated_reviewed": row.get("judgment") is not None} for row in data["cases"]]}
 
     @app.get("/api/cases/{case_id}")
     def detail(case_id: str, reveal: bool = False):

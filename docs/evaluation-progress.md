@@ -26,6 +26,8 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 7b | Independent sheet criteria and live baselines | Complete | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
 | 7c | Connected five-flow journeys | Complete | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
 | 8 | Measured improvements and final report | Complete | Unchanged-source/gold rechecks, diagnostic limits, final report and recruiter walkthrough; human calibration deferred |
+| 9a | Default automated artifact review | Complete | LLM scores visible by default; manual review optional; rendered PDF pages and immutable saved-output review |
+| 9b | Ten saved-output LLM reviews | In progress | Two per flow; source/PDF hashes verified; no regeneration; shared $1 cap and trace-backed results |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -328,6 +330,17 @@ repository-wide and independent of this five-flow selection.
 
 ## Workspace exclusions
 
+- Unit 9a (user supersedes manual-review step): automated Luna review is the
+  default; manual calibration is optional, not a prerequisite. All saved
+  judgments and actual human labels remain distinct. Added resumable saved-output
+  judging with capture/artifact hash checks, budget-stop/retry isolation and
+  full PDF-page rendering. Layout evidence is explicitly derived output, never
+  original source. No pages are silently dropped. Verdicts retain failed
+  contracts and unknown grounding/layout. Sixty-one evaluator/review/budget
+  tests passed (1.12s); explicit browser check passed automated default and
+  optional manual save/reload/export, mobile/focus and unsafe-content checks.
+  Ten selected immutable cases bind successfully, exactly two per flow.
+
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
 contains unrelated/unreviewed local artifacts. Preserve both; exclude them
 from task commits. Local `.env` and `frontend/.env.local` contain credentials
@@ -335,10 +348,8 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-The authorized implementation and measured-improvement report are complete.
-Human review remains deferred: do not fabricate ratings or rerun saved cases.
-The next review can use the local UI on port 8766, with two baseline outputs per
-flow. Subsequent priorities are sheet semantic/concept quality, missing course
-source readiness, versioned gold for the retained labelled fallback policy,
-and real sign-in/voice/runtime monitoring acceptance. See the final report's
-ordered follow-ups. Keep immutable runs and shared receipt budgets when resuming.
+Run unit 9b with `scripts.judge_saved_evaluations`, the committed ten-case selection,
+and a distinct private review experiment under $1. Preserve original outputs
+and judgments; review rendering does not regenerate answers. Then update the
+final report and publish a sanitized automated-review summary. Manual labels
+remain zero and optional. Keep the shared receipt budget and snapshot identities.

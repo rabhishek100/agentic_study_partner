@@ -41,6 +41,10 @@ def main():
                 page.locator("iframe[title='Generated revision sheet PDF']").wait_for()
                 assert page.get_by_text("Fixture run: these are plumbing checks", exact=False).is_visible()
                 assert not page.locator("#artifact script").count()
+                assert page.get_by_text("1 / 1 LLM reviewed", exact=True).is_visible()
+                assert page.locator("#automated-review").get_by_text("Correctness: 4 / 4", exact=True).is_visible()
+                assert not page.locator("#reviewer").is_visible()
+                page.get_by_text("Optional manual review", exact=True).click()
                 page.locator("#reviewer").fill("Automation fixture")
                 page.locator("#notes").fill("Fixture note to verify persistence")
                 page.locator("#grounding").select_option("unsupported")
@@ -53,7 +57,8 @@ def main():
                 page.get_by_role("button", name="Save", exact=True).click()
                 page.get_by_text("Saved locally.", exact=True).wait_for()
                 page.reload()
-                page.get_by_text("1 / 1 reviewed", exact=True).wait_for()
+                page.get_by_text("1 / 1 LLM reviewed", exact=True).wait_for()
+                page.get_by_text("Optional manual review", exact=True).click()
                 assert page.locator("#notes").input_value() == "Fixture note to verify persistence"
                 assert page.locator("#grounding").input_value() == "unsupported"
                 with page.expect_download() as download:

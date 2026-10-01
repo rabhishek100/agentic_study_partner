@@ -61,9 +61,12 @@ def coverage(manifest, bundle=None):
     for name, requirement in manifest.requirements.items():
         cases = requirement.get("cases", [])
         completed = [case for case in cases if rows.get(case, {}).get("status") == "completed"]
+        judged = [case for case in completed if rows[case].get("judgment") is not None]
         result[name] = {**requirement, "completed_cases": completed,
                         "execution": "complete" if cases and len(completed) == len(cases) else "incomplete",
-                        "quality": "human_review_pending" if completed else "unknown"}
+                        "llm_judged_cases": judged,
+                        "quality": "llm_judged" if completed and len(judged) == len(completed)
+                        else "llm_review_pending" if completed else "unknown"}
     return result
 
 

@@ -87,6 +87,8 @@ def review_stats(bundle, reviews):
             if label.get(key) is not None and judgment.get(key) is not None:
                 disagreements.append(abs(label[key] - judgment[key]))
     return {"reviewed_cases": len(reviewed), "generated_cases": len(generated),
+            "automated_reviewed_cases": sum(row.get("judgment") is not None for row in rows.values()),
+            "manual_review_required": False,
             "pending_cases": sorted(generated - reviewed), "labels": len(reviews),
             "judge_compared_dimensions": len(disagreements),
             "mean_absolute_judge_difference": sum(disagreements) / len(disagreements) if disagreements else None,

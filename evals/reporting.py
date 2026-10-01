@@ -146,7 +146,8 @@ def write_report(bundle, directory):
         lines.append(f"| {row['id']} | {row['status']} | {failed} | {row.get('judgment', {}).get('grounding_status', 'unjudged')} | {measured('latency_seconds')} | {measured('cost_usd')} |")
     lines += ["", "Budget ledger (includes judging and unknown reservations):", "",
               "```json", json.dumps(bundle.get("budget", {}), indent=2), "```", "",
-              "Human review:", "", "```json", json.dumps(review_stats(bundle, labels), indent=2), "```", "",
+              "Review mode: LLM-as-judge. Manual review is optional; model judgments are not human calibration.", "",
+              "Optional human review:", "", "```json", json.dumps(review_stats(bundle, labels), indent=2), "```", "",
               "| Case | Reviewer | Grounding | Correctness | Coverage | Usefulness | Verdict |",
               "| --- | --- | --- | --- | --- | --- | --- |"]
     def safe(value):
