@@ -232,7 +232,26 @@ repository-wide and independent of this five-flow selection.
 - Unit 8e preparation: reporting separates exact rewrite-text mismatches from
   semantic/contract failures; absent rewrite gold stays unknown. Baseline
   outputs/scores remain immutable. Related evaluator/review/runner checks
-  were run before the next paid experiment.
+  passed 18 cases (0.57s) before the next paid experiment.
+
+- Unit 8e running: `evaluation/runs/unit8-source-and-repairs`, ceiling $1.50,
+  experiment-only `REVISION_CONTEXT_WINDOW_TOKENS=128000`. Selected: LoRA,
+  paper QA/full summary/full sheet, indexed Spanner course, book sheets 6/8/10,
+  both ideal dialogues. Paper QA, paper sheet and indexed Spanner completed;
+  book sheet 6 now generated where the baseline hit the context limit, with
+  remaining production findings. Complete-paper prose took the wrong route;
+  three real-database deterministic-routing variants reproduce that failure
+  in the uncommitted `test_turn_analysis.py` test. Apply its parser repair only
+  after this frozen-code experiment finishes, then rerun the unchanged paper
+  case in a new directory. Fresh LoRA used labelled general model knowledge;
+  its source-only gold mismatch remains visible. No gold was altered.
+  The user explicitly deferred human calibration; keep zero human labels.
+
+- Final contract checkpoint at `25481f4`: isolated backend 2,075 passed,
+  38 skipped, 956 subtests (130.54s). Thirty-five Storage skips previously
+  passed the targeted local Storage run; three corpus checks remain separate.
+  Connected journeys remain verified at unit 7c. Newly added paper-routing
+  regression is intentionally red pending the measured parser repair.
 
 ## Workspace exclusions
 
@@ -243,7 +262,9 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Continue unit 8: repair measured canonical scope and abstention failures.
-Paper gold is prepared but unbound/unexecuted. Preserve the
-original 50-case baseline. Human calibration and full-source large-sheet/ideal
-answer improvements remain explicit work.
+Continue unit 8e's budgeted experiment; preserve its frozen code/manifest.
+Read `/tmp/study-unit8-source-and-repairs.log` and its bundle/ledger before
+resuming; do not regenerate saved outputs. Then apply the reproduced whole-
+paper parser fix, verify/rerun the unchanged case, assess larger context and
+bounded ideal repairs, and finalize `evaluation-results.md`. Human review is
+deferred by the user. Preserve original failed cases and policy/readiness gaps.

@@ -163,3 +163,13 @@ paths. The remaining three corpus-only checks require backfilled gold data and
 remain separate from deterministic CI. The six-failure group plus queue guards
 passed 45 cases (8.69s). These results verify the environment repairs; they do
 not establish live output quality or a hosted CI run.
+
+The subsequent evaluation improvements were checked again at `25481f4`:
+**2,075 passed, 38 skipped, 956 subtests**, 130.54s. Additions protect the real
+video starter-question SQL/cache boundary, planned canonical scope ownership,
+contracted refusals, bounded ideal citation repair and entire-paper adapter
+scope. An explicit isolated Chromium/FastAPI/Postgres harness now verifies
+all five selected journeys, including course exclusion and interview recovery.
+It is run separately from CI and uses fixture identity/models/speech. A newly
+discovered complete-paper routing issue has a reproducing regression awaiting
+repair; this checkpoint is not claimed as a pass for that later test.

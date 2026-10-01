@@ -39,6 +39,14 @@ changes. Host delivery was exercised with synthetic content, not paid model
 inference. Actual production/voice-room traces require running those journeys
 with tracing configured in each deployed process. No deployment was performed.
 
+Later checkpoints resolved the six remaining environment/cache failures and
+passed the isolated backend suite; see [test-suite-audit.md](test-suite-audit.md).
+Live five-flow generation now has hosted end-to-end trace readback, tokens,
+cost and latency, including saved failures and explicit unmeasured values.
+See [evaluation-results.md](evaluation-results.md) for sample counts, paid
+spend, measured repairs and deferred human/voice review. Those results extend
+the original infrastructure smoke; they do not imply deployed voice coverage.
+
 ## Subsequent test-suite audit
 
 The [test-suite audit](test-suite-audit.md) switches CI to pytest so function
