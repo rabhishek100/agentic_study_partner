@@ -14,7 +14,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 0 | Versioned plan and resume tracker | Complete | Plan matches confirmed five flows and $2 experiment ceiling |
 | 1 | Repository-wide LangSmith and operational telemetry | Complete | SDK/context/stream/error/privacy tests; container imports; hosted delivery |
 | 2 | PostHog analytics and monitoring dashboard configuration | Complete | Frontend tests, types/build; hosted UI events and Grafana panel queries |
-| 3 | Test cleanup and complete CI discovery | Pending verification/commit | Edited suites and generated-doc checks; preserve documented baseline failures |
+| 3 | Test cleanup and complete CI discovery | Complete | Edited suites and generated-doc checks; preserve documented baseline failures |
 | 4 | Evaluator integrity | Pending | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
 | 5 | Shared five-flow manifest, resumable runner and cost guard | Pending | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
 | 6 | Simple local evidence/artifact review UI | Pending | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
@@ -67,6 +67,13 @@ repository-wide and independent of this five-flow selection.
   that hosted check. Analytics remains opt-in, with payload/profile filtering.
   Build-generated `next-env.d.ts` route-path churn was restored before commit.
 
+- Unit 3: edited cleanup suites passed 44 cases (1.69s); voice, ideal interview,
+  interview/multiturn/video evaluator suites passed 50 cases and 42 subtests
+  (1.88s) through the unified pytest entry point. Generated diagrams/API checks
+  passed. Previous full-suite result and six baseline failures remain visible;
+  no assertion was weakened to hide them. Remote CI currently triggers on main
+  or PRs, so branch pushes alone do not establish a hosted CI pass.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -76,5 +83,5 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Verify and commit unit 3 (test cleanup and CI discovery), then push.
-Continue with evaluator integrity before building the unified runner.
+Implement unit 4: evaluator integrity with explicit eligibility/unknowns,
+source-aware judging, and preserved predictions on judge failures.

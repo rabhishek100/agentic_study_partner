@@ -32,6 +32,9 @@ flowchart TD
     R --> D
     G --> M[Hosted models]
     G -. traces .-> L[LangSmith]
+    API -. traces .-> L
+    W -. traces .-> L
+    M -. traces .-> L
 ```
 
 Ingestion uses deterministic Python. LangGraph coordinates study decisions
@@ -81,9 +84,15 @@ Web: `http://localhost:3000`; API health: `http://localhost:8000/api/health`.
 
 ## Verify changes
 
+Repository-wide LangSmith setup, trace organization and a no-spend hosted
+delivery check: [observability](docs/observability.md).
+Test-suite audit, cleanup and prioritized gaps: [test audit](docs/test-suite-audit.md).
+Free Grafana operational monitoring and PostHog UI analytics:
+[setup and coverage](docs/operational-observability.md).
+
 ```bash
 uv sync --frozen
-uv run python -m unittest discover -s tests -v
+uv run --frozen --extra voice python -m pytest tests -q
 cd frontend
 npm ci
 npm run typecheck
@@ -96,6 +105,7 @@ npm run build
 | Path | Responsibility |
 |---|---|
 | `api/` | Authentication, HTTP contracts, streaming |
+| `observability.py` | Shared LangSmith HTTP/workflow/provider boundaries and context propagation |
 | `ingestion/`, `parsing/`, `storage/` | PDF parsing, canonical storage, durable jobs |
 | `retrieval/`, `study/` | Search, grounding, book/paper conversations |
 | `video/` | Lecture/course ingestion and multimodal study |
