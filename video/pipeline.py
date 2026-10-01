@@ -16,6 +16,7 @@ import cv2
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from observability import traced
 from storage.database import connection as database_connection
 from video.acquisition import Chapter, MediaMetadata, probe_media
 from video.acquisition_stage import (
@@ -165,6 +166,7 @@ class VideoPipelineDependencies:
     pdf_downloader: PdfDownloader | None = None
 
 
+@traced("video.pipeline.run_video_stage", flow="video_ingestion")
 def run_video_stage(
     connection: Connection,
     *,
@@ -274,6 +276,7 @@ def run_video_stage(
             raise ValueError(f"video stage is not implemented: {job.stage}")
 
 
+@traced("video.pipeline._run_media_metadata", flow="video_ingestion")
 def _run_media_metadata(
     connection: Connection,
     *,
@@ -402,6 +405,7 @@ def _uploaded_captions(
     ]
 
 
+@traced("video.pipeline._run_transcript", flow="video_ingestion")
 def _run_transcript(
     connection: Connection,
     *,
@@ -629,6 +633,7 @@ def _run_transcript(
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
+@traced("video.pipeline._run_resources", flow="video_ingestion")
 def _run_resources(
     connection: Connection,
     *,
@@ -727,6 +732,7 @@ def _run_resources(
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
+@traced("video.pipeline._ingest_pdf_resource", flow="video_ingestion")
 def _ingest_pdf_resource(
     connection: Connection,
     *,
@@ -858,6 +864,7 @@ def _pdf_source_path(
     )
 
 
+@traced("video.pipeline._run_frame_selection", flow="video_ingestion")
 def _run_frame_selection(
     connection: Connection,
     *,
@@ -1045,6 +1052,7 @@ def _run_frame_selection(
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
+@traced("video.pipeline._run_ocr", flow="video_ingestion")
 def _run_ocr(
     connection: Connection,
     *,
@@ -1131,6 +1139,7 @@ def _run_ocr(
         )
 
 
+@traced("video.pipeline._run_visual_analysis", flow="video_ingestion")
 def _run_visual_analysis(
     connection: Connection,
     *,
@@ -1312,6 +1321,7 @@ def _run_visual_analysis(
         )
 
 
+@traced("video.pipeline._run_spatial_regions", flow="video_ingestion")
 def _run_spatial_regions(
     connection: Connection,
     *,
@@ -1515,6 +1525,7 @@ def _run_spatial_regions(
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
+@traced("video.pipeline._run_indexing", flow="video_ingestion")
 def _run_indexing(
     connection: Connection,
     *,
@@ -1589,6 +1600,7 @@ def _run_indexing(
         )
 
 
+@traced("video.pipeline._run_embeddings", flow="video_ingestion")
 def _run_embeddings(
     connection: Connection,
     *,
@@ -1745,6 +1757,7 @@ def _run_embeddings(
         )
 
 
+@traced("video.pipeline._run_quality_gates", flow="video_ingestion")
 def _run_quality_gates(
     connection: Connection,
     *,
@@ -1816,6 +1829,7 @@ def _run_quality_gates(
         )
 
 
+@traced("video.pipeline._run_publish", flow="video_ingestion")
 def _run_publish(
     connection: Connection,
     *,

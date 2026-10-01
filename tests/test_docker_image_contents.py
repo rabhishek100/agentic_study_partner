@@ -38,18 +38,18 @@ def copied_paths() -> set[str]:
         # Drop flags such as `--from=uv`, and the destination argument.
         sources = [part for part in parts if not part.startswith("--")][:-1]
         for source in sources:
-            copied.add(source.strip("./").split("/")[0])
+            copied.add(source.strip("./").split("/")[0].removesuffix(".py"))
     return copied
 
 
 def local_packages() -> set[str]:
-    """Top-level directories in this repository that are importable packages."""
+    """Top-level packages and Python modules importable by runtime code."""
 
     return {
         entry.name
         for entry in REPOSITORY_ROOT.iterdir()
         if entry.is_dir() and (entry / "__init__.py").exists()
-    }
+    } | {entry.stem for entry in REPOSITORY_ROOT.glob("*.py")}
 
 
 def imported_packages(source: Path) -> set[str]:

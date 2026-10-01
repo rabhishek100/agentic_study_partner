@@ -1,6 +1,8 @@
 """Build citation-aware chunks and Postgres full-text index rows."""
 
+
 import argparse
+from observability import traced
 from retrieval.models import ChunkingConfig
 from retrieval.postgres import rebuild
 from storage.database import (
@@ -35,6 +37,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@traced("scripts.build_chunks.main", flow="cli")
 def main() -> None:
     args = build_argument_parser().parse_args()
     owner_id = (

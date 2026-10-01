@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 from psycopg import Connection
 
+from observability import traced
 from decks import store as deck_store
 from decks.contracts import DeckPreferences
 from decks.review_time import (
@@ -24,6 +25,7 @@ from . import store
 logger = logging.getLogger("study_partner.notifications.reminders")
 
 
+@traced("notifications.reminders.reconcile_due_review_reminders", flow="reminders")
 def reconcile_due_review_reminders(
     connection: Connection,
     *,

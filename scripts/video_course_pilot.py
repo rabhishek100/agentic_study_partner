@@ -12,6 +12,7 @@ import sys
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from observability import traced
 from experiments.video_course import VideoCoursePilot
 
 
@@ -20,6 +21,7 @@ SLIDES_URL = "https://cme295.stanford.edu/slides/fall25-cme295-lecture1.pdf?v=17
 DEFAULT_ROOT = Path("evaluation/runs/video-course/cme295-lecture1")
 
 
+@traced("scripts.video_course_pilot.main", flow="evaluation")
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=("run", "serve"), nargs="?", default="run")

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.interview_realism import (
     load_interview_realism_dataset,
     judge_saved_interview_realism,
@@ -18,6 +19,7 @@ from evals.interview_realism import (
 from evals.judge import OpenRouterInterviewSequenceJudge
 
 
+@traced("scripts.rescore_interview_realism.main", flow="evaluation")
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser()
@@ -71,4 +73,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

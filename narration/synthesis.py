@@ -21,6 +21,7 @@ import os
 from typing import Any, Literal
 
 import httpx
+from observability import provider_post, traced, record_estimate
 
 
 OPENROUTER_SPEECH_URL = "https://openrouter.ai/api/v1/audio/speech"
@@ -80,6 +81,7 @@ def price_per_character() -> float:
     )
 
 
+@traced("narration.synthesis.synthesize_speech", flow="narration")
 def synthesize_speech(
     text: str,
     *,
@@ -106,7 +108,7 @@ def synthesize_speech(
 
     def post(sender: httpx.Client) -> httpx.Response:
         try:
-            response = sender.post(OPENROUTER_SPEECH_URL, json=payload)
+            response = provider_post(sender, OPENROUTER_SPEECH_URL, json=payload)
         except httpx.RequestError as error:
             raise SpeechError("text-to-speech request did not reach OpenRouter") from error
         if not 200 <= response.status_code < 300:
@@ -130,10 +132,12 @@ def synthesize_speech(
         raise SpeechError("text-to-speech returned empty audio")
     if not media_type.startswith("audio/"):
         raise SpeechError("text-to-speech returned an invalid audio response")
+    cost_usd = round(len(spoken) * price_per_character(), 6)
+    record_estimate(cost_usd)
     return SpeechAudio(
         content=response.content,
         media_type=media_type,
-        cost_usd=round(len(spoken) * price_per_character(), 6),
+        cost_usd=cost_usd,
         model=requested_model,
         voice=requested_voice,
     )

@@ -13,6 +13,7 @@ from langchain_core.exceptions import OutputParserException
 from langchain_core.tracers.run_collector import RunCollectorCallbackHandler
 from pydantic import ValidationError
 
+from observability import traced
 from storage.book_images import load_figure
 from video.media_store import MediaStoreError
 from .contracts import Contract, RevisionError, Sheet, Item, Diagram, SCHEMA_VERSION
@@ -165,6 +166,7 @@ def _page_count(pdf: bytes) -> int:
         return len(document)
 
 
+@traced("revision_sheets.generate.read_all_figures", flow="revision_sheet")
 def read_all_figures(source: Source, client, progress):
     """Inspect every canonical original in small batches; never sample or truncate."""
     assets, readings = {}, []
@@ -199,6 +201,7 @@ def read_all_figures(source: Source, client, progress):
     return assets, readings
 
 
+@traced("revision_sheets.generate.generate", flow="revision_sheet")
 def generate(source: Source, *, model=None, progress=lambda stage: None,
              images=None, review_clients=None, on_draft=lambda sheet: None, on_review=lambda review: None, job_id=None) -> tuple[Sheet, bytes, dict]:
     progress("reading_source")

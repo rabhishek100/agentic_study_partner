@@ -1,5 +1,6 @@
 """Shared routing for hierarchy operations and ordinary retrieval questions."""
 
+
 import os
 import re
 from collections.abc import Sequence
@@ -8,6 +9,7 @@ from uuid import UUID
 
 from dotenv import load_dotenv
 
+from observability import traced
 from retrieval.langchain import BookRetriever, document_from_result
 from retrieval.models import book_scope
 from retrieval.postgres import chunks_by_id, search_result_from_row
@@ -263,6 +265,7 @@ def _read_scope_verbatim(
     )
 
 
+@traced("study.query._answer_hierarchy_request", flow="chat")
 def _answer_hierarchy_request(
     request: StudyRequest,
     scope: ResolvedScope,
@@ -480,6 +483,7 @@ def _pinned_documents(
     return documents
 
 
+@traced("study.query._answer_retrieval_question", flow="chat")
 def _answer_retrieval_question(
     question: str,
     *,
@@ -783,6 +787,7 @@ def _answer_retrieval_question(
     )
 
 
+@traced("study.query.execute_query", flow="chat")
 def execute_query(
     question: str,
     database_url: str | None = None,
@@ -861,6 +866,7 @@ def execute_query(
     )
 
 
+@traced("study.query.answer_query", flow="chat")
 def answer_query(
     question: str,
     database_url: str | None = None,

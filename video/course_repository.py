@@ -10,6 +10,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from observability import traced
 from storage.database import parse_owner_id
 from video.repository import (
     FULL_QUALITY_PROFILE,
@@ -55,6 +56,7 @@ class CourseQualityUpgrade:
     lectures: tuple[BatchLectureCreation, ...]
 
 
+@traced("video.course_repository.upgrade_course_quality", flow="course_ingestion")
 def upgrade_course_quality(
     connection: Connection,
     *,
@@ -211,6 +213,7 @@ COURSE_SUMMARY_SELECT = """
 """
 
 
+@traced("video.course_repository.create_course", flow="course_ingestion")
 def create_course(
     connection: Connection,
     *,
@@ -250,6 +253,7 @@ def create_course(
     return CourseCreation(course_id=existing["id"], created=False)
 
 
+@traced("video.course_repository.create_youtube_course", flow="course_ingestion")
 def create_youtube_course(
     connection: Connection,
     *,

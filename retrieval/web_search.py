@@ -1,5 +1,6 @@
 """Web search retriever and model-knowledge sufficiency evaluation."""
 
+
 import json
 import logging
 import os
@@ -10,6 +11,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
 
+from observability import traced
 from study.contracts import WebSourceRef
 
 logger = logging.getLogger("study_partner.web_search")
@@ -71,6 +73,7 @@ def _extract_domain(url: str) -> str:
         return url
 
 
+@traced("retrieval.web_search.search_tavily", flow="web_search")
 def search_tavily(query: str, api_key: str, max_results: int = 5) -> list[WebSourceRef]:
     url = "https://api.tavily.com/search"
     payload = {
@@ -102,6 +105,7 @@ def search_tavily(query: str, api_key: str, max_results: int = 5) -> list[WebSou
     return results
 
 
+@traced("retrieval.web_search.search_duckduckgo", flow="web_search")
 def search_duckduckgo(query: str, max_results: int = 5) -> list[WebSourceRef]:
     headers = {
         "User-Agent": (
@@ -139,6 +143,7 @@ def search_duckduckgo(query: str, max_results: int = 5) -> list[WebSourceRef]:
     return results
 
 
+@traced("retrieval.web_search.search_web_sources", flow="web_search")
 def search_web_sources(query: str, max_results: int = 5) -> list[WebSourceRef]:
     """Retrieve top web search sources using Tavily (if key provided) or DuckDuckGo."""
     tavily_key = os.getenv("TAVILY_API_KEY")

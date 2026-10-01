@@ -1,5 +1,6 @@
 """Choose one conversational route and, when needed, one search query."""
 
+
 import json
 import logging
 import os
@@ -12,6 +13,7 @@ from uuid import UUID
 from dotenv import load_dotenv
 from pydantic import Field, model_validator
 
+from observability import traced
 from storage.database import connection as database_connection
 from storage.database import parse_owner_id
 
@@ -821,6 +823,7 @@ def _clarification_fallback(
     return decision
 
 
+@traced("study.analyze.analyze_turn", flow="chat")
 def analyze_turn(
     question: str,
     state: ConversationState,

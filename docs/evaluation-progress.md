@@ -12,7 +12,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | Unit | Deliverable | State | Acceptance |
 | --- | --- | --- | --- |
 | 0 | Versioned plan and resume tracker | Complete | Plan matches confirmed five flows and $2 experiment ceiling |
-| 1 | Repository-wide LangSmith and operational telemetry | Verifying | SDK/context/stream/error/privacy tests; container imports; hosted delivery |
+| 1 | Repository-wide LangSmith and operational telemetry | Complete | SDK/context/stream/error/privacy tests; container imports; hosted delivery |
 | 2 | PostHog analytics and monitoring dashboard configuration | Pending verification/commit | Frontend tests, types/build; hosted UI events and Grafana panel queries |
 | 3 | Test cleanup and complete CI discovery | Pending verification/commit | Edited suites and generated-doc checks; preserve documented baseline failures |
 | 4 | Evaluator integrity | Pending | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
@@ -54,6 +54,13 @@ repository-wide and independent of this five-flow selection.
   No hosted app deployment has been performed. Five-flow paid evals and human
   calibration have not run.
 
+- Unit 1: 45 targeted telemetry/tracing/container/environment/supervisor tests
+  and 33 subtests passed (4.57s). Hosted LangSmith smoke read back five correctly
+  nested spans with $0 provider spend. Generated LangGraph/API catalogs checked.
+  Grafana three-signal readback and all five queries were verified in the preceding
+  setup; no exporter code changed since that check. Checkpoint: backend tracing
+  and operational telemetry commit following the plan commit `590c70b`.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -63,6 +70,5 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Verify and commit unit 1, then push. LangSmith and OpenTelemetry share the
-same workflow boundaries, so they are one coherent backend implementation
-unit rather than commits that temporarily import missing dependencies.
+Verify and commit unit 2 (frontend analytics/build configuration), then push.
+Continue with test cleanup before changing evaluators.

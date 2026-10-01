@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, TurnHandlingOptions, cli, inference, room_io
 
+from observability import record_voice_metrics, traced, annotate, flush_traces, record_estimate
 from interviews import ideal_store
 from interviews.ideal_livekit import (
     AGENT_NAME,
@@ -76,8 +77,10 @@ class IdealInterviewMedia:
                 connection, self.binding.flow_id, owner_id=self.binding.owner_id
             )
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.record_metrics", flow="ideal_interview_voice", run_type="tool")
     def record_metrics(self, metrics):
         payload = metrics.model_dump(mode="json")
+        record_voice_metrics(payload)
         logger.info(json.dumps({
             "event": "ideal_interview_voice_usage",
             "flow_id": str(self.binding.flow_id),
@@ -85,6 +88,7 @@ class IdealInterviewMedia:
             "metrics": payload,
         }))
         cost = voice_metric_cost_usd(payload)
+        record_estimate(cost)
         if cost:
             try:
                 with database_connection() as connection:
@@ -123,6 +127,7 @@ class IdealInterviewMedia:
         )
         return self.interviewer_voice if selected == "voice_one" else self.candidate_voice
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.say", flow="ideal_interview_voice")
     async def say(
         self,
         *,
@@ -159,6 +164,7 @@ class IdealInterviewMedia:
             raise RuntimeError("ideal interview speech generation failed")
         await self.emit("speaker_done", speaker=speaker, exchange_index=exchange_index)
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.play", flow="ideal_interview_voice")
     async def play(self, command: IdealVoiceCommand):
         try:
             flow = await asyncio.to_thread(self.load_flow)
@@ -199,6 +205,7 @@ class IdealInterviewMedia:
                 message="Playback stopped. Try again from the current exchange.",
             )
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.command", flow="ideal_interview_voice")
     async def command(self, data: rtc.RpcInvocationData) -> str:
         if data.caller_identity != self.binding.participant_identity:
             raise rtc.RpcError(1403, "Voice participant does not match this flow")
@@ -216,11 +223,14 @@ class IdealInterviewMedia:
         await self.stop()
         await self.speech.aclose()
         await self.tts.aclose()
+        await asyncio.to_thread(flush_traces)
 
 
 @server.rtc_session(agent_name=AGENT_NAME)
+@traced("interviews.ideal_voice_worker.ideal_interview_voice", flow="ideal_interview_voice")
 async def ideal_interview_voice(ctx: JobContext):
     binding = IdealVoiceBinding.model_validate_json(ctx.job.metadata)
+    annotate(flow_id=str(binding.flow_id), thread_id=str(binding.flow_id))
     if ctx.room.name != binding.room_name:
         raise ValueError("ideal interview voice dispatch room mismatch")
     media = IdealInterviewMedia(ctx, binding)

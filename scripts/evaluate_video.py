@@ -1,5 +1,6 @@
 """Run the frozen lecture conversations through the real video coordinator."""
 
+
 import argparse
 from datetime import datetime
 import json
@@ -8,6 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.judge import OpenRouterAnswerJudge
 from evals.video import (
     VideoProjectRunner,
@@ -119,6 +121,7 @@ def _dependencies() -> VideoAnswerDependencies:
     )
 
 
+@traced("scripts.evaluate_video.main", flow="evaluation")
 def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     load_dotenv()
@@ -186,4 +189,5 @@ def main():
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

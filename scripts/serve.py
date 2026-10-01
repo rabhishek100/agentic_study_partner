@@ -116,10 +116,8 @@ def _terminate(
 
 
 def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format='{"level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
-    )
+    from operations_telemetry import configure_logging
+    configure_logging("study-partner-supervisor")
     return run({"api": api_command(), "worker": worker_command()})
 
 

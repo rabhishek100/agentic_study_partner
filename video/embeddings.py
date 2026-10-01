@@ -21,6 +21,7 @@ from uuid import UUID
 import httpx
 from psycopg import Connection
 
+from observability import provider_post, traced
 from video.errors import VideoBudgetExceeded
 from video.states import Stage
 
@@ -137,7 +138,7 @@ class _OpenRouterEmbeddings:
         self.close()
 
     def _post(self, request: dict[str, Any], *, expected: int) -> EmbeddingResult:
-        response = self._client.post(OPENROUTER_EMBEDDINGS_URL, json=request)
+        response = provider_post(self._client, OPENROUTER_EMBEDDINGS_URL, json=request)
         response.raise_for_status()
         body = response.json()
         data = body.get("data") or []
@@ -289,6 +290,7 @@ def region_input_hash(*, crop_content_hash: str, summary: str) -> str:
     )
 
 
+@traced("video.embeddings.rebuild_evidence_embeddings", flow="indexing")
 def rebuild_evidence_embeddings(
     connection: Connection,
     *,

@@ -1,11 +1,13 @@
 """Execute one conversational turn over summaries and book retrieval."""
 
+
 import re
 from collections.abc import Sequence
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
 
+from observability import traced
 from retrieval.search import RetrievalMode
 from storage.database import connection as database_connection
 from storage.postgres import list_books
@@ -196,6 +198,7 @@ def _transform(
     )
 
 
+@traced("study.conversation.execute_decision", flow="chat")
 def execute_decision(
     question: str,
     decision: TurnDecision,
@@ -335,6 +338,7 @@ def execute_decision(
     return result.model_copy(update=updates)
 
 
+@traced("study.conversation.record_turn", flow="chat")
 def record_turn(
     state: ConversationState,
     question: str,
@@ -372,6 +376,7 @@ def record_turn(
     return state
 
 
+@traced("study.conversation.execute_conversation_turn", flow="chat")
 def execute_conversation_turn(
     question: str,
     state: ConversationState | None = None,

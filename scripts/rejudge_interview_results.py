@@ -1,16 +1,19 @@
 """Rejudge a saved interview run without repeating generation calls."""
 
+
 import argparse
 import json
 from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.interview import rejudge_interview_evaluation
 from evals.interview_report import render_interview_report
 from evals.judge import OpenRouterInterviewJudge
 
 
+@traced("scripts.rejudge_interview_results.main", flow="evaluation")
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("results", type=Path)
@@ -36,4 +39,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

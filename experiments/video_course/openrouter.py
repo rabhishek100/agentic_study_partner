@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
+from observability import provider_post, traced, record_metadata
 from .artifacts import CostLedger, read_json, stable_hash, write_json
 
 
@@ -69,6 +70,7 @@ class OpenRouterClient:
                 )
         return (0.0, 0.0)
 
+    @traced("experiments.video_course.openrouter.OpenRouterClient.call_json", flow="evaluation")
     def call_json(
         self,
         *,
@@ -94,6 +96,7 @@ class OpenRouterClient:
         )
         cache = self.cache_dir / operation / f"{cache_key}.json"
         cached = read_json(cache)
+        record_metadata(cache_hit=bool(cached))
         if cached:
             return dict(cached["result"]), dict(cached["provenance"])
 
@@ -136,7 +139,7 @@ class OpenRouterClient:
         last_error: Exception | None = None
         for attempt in range(1, 3):
             try:
-                response = self.client.post(CHAT_URL, json=request)
+                response = provider_post(self.client, CHAT_URL, json=request, trace_metadata={"provider_attempt": attempt})
                 response.raise_for_status()
                 body = response.json()
                 choices = body.get("choices") or []
@@ -206,6 +209,7 @@ class OpenRouterClient:
                     time.sleep(1)
         raise OpenRouterError(f"{operation} failed: {last_error}")
 
+    @traced("experiments.video_course.openrouter.OpenRouterClient.embed", flow="evaluation")
     def embed(
         self,
         *,
@@ -231,6 +235,7 @@ class OpenRouterClient:
         )
         cache = self.cache_dir / operation / f"{cache_key}.json"
         cached = read_json(cache)
+        record_metadata(cache_hit=bool(cached))
         if cached:
             return list(cached["embedding"]), dict(cached["provenance"])
 
@@ -261,7 +266,7 @@ class OpenRouterClient:
             request["dimensions"] = dimensions
 
         started = time.monotonic()
-        response = self.client.post(EMBEDDINGS_URL, json=request)
+        response = provider_post(self.client, EMBEDDINGS_URL, json=request)
         response.raise_for_status()
         body = response.json()
         data = body.get("data") or []
@@ -307,6 +312,7 @@ class OpenRouterClient:
         cache_key = stable_hash({"model": model, "texts": texts})
         cache = self.cache_dir / operation / f"{cache_key}.json"
         cached = read_json(cache)
+        record_metadata(cache_hit=bool(cached))
         if cached:
             return [list(value) for value in cached["embeddings"]], dict(
                 cached["provenance"]
@@ -314,7 +320,8 @@ class OpenRouterClient:
 
         self.ledger.reserve(estimated_cost_usd, operation=operation)
         started = time.monotonic()
-        response = self.client.post(
+        response = provider_post(
+            self.client,
             EMBEDDINGS_URL,
             json={"model": model, "input": texts, "encoding_format": "float"},
         )

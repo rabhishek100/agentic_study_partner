@@ -1,5 +1,6 @@
 """FastAPI boundary over the existing conversational study workflow."""
 
+
 # Environment must be loaded before project modules evaluate model defaults.
 # ruff: noqa: E402
 
@@ -26,6 +27,13 @@ from starlette.concurrency import run_in_threadpool
 
 load_dotenv()
 
+from observability import (
+    traced,
+    in_current_context,
+    record_error,
+    LangSmithMiddleware,
+    flush_traces,
+)
 from api.auth import current_owner
 from api.documentation import (
     API_DESCRIPTION,
@@ -612,7 +620,9 @@ app.add_middleware(
         "Idempotency-Key",
         "X-Caption-Filename",
     ],
+    expose_headers=["X-LangSmith-Trace-Id", "X-Trace-Id"],
 )
+app.add_middleware(LangSmithMiddleware)
 app.include_router(ingestion_router)
 app.include_router(videos_router)
 app.include_router(video_ingestion_router)
@@ -629,6 +639,8 @@ app.include_router(narration_router)
 
 @app.on_event("startup")
 async def _warm_retrieval_models() -> None:
+    from operations_telemetry import configure_logging
+    configure_logging("study-partner-api")
     logger.info("Initializing the hosted embedding client")
     await run_in_threadpool(warm_models)
     logger.info("Hosted embedding client ready; reranker remains on demand")
@@ -637,6 +649,7 @@ async def _warm_retrieval_models() -> None:
 @app.on_event("shutdown")
 async def _close_database_pools() -> None:
     close_pools()
+    await run_in_threadpool(flush_traces)
 
 
 @app.get(
@@ -1087,6 +1100,7 @@ def _resume_state(
     )
 
 
+@traced("api.main._persist_turn", flow="chat")
 def _persist_turn(
     owner_id: UUID,
     conversation_id: UUID,
@@ -1108,6 +1122,7 @@ def _persist_turn(
         )
 
 
+@traced("api.main._run_turn", flow="chat")
 def _run_turn(
     owner_id: UUID,
     request: ChatRequest,
@@ -1391,6 +1406,7 @@ def _anchored_sources(
     )
 
 
+@traced("api.main._run_side_turn", flow="chat")
 def _run_side_turn(
     owner_id: UUID,
     side_chat_id: UUID,
@@ -2027,19 +2043,22 @@ def _streamed_turn(
         try:
             events.put(("final", execute(on_token).model_dump_json()))
         except HTTPException as error:
+            record_error(error, outcome="rejected")
             # A missing conversation is a client error, not a workflow failure.
             logger.warning("Chat turn rejected: %s", error.detail)
             events.put(("error", json.dumps({"detail": error.detail})))
         except _REJECTED_TURN_ERRORS as error:
+            record_error(error, outcome="rejected")
             logger.warning("Chat turn rejected: %s", error)
             events.put(("error", json.dumps({"detail": str(error)})))
-        except Exception:
+        except Exception as error:
+            record_error(error)
             logger.exception("Unhandled error while executing chat turn")
             events.put(("error", json.dumps({"detail": "internal error"})))
         finally:
             events.put(_STREAM_DONE)
 
-    threading.Thread(target=run, daemon=True).start()
+    threading.Thread(target=in_current_context(run), daemon=True).start()
 
     async def event_stream():
         while True:

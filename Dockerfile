@@ -27,6 +27,7 @@ RUN apt-get update \
 RUN /app/.venv/bin/playwright install --with-deps chromium
 
 COPY api ./api
+COPY observability.py operations_telemetry.py ./
 COPY decks ./decks
 COPY ingestion ./ingestion
 COPY interviews ./interviews
@@ -46,7 +47,7 @@ COPY worker ./worker
 # to be runnable inside the deployed image rather than only from a laptop.
 COPY scripts/__init__.py scripts/benchmark_parse.py scripts/compare_extraction.py \
     scripts/migrate_video_media_to_s3.py scripts/upgrade_video_course.py \
-    scripts/serve.py ./scripts/
+    scripts/serve.py scripts/check_langsmith_tracing.py ./scripts/
 
 ENV PATH="/app/.venv/bin:$PATH"
 

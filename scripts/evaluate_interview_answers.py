@@ -1,5 +1,6 @@
 """Run interview-answer cases through the real grounded study coordinator."""
 
+
 import argparse
 import json
 import os
@@ -8,6 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.interview import (
     ProjectInterviewRunner,
     evaluate_interview_cases,
@@ -120,6 +122,7 @@ def _resolve_book_ids(dataset, selected, *, database_url, owner_id):
     return resolved
 
 
+@traced("scripts.evaluate_interview_answers.main", flow="evaluation")
 def main():
     load_dotenv()
     args = _arguments()
@@ -204,4 +207,5 @@ def main():
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

@@ -26,6 +26,7 @@ from uuid import UUID
 import httpx
 from psycopg import Connection
 
+from observability import provider_post, traced
 from storage.book_images import load_figure
 
 
@@ -143,7 +144,8 @@ class OpenRouterFigureNarrator:
 
     def narrate(self, payload: bytes, mime_type: str) -> str | None:
         encoded = b64encode(payload).decode("ascii")
-        response = self._client.post(
+        response = provider_post(
+            self._client,
             OPENROUTER_CHAT_URL,
             json={
                 "model": self.model_name,
@@ -241,6 +243,7 @@ def _store(
     )
 
 
+@traced("narration.figures.spoken_descriptions", flow="narration")
 def spoken_descriptions(
     connection: Connection,
     *,

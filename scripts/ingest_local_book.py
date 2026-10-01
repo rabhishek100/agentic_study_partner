@@ -15,6 +15,7 @@ limit and not a way around the review gate.
 Re-run the same command after confirming the outline to resume the job.
 """
 
+
 import argparse
 import logging
 import sys
@@ -23,6 +24,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from ingestion.config import load_limits
 from ingestion.errors import IngestionError
 from ingestion.jobs import claim_next_job, get_job, list_jobs
@@ -174,6 +176,7 @@ def _ensure_readable(
     logger.info("book %s can be opened in the reading pane", book_id)
 
 
+@traced("scripts.ingest_local_book.main", flow="cli")
 def main(argv: list[str] | None = None) -> int:
     # Every other entry point that reaches the pipeline does this, and without
     # it the whole run is configured by defaults. The database URL happened to
@@ -291,4 +294,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     sys.exit(main())

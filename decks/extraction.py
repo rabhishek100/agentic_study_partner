@@ -22,6 +22,7 @@ import tiktoken
 from psycopg import Connection
 from pydantic import BaseModel, Field
 
+from observability import traced
 from study.context import DEFAULT_ENCODING
 
 from .contracts import AnswerSource, CardBack, DeckCard, DeckMetrics
@@ -916,6 +917,7 @@ def _valid_citations(markers: Iterable[str], marker_to_topic: dict[str, Topic]) 
     return citations
 
 
+@traced("decks.extraction.extract_and_generate_deck", flow="cards")
 def extract_and_generate_deck(
     inventory: ScopeInventory,
     *,

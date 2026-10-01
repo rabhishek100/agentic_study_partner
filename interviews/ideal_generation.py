@@ -8,6 +8,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from observability import traced
 from decks.topics import ScopeInventory, Topic
 
 from .contracts import InterviewFormat, TargetLevel
@@ -139,6 +140,7 @@ def _clean_spoken(text: str) -> str:
     return " ".join(without_marker_spacing.split()).strip()
 
 
+@traced("interviews.ideal_generation.generate_ideal_exchange", flow="ideal_interview")
 def generate_ideal_exchange(
     *,
     inventory: ScopeInventory,

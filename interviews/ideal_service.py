@@ -8,6 +8,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from .contracts import FormatChoice, TargetLevel
 from .ideal_contracts import IdealInterviewFlow
 from .ideal_generation import estimate_spoken_seconds, generate_ideal_exchange, prompt_version
@@ -27,6 +28,7 @@ class CreateIdealInterview:
     format_choice: FormatChoice = "auto"
 
 
+@traced("interviews.ideal_service.create_ideal_interview", flow="ideal_interview")
 def create_ideal_interview(
     connection: Connection,
     *,

@@ -14,6 +14,7 @@ suggests: an outline error is silent, survives every internal check, and
 corrupts retrieval for the life of the book.
 """
 
+
 import argparse
 import json
 import logging
@@ -22,6 +23,7 @@ import sys
 import unicodedata
 from pathlib import Path
 
+from observability import traced
 from storage.database import (
     connection as database_connection,
     environment_owner_id,
@@ -67,6 +69,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@traced("scripts.evaluate_outlines.main", flow="evaluation")
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     arguments = build_argument_parser().parse_args(argv)

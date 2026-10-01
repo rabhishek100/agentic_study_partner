@@ -10,6 +10,7 @@ import threading
 from collections.abc import Collection
 from pathlib import Path
 
+from observability import traced, record_error
 from decks.source_preferences import enqueue_initial_for_video
 from storage.database import connection as database_connection
 from video.acquisition import AcquisitionError, acquire_youtube
@@ -176,6 +177,7 @@ class VideoWorker:
             logger.exception("video lease reclamation failed")
             return 0
 
+    @traced("video.worker.VideoWorker.process", flow="video_ingestion")
     def process(self, job: VideoIngestionJob) -> None:
         work_dir = self.work_directory(job.id)
         preserve_work_dir = False
@@ -205,6 +207,7 @@ class VideoWorker:
                 if job.stage is Stage.PUBLISH:
                     self._enqueue_initial_cards(job)
         except BaseException as error:  # every attempt must converge
+            record_error(error)
             will_retry = self._record_failure(job, error, context)
             preserve_work_dir = will_retry and job.stage is Stage.ACQUIRE_SOURCE
             if isinstance(error, (KeyboardInterrupt, SystemExit)):

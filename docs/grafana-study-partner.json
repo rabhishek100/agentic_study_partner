@@ -1,0 +1,204 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "title": "Study Partner \u2014 Operations",
+  "uid": "study-partner-operations",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "tags": [
+    "study-partner"
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request/job throughput",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\"}[5m]))",
+          "legendFormat": "{{job}} {{flow}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      },
+      "description": "Completed root requests and jobs per second, including retried attempts."
+    },
+    {
+      "id": 2,
+      "title": "p95 request/job latency",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, job, flow) (rate(study_operation_duration_seconds_bucket{job=~\"study-partner-.*\"}[5m])))",
+          "legendFormat": "{{job}} {{flow}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      },
+      "description": "Approximate p95 for full root duration; streaming includes the final event. Coarse histogram buckets limit precision."
+    },
+    {
+      "id": 3,
+      "title": "Failed attempt fraction",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\", outcome=\"failed\"}[5m])) or on (job, flow) (0 * sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\"}[5m])))) / sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\"}[5m]))",
+          "legendFormat": "{{job}} {{flow}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      },
+      "description": "Failed root attempts / all attempts. A flow with observations and no failures shows zero; no observations remain undefined. Cancellations are not failures."
+    },
+    {
+      "id": 4,
+      "title": "Process CPU (% of one core)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum by (job, instance) (rate(process_cpu_time_seconds_total{job=~\"study-partner-.*\"}[5m]))",
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      },
+      "description": "Process user + system CPU. 100% is one CPU core, so multicore work can exceed 100%."
+    },
+    {
+      "id": 5,
+      "title": "Process resident memory",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (job, instance) (process_memory_usage_bytes{job=~\"study-partner-.*\"})",
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        }
+      },
+      "description": "Current process RSS. This is not host/container memory or per-evaluation peak memory."
+    }
+  ],
+  "description": "API, worker and voice operation health. AI tokens and cost are in LangSmith. CPU/RSS are per process. Telemetry must be enabled before charts contain data."
+}

@@ -6,6 +6,7 @@ import logging
 import os
 import threading
 
+from observability import traced, record_error
 from storage.database import connection as database_connection
 
 from . import jobs
@@ -99,6 +100,7 @@ class DeckWorker:
             logger.exception("deck lease reclamation failed")
             return 0
 
+    @traced("decks.worker.DeckWorker.process", flow="cards")
     def process(self, job: jobs.DeckJob) -> None:
         context = {
             "job_id": str(job.id),
@@ -115,11 +117,13 @@ class DeckWorker:
             ):
                 with database_connection(self.database_url) as connection:
                     run_deck_job(connection, job=job)
-        except DeckCancellationRequested:
+        except DeckCancellationRequested as error:
+            record_error(error, outcome="cancelled")
             logger.info("deck job cancelled at a safe boundary", extra=context)
             with database_connection(self.database_url) as connection:
                 jobs.finish_cancellation(connection, job_id=job.id)
         except BaseException as error:  # every attempt must converge
+            record_error(error)
             self._record_failure(job, error, context)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise

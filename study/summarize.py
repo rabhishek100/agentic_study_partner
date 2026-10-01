@@ -1,5 +1,6 @@
 """One-call grounded summarization for a complete resolved scope."""
 
+
 import logging
 import re
 from dataclasses import dataclass, replace
@@ -7,6 +8,7 @@ from typing import Protocol
 
 import tiktoken
 
+from observability import traced
 from .context import DEFAULT_ENCODING, ScopeContext
 from .contracts import PromptProfile, ResponseDepth
 from .prompts import (
@@ -277,6 +279,7 @@ def prompt_budget(
     )
 
 
+@traced("study.summarize.validate_summary", flow="summary")
 def validate_summary(
     text: str,
     *,
@@ -418,6 +421,7 @@ def _finish_reason(response) -> str | None:
     return str(reason) if reason is not None else None
 
 
+@traced("study.summarize.summarize_scope", flow="summary")
 def summarize_scope(
     model: SummaryModel,
     *,
@@ -457,6 +461,7 @@ def summarize_scope(
     )
 
 
+@traced("study.summarize.summarize_scope_with_repair", flow="summary")
 def summarize_scope_with_repair(
     model: SummaryModel,
     *,
@@ -574,6 +579,7 @@ def _missing_node_evidence(
     )
 
 
+@traced("study.summarize._repair_summary", flow="summary")
 def _repair_summary(
     model: SummaryModel,
     result: SummaryResult,

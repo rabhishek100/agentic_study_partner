@@ -9,6 +9,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 from video.embeddings import (
     IMAGE_DOCUMENT_FORMAT_VERSION,
@@ -109,6 +110,7 @@ def published_version_id(
     return version["id"]
 
 
+@traced("video.retrieval.retrieve_video_evidence", flow="retrieval")
 def retrieve_video_evidence(
     connection: Connection,
     *,

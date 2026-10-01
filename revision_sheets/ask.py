@@ -1,5 +1,6 @@
 """Follow-up answers remain inside the original complete chapter/paper."""
 
+
 import json
 import os
 
@@ -7,6 +8,7 @@ import tiktoken
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import Field
 
+from observability import traced
 from .contracts import Contract, Item, RevisionError
 from .generate import image_inputs, revision_model
 
@@ -20,6 +22,7 @@ class Answer(Contract):
     insufficient_evidence: str
 
 
+@traced("revision_sheets.ask.ask", flow="revision_sheet")
 def ask(source, question: str, *, sheet_id: str, model=None):
     images, inspected, uninspected = image_inputs(source)
     system = ("Answer this follow-up using only the supplied canonical chapter or paper. "

@@ -4,6 +4,7 @@ This is a smoke/fit evaluation, not an automatic semantic-completeness score.
 Artifacts contain source material and are written under ignored outputs/.
 """
 
+
 import argparse
 import json
 from pathlib import Path
@@ -11,6 +12,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
+from observability import traced
 from storage.database import connection, environment_owner_id
 from revision_sheets.contracts import ScopeRequest, Sheet, RevisionError
 from revision_sheets import store
@@ -19,6 +21,7 @@ from revision_sheets.generate import generate
 from revision_sheets.source import load_source
 
 
+@traced("scripts.evaluate_revision_sheets.main", flow="evaluation")
 def main():
     load_dotenv()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -70,4 +73,5 @@ def main():
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

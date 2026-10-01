@@ -12,6 +12,7 @@ from typing import Annotated, Any, Literal, TypeAlias
 
 import httpx
 
+from observability import provider_post, traced
 from video.errors import redact
 from pydantic import (
     BeforeValidator,
@@ -441,6 +442,7 @@ class OpenRouterVisualClient:
     def __exit__(self, *_: object) -> None:
         self.close()
 
+    @traced("video.vision.OpenRouterVisualClient.analyze", flow="visual_analysis")
     def analyze(
         self, frames: list[VisualFrame] | tuple[VisualFrame, ...]
     ) -> VisualAnalysis:
@@ -452,7 +454,11 @@ class OpenRouterVisualClient:
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
-                response = self._client.post(OPENROUTER_CHAT_URL, json=request)
+                response = provider_post(
+                    self._client, OPENROUTER_CHAT_URL, json=request,
+                    trace_metadata={"provider_attempt": attempt, "input_hash": input_hash,
+                                    "frame_count": len(validated_frames), "provider_operation": "visual_analysis"},
+                )
                 response.raise_for_status()
                 body = response.json()
                 parsed = _parse_response(body, validated_frames)

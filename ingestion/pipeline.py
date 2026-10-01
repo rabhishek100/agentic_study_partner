@@ -8,6 +8,7 @@ Deliberately plain Python: this is deterministic orchestration, not an agent
 making decisions. LangGraph stays where inspectable choices actually happen.
 """
 
+
 import logging
 import re
 from collections.abc import Callable
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from observability import traced
 from parsing.models import ParsedBook
 from study.titles import MINIMUM_TITLE_CHARACTERS, resolve_title
 from parsing.version import PARSER_VERSION
@@ -197,6 +199,7 @@ def _check_cancelled(
     raise CancellationRequested(str(job.id))
 
 
+@traced("ingestion.pipeline.evaluate_extraction", flow="ingestion")
 def evaluate_extraction(
     book: ParsedBook,
     report: PreflightReport,
@@ -256,6 +259,7 @@ def evaluate_extraction(
     return metrics
 
 
+@traced("ingestion.pipeline.verify_book", flow="ingestion")
 def verify_book(
     connection,
     *,
@@ -375,6 +379,7 @@ class _Acquired:
     sha256: str
 
 
+@traced("ingestion.pipeline._acquire_stored", flow="ingestion")
 def _acquire_stored(
     job: IngestionJob,
     *,
@@ -435,6 +440,7 @@ def _acquire_stored(
     return source, _Acquired(download.size_bytes, download.sha256), job
 
 
+@traced("ingestion.pipeline._acquire_local", flow="ingestion")
 def _acquire_local(
     job: IngestionJob,
     *,
@@ -470,6 +476,7 @@ def _acquire_local(
     return measured.path, _Acquired(measured.size_bytes, measured.sha256), job
 
 
+@traced("ingestion.pipeline._validate_stage", flow="ingestion")
 def _validate_stage(
     job: IngestionJob,
     *,
@@ -637,6 +644,7 @@ def _validate_stage(
     return job, source, download.sha256, report, approved_toc
 
 
+@traced("ingestion.pipeline._transcribe_and_pause", flow="ingestion")
 def _transcribe_and_pause(
     job: IngestionJob,
     *,
@@ -802,6 +810,7 @@ def _enter_stage(
     )
 
 
+@traced("ingestion.pipeline._ingest_source", flow="ingestion")
 def _ingest_source(
     job: IngestionJob,
     *,
@@ -943,6 +952,7 @@ def _ingest_source(
     return job, book_id, metrics
 
 
+@traced("ingestion.pipeline._persist_transcribed", flow="ingestion")
 def _persist_transcribed(
     job: IngestionJob,
     *,
@@ -1066,6 +1076,7 @@ def _committed_book(
     }
 
 
+@traced("ingestion.pipeline.run_job", flow="ingestion")
 def run_job(
     job: IngestionJob,
     *,
@@ -1304,6 +1315,7 @@ def _title_from_first_page(book: ParsedBook) -> str | None:
     return None
 
 
+@traced("ingestion.pipeline._persist_canonical", flow="ingestion")
 def _persist_canonical(
     connection,
     *,

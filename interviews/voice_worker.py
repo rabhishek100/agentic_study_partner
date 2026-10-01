@@ -19,6 +19,7 @@ from livekit.agents import (
     cli, inference, room_io, stt,
 )
 
+from observability import record_voice_metrics, traced, annotate, flush_traces, record_estimate
 from interviews import store
 from interviews.livekit_voice import (
     AGENT_NAME, EVENT_TOPIC, RPC_METHOD, VoiceBinding, VoiceCommand,
@@ -69,13 +70,16 @@ class InterviewMedia:
         for provider in (self.stt, self.tts):
             provider.on("metrics_collected", self.record_metrics)
 
+    @traced("interviews.voice_worker.InterviewMedia.record_metrics", flow="interview_voice", run_type="tool")
     def record_metrics(self, metrics):
         payload = metrics.model_dump(mode="json")
+        record_voice_metrics(payload)
         logger.info(json.dumps({
             "event": "interview_voice_usage", "session_id": str(self.binding.session_id),
             "room": self.binding.room_name, "metrics": payload,
         }))
         cost = voice_metric_cost_usd(payload)
+        record_estimate(cost)
         if cost:
             try:
                 with database_connection() as connection:
@@ -119,6 +123,7 @@ class InterviewMedia:
         if self.speech_started:
             await self.speech.interrupt(force=True)
 
+    @traced("interviews.voice_worker.InterviewMedia.transcribe", flow="interview_voice")
     async def transcribe(self, epoch: int):
         participant = self.ctx.room.remote_participants.get(self.binding.participant_identity)
         if participant is None:
@@ -161,6 +166,7 @@ class InterviewMedia:
             self.stream = None
             self.feed = None
 
+    @traced("interviews.voice_worker.InterviewMedia.speak", flow="interview_voice")
     async def speak(self, command: VoiceCommand):
         started_tasks: list[asyncio.Task] = []
 
@@ -191,6 +197,7 @@ class InterviewMedia:
             if started_tasks:
                 await asyncio.gather(*started_tasks, return_exceptions=True)
 
+    @traced("interviews.voice_worker.InterviewMedia.command", flow="interview_voice")
     async def command(self, data: rtc.RpcInvocationData) -> str:
         if data.caller_identity != self.binding.participant_identity:
             raise rtc.RpcError(1403, "Voice participant does not match this session")
@@ -236,11 +243,16 @@ class InterviewMedia:
         await self.speech.aclose()
         await self.stt.aclose()
         await self.tts.aclose()
+        await asyncio.to_thread(flush_traces)
 
 
 @server.rtc_session(agent_name=AGENT_NAME)
+@traced("interviews.voice_worker.interview_voice", flow="interview_voice")
 async def interview_voice(ctx: JobContext):
+    from operations_telemetry import configure_logging
+    configure_logging("study-partner-interview-voice")
     binding = VoiceBinding.model_validate_json(ctx.job.metadata)
+    annotate(session_id=str(binding.session_id), thread_id=str(binding.session_id))
     if ctx.room.name != binding.room_name:
         raise ValueError("voice dispatch room mismatch")
     media = InterviewMedia(ctx, binding)

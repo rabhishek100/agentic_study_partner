@@ -25,6 +25,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
+from observability import traced, in_current_context, record_error
 from api.auth import current_owner
 from api.documentation import (
     SSE_RESPONSES,
@@ -729,6 +730,7 @@ async def remove(
     return Response(status_code=204)
 
 
+@traced("api.video_chat._run_turn", flow="video_study")
 def _run_turn(
     owner_id: UUID,
     conversation_id: UUID,
@@ -952,18 +954,21 @@ def _streamed_video_turn(
         try:
             events.put(("final", execute(on_token).model_dump_json()))
         except HTTPException as error:
+            record_error(error, outcome="rejected")
             logger.warning("Video turn rejected: %s", error.detail)
             events.put(("error", json.dumps({"detail": error.detail})))
         except REJECTED_TURN_ERRORS as error:
+            record_error(error, outcome="rejected")
             logger.warning("Video turn rejected: %s", error)
             events.put(("error", json.dumps({"detail": str(error)})))
-        except Exception:
+        except Exception as error:
+            record_error(error)
             logger.exception("Unhandled error in a video turn")
             events.put(("error", json.dumps({"detail": "internal error"})))
         finally:
             events.put(_STREAM_DONE)
 
-    threading.Thread(target=run, daemon=True).start()
+    threading.Thread(target=in_current_context(run), daemon=True).start()
 
     async def event_stream():
         while True:
@@ -1066,6 +1071,7 @@ def _create_side_chat(
     return _side_chat_summary(created, turn_count=0)
 
 
+@traced("api.video_chat._run_side_turn", flow="video_study")
 def _run_side_turn(
     owner_id: UUID,
     side_chat_id: UUID,

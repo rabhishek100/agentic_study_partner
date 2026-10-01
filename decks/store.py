@@ -16,6 +16,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 
 from .review_time import local_day_bounds
@@ -110,6 +111,7 @@ def create_deck(
     return row["id"], row["version"]
 
 
+@traced("decks.store.store_deck", flow="cards")
 def store_deck(
     connection: Connection,
     *,
@@ -619,6 +621,7 @@ def counts_today(
     return int(row["reviewed"] or 0), int(row["introduced"] or 0)
 
 
+@traced("decks.store.record_review", flow="cards")
 def record_review(
     connection: Connection,
     *,

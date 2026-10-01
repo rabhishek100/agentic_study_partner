@@ -11,11 +11,13 @@ published or a person entered. Run it as often as you like: it replaces its own
 output wholesale.
 """
 
+
 import argparse
 import json
 
 from dotenv import load_dotenv
 
+from observability import traced
 from storage.database import connection, environment_owner_id, parse_owner_id
 from video.chapters import derive_chapters
 from video.repository import replace_derived_chapters
@@ -39,6 +41,7 @@ def _timestamp(milliseconds: int) -> str:
     return f"{total // 60}:{total % 60:02d}"
 
 
+@traced("scripts.derive_video_chapters.main", flow="cli")
 def main():
     load_dotenv()
     args = _arguments()
@@ -112,4 +115,5 @@ def main():
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

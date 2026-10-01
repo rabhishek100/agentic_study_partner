@@ -17,6 +17,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from observability import provider_post, traced
 from video.transcripts import TranscriptCue
 
 
@@ -211,6 +212,7 @@ class OpenRouterAudioClient:
     def __exit__(self, *_: object) -> None:
         self.close()
 
+    @traced("video.audio.OpenRouterAudioClient.transcribe", flow="transcription")
     def transcribe(
         self,
         media_path: Path,
@@ -419,8 +421,10 @@ class OpenRouterAudioClient:
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
                 with chunk.open("rb") as audio:
-                    response = self._client.post(
+                    response = provider_post(
+                        self._client,
                         OPENROUTER_TRANSCRIPTIONS_URL,
+                        trace_metadata={"provider_attempt": attempt},
                         data=data,
                         files={"file": (chunk.name, audio, "audio/mpeg")},
                     )

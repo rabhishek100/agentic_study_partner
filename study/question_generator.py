@@ -1,5 +1,6 @@
 """Dynamic question generator for book and video chat starter prompts."""
 
+
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 
 logger = logging.getLogger(__name__)
@@ -220,6 +222,7 @@ def _call_llm_for_questions(system_prompt: str, user_prompt: str) -> list[str] |
     return None
 
 
+@traced("study.question_generator.generate_book_questions", flow="suggested_questions")
 def generate_book_questions(
     connection: Connection,
     *,
@@ -307,6 +310,7 @@ def generate_book_questions(
     )
 
 
+@traced("study.question_generator.generate_video_questions", flow="suggested_questions")
 def generate_video_questions(
     connection: Connection,
     *,

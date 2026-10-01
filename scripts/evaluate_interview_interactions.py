@@ -9,6 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.interview_interaction import (
     evaluate_interview_interactions,
     load_interview_interaction_dataset,
@@ -22,6 +23,7 @@ from interviews.models import structured_model
 DEFAULT_DATASET = Path("evaluation/interview_transcript_eval.json")
 
 
+@traced("scripts.evaluate_interview_interactions.main", flow="evaluation")
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser()
@@ -81,4 +83,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

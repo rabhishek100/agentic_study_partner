@@ -13,6 +13,7 @@ The reference is filled in between `transcribe` and `score`, by adjudication.
 It is not authored by this script and is never called ground truth.
 """
 
+
 import argparse
 import json
 import logging
@@ -22,6 +23,7 @@ from pathlib import Path
 
 import fitz
 
+from observability import traced
 from evals.transcription import (
     FORMULA,
     PATHOLOGICAL,
@@ -163,6 +165,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@traced("scripts.evaluate_transcription.main", flow="evaluation")
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     arguments = build_argument_parser().parse_args(argv)

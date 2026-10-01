@@ -19,6 +19,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 from study.contracts import CitationRef, ConversationState, EvidenceRef, TurnResult
 from study.conversation import new_conversation_state
@@ -136,6 +137,7 @@ def resolve_chunks(
     return [dict(row) for row in rows]
 
 
+@traced("decks.conversation.card_turn_result", flow="cards")
 def card_turn_result(
     connection: Connection,
     *,
