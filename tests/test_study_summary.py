@@ -410,6 +410,21 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(result.attempt_count, 1)
         self.assertEqual(len(model.messages), 1)
 
+    def test_coverage_repair_retains_full_source_and_existing_answer(self) -> None:
+        scope, context = self._chapter_context()
+        allowed = sorted(context.allowed_citations)
+        root = scope.root_node_id
+        initial = "Training details and results are already explained. " + " ".join(
+            f"[N{node}:P{page}]" for node, page in allowed if node != root)
+        marker = next(f"[N{node}:P{page}]" for node, page in allowed if node == root)
+        model = SequenceSummaryModel(initial, "Source overview with grounded context. " + marker)
+        result = summarize_scope_with_repair(model, scope=scope, context=context)
+        self.assertTrue(result.validation.valid)
+        self.assertEqual(len(model.messages), 2)
+        repair = model.messages[1][1][1]
+        self.assertIn(context.text, repair)
+        self.assertIn(initial, repair)
+
     def test_summary_repair_path_never_uses_truncation_prone_stream(self) -> None:
         scope, context = self._chapter_context()
         citations = " ".join(

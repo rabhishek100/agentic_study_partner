@@ -285,6 +285,15 @@ repository-wide and independent of this five-flow selection.
   The user confirmed retaining labelled general-knowledge fallback; preserve
   that policy and distinguish old source-only gold mismatches in reports.
 
+- Unit 8h: summary coverage addenda now receive the complete canonical source
+  and preceding answer. Narrow missing-node excerpts had hidden a parent
+  heading's child training/results details and provoked contradictory absence
+  claims. The repair explicitly checks descendant evidence; citation/coverage
+  requirements are unchanged, and the full repair prompt remains budgeted
+  before transmission. The new production-path regression failed before the
+  change and verifies retained source/answer after it. Live paper quality
+  recheck is next; new model draws are not a controlled fixed-draft replay.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`

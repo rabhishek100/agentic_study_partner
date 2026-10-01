@@ -41,10 +41,6 @@ OPTIONAL_INTERVIEW_SECTION = re.compile(
     r"^(?:\d+(?:\.\d+)*\s+)?(?:lab\b|exercises?\b)",
     re.IGNORECASE,
 )
-NODE_EVIDENCE_SECTION = re.compile(
-    r"^## Node (\d+):.*?(?=^## Node \d+:|\Z)",
-    re.MULTILINE | re.DOTALL,
-)
 logger = logging.getLogger("study_partner.summarize")
 
 
@@ -568,17 +564,6 @@ def summarize_scope_with_repair(
     )
 
 
-def _missing_node_evidence(
-    context: ScopeContext,
-    node_ids: frozenset[int],
-) -> str:
-    return "\n\n".join(
-        match.group(0).strip()
-        for match in NODE_EVIDENCE_SECTION.finditer(context.text)
-        if int(match.group(1)) in node_ids
-    )
-
-
 @traced("study.summarize._repair_summary", flow="summary")
 def _repair_summary(
     model: SummaryModel,
@@ -606,14 +591,17 @@ def _repair_summary(
         )
 
     coverage = _coverage_lines(scope, context, missing)
-    evidence = _missing_node_evidence(context, missing)
     messages = [
         (
             "system",
             LOCKED_GROUNDING_PROMPT
             + "\n\nWrite only a concise Markdown coverage addendum for the "
             "missing source sections. Do not rewrite the existing answer, "
-            "include a references section, or discuss validation.",
+            "include a references section, or discuss validation. Introductory "
+            "and heading-only nodes may have substantive descendant sections. "
+            "Check the complete source and existing answer before claiming "
+            "that details or results are absent; cite the descendant evidence "
+            "as well as the missing overview node for technical facts.",
         ),
         (
             "human",
@@ -622,11 +610,14 @@ def _repair_summary(
 The existing answer is citation-safe but needs coverage from:
 {coverage}
 
+Existing answer (for continuity, not evidence):
+{result.text}
+
 Return only additional interview-relevant points supported by the evidence
 below. Cite every paragraph or bullet, and use every listed node at least once.
 
-Missing-section evidence:
-{evidence}""".strip(),
+Complete canonical source, including descendant sections:
+{context.text}""".strip(),
         ),
     ]
     budget = prompt_budget(messages, config=config)
