@@ -18,7 +18,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 4 | Evaluator integrity | Complete | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
 | 5 | Shared five-flow manifest, resumable runner and cost guard | In progress | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
 | 5a | Durable inference budget and request capture | Complete | Sync/async/retry transport; unknown receipts; concurrency; crash/resume; no over-cap request sent |
-| 5b | Coverage manifest and resumable orchestration | Pending | Five-flow mapping; durable generation before judging; source/configuration fingerprints; fixture resume |
+| 5b | Coverage manifest and resumable orchestration | Complete | Five-flow mapping; durable generation before judging; source/configuration fingerprints; fixture resume |
 | 5c | Production adapters and trace-backed reporting | Pending | Canonical source identity; all five output types; exact generation inputs; real LangSmith metrics |
 | 6 | Simple local evidence/artifact review UI | Pending | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
@@ -90,6 +90,13 @@ repository-wide and independent of this five-flow selection.
   metadata, caps provider prices, saves exact bounded requests without headers,
   and persists unknown reservations across resume. No paid inference performed.
 
+- Unit 5b: 41 runner/budget/integrity cases passed (0.64s); deterministic
+  manifest regeneration check passed. Manifest: 50 cases across all five flows.
+  Tests exercise completed-output reuse, failed-judge resume, budget stop after
+  generation, interrupted generation, dependency recovery and tamper rejection.
+  Production adapters have not run; sheet independent concept labels, several
+  contract-only aspects and connected browser journeys remain explicit gaps.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -99,6 +106,6 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Implement unit 5b: coverage manifest and durable per-case orchestration, then
-5c production adapters and trace-backed reports. Budget/capture is already
-implemented; import `evals.budget` rather than adding a second accounting path.
+Implement unit 5c: production adapters and trace-backed reports. The manifest
+contains 50 cases; preserve their dependency state, source identity, tier and
+coverage gaps. Budget/capture is already implemented in `evals.budget`.

@@ -1,8 +1,38 @@
 # Shared evaluation execution
 
 The shared five-flow runner is being delivered in the units tracked in
-[evaluation-progress.md](evaluation-progress.md). The transport budget guard is
-implemented; the manifest, production adapters and review UI are separate units.
+[evaluation-progress.md](evaluation-progress.md). The budget guard, manifest and
+resumable orchestration are implemented; production adapters and the review UI
+are separate units.
+
+## Manifest and resume
+
+[five_flow_manifest.json](../evaluation/five_flow_manifest.json) contains 50
+case units: 19 chat (including one context prerequisite), six complete summaries,
+eight lecture and four course cases, five sheets, six candidate assessments and
+two ideal dialogues. Existing frozen book/video/candidate/ideal datasets are
+reused. Course expectations are author-labelled and await human review. Sheet
+essential-concept labels are currently missing; this is an explicit quality gap.
+Cases are not provider-call counts. A dependency graph retains conversational
+context and lets subsequent cases reuse the preceding saved state.
+
+`evals.suite.run_suite` writes a private `bundle.json` after every phase. It saves
+generated outputs before judging, fingerprints output/evidence/artifacts, and
+rejects changed manifest/configuration on resume. Completed outputs are reused;
+failed judges are retried against saved outputs. Interrupted or failed generation
+requires explicit retry and retains all previous budget reservations. An
+exclusive run lock prevents two processes from racing the same experiment.
+
+Coverage includes case targets, existing contract-test links, separate journey
+status and pending human review. Missing mappings stay incomplete. A completed
+generation is not a quality pass; fixture execution is not a live baseline.
+
+Regenerate/check the manifest without inference:
+
+```bash
+uv run --frozen --extra voice python -m scripts.build_eval_manifest
+uv run --frozen --extra voice python -m scripts.build_eval_manifest --check
+```
 
 ## Experiment budget
 
@@ -47,7 +77,7 @@ Metadata is fetched and frozen per experiment; prices are not hardcoded.
 
 ```bash
 LANGSMITH_TRACING=false OTEL_ENABLED=false uv run --frozen --extra voice \
-  python -m pytest tests/test_eval_budget.py tests/test_eval_integrity.py -q
+  python -m pytest tests/test_eval_suite.py tests/test_eval_budget.py tests/test_eval_integrity.py -q
 ```
 
 Tests use real httpx clients with fixture transports: no paid inference. They

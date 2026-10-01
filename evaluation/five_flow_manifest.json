@@ -1,0 +1,3755 @@
+{
+  "version": "five-flow-v1",
+  "cases": [
+    {
+      "id": "mt-001-t1",
+      "flow": "summary",
+      "adapter": "book",
+      "title": "Summarize Chapter 3.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-001",
+        "turn_id": "mt-001-t1",
+        "question": "Summarize Chapter 3."
+      },
+      "expected": {
+        "turn_id": "mt-001-t1",
+        "user": "Summarize Chapter 3.",
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "independent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "Summarize Chapter 3: Data Engineering Fundamentals.",
+        "expected_scope": {
+          "kind": "chapter",
+          "node_id": 34
+        },
+        "state_update": "set_active_scope",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 34,
+            "pages": [
+              69
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 35,
+            "pages": [
+              70,
+              71,
+              72
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 36,
+            "pages": [
+              73
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 38,
+            "pages": [
+              74,
+              75,
+              76
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 39,
+            "pages": [
+              77
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 40,
+            "pages": [
+              78
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 41,
+            "pages": [
+              79,
+              80,
+              81,
+              82
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 42,
+            "pages": [
+              83,
+              84,
+              85
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 43,
+            "pages": [
+              86
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 45,
+            "pages": [
+              87,
+              88,
+              89
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 46,
+            "pages": [
+              90,
+              91
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 48,
+            "pages": [
+              92
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 49,
+            "pages": [
+              93
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 50,
+            "pages": [
+              94,
+              95,
+              96,
+              97
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 51,
+            "pages": [
+              98
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 52,
+            "pages": [
+              99,
+              100
+            ],
+            "role": "optional_recap"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Chapter 3 builds the data-engineering foundation for production ML: diverse data sources [N35:P70], serialization and access-oriented formats [N36:P73] [N38:P75] [N39:P77], relational and NoSQL data models [N40:P78] [N41:P79] [N42:P83], and the fluid boundary between structured and unstructured data [N43:P86]. It contrasts transactional and analytical storage workloads [N45:P88], explains ETL [N46:P90], and then moves from single-process storage to dataflow through databases, request-driven services, and real-time transports [N48:P92] [N49:P93] [N50:P96]. Batch processing suits historical/static features while stream processing supports low-latency dynamic features [N51:P98]. The chapter introduction and recap connect these choices into one production data layer [N34:P69] [N52:P100].",
+        "coverage_points": [
+          "Chapter 3 builds the data-engineering foundation for production ML: diverse data sources , serialization and access-oriented formats   , relational and NoSQL data models   , and the fluid boundary between structured and unstructured data .",
+          "It contrasts transactional and analytical storage workloads , explains ETL , and then moves from single-process storage to dataflow through databases, request-driven services, and real-time transports   .",
+          "Batch processing suits historical/static features while stream processing supports low-latency dynamic features .",
+          "The chapter introduction and recap connect these choices into one production data layer  ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "complete_scope",
+        "concepts",
+        "figures_equations",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "mt-001-t2",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "Compare the three dataflow modes.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-001",
+        "turn_id": "mt-001-t2",
+        "question": "Compare the three dataflow modes."
+      },
+      "expected": {
+        "turn_id": "mt-001-t2",
+        "depends_on_turn_ids": [
+          "mt-001-t1"
+        ],
+        "user": "Compare the three dataflow modes.",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "prefer_scope",
+        "expected_standalone_query": "Compare data passing through databases, services, and real-time transports in Chapter 3.",
+        "expected_scope": {
+          "kind": "chapter",
+          "node_id": 34
+        },
+        "state_update": "retain",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 48,
+            "pages": [
+              92
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 49,
+            "pages": [
+              93
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 50,
+            "pages": [
+              94,
+              95,
+              96,
+              97
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Database-mediated flow is simple: one process writes and another reads, but both need database access and database I/O can be too slow for strict latency requirements [N48:P92]. Service-mediated flow is request-driven: a remote service receives a REST/RPC-style request and returns data, supporting independently developed microservices but creating synchronous dependencies [N49:P93] [N50:P94]. A real-time transport introduces a broker or event bus so producers broadcast events and consumers subscribe without direct pairwise requests; this reduces service coupling and better suits data-heavy systems [N50:P95] [N50:P96].",
+        "coverage_points": [
+          "Database-mediated flow is simple: one process writes and another reads, but both need database access and database I/O can be too slow for strict latency requirements .",
+          "Service-mediated flow is request-driven: a remote service receives a REST/RPC-style request and returns data, supporting independently developed microservices but creating synchronous dependencies  .",
+          "A real-time transport introduces a broker or event bus so producers broadcast events and consumers subscribe without direct pairwise requests; this reduces service coupling and better suits data-heavy systems  ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-001-t1"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-001-t3",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "Which one is better for a data-heavy system with many services, and why?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-001",
+        "turn_id": "mt-001-t3",
+        "question": "Which one is better for a data-heavy system with many services, and why?"
+      },
+      "expected": {
+        "turn_id": "mt-001-t3",
+        "depends_on_turn_ids": [
+          "mt-001-t2"
+        ],
+        "user": "Which one is better for a data-heavy system with many services, and why?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "prefer_scope",
+        "expected_standalone_query": "Which Chapter 3 dataflow mode is better for a data-heavy system with many services, and why?",
+        "expected_scope": {
+          "kind": "chapter",
+          "node_id": 34
+        },
+        "state_update": "retain",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 50,
+            "pages": [
+              95,
+              96
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "The chapter favors event-driven flow through a real-time transport for data-heavy systems. Direct request-driven communication grows into a complex web as service count increases, while a broker lets each service communicate with the broker rather than every other service [N50:P95]. It explicitly says request-driven architecture works well for logic-heavy systems, whereas event-driven architecture works better for data-heavy ones [N50:P96].",
+        "coverage_points": [
+          "The chapter favors event-driven flow through a real-time transport for data-heavy systems.",
+          "Direct request-driven communication grows into a complex web as service count increases, while a broker lets each service communicate with the broker rather than every other service .",
+          "It explicitly says request-driven architecture works well for logic-heavy systems, whereas event-driven architecture works better for data-heavy ones ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-001-t2"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-001-t4",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "How does reservoir sampling work?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-001",
+        "turn_id": "mt-001-t4",
+        "question": "How does reservoir sampling work?"
+      },
+      "expected": {
+        "turn_id": "mt-001-t4",
+        "user": "How does reservoir sampling work?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "How does reservoir sampling work?",
+        "expected_scope": null,
+        "state_update": "retain",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 59,
+            "pages": [
+              106
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 60,
+            "pages": [
+              107
+            ],
+            "role": "supporting"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Keep the first k stream items in a reservoir. For the nth incoming item, draw i uniformly from 1 through n; if i is at most k, replace reservoir item i, otherwise discard the new item [N59:P106]. This gives each observed item probability k/n of being in the reservoir, so the process can stop at any time with a uniform sample [N60:P107].",
+        "coverage_points": [
+          "Keep the first k stream items in a reservoir.",
+          "For the nth incoming item, draw i uniformly from 1 through n; if i is at most k, replace reservoir item i, otherwise discard the new item .",
+          "This gives each observed item probability k/n of being in the reservoir, so the process can stop at any time with a uniform sample ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-001-t3"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-002-t1",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "What sections are present in Chapter 4?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-002",
+        "turn_id": "mt-002-t1",
+        "question": "What sections are present in Chapter 4?"
+      },
+      "expected": {
+        "turn_id": "mt-002-t1",
+        "user": "What sections are present in Chapter 4?",
+        "expected_route": "hierarchy_list",
+        "history_dependency": "independent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "List the sections in Chapter 4: Training Data.",
+        "expected_scope": {
+          "kind": "chapter",
+          "node_id": 53
+        },
+        "state_update": "set_active_scope",
+        "answerable": true,
+        "expected_outline_node_ids": [
+          54,
+          61,
+          65,
+          68,
+          72
+        ],
+        "expected_evidence": [],
+        "near_miss_evidence": [],
+        "reference_answer": "Chapter 4 contains Sampling [node 54, PDF p. 102], Labeling [node 61, PDF p. 108], Class Imbalance [node 65, PDF p. 122], Data Augmentation [node 68, PDF p. 133], and Summary [node 72, PDF p. 138], with sampling, labeling, imbalance, and augmentation further divided into subsections.",
+        "coverage_points": [
+          "Chapter 4 contains Sampling [node 54, PDF p.",
+          "102], Labeling [node 61, PDF p.",
+          "108], Class Imbalance [node 65, PDF p.",
+          "122], Data Augmentation [node 68, PDF p.",
+          "133], and Summary [node 72, PDF p.",
+          "138], with sampling, labeling, imbalance, and augmentation further divided into subsections."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "mt-002-t2",
+      "flow": "summary",
+      "adapter": "book",
+      "title": "Summarize its Sampling section.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-002",
+        "turn_id": "mt-002-t2",
+        "question": "Summarize its Sampling section."
+      },
+      "expected": {
+        "turn_id": "mt-002-t2",
+        "depends_on_turn_ids": [
+          "mt-002-t1"
+        ],
+        "user": "Summarize its Sampling section.",
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "dependent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "Summarize the Sampling section in Chapter 4.",
+        "expected_scope": {
+          "kind": "section",
+          "node_id": 54
+        },
+        "state_update": "set_active_scope",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 54,
+            "pages": [
+              102
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 55,
+            "pages": [
+              103
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 57,
+            "pages": [
+              104
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 58,
+            "pages": [
+              105
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 59,
+            "pages": [
+              106
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 60,
+            "pages": [
+              107
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "The section distinguishes nonprobability sampling, whose selection criteria do not give every sample a defined chance [N55:P103], from probability-based methods. It covers simple random and stratified sampling [N57:P104], weighted sampling for unequal selection importance [N58:P105], reservoir sampling for an unknown-length stream [N59:P106], and importance sampling, which samples from an accessible proposal distribution and reweights toward a target distribution [N60:P107]. The section frames sampling as a practical way to obtain useful data when using the full population is infeasible [N54:P102].",
+        "coverage_points": [
+          "The section distinguishes nonprobability sampling, whose selection criteria do not give every sample a defined chance , from probability-based methods.",
+          "It covers simple random and stratified sampling , weighted sampling for unequal selection importance , reservoir sampling for an unknown-length stream , and importance sampling, which samples from an accessible proposal distribution and reweights toward a target distribution .",
+          "The section frames sampling as a practical way to obtain useful data when using the full population is infeasible ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-002-t1"
+      ],
+      "aspects": [
+        "complete_scope",
+        "concepts",
+        "figures_equations",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "mt-003-t1",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "What is data leakage?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-003",
+        "turn_id": "mt-003-t1",
+        "question": "What is data leakage?"
+      },
+      "expected": {
+        "turn_id": "mt-003-t1",
+        "user": "What is data leakage?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "What is data leakage in machine learning?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 82,
+            "pages": [
+              155,
+              156
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Data leakage occurs when information related to the label enters the prediction features even though the same information will not be available at inference time [N82:P156]. It can produce excellent evaluation results while failing after deployment because the model learned an unavailable shortcut rather than the intended signal [N82:P155].",
+        "coverage_points": [
+          "Data leakage occurs when information related to the label enters the prediction features even though the same information will not be available at inference time .",
+          "It can produce excellent evaluation results while failing after deployment because the model learned an unavailable shortcut rather than the intended signal ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-003-t2",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "How do I prevent the common kinds?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-003",
+        "turn_id": "mt-003-t2",
+        "question": "How do I prevent the common kinds?"
+      },
+      "expected": {
+        "turn_id": "mt-003-t2",
+        "depends_on_turn_ids": [
+          "mt-003-t1"
+        ],
+        "user": "How do I prevent the common kinds?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "How can common forms of data leakage be prevented?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 83,
+            "pages": [
+              157,
+              158,
+              159
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "For time-correlated data, split by time so future conditions do not enter training [N83:P157]. Split before scaling or imputing, then compute statistics only from the training split and apply them to validation and test data [N83:P158]. Detect duplicates before and after splitting, oversample only after the split, and keep strongly correlated groups such as scans from one patient in the same split [N83:P159].",
+        "coverage_points": [
+          "For time-correlated data, split by time so future conditions do not enter training .",
+          "Split before scaling or imputing, then compute statistics only from the training split and apply them to validation and test data .",
+          "Detect duplicates before and after splitting, oversample only after the split, and keep strongly correlated groups such as scans from one patient in the same split ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-003-t1"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-003-t3",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "How would I detect a subtle one caused by data collection?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-003",
+        "turn_id": "mt-003-t3",
+        "question": "How would I detect a subtle one caused by data collection?"
+      },
+      "expected": {
+        "turn_id": "mt-003-t3",
+        "depends_on_turn_ids": [
+          "mt-003-t2"
+        ],
+        "user": "How would I detect a subtle one caused by data collection?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "How can subtle data leakage caused by the data-generation or collection process be detected?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 84,
+            "pages": [
+              160
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Track data provenance and understand how each source is collected and processed, involving subject-matter experts who know operational differences such as scanning procedures [N84:P160]. Monitor leakage throughout the lifecycle and investigate features or feature combinations with implausibly high predictive power relative to the label [N84:P160].",
+        "coverage_points": [
+          "Track data provenance and understand how each source is collected and processed, involving subject-matter experts who know operational differences such as scanning procedures .",
+          "Monitor leakage throughout the lifecycle and investigate features or feature combinations with implausibly high predictive power relative to the label ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-003-t2"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-003-t4",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "Now explain quantization.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-003",
+        "turn_id": "mt-003-t4",
+        "question": "Now explain quantization."
+      },
+      "expected": {
+        "turn_id": "mt-003-t4",
+        "user": "Now explain quantization.",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "Explain model quantization.",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 113,
+            "pages": [
+              229,
+              230,
+              231
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Quantization compresses a model by representing parameters with fewer bits. Moving from 32-bit floats to 16-bit values halves parameter memory, while integer representations can reduce it further [N113:P229]. The chapter presents post-training and quantization-aware approaches and notes that lower precision trades memory and execution advantages against possible accuracy loss [N113:P230] [N113:P231].",
+        "coverage_points": [
+          "Quantization compresses a model by representing parameters with fewer bits.",
+          "Moving from 32-bit floats to 16-bit values halves parameter memory, while integer representations can reduce it further .",
+          "The chapter presents post-training and quantization-aware approaches and notes that lower precision trades memory and execution advantages against possible accuracy loss  ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-003-t3"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-004-t1",
+      "flow": "summary",
+      "adapter": "book",
+      "title": "Summarize Batch Prediction Versus Online Prediction in Chapter 7.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-004",
+        "turn_id": "mt-004-t1",
+        "question": "Summarize Batch Prediction Versus Online Prediction in Chapter 7."
+      },
+      "expected": {
+        "turn_id": "mt-004-t1",
+        "user": "Summarize Batch Prediction Versus Online Prediction in Chapter 7.",
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "independent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "Summarize the Batch Prediction Versus Online Prediction section in Chapter 7.",
+        "expected_scope": {
+          "kind": "section",
+          "node_id": 106
+        },
+        "state_update": "set_active_scope",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 106,
+            "pages": [
+              217,
+              218,
+              219,
+              220
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 107,
+            "pages": [
+              221,
+              222
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 108,
+            "pages": [
+              223,
+              224,
+              225
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Online prediction generates a response when a request arrives and is optimized for low latency; batch prediction generates predictions periodically, stores them, and is optimized for throughput [N106:P217] [N106:P220]. Online prediction can use only batch features or combine batch and streaming features, so online and streaming are not synonyms [N106:P219]. Batch remains useful when results are not immediately needed or when precomputation avoids slow inference, but it is less responsive and requires anticipated requests [N107:P221] [N107:P222]. Separate batch and streaming feature pipelines can diverge [N108:P224], motivating unified processing or feature-store infrastructure [N108:P225].",
+        "coverage_points": [
+          "Online prediction generates a response when a request arrives and is optimized for low latency; batch prediction generates predictions periodically, stores them, and is optimized for throughput  .",
+          "Online prediction can use only batch features or combine batch and streaming features, so online and streaming are not synonyms .",
+          "Batch remains useful when results are not immediately needed or when precomputation avoids slow inference, but it is less responsive and requires anticipated requests  .",
+          "Separate batch and streaming feature pipelines can diverge , motivating unified processing or feature-store infrastructure ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "complete_scope",
+        "concepts",
+        "figures_equations",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "mt-005-t1",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "A campaign brings in wealthier users, but conversion at a fixed income is unchanged. What changed?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-005",
+        "turn_id": "mt-005-t1",
+        "question": "A campaign brings in wealthier users, but conversion at a fixed income is unchanged. What changed?"
+      },
+      "expected": {
+        "turn_id": "mt-005-t1",
+        "user": "A campaign brings in wealthier users, but conversion at a fixed income is unchanged. What changed?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "What distribution shift occurs when user income distribution changes but conversion conditional on income remains unchanged?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 123,
+            "pages": [
+              258,
+              259
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "This is covariate shift: the input distribution P(X) changes while the conditional relationship P(Y|X) remains the same. The chapter uses the marketing example where the new population has higher income but people at the same income retain the same purchase probability [N123:P258] [N123:P259].",
+        "coverage_points": [
+          "This is covariate shift: the input distribution P(X) changes while the conditional relationship P(Y|X) remains the same.",
+          "The chapter uses the marketing example where the new population has higher income but people at the same income retain the same purchase probability  ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-005-t2",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "How can I detect a meaningful problem if labels arrive late?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-005",
+        "turn_id": "mt-005-t2",
+        "question": "How can I detect a meaningful problem if labels arrive late?"
+      },
+      "expected": {
+        "turn_id": "mt-005-t2",
+        "depends_on_turn_ids": [
+          "mt-005-t1"
+        ],
+        "user": "How can I detect a meaningful problem if labels arrive late?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "How can meaningful production distribution change be detected when ground-truth labels are delayed?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 125,
+            "pages": [
+              262,
+              263,
+              264
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 128,
+            "pages": [
+              272,
+              273,
+              274,
+              275
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "When labels lag, direct accuracy monitoring also lags, so compare recent inputs or features with a reference distribution using summary statistics and statistical tests [N125:P262] [N125:P264]. Prediction distributions can act as a low-dimensional proxy for input change, and schema/feature validation can expose invalid ranges or categories [N128:P272] [N128:P273]. Treat these as signals rather than proof of performance loss because many feature shifts are benign and excessive alerts cause fatigue [N128:P274] [N128:P275].",
+        "coverage_points": [
+          "When labels lag, direct accuracy monitoring also lags, so compare recent inputs or features with a reference distribution using summary statistics and statistical tests  .",
+          "Prediction distributions can act as a low-dimensional proxy for input change, and schema/feature validation can expose invalid ranges or categories  .",
+          "Treat these as signals rather than proof of performance loss because many feature shifts are benign and excessive alerts cause fatigue  ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-005-t1"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-005-t3",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "Should every one of those detected shifts trigger retraining?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-005",
+        "turn_id": "mt-005-t3",
+        "question": "Should every one of those detected shifts trigger retraining?"
+      },
+      "expected": {
+        "turn_id": "mt-005-t3",
+        "depends_on_turn_ids": [
+          "mt-005-t2"
+        ],
+        "user": "Should every one of those detected shifts trigger retraining?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "Should every detected data distribution shift trigger model retraining?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 126,
+            "pages": [
+              268,
+              269
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 138,
+            "pages": [
+              299,
+              300
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "No. Some teams retrain periodically, but the optimal schedule should be determined experimentally rather than from every noisy shift alert [N126:P268]. Retraining choices include starting from scratch or continuing from a checkpoint and selecting an appropriate data window [N126:P269]. Update triggers may use schedules, performance degradation, or drift, but noisy monitoring can cause unnecessary updates, so the trigger should reflect model and business impact [N138:P299] [N138:P300].",
+        "coverage_points": [
+          "No.",
+          "Some teams retrain periodically, but the optimal schedule should be determined experimentally rather than from every noisy shift alert .",
+          "Retraining choices include starting from scratch or continuing from a checkpoint and selecting an appropriate data window .",
+          "Update triggers may use schedules, performance degradation, or drift, but noisy monitoring can cause unnecessary updates, so the trigger should reflect model and business impact  ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-005-t2"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-005-t4",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "And how can I validate the candidate without exposing its predictions to users?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-005",
+        "turn_id": "mt-005-t4",
+        "question": "And how can I validate the candidate without exposing its predictions to users?"
+      },
+      "expected": {
+        "turn_id": "mt-005-t4",
+        "depends_on_turn_ids": [
+          "mt-005-t3"
+        ],
+        "user": "And how can I validate the candidate without exposing its predictions to users?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "How can an updated model be validated in production without serving its predictions to users?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 140,
+            "pages": [
+              302
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Use shadow deployment: run the candidate in parallel, route real requests to both models, serve only the existing model, and log candidate outputs for comparison. Promote it only after the logged behavior is satisfactory [N140:P302].",
+        "coverage_points": [
+          "Use shadow deployment: run the candidate in parallel, route real requests to both models, serve only the existing model, and log candidate outputs for comparison.",
+          "Promote it only after the logged behavior is satisfactory ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-005-t3"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-006-t1",
+      "flow": "summary",
+      "adapter": "book",
+      "title": "Help me revise the Continual Learning section in Chapter 9.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-006",
+        "turn_id": "mt-006-t1",
+        "question": "Help me revise the Continual Learning section in Chapter 9."
+      },
+      "expected": {
+        "turn_id": "mt-006-t1",
+        "user": "Help me revise the Continual Learning section in Chapter 9.",
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "independent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "Create a revision summary of the Continual Learning section in Chapter 9.",
+        "expected_scope": {
+          "kind": "section",
+          "node_id": 133
+        },
+        "state_update": "set_active_scope",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 133,
+            "pages": [
+              284
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 134,
+            "pages": [
+              285,
+              286,
+              287
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 135,
+            "pages": [
+              288,
+              289
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 136,
+            "pages": [
+              290,
+              291,
+              292,
+              293
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 137,
+            "pages": [
+              294,
+              295,
+              296,
+              297,
+              298
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 138,
+            "pages": [
+              299,
+              300
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "The section frames production updates through evaluated micro-batches and a champion/challenger process [N133:P284]. Continual learning is infrastructure that lets teams update models when needed, not a requirement to retrain every few minutes [N134:P285] [N134:P287]. Stateful training continues from the previous model state, often using less fresh data and compute than stateless retraining, though architecture changes may still require starting over [N134:P285] [N134:P287]. It matters when models must adapt quickly to changing users or environments [N135:P288]. The main obstacles are access to fresh labeled data, safe evaluation of frequent updates, and algorithm limitations [N136:P290] [N136:P292] [N136:P293]. A mature system progresses through increasing automation and deployment capability [N137:P294] [N137:P298], while update frequency remains an empirical decision based on value, decay, and operational cost [N138:P299].",
+        "coverage_points": [
+          "The section frames production updates through evaluated micro-batches and a champion/challenger process .",
+          "Continual learning is infrastructure that lets teams update models when needed, not a requirement to retrain every few minutes  .",
+          "Stateful training continues from the previous model state, often using less fresh data and compute than stateless retraining, though architecture changes may still require starting over  .",
+          "It matters when models must adapt quickly to changing users or environments .",
+          "The main obstacles are access to fresh labeled data, safe evaluation of frequent updates, and algorithm limitations   .",
+          "A mature system progresses through increasing automation and deployment capability  , while update frequency remains an empirical decision based on value, decay, and operational cost ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "complete_scope",
+        "concepts",
+        "figures_equations",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "mt-008-t1",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "What should a responsible-AI audit cover before deployment?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-008",
+        "turn_id": "mt-008-t1",
+        "question": "What should a responsible-AI audit cover before deployment?"
+      },
+      "expected": {
+        "turn_id": "mt-008-t1",
+        "user": "What should a responsible-AI audit cover before deployment?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "What should a responsible-AI audit cover before model deployment?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 172,
+            "pages": [
+              367,
+              368,
+              369,
+              370,
+              371,
+              372
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Audit how bias can enter through training data, labeling, features, objectives, and evaluation, including subgroup and disparate-impact analysis [N172:P367] [N172:P368]. Examine the limits of a purely data-driven approach and involve affected domains and lived experience [N172:P369]. Make trade-offs such as privacy versus accuracy and compression versus fairness explicit, address risks early, and document intended use, evaluation, limitations, ethical considerations, and recommendations in a model card [N172:P370] [N172:P371] [N172:P372].",
+        "coverage_points": [
+          "Audit how bias can enter through training data, labeling, features, objectives, and evaluation, including subgroup and disparate-impact analysis  .",
+          "Examine the limits of a purely data-driven approach and involve affected domains and lived experience .",
+          "Make trade-offs such as privacy versus accuracy and compression versus fairness explicit, address risks early, and document intended use, evaluation, limitations, ethical considerations, and recommendations in a model card   ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-008-t2",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "What exactly should go into that document?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-008",
+        "turn_id": "mt-008-t2",
+        "question": "What exactly should go into that document?"
+      },
+      "expected": {
+        "turn_id": "mt-008-t2",
+        "depends_on_turn_ids": [
+          "mt-008-t1"
+        ],
+        "user": "What exactly should go into that document?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "dependent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "What information should a model card contain?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 172,
+            "pages": [
+              370,
+              371,
+              372
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "A model card should cover model details and provenance, intended and out-of-scope uses, relevant factors and evaluation factors, metrics and thresholds, evaluation and training data, quantitative results including intersectional results, ethical considerations, caveats, and recommendations [N172:P370] [N172:P371] [N172:P372].",
+        "coverage_points": [
+          "A model card should cover model details and provenance, intended and out-of-scope uses, relevant factors and evaluation factors, metrics and thresholds, evaluation and training data, quantitative results including intersectional results, ethical considerations, caveats, and recommendations   ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-008-t1"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-008-t3",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "What if the model's predictions are only mostly correct?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-008",
+        "turn_id": "mt-008-t3",
+        "question": "What if the model's predictions are only mostly correct?"
+      },
+      "expected": {
+        "turn_id": "mt-008-t3",
+        "user": "What if the model's predictions are only mostly correct?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "How should a product handle model predictions that are mostly correct but sometimes wrong?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 165,
+            "pages": [
+              352,
+              353
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Mostly-correct outputs are useful when users can recognize and cheaply correct errors, such as an operator editing a drafted support reply [N165:P352]. They are less useful when users lack the expertise to identify or repair failures. One mitigation is to present multiple diverse candidates in a form nonexperts can evaluate, increasing the chance that at least one is usable [N165:P353].",
+        "coverage_points": [
+          "Mostly-correct outputs are useful when users can recognize and cheaply correct errors, such as an operator editing a drafted support reply .",
+          "They are less useful when users lack the expertise to identify or repair failures.",
+          "One mitigation is to present multiple diverse candidates in a form nonexperts can evaluate, increasing the chance that at least one is usable ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-008-t2"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-008-t4",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "Make that answer one sentence.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-008",
+        "turn_id": "mt-008-t4",
+        "question": "Make that answer one sentence."
+      },
+      "expected": {
+        "turn_id": "mt-008-t4",
+        "depends_on_turn_ids": [
+          "mt-008-t3"
+        ],
+        "user": "Make that answer one sentence.",
+        "expected_route": "prior_answer_transform",
+        "history_dependency": "dependent",
+        "scope_behavior": "reuse_prior_answer",
+        "expected_standalone_query": null,
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 165,
+            "pages": [
+              352,
+              353
+            ],
+            "role": "required"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Mostly-correct predictions help when users can detect and fix errors; otherwise, present several interpretable alternatives so a nonexpert can choose a usable result [N165:P352] [N165:P353].",
+        "coverage_points": [
+          "Mostly-correct predictions help when users can detect and fix errors; otherwise, present several interpretable alternatives so a nonexpert can choose a usable result  ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-008-t3"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context"
+      ]
+    },
+    {
+      "id": "mt-009-t1",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "Explain the second approach.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-009",
+        "turn_id": "mt-009-t1",
+        "question": "Explain the second approach."
+      },
+      "expected": {
+        "turn_id": "mt-009-t1",
+        "user": "Explain the second approach.",
+        "expected_route": "clarify",
+        "history_dependency": "ambiguous",
+        "scope_behavior": "clarify",
+        "expected_standalone_query": null,
+        "expected_scope": null,
+        "state_update": "none",
+        "pending_clarification_update": "set",
+        "answerable": false,
+        "expected_evidence": [],
+        "near_miss_evidence": [],
+        "reference_answer": "Which list or topic do you mean by “the second approach”? Please name the chapter, section, or approaches you are referring to.",
+        "coverage_points": [
+          "Which list or topic do you mean by “the second approach”?",
+          "Please name the chapter, section, or approaches you are referring to."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "abstention"
+      ]
+    },
+    {
+      "id": "mt-009-t2",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "I mean the second dataflow mode in Chapter 3.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-009",
+        "turn_id": "mt-009-t2",
+        "question": "I mean the second dataflow mode in Chapter 3."
+      },
+      "expected": {
+        "turn_id": "mt-009-t2",
+        "user": "I mean the second dataflow mode in Chapter 3.",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "Explain data passing through services, the second dataflow mode in Chapter 3.",
+        "expected_scope": {
+          "kind": "chapter",
+          "node_id": 34
+        },
+        "state_update": "set_active_scope",
+        "pending_clarification_update": "clear",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 48,
+            "pages": [
+              92
+            ],
+            "role": "supporting"
+          },
+          {
+            "node_id": 49,
+            "pages": [
+              93
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 50,
+            "pages": [
+              94
+            ],
+            "role": "supporting"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "The second mode is data passing through services. Process A sends a request specifying the data it needs to remotely accessible process B, which returns the result; this is request-driven communication and commonly uses REST or RPC [N49:P93] [N50:P94]. The ordering comes from the chapter's three-mode list [N48:P92].",
+        "coverage_points": [
+          "The second mode is data passing through services.",
+          "Process A sends a request specifying the data it needs to remotely accessible process B, which returns the result; this is request-driven communication and commonly uses REST or RPC  .",
+          "The ordering comes from the chapter's three-mode list ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-009-t1"
+      ],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "context",
+        "retrieval"
+      ]
+    },
+    {
+      "id": "mt-010-t1",
+      "flow": "chat",
+      "adapter": "book",
+      "title": "How should I choose LoRA rank and target modules for a transformer?",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-010",
+        "turn_id": "mt-010-t1",
+        "question": "How should I choose LoRA rank and target modules for a transformer?"
+      },
+      "expected": {
+        "turn_id": "mt-010-t1",
+        "user": "How should I choose LoRA rank and target modules for a transformer?",
+        "expected_route": "retrieval_qa",
+        "history_dependency": "independent",
+        "scope_behavior": "global",
+        "expected_standalone_query": "How should LoRA rank and target modules be selected for transformer fine-tuning?",
+        "expected_scope": null,
+        "state_update": "none",
+        "answerable": false,
+        "expected_evidence": [],
+        "near_miss_evidence": [
+          {
+            "node_id": 110,
+            "pages": [
+              226,
+              227
+            ],
+            "reason_not_sufficient": "Discusses low-rank factorization for model compression, not LoRA fine-tuning or target-module selection."
+          }
+        ],
+        "reference_answer": "The book does not contain enough evidence to answer how to select LoRA rank or transformer target modules. Its low-rank discussion concerns model compression rather than Low-Rank Adaptation fine-tuning.",
+        "coverage_points": [
+          "The book does not contain enough evidence to answer how to select LoRA rank or transformer target modules.",
+          "Its low-rank discussion concerns model compression rather than Low-Rank Adaptation fine-tuning."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "input",
+        "grounding",
+        "efficiency",
+        "retrieval",
+        "abstention"
+      ]
+    },
+    {
+      "id": "mt-011-t1",
+      "flow": "summary",
+      "adapter": "book",
+      "title": "Summarize Chapter 1.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-011",
+        "turn_id": "mt-011-t1",
+        "question": "Summarize Chapter 1."
+      },
+      "expected": {
+        "turn_id": "mt-011-t1",
+        "user": "Summarize Chapter 1.",
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "independent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "Summarize Chapter 1: Overview of Machine Learning Systems.",
+        "expected_scope": {
+          "kind": "chapter",
+          "node_id": 14
+        },
+        "state_update": "set_active_scope",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 14,
+            "pages": [
+              21,
+              22
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 15,
+            "pages": [
+              23,
+              24,
+              25,
+              26,
+              27,
+              28
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 16,
+            "pages": [
+              29,
+              30,
+              31
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 18,
+            "pages": [
+              32,
+              33,
+              34,
+              35,
+              36,
+              37,
+              38,
+              39,
+              40,
+              41
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 19,
+            "pages": [
+              42
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 20,
+            "pages": [
+              43
+            ],
+            "role": "optional_recap"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Chapter 1 frames a production ML system as much more than an algorithm: it also includes business requirements, interfaces, data, development and monitoring logic, and infrastructure [N14:P21] [N14:P22]. It gives criteria for deciding when ML is appropriate—learnable complex patterns, usable data, a predictive task, and sufficiently stable train-to-production assumptions [N15:P24] [N15:P25] [N15:P26]—while warning that simpler, unethical, or uneconomic uses should be rejected [N15:P28]. It surveys consumer and enterprise applications [N16:P29], then explains why production differs from research through conflicting stakeholder requirements, latency/throughput priorities, and messy shifting production data [N18:P33] [N18:P36] [N18:P39]. Unlike traditional software, ML behavior is learned from data, so failures can occur without code changes and testing must cover both code and data [N19:P42]. The recap presents this as the foundation for designing deployable ML systems [N20:P43].",
+        "coverage_points": [
+          "Chapter 1 frames a production ML system as much more than an algorithm: it also includes business requirements, interfaces, data, development and monitoring logic, and infrastructure  .",
+          "It gives criteria for deciding when ML is appropriate—learnable complex patterns, usable data, a predictive task, and sufficiently stable train-to-production assumptions   —while warning that simpler, unethical, or uneconomic uses should be rejected .",
+          "It surveys consumer and enterprise applications , then explains why production differs from research through conflicting stakeholder requirements, latency/throughput priorities, and messy shifting production data   .",
+          "Unlike traditional software, ML behavior is learned from data, so failures can occur without code changes and testing must cover both code and data .",
+          "The recap presents this as the foundation for designing deployable ML systems ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "complete_scope",
+        "concepts",
+        "figures_equations",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "mt-011-t2",
+      "flow": "summary",
+      "adapter": "book",
+      "title": "Now summarize Chapter 6.",
+      "tier": "synthetic_model_adjudicated",
+      "inputs": {
+        "dataset": "evaluation/multiturn_gold.json",
+        "conversation_id": "mt-011",
+        "turn_id": "mt-011-t2",
+        "question": "Now summarize Chapter 6."
+      },
+      "expected": {
+        "turn_id": "mt-011-t2",
+        "user": "Now summarize Chapter 6.",
+        "expected_route": "hierarchy_summary",
+        "history_dependency": "independent",
+        "scope_behavior": "hard_filter",
+        "expected_standalone_query": "Summarize Chapter 6: Model Development and Offline Evaluation.",
+        "expected_scope": {
+          "kind": "chapter",
+          "node_id": 89
+        },
+        "state_update": "set_active_scope",
+        "answerable": true,
+        "expected_evidence": [
+          {
+            "node_id": 89,
+            "pages": [
+              169
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 91,
+            "pages": [
+              170,
+              171,
+              172,
+              173,
+              174,
+              175
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 92,
+            "pages": [
+              176,
+              177,
+              178,
+              179,
+              180,
+              181
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 93,
+            "pages": [
+              182,
+              183,
+              184,
+              185,
+              186,
+              187
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 94,
+            "pages": [
+              188,
+              189,
+              190,
+              191
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 95,
+            "pages": [
+              192,
+              193,
+              194,
+              195,
+              196,
+              197
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 96,
+            "pages": [
+              198
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 97,
+            "pages": [
+              199,
+              200
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 98,
+            "pages": [
+              201,
+              202,
+              203,
+              204,
+              205,
+              206,
+              207
+            ],
+            "role": "required"
+          },
+          {
+            "node_id": 99,
+            "pages": [
+              208,
+              209
+            ],
+            "role": "optional_recap"
+          }
+        ],
+        "near_miss_evidence": [],
+        "reference_answer": "Chapter 6 treats model development as an iterative choice among algorithms under task, data, compute, and production constraints [N89:P169] [N91:P170]. It covers ensembles as a possible accuracy boost with added deployment complexity [N92:P176], and stresses experiment tracking and versioning so runs can be compared and reproduced [N93:P182]. For scale, it introduces data, model, and pipeline parallelism [N94:P188] [N94:P190] [N94:P191], while AutoML can automate parts of model and hyperparameter search [N95:P192]. Offline evaluation should progress from non-ML and simple-model baselines toward complex models only when justified [N96:P198], because metrics require meaningful baselines [N97:P200]. Production-oriented checks go beyond aggregate accuracy to perturbation, invariance, directional expectations, calibration, confidence, and slice-based evaluation [N98:P201] [N98:P202] [N98:P203] [N98:P205]. The recap emphasizes selection against objectives and constraints [N99:P208], plus reproducible experimentation, scalable training, meaningful baselines, and predeployment sanity checks [N99:P209].",
+        "coverage_points": [
+          "Chapter 6 treats model development as an iterative choice among algorithms under task, data, compute, and production constraints  .",
+          "It covers ensembles as a possible accuracy boost with added deployment complexity , and stresses experiment tracking and versioning so runs can be compared and reproduced .",
+          "For scale, it introduces data, model, and pipeline parallelism   , while AutoML can automate parts of model and hyperparameter search .",
+          "Offline evaluation should progress from non-ML and simple-model baselines toward complex models only when justified , because metrics require meaningful baselines .",
+          "Production-oriented checks go beyond aggregate accuracy to perturbation, invariance, directional expectations, calibration, confidence, and slice-based evaluation    .",
+          "The recap emphasizes selection against objectives and constraints , plus reproducible experimentation, scalable training, meaningful baselines, and predeployment sanity checks ."
+        ]
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [
+        "mt-011-t1"
+      ],
+      "aspects": [
+        "complete_scope",
+        "concepts",
+        "figures_equations",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-002-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "What is tokenization?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-002",
+        "turn_id": "vc-002-t1",
+        "question": "What is tokenization?"
+      },
+      "expected": {
+        "turn_id": "vc-002-t1",
+        "user": "What is tokenization?",
+        "expected_route": "evidence_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_standalone_query": "What is tokenization?",
+        "expected_evidence": [
+          {
+            "role": "required",
+            "start_ms": 1399000,
+            "end_ms": 1467000,
+            "modalities": [
+              "transcript",
+              "visual_frame",
+              "visual_event"
+            ],
+            "why": "Cutting the text into arbitrary units of text; the unit is called a token, which is why the method is called tokenization."
+          }
+        ],
+        "reference_answer": "Models work on numbers rather than text, so the sentence is first cut into units with respect to some arbitrary unit of text. Each unit is called a token, which is where the name comes from."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-003-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "Why is representing every token as a one-hot vector a poor choice?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-003",
+        "turn_id": "vc-003-t1",
+        "question": "Why is representing every token as a one-hot vector a poor choice?"
+      },
+      "expected": {
+        "turn_id": "vc-003-t1",
+        "user": "Why is representing every token as a one-hot vector a poor choice?",
+        "expected_route": "evidence_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_standalone_query": "Why is representing every token as a one-hot vector a poor choice?",
+        "expected_evidence": [
+          {
+            "role": "required",
+            "start_ms": 1907000,
+            "end_ms": 2002000,
+            "modalities": [
+              "transcript",
+              "visual_frame"
+            ],
+            "why": "Cosine similarity compares the angle between vectors, and one-hot vectors are all orthogonal to one another, so no two tokens can be similar. The Token representations slide naming naive one-hot encoding is on screen."
+          }
+        ],
+        "reference_answer": "Similarity between tokens is usually measured with cosine similarity, which looks at the angle between the vectors. One-hot vectors are all orthogonal to each other, so every pair of tokens looks equally unrelated and the representation carries no meaning."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-004-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "When was the Transformer introduced and in what paper?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-004",
+        "turn_id": "vc-004-t1",
+        "question": "When was the Transformer introduced and in what paper?"
+      },
+      "expected": {
+        "turn_id": "vc-004-t1",
+        "user": "When was the Transformer introduced and in what paper?",
+        "expected_route": "evidence_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_standalone_query": "When was the Transformer introduced and in what paper?",
+        "expected_evidence": [
+          {
+            "role": "required",
+            "start_ms": 4028000,
+            "end_ms": 4089000,
+            "modalities": [
+              "transcript",
+              "visual_frame"
+            ],
+            "why": "Introduced in 2017 in the paper 'Attention Is All You Need'."
+          }
+        ],
+        "reference_answer": "In 2017, in the paper 'Attention Is All You Need' — a title chosen because the authors wanted to rely on the attention mechanism alone."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-005-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "What is shown on the slide when he introduces tokenization?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-005",
+        "turn_id": "vc-005-t1",
+        "question": "What is shown on the slide when he introduces tokenization?"
+      },
+      "expected": {
+        "turn_id": "vc-005-t1",
+        "user": "What is shown on the slide when he introduces tokenization?",
+        "expected_route": "evidence_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "requires_visual_evidence": true,
+        "expected_standalone_query": "What is shown on the slide when he introduces tokenization?",
+        "expected_evidence": [
+          {
+            "role": "required",
+            "start_ms": 1399000,
+            "end_ms": 1470000,
+            "modalities": [
+              "visual_frame",
+              "visual_event"
+            ],
+            "why": "The Tokenization slide showing the sentence 'A cute teddy bear is reading.', first without token boundaries and then with boxed tokens."
+          }
+        ],
+        "reference_answer": "A slide titled Tokenization showing the running example sentence 'A cute teddy bear is reading.' — first plain, then with boxes drawn around the arbitrary token units A, cute, teddy bear, is, reading and the period."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-006-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "What BLEU score did the Transformer paper report?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-006",
+        "turn_id": "vc-006-t1",
+        "question": "What BLEU score did the Transformer paper report?"
+      },
+      "expected": {
+        "turn_id": "vc-006-t1",
+        "user": "What BLEU score did the Transformer paper report?",
+        "expected_route": "evidence_qa",
+        "history_dependency": "independent",
+        "answerable": false,
+        "expected_standalone_query": "What BLEU score did the Transformer paper report?",
+        "expected_evidence": [],
+        "near_miss_evidence": [
+          {
+            "start_ms": 1146000,
+            "end_ms": 1206000,
+            "modalities": [
+              "transcript"
+            ],
+            "why": "BLEU is defined here as a reference-based translation metric, with no number attached."
+          },
+          {
+            "start_ms": 5210000,
+            "end_ms": 5272000,
+            "modalities": [
+              "transcript"
+            ],
+            "why": "Label smoothing is said to improve metrics like BLEU, again with no number."
+          }
+        ],
+        "reference_answer": "The lecture explains what BLEU measures and mentions that label smoothing tends to improve it, but never states a score from the Transformer paper. The correct response says so rather than supplying a remembered number."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-007-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "How is the grade weighted?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-007",
+        "turn_id": "vc-007-t1",
+        "question": "How is the grade weighted?"
+      },
+      "expected": {
+        "turn_id": "vc-007-t1",
+        "user": "How is the grade weighted?",
+        "expected_route": "evidence_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_standalone_query": "How is the grade weighted?",
+        "expected_evidence": [
+          {
+            "role": "required",
+            "start_ms": 522000,
+            "end_ms": 584000,
+            "modalities": [
+              "transcript"
+            ],
+            "why": "No homework; 50% midterm and 50% final."
+          }
+        ],
+        "reference_answer": "There is no homework. The midterm is worth 50% and the final exam is worth 50%."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-011-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "What is described between 20:00 and 24:00?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-011",
+        "turn_id": "vc-011-t1",
+        "question": "What is described between 20:00 and 24:00?"
+      },
+      "expected": {
+        "turn_id": "vc-011-t1",
+        "user": "What is described between 20:00 and 24:00?",
+        "expected_route": "lecture_summary",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_standalone_query": "What is described between 20:00 and 24:00?",
+        "expected_evidence": [
+          {
+            "role": "required",
+            "start_ms": 1200000,
+            "end_ms": 1440000,
+            "modalities": [
+              "transcript"
+            ],
+            "why": "Reference-based metrics and their cost, perplexity, and the high-level timeline from 1980s RNNs through word2vec to the 2017 Transformer."
+          }
+        ],
+        "reference_answer": "Why reference-based metrics like BLEU and ROUGE need labels and why labels are expensive, perplexity as a reference-free alternative measuring how surprised a model is, and the field's timeline: RNNs in the eighties, LSTMs in the nineties, word2vec, then the 2017 Transformer and the scaling that produced LLMs."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "vc-012-t1",
+      "flow": "video_course",
+      "adapter": "video",
+      "title": "Why does the Transformer need positional encodings?",
+      "tier": "author_labelled_video_gold",
+      "inputs": {
+        "dataset": "evaluation/video_gold.json",
+        "conversation_id": "vc-012",
+        "turn_id": "vc-012-t1",
+        "question": "Why does the Transformer need positional encodings?"
+      },
+      "expected": {
+        "turn_id": "vc-012-t1",
+        "user": "Why does the Transformer need positional encodings?",
+        "expected_route": "evidence_qa",
+        "history_dependency": "independent",
+        "answerable": true,
+        "expected_standalone_query": "Why does the Transformer need positional encodings?",
+        "expected_evidence": [
+          {
+            "role": "required",
+            "start_ms": 4805000,
+            "end_ms": 4870000,
+            "modalities": [
+              "transcript"
+            ],
+            "why": "Direct links between tokens destroy the sense of order an RNN got from processing one at a time, so position encodings are added to carry the position of a word in the sequence."
+          }
+        ],
+        "reference_answer": "Because attention gives every token a direct link to every other one, which throws away the ordering an RNN got for free by processing the sequence one step at a time. Position encodings are added to carry where each word sits in the sequence."
+      },
+      "source": {
+        "kind": "video",
+        "video_id": "a9487962-b127-4a0f-b57f-9abdda8d39dc",
+        "title": "cme295-lecture1-h264.mp4",
+        "description": "Stanford CME 295, Transformers and Large Language Models, Lecture 1.",
+        "duration_ms": 6118760,
+        "transcript_source_kind": "uploaded_caption",
+        "chapter_count": 21,
+        "coverage_unit_kind": "derived_chapter",
+        "resource": {
+          "resource_id": "5df78970-145a-4d84-8c0f-7e201bfeedf4",
+          "title": "fall25-cme295-lecture1",
+          "page_count": 135
+        },
+        "chapter_kind": "derived"
+      },
+      "depends_on": [],
+      "aspects": [
+        "lecture",
+        "multimodal",
+        "temporal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "course-synthesis",
+      "flow": "video_course",
+      "adapter": "course",
+      "title": "Compare the role of RPC, GFS and Raft across this course. Cite evidence from each relevant lecture.",
+      "tier": "author_labelled_human_review_pending",
+      "inputs": {
+        "question": "Compare the role of RPC, GFS and Raft across this course. Cite evidence from each relevant lecture.",
+        "lecture_title_filter": null
+      },
+      "expected": {
+        "coverage_points": [
+          "RPC provides remote request/response communication.",
+          "GFS addresses distributed storage.",
+          "Raft addresses replicated consensus.",
+          "Distinguish storage replication from consensus and cite separate lectures."
+        ],
+        "answerable": true
+      },
+      "source": {
+        "kind": "course",
+        "title": "MIT 6.824 Distributed Systems (Spring 2020)"
+      },
+      "depends_on": [],
+      "aspects": [
+        "course",
+        "source_exclusion",
+        "history",
+        "abstention",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "course-exclusion",
+      "flow": "video_course",
+      "adapter": "course",
+      "title": "Explain RPC and thread-based concurrency using only the RPC lecture.",
+      "tier": "author_labelled_human_review_pending",
+      "inputs": {
+        "question": "Explain RPC and thread-based concurrency using only the RPC lecture.",
+        "lecture_title_filter": "RPC"
+      },
+      "expected": {
+        "coverage_points": [
+          "Explain request/response and concurrency from the selected lecture.",
+          "Excluded lectures must not appear as sources."
+        ],
+        "answerable": true
+      },
+      "source": {
+        "kind": "course",
+        "title": "MIT 6.824 Distributed Systems (Spring 2020)"
+      },
+      "depends_on": [],
+      "aspects": [
+        "course",
+        "source_exclusion",
+        "history",
+        "abstention",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "course-unanswerable",
+      "flow": "video_course",
+      "adapter": "course",
+      "title": "What exact password did the instructor use for their personal database?",
+      "tier": "author_labelled_human_review_pending",
+      "inputs": {
+        "question": "What exact password did the instructor use for their personal database?",
+        "lecture_title_filter": null
+      },
+      "expected": {
+        "coverage_points": [
+          "Admit insufficient source evidence without inventing a password."
+        ],
+        "answerable": false
+      },
+      "source": {
+        "kind": "course",
+        "title": "MIT 6.824 Distributed Systems (Spring 2020)"
+      },
+      "depends_on": [],
+      "aspects": [
+        "course",
+        "source_exclusion",
+        "history",
+        "abstention",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "course-followup",
+      "flow": "video_course",
+      "adapter": "course",
+      "title": "How do those mechanisms handle failures? Keep the earlier comparison and cite the relevant lectures.",
+      "tier": "author_labelled_human_review_pending",
+      "inputs": {
+        "question": "How do those mechanisms handle failures? Keep the earlier comparison and cite the relevant lectures.",
+        "lecture_title_filter": null
+      },
+      "expected": {
+        "coverage_points": [
+          "Retain the RPC/GFS/Raft comparison from the preceding answer.",
+          "Distinguish their failure handling and cite source evidence."
+        ],
+        "answerable": true
+      },
+      "source": {
+        "kind": "course",
+        "title": "MIT 6.824 Distributed Systems (Spring 2020)"
+      },
+      "depends_on": [
+        "course-synthesis"
+      ],
+      "aspects": [
+        "course",
+        "source_exclusion",
+        "history",
+        "abstention",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "sheet-chapter-1",
+      "flow": "revision_sheet",
+      "adapter": "sheet",
+      "title": "Revision sheet — chapter 1",
+      "tier": "human_review_pending",
+      "inputs": {
+        "chapter": 1
+      },
+      "expected": {
+        "coverage_points": [],
+        "layout": "A4 readable, no clipping"
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "scope",
+        "concepts",
+        "grounding",
+        "figures",
+        "layout",
+        "repair",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "sheet-chapter-3",
+      "flow": "revision_sheet",
+      "adapter": "sheet",
+      "title": "Revision sheet — chapter 3",
+      "tier": "human_review_pending",
+      "inputs": {
+        "chapter": 3
+      },
+      "expected": {
+        "coverage_points": [],
+        "layout": "A4 readable, no clipping"
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "scope",
+        "concepts",
+        "grounding",
+        "figures",
+        "layout",
+        "repair",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "sheet-chapter-6",
+      "flow": "revision_sheet",
+      "adapter": "sheet",
+      "title": "Revision sheet — chapter 6",
+      "tier": "human_review_pending",
+      "inputs": {
+        "chapter": 6
+      },
+      "expected": {
+        "coverage_points": [],
+        "layout": "A4 readable, no clipping"
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "scope",
+        "concepts",
+        "grounding",
+        "figures",
+        "layout",
+        "repair",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "sheet-chapter-8",
+      "flow": "revision_sheet",
+      "adapter": "sheet",
+      "title": "Revision sheet — chapter 8",
+      "tier": "human_review_pending",
+      "inputs": {
+        "chapter": 8
+      },
+      "expected": {
+        "coverage_points": [],
+        "layout": "A4 readable, no clipping"
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "scope",
+        "concepts",
+        "grounding",
+        "figures",
+        "layout",
+        "repair",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "sheet-chapter-10",
+      "flow": "revision_sheet",
+      "adapter": "sheet",
+      "title": "Revision sheet — chapter 10",
+      "tier": "human_review_pending",
+      "inputs": {
+        "chapter": 10
+      },
+      "expected": {
+        "coverage_points": [],
+        "layout": "A4 readable, no clipping"
+      },
+      "source": {
+        "kind": "book",
+        "file_hash": "f06ce909ab4af9991f987b43106a6a0007d6a101d9b684d076c28b1b73ad97c2",
+        "title": "Designing Machine Learning Systems"
+      },
+      "depends_on": [],
+      "aspects": [
+        "scope",
+        "concepts",
+        "grounding",
+        "figures",
+        "layout",
+        "repair",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "proximity-weak",
+      "flow": "interview",
+      "adapter": "interview_grade",
+      "title": "Candidate assessment — proximity-weak",
+      "tier": "human_authored_candidate_authored_evidence",
+      "inputs": {
+        "dataset": "evaluation/interview_candidate_profiles.json",
+        "profile_id": "proximity-weak"
+      },
+      "expected": {
+        "id": "proximity-weak",
+        "scenario_id": "proximity-service-clarification",
+        "level": "weak",
+        "answer": "Low latency.",
+        "minimum_score": 1.0,
+        "maximum_score": 3.25,
+        "question_complete": false,
+        "allowed_routes": [
+          "clarifying",
+          "continue"
+        ]
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "proximity-service-clarification"
+      },
+      "depends_on": [],
+      "aspects": [
+        "grading",
+        "grounding",
+        "adaptation",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "proximity-mixed",
+      "flow": "interview",
+      "adapter": "interview_grade",
+      "title": "Candidate assessment — proximity-mixed",
+      "tier": "human_authored_candidate_authored_evidence",
+      "inputs": {
+        "dataset": "evaluation/interview_candidate_profiles.json",
+        "profile_id": "proximity-mixed"
+      },
+      "expected": {
+        "id": "proximity-mixed",
+        "scenario_id": "proximity-service-clarification",
+        "level": "mixed",
+        "answer": "First I'd clarify the maximum search radius and whether users can change it. I'd also ask about expected traffic and how fresh business updates must be. I'll assume location searches are latency-sensitive and business changes can be asynchronous.",
+        "minimum_score": 3.5,
+        "maximum_score": 5.0,
+        "question_complete": true,
+        "allowed_routes": [
+          "depth_follow_up",
+          "advance"
+        ]
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "proximity-service-clarification"
+      },
+      "depends_on": [],
+      "aspects": [
+        "grading",
+        "grounding",
+        "adaptation",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "proximity-strong",
+      "flow": "interview",
+      "adapter": "interview_grade",
+      "title": "Candidate assessment — proximity-strong",
+      "tier": "human_authored_candidate_authored_evidence",
+      "inputs": {
+        "dataset": "evaluation/interview_candidate_profiles.json",
+        "profile_id": "proximity-strong"
+      },
+      "expected": {
+        "id": "proximity-strong",
+        "scenario_id": "proximity-service-clarification",
+        "level": "strong",
+        "answer": "I'd clarify the search contract: input location, allowed radius, pagination, business details, and whether results update as a user moves. Then scale and SLOs—traffic, peak geographic skew, latency, and availability. For writes, I'd ask whether owner edits must be real time; if next-day visibility is acceptable, I can separate write ingestion from a read-optimized geo index. I'd also establish privacy and retention expectations for precise location.",
+        "minimum_score": 4.0,
+        "maximum_score": 5.0,
+        "question_complete": true,
+        "allowed_routes": [
+          "depth_follow_up",
+          "advance"
+        ]
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "proximity-service-clarification"
+      },
+      "depends_on": [],
+      "aspects": [
+        "grading",
+        "grounding",
+        "adaptation",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "rag-weak",
+      "flow": "interview",
+      "adapter": "interview_grade",
+      "title": "Candidate assessment — rag-weak",
+      "tier": "human_authored_candidate_authored_evidence",
+      "inputs": {
+        "dataset": "evaluation/interview_candidate_profiles.json",
+        "profile_id": "rag-weak"
+      },
+      "expected": {
+        "id": "rag-weak",
+        "scenario_id": "rag-system-clarification",
+        "level": "weak",
+        "answer": "I would use a vector database.",
+        "minimum_score": 1.0,
+        "maximum_score": 3.25,
+        "question_complete": false,
+        "allowed_routes": [
+          "clarifying",
+          "continue"
+        ]
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "rag-system-clarification"
+      },
+      "depends_on": [],
+      "aspects": [
+        "grading",
+        "grounding",
+        "adaptation",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "rag-mixed",
+      "flow": "interview",
+      "adapter": "interview_grade",
+      "title": "Candidate assessment — rag-mixed",
+      "tier": "human_authored_candidate_authored_evidence",
+      "inputs": {
+        "dataset": "evaluation/interview_candidate_profiles.json",
+        "profile_id": "rag-mixed"
+      },
+      "expected": {
+        "id": "rag-mixed",
+        "scenario_id": "rag-system-clarification",
+        "level": "mixed",
+        "answer": "I'd clarify the document types, corpus size, and how often content changes. I'd ask what kinds of questions users submit, how fresh answers need to be, and the latency target. I would also confirm how much retrieved context can fit in the model prompt.",
+        "minimum_score": 3.5,
+        "maximum_score": 5.0,
+        "question_complete": true,
+        "allowed_routes": [
+          "depth_follow_up",
+          "advance"
+        ]
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "rag-system-clarification"
+      },
+      "depends_on": [],
+      "aspects": [
+        "grading",
+        "grounding",
+        "adaptation",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "rag-strong",
+      "flow": "interview",
+      "adapter": "interview_grade",
+      "title": "Candidate assessment — rag-strong",
+      "tier": "human_authored_candidate_authored_evidence",
+      "inputs": {
+        "dataset": "evaluation/interview_candidate_profiles.json",
+        "profile_id": "rag-strong"
+      },
+      "expected": {
+        "id": "rag-strong",
+        "scenario_id": "rag-system-clarification",
+        "level": "strong",
+        "answer": "I'd clarify the corpus, formats, scale, and update cadence; the query types; and what counts as relevant retrieval. Then I'd establish freshness and latency targets, the context and cost budget, and how the assistant should respond when retrieval is empty or contradictory. I would ask for offline retrieval and grounded-answer success criteria before choosing chunking, embeddings, or a vector store.",
+        "minimum_score": 4.0,
+        "maximum_score": 5.0,
+        "question_complete": true,
+        "allowed_routes": [
+          "depth_follow_up",
+          "advance"
+        ]
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "rag-system-clarification"
+      },
+      "depends_on": [],
+      "aspects": [
+        "grading",
+        "grounding",
+        "adaptation",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "ideal-notification-system",
+      "flow": "interview",
+      "adapter": "ideal",
+      "title": "Ideal dialogue — notification-system",
+      "tier": "synthetic_human_review_pending",
+      "inputs": {
+        "dataset": "evaluation/ideal_interview_flow_seed.json",
+        "case_id": "notification-system"
+      },
+      "expected": {
+        "topic_keys": [
+          "requirements",
+          "architecture",
+          "reliability",
+          "evaluation"
+        ],
+        "citation_markers": [
+          "[N101:P1]",
+          "[N102:P2]",
+          "[N103:P3]",
+          "[N104:P4]"
+        ],
+        "interview_format": "system_design"
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "notification-system"
+      },
+      "depends_on": [],
+      "aspects": [
+        "question_generation",
+        "ideal",
+        "grounding",
+        "efficiency"
+      ]
+    },
+    {
+      "id": "ideal-rag-platform",
+      "flow": "interview",
+      "adapter": "ideal",
+      "title": "Ideal dialogue — rag-platform",
+      "tier": "synthetic_human_review_pending",
+      "inputs": {
+        "dataset": "evaluation/ideal_interview_flow_seed.json",
+        "case_id": "rag-platform"
+      },
+      "expected": {
+        "topic_keys": [
+          "requirements",
+          "architecture",
+          "retrieval",
+          "evaluation"
+        ],
+        "citation_markers": [
+          "[N201:P1]",
+          "[N202:P2]",
+          "[N203:P3]",
+          "[N204:P4]"
+        ],
+        "interview_format": "system_design"
+      },
+      "source": {
+        "kind": "authored_scenario",
+        "scenario_id": "rag-platform"
+      },
+      "depends_on": [],
+      "aspects": [
+        "question_generation",
+        "ideal",
+        "grounding",
+        "efficiency"
+      ]
+    }
+  ],
+  "requirements": {
+    "chat.input": {
+      "flow": "chat",
+      "cases": [
+        "mt-001-t2",
+        "mt-001-t3",
+        "mt-001-t4",
+        "mt-002-t1",
+        "mt-003-t1",
+        "mt-003-t2",
+        "mt-003-t3",
+        "mt-003-t4",
+        "mt-005-t1",
+        "mt-005-t2",
+        "mt-005-t3",
+        "mt-005-t4",
+        "mt-008-t1",
+        "mt-008-t2",
+        "mt-008-t3",
+        "mt-008-t4",
+        "mt-009-t1",
+        "mt-009-t2",
+        "mt-010-t1"
+      ],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "chat.context": {
+      "flow": "chat",
+      "cases": [
+        "mt-001-t2",
+        "mt-001-t3",
+        "mt-001-t4",
+        "mt-003-t2",
+        "mt-003-t3",
+        "mt-003-t4",
+        "mt-005-t2",
+        "mt-005-t3",
+        "mt-005-t4",
+        "mt-008-t2",
+        "mt-008-t3",
+        "mt-008-t4",
+        "mt-009-t2"
+      ],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "chat.retrieval": {
+      "flow": "chat",
+      "cases": [
+        "mt-001-t2",
+        "mt-001-t3",
+        "mt-001-t4",
+        "mt-003-t1",
+        "mt-003-t2",
+        "mt-003-t3",
+        "mt-003-t4",
+        "mt-005-t1",
+        "mt-005-t2",
+        "mt-005-t3",
+        "mt-005-t4",
+        "mt-008-t1",
+        "mt-008-t2",
+        "mt-008-t3",
+        "mt-009-t2",
+        "mt-010-t1"
+      ],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "chat.grounding": {
+      "flow": "chat",
+      "cases": [
+        "mt-001-t2",
+        "mt-001-t3",
+        "mt-001-t4",
+        "mt-002-t1",
+        "mt-003-t1",
+        "mt-003-t2",
+        "mt-003-t3",
+        "mt-003-t4",
+        "mt-005-t1",
+        "mt-005-t2",
+        "mt-005-t3",
+        "mt-005-t4",
+        "mt-008-t1",
+        "mt-008-t2",
+        "mt-008-t3",
+        "mt-008-t4",
+        "mt-009-t1",
+        "mt-009-t2",
+        "mt-010-t1"
+      ],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "chat.abstention": {
+      "flow": "chat",
+      "cases": [
+        "mt-009-t1",
+        "mt-010-t1"
+      ],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "chat.fallback": {
+      "flow": "chat",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "chat.journey": {
+      "flow": "chat",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "chat.efficiency": {
+      "flow": "chat",
+      "cases": [
+        "mt-001-t2",
+        "mt-001-t3",
+        "mt-001-t4",
+        "mt-002-t1",
+        "mt-003-t1",
+        "mt-003-t2",
+        "mt-003-t3",
+        "mt-003-t4",
+        "mt-005-t1",
+        "mt-005-t2",
+        "mt-005-t3",
+        "mt-005-t4",
+        "mt-008-t1",
+        "mt-008-t2",
+        "mt-008-t3",
+        "mt-008-t4",
+        "mt-009-t1",
+        "mt-009-t2",
+        "mt-010-t1"
+      ],
+      "contract_tests": [
+        "tests/test_multiturn_evaluation.py",
+        "tests/test_source_first_evaluation.py",
+        "tests/test_conversation.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "summary.complete_scope": {
+      "flow": "summary",
+      "cases": [
+        "mt-001-t1",
+        "mt-002-t2",
+        "mt-004-t1",
+        "mt-006-t1",
+        "mt-011-t1",
+        "mt-011-t2"
+      ],
+      "contract_tests": [
+        "tests/test_study_summary.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "summary.concepts": {
+      "flow": "summary",
+      "cases": [
+        "mt-001-t1",
+        "mt-002-t2",
+        "mt-004-t1",
+        "mt-006-t1",
+        "mt-011-t1",
+        "mt-011-t2"
+      ],
+      "contract_tests": [
+        "tests/test_study_summary.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "summary.figures_equations": {
+      "flow": "summary",
+      "cases": [
+        "mt-001-t1",
+        "mt-002-t2",
+        "mt-004-t1",
+        "mt-006-t1",
+        "mt-011-t1",
+        "mt-011-t2"
+      ],
+      "contract_tests": [
+        "tests/test_study_summary.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "summary.overflow": {
+      "flow": "summary",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_study_summary.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "summary.repair": {
+      "flow": "summary",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_study_summary.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "summary.journey": {
+      "flow": "summary",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_study_summary.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "summary.efficiency": {
+      "flow": "summary",
+      "cases": [
+        "mt-001-t1",
+        "mt-002-t2",
+        "mt-004-t1",
+        "mt-006-t1",
+        "mt-011-t1",
+        "mt-011-t2"
+      ],
+      "contract_tests": [
+        "tests/test_study_summary.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.lecture": {
+      "flow": "video_course",
+      "cases": [
+        "vc-002-t1",
+        "vc-003-t1",
+        "vc-004-t1",
+        "vc-005-t1",
+        "vc-006-t1",
+        "vc-007-t1",
+        "vc-011-t1",
+        "vc-012-t1"
+      ],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.course": {
+      "flow": "video_course",
+      "cases": [
+        "course-synthesis",
+        "course-exclusion",
+        "course-unanswerable",
+        "course-followup"
+      ],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.multimodal": {
+      "flow": "video_course",
+      "cases": [
+        "vc-002-t1",
+        "vc-003-t1",
+        "vc-004-t1",
+        "vc-005-t1",
+        "vc-006-t1",
+        "vc-007-t1",
+        "vc-011-t1",
+        "vc-012-t1"
+      ],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.temporal": {
+      "flow": "video_course",
+      "cases": [
+        "vc-002-t1",
+        "vc-003-t1",
+        "vc-004-t1",
+        "vc-005-t1",
+        "vc-006-t1",
+        "vc-007-t1",
+        "vc-011-t1",
+        "vc-012-t1"
+      ],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.source_version": {
+      "flow": "video_course",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.source_exclusion": {
+      "flow": "video_course",
+      "cases": [
+        "course-synthesis",
+        "course-exclusion",
+        "course-unanswerable",
+        "course-followup"
+      ],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.ingestion_recovery": {
+      "flow": "video_course",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.journey": {
+      "flow": "video_course",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "video_course.efficiency": {
+      "flow": "video_course",
+      "cases": [
+        "vc-002-t1",
+        "vc-003-t1",
+        "vc-004-t1",
+        "vc-005-t1",
+        "vc-006-t1",
+        "vc-007-t1",
+        "vc-011-t1",
+        "vc-012-t1",
+        "course-synthesis",
+        "course-exclusion",
+        "course-unanswerable",
+        "course-followup"
+      ],
+      "contract_tests": [
+        "tests/test_video_evaluation.py",
+        "tests/test_video_courses.py",
+        "tests/test_course_query_embedding_cost.py",
+        "tests/test_video_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.scope": {
+      "flow": "revision_sheet",
+      "cases": [
+        "sheet-chapter-1",
+        "sheet-chapter-3",
+        "sheet-chapter-6",
+        "sheet-chapter-8",
+        "sheet-chapter-10"
+      ],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.concepts": {
+      "flow": "revision_sheet",
+      "cases": [
+        "sheet-chapter-1",
+        "sheet-chapter-3",
+        "sheet-chapter-6",
+        "sheet-chapter-8",
+        "sheet-chapter-10"
+      ],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.grounding": {
+      "flow": "revision_sheet",
+      "cases": [
+        "sheet-chapter-1",
+        "sheet-chapter-3",
+        "sheet-chapter-6",
+        "sheet-chapter-8",
+        "sheet-chapter-10"
+      ],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.figures": {
+      "flow": "revision_sheet",
+      "cases": [
+        "sheet-chapter-1",
+        "sheet-chapter-3",
+        "sheet-chapter-6",
+        "sheet-chapter-8",
+        "sheet-chapter-10"
+      ],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.layout": {
+      "flow": "revision_sheet",
+      "cases": [
+        "sheet-chapter-1",
+        "sheet-chapter-3",
+        "sheet-chapter-6",
+        "sheet-chapter-8",
+        "sheet-chapter-10"
+      ],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.repair": {
+      "flow": "revision_sheet",
+      "cases": [
+        "sheet-chapter-1",
+        "sheet-chapter-3",
+        "sheet-chapter-6",
+        "sheet-chapter-8",
+        "sheet-chapter-10"
+      ],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.followup": {
+      "flow": "revision_sheet",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.job_recovery": {
+      "flow": "revision_sheet",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.journey": {
+      "flow": "revision_sheet",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "revision_sheet.efficiency": {
+      "flow": "revision_sheet",
+      "cases": [
+        "sheet-chapter-1",
+        "sheet-chapter-3",
+        "sheet-chapter-6",
+        "sheet-chapter-8",
+        "sheet-chapter-10"
+      ],
+      "contract_tests": [
+        "tests/test_revision_sheets.py",
+        "tests/test_revision_resilience.py",
+        "tests/test_revision_review.py",
+        "tests/test_revision_pagination.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.question_generation": {
+      "flow": "interview",
+      "cases": [
+        "ideal-notification-system",
+        "ideal-rag-platform"
+      ],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.grading": {
+      "flow": "interview",
+      "cases": [
+        "proximity-weak",
+        "proximity-mixed",
+        "proximity-strong",
+        "rag-weak",
+        "rag-mixed",
+        "rag-strong"
+      ],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.adaptation": {
+      "flow": "interview",
+      "cases": [
+        "proximity-weak",
+        "proximity-mixed",
+        "proximity-strong",
+        "rag-weak",
+        "rag-mixed",
+        "rag-strong"
+      ],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.clarification": {
+      "flow": "interview",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.coding": {
+      "flow": "interview",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.ideal": {
+      "flow": "interview",
+      "cases": [
+        "ideal-notification-system",
+        "ideal-rag-platform"
+      ],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.voice": {
+      "flow": "interview",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.report": {
+      "flow": "interview",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.journey": {
+      "flow": "interview",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "interview.efficiency": {
+      "flow": "interview",
+      "cases": [
+        "proximity-weak",
+        "proximity-mixed",
+        "proximity-strong",
+        "rag-weak",
+        "rag-mixed",
+        "rag-strong",
+        "ideal-notification-system",
+        "ideal-rag-platform"
+      ],
+      "contract_tests": [
+        "tests/test_interviews.py",
+        "tests/test_ideal_interviews.py",
+        "tests/test_livekit_voice.py",
+        "tests/test_livekit_worker.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite",
+      "human_review": "pending",
+      "note": "Candidate cases target this aspect; mapping alone is not proof. Use contracts, connected journeys and artifact review separately."
+    },
+    "shared.budget": {
+      "flow": "shared",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_eval_budget.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite"
+    },
+    "shared.evaluator_integrity": {
+      "flow": "shared",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_eval_integrity.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite"
+    },
+    "shared.ownership": {
+      "flow": "shared",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_book_source.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite"
+    },
+    "shared.stream_recovery": {
+      "flow": "shared",
+      "cases": [],
+      "contract_tests": [
+        "tests/test_operations_telemetry.py"
+      ],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite"
+    },
+    "shared.browser_accessibility": {
+      "flow": "shared",
+      "cases": [],
+      "contract_tests": [],
+      "contract_status": "not_run_by_suite",
+      "journey_status": "not_run_by_suite"
+    }
+  }
+}
