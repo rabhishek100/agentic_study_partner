@@ -84,6 +84,10 @@ Web: `http://localhost:3000`; API health: `http://localhost:8000/api/health`.
 
 ## Verify changes
 
+Five-flow baseline, measured improvements and quality limits:
+[evaluation results](docs/evaluation-results.md).
+Resumable work units, verification and next steps:
+[delivery tracker](docs/evaluation-progress.md).
 Repository-wide LangSmith setup, trace organization and a no-spend hosted
 delivery check: [observability](docs/observability.md).
 Test-suite audit, cleanup and prioritized gaps: [test audit](docs/test-suite-audit.md).

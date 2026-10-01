@@ -21,11 +21,11 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 5b | Coverage manifest and resumable orchestration | Complete | Five-flow mapping; durable generation before judging; source/configuration fingerprints; fixture resume |
 | 5c | Production adapters and trace-backed reporting | Complete | Canonical source identity; all five output types; exact generation inputs; real LangSmith metrics |
 | 6 | Simple local evidence/artifact review UI | Complete | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
-| 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
+| 7 | Connected journeys, remaining test failures and live baselines | Complete | Fixture-authenticated five-flow journeys; persistence/recovery; baseline results with explicit unknowns and spend |
 | 7a | Test isolation and six baseline failures | Complete | Reproduction; dedicated migrated database; local Storage fixtures; privacy and queue protection |
 | 7b | Independent sheet criteria and live baselines | Complete | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
 | 7c | Connected five-flow journeys | Complete | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
-| 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
+| 8 | Measured improvements and final report | Complete | Unchanged-source/gold rechecks, diagnostic limits, final report and recruiter walkthrough; human calibration deferred |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -56,9 +56,10 @@ repository-wide and independent of this five-flow selection.
   frontend 753 passed. Six backend failures concern two suggested-question
   cache access checks, caption selection, cited image rendering, expired-lease
   fencing and atomic video upload. See [test audit](test-suite-audit.md).
-- Existing backend processes have not been restarted for Grafana credentials.
-  No hosted app deployment has been performed. Five-flow paid evals and human
-  calibration have not run.
+- At task start, backend processes had not been restarted for Grafana credentials
+  and no hosted deployment, five-flow paid eval or human calibration had run.
+  Paid results are below; runtime restart/deployment and human calibration
+  remain separate from completed implementation.
 
 - Unit 1: 45 targeted telemetry/tracing/container/environment/supervisor tests
   and 33 subtests passed (4.57s). Hosted LangSmith smoke read back five correctly
@@ -294,8 +295,6 @@ repository-wide and independent of this five-flow selection.
   change and verifies retained source/answer after it. Live paper quality
   recheck is next; new model draws are not a controlled fixed-draft replay.
 
-## Workspace exclusions
-
 - Unit 8h verification correction: the runtime repair was pushed before one
   legacy prompt assertion was checked. That assertion expected covered source
   nodes to be excluded. It now requires full source and exact retention of the
@@ -319,8 +318,15 @@ repository-wide and independent of this five-flow selection.
 
 - Final runtime checkpoint: isolated full backend suite passed 2,080 tests,
   962 subtests, with 38 skips and 12 warnings (129.73s). The Storage/corpus
-  distinction recorded in unit 7a still applies. Connected journeys are being
-  rechecked after the final runtime changes; then finalize the report.
+  distinction recorded in unit 7a still applies. Connected journeys were
+  rechecked after final runtime changes and all five passed, with no browser
+  JS errors or HTTP 5xx. Final results, cost totals, quality gaps and interview
+  walkthrough are in `docs/evaluation-results.md`.
+  Final documentation checks passed: 54-case manifest regeneration, API
+  endpoint catalog, all five LangGraph diagrams, 61 local links and patch
+  whitespace validation. No runtime or frontend code changed after verification.
+
+## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
 contains unrelated/unreviewed local artifacts. Preserve both; exclude them
@@ -329,9 +335,10 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Continue unit 8e's budgeted experiment; preserve its frozen code/manifest.
-Read `/tmp/study-unit8-source-and-repairs.log` and its bundle/ledger before
-resuming; do not regenerate saved outputs. Then apply the reproduced whole-
-paper parser fix, verify/rerun the unchanged case, assess larger context and
-bounded ideal repairs, and finalize `evaluation-results.md`. Human review is
-deferred by the user. Preserve original failed cases and policy/readiness gaps.
+The authorized implementation and measured-improvement report are complete.
+Human review remains deferred: do not fabricate ratings or rerun saved cases.
+The next review can use the local UI on port 8766, with two baseline outputs per
+flow. Subsequent priorities are sheet semantic/concept quality, missing course
+source readiness, versioned gold for the retained labelled fallback policy,
+and real sign-in/voice/runtime monitoring acceptance. See the final report's
+ordered follow-ups. Keep immutable runs and shared receipt budgets when resuming.

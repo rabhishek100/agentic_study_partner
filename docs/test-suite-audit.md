@@ -1,4 +1,4 @@
-# Test suite audit — 2026-10-01
+# Test suite audit — updated 2026-10-02
 
 Keep most behavioral tests. Reduce duplication and brittle implementation
 checks, and close discovery/flow gaps before adding more small assertions.
@@ -64,7 +64,15 @@ These are candidates, not blanket deletions: remove an old assertion only after
 its replacement demonstrates the same failure. The current class checks do not
 prove WCAG contrast, responsive layout or visible keyboard focus in a browser.
 
-## Most valuable missing coverage
+## Original gaps and subsequent closure
+
+The list below records the audit's original gaps. Items 1, 3 and 4 now have
+the connected journey harness, complete source/image capture, evidence-aware
+judging, and real sync/async budget/resume regressions. Stream framing,
+cancellation and source-switch protection retain their dedicated tests; the
+connected harness exercises SSE and persistence/reopen, rather than every
+disconnect/source-switch permutation. Keyboard/reduced-motion/mobile checks
+cover part of item 5; actual contrast and focus return remain follow-ups.
 
 1. **Five connected browser journeys**: authenticated chat with persisted answer
    and working citation; selected complete chapter summary; dedicated video and
@@ -85,7 +93,8 @@ prove WCAG contrast, responsive layout or visible keyboard focus in a browser.
    and remains distinct from application failure. In `evals.multiturn`,
    the original empty-citation, missing-gold and judge-failure defects are now
    fixed for book/video evaluators with regression tests. Complete source/image
-   evidence, budget integrity and connected five-flow baselines remain pending.
+   evidence, budget integrity and native five-flow baselines are now implemented
+   and verified separately from deterministic CI.
 4. **The $1–$2 evaluation budget**: once the shared budget guard is implemented,
    test that generation, judging and retries share the cap; insufficient/unknown
    price or usage cannot silently bypass it; stopped runs retain completed cases
@@ -173,3 +182,12 @@ all five selected journeys, including course exclusion and interview recovery.
 It is run separately from CI and uses fixture identity/models/speech. A newly
 discovered complete-paper routing issue has a reproducing regression awaiting
 repair; this checkpoint is not claimed as a pass for that later test.
+
+Final runtime verification after paper routing, 128k sheet capacity and full-source
+summary repair: **2,080 passed, 38 skipped, 962 subtests**, 129.73s, with 12
+warnings. Connected journeys passed again after those changes with no browser
+JS errors or HTTP 5xx. One legacy summary test's narrow repair-prompt expectation
+was updated to require complete source and exact original-answer retention;
+existing citation/coverage checks stay intact. A new regression verifies an
+oversized repair is rejected before a second model call. No generated answer
+quality threshold is substituted for the deferred human review.

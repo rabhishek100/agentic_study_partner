@@ -5,6 +5,12 @@ separates deterministic contracts, retrieved-source coverage, and generated
 quality. Synthetic/model-reviewed data is not treated as human-verified gold.
 Committed datasets and result artifacts are the evidence.
 
+The current five-flow delivery is in [evaluation-results.md](evaluation-results.md):
+a 54-case manifest, preserved 50-case native baseline, selected measured
+improvements, shared budget, source/image capture and local review UI.
+Human calibration is deferred. These results are separate from the historical
+datasets and scores below, which were not recomputed with `evidence-v2`.
+
 ## Book retrieval
 
 [Gold set](../evaluation/retrieval_gold_seed.json): 15 cases—5 exact-term,
@@ -59,7 +65,8 @@ failures. The general answer judge receives evidence, citations and prior histor
 truncated excerpts or missing visual evidence must remain insufficient evidence.
 These locator checks do not establish claim support, and the old recorded scores
 above have not been recomputed under the new scoring version. The shared five-flow
-runner, complete evidence capture, budget guard and human review remain tracked in
+runner, complete evidence capture and budget guard are implemented; human review
+remains deferred. Verification and resume instructions are tracked in
 [evaluation-progress.md](evaluation-progress.md).
 
 | Set | Size | Status |
@@ -96,6 +103,9 @@ Live generation/judging makes paid calls. Each runner exposes options with
 
 | Evaluation | Command |
 |---|---|
+| Five-flow coverage | `uv run --frozen --extra voice python -m scripts.run_evaluations --plan` |
+| Budgeted native suite | `uv run --frozen --extra voice python -m scripts.run_evaluations --live --output evaluation/runs/NEW_EXPERIMENT --max-usd 2` |
+| Local human review | `uv run --frozen --extra voice python -m scripts.review_evaluations evaluation/runs/EXPERIMENT --port 8766` |
 | Retrieval | `uv run python -m scripts.evaluate_retrieval --all` |
 | Retrieval report | `uv run python -m scripts.build_retrieval_report`; `uv run python -m scripts.render_retrieval_report` |
 | Anchors / source-first | `uv run python -m scripts.evaluate_source_first --resolution-only --all`; omit `--resolution-only` for generation |
