@@ -23,7 +23,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 6 | Simple local evidence/artifact review UI | Complete | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
 | 7a | Test isolation and six baseline failures | Complete | Reproduction; dedicated migrated database; local Storage fixtures; privacy and queue protection |
-| 7b | Independent sheet criteria and live baselines | Pending | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
+| 7b | Independent sheet criteria and live baselines | In progress | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
 | 7c | Connected five-flow journeys | Pending | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
 
@@ -134,6 +134,13 @@ repository-wide and independent of this five-flow selection.
   committed user-job changes; existing updates remained 2026-09-07.
   Resume test DB: `study_partner_eval_test` on the local 54322 cluster, all
   54 migrations applied. Application data/jobs remain separate and unchanged.
+
+- Unit 7b preparation: added 38 independent, source-backed sheet criteria for
+  chapters 1/3/6/8/10 before inspecting generated sheets. All locators rebound
+  and validated against the matching canonical book. The frozen dataset and
+  bound criteria reach generation review/judging; production inventory is not
+  used as independent gold. Human importance and PDF calibration remain pending.
+  58 evaluator/review/adapter/budget cases passed (1.02s); manifest check passed.
 
 ## Workspace exclusions
 

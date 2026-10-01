@@ -2452,12 +2452,107 @@
       "flow": "revision_sheet",
       "adapter": "sheet",
       "title": "Revision sheet — chapter 1",
-      "tier": "human_review_pending",
+      "tier": "source_backed_author_labels_human_calibration_pending",
       "inputs": {
-        "chapter": 1
+        "chapter": 1,
+        "dataset": "evaluation/revision_sheet_gold.json"
       },
       "expected": {
-        "coverage_points": [],
+        "coverage_points": [
+          "Explain when learning from patterns is appropriate and when a simpler solution is preferable.",
+          "Connect representative ML use cases to a concrete prediction or decision problem.",
+          "Distinguish a trained model from the complete production system around it.",
+          "Distinguish research priorities from production requirements such as maintainability and operational constraints.",
+          "Explain why production data assumptions and changing inputs complicate deployment and monitoring.",
+          "Explain how ML systems differ from traditional software rather than presenting model accuracy as the only concern."
+        ],
+        "concept_sources": [
+          {
+            "point": "Explain when learning from patterns is appropriate and when a simpler solution is preferable.",
+            "sources": [
+              {
+                "node_id": 15,
+                "pages": [
+                  23,
+                  28
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Connect representative ML use cases to a concrete prediction or decision problem.",
+            "sources": [
+              {
+                "node_id": 16,
+                "pages": [
+                  29,
+                  31
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish a trained model from the complete production system around it.",
+            "sources": [
+              {
+                "node_id": 18,
+                "pages": [
+                  32,
+                  41
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish research priorities from production requirements such as maintainability and operational constraints.",
+            "sources": [
+              {
+                "node_id": 18,
+                "pages": [
+                  32,
+                  41
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain why production data assumptions and changing inputs complicate deployment and monitoring.",
+            "sources": [
+              {
+                "node_id": 18,
+                "pages": [
+                  32,
+                  41
+                ]
+              },
+              {
+                "node_id": 20,
+                "pages": [
+                  43,
+                  44
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain how ML systems differ from traditional software rather than presenting model accuracy as the only concern.",
+            "sources": [
+              {
+                "node_id": 19,
+                "pages": [
+                  42
+                ]
+              },
+              {
+                "node_id": 20,
+                "pages": [
+                  43,
+                  44
+                ]
+              }
+            ]
+          }
+        ],
         "layout": "A4 readable, no clipping"
       },
       "source": {
@@ -2481,12 +2576,156 @@
       "flow": "revision_sheet",
       "adapter": "sheet",
       "title": "Revision sheet — chapter 3",
-      "tier": "human_review_pending",
+      "tier": "source_backed_author_labels_human_calibration_pending",
       "inputs": {
-        "chapter": 3
+        "chapter": 3,
+        "dataset": "evaluation/revision_sheet_gold.json"
       },
       "expected": {
-        "coverage_points": [],
+        "coverage_points": [
+          "Distinguish data sources and access patterns before choosing a storage format.",
+          "Explain row-major versus column-major layouts and their workload tradeoffs.",
+          "Distinguish readable text formats from binary formats and their storage or processing tradeoffs.",
+          "Compare relational and NoSQL representations without treating one as universally better.",
+          "Distinguish structured and unstructured data and the implications for schemas.",
+          "Distinguish transactional from analytical workloads and explain ETL.",
+          "Compare passing data through databases, request-driven services and real-time transports.",
+          "Distinguish batch and stream processing and explain why ML can need both historical and fresh features."
+        ],
+        "concept_sources": [
+          {
+            "point": "Distinguish data sources and access patterns before choosing a storage format.",
+            "sources": [
+              {
+                "node_id": 35,
+                "pages": [
+                  70,
+                  72
+                ]
+              },
+              {
+                "node_id": 36,
+                "pages": [
+                  73
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain row-major versus column-major layouts and their workload tradeoffs.",
+            "sources": [
+              {
+                "node_id": 38,
+                "pages": [
+                  74,
+                  76
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish readable text formats from binary formats and their storage or processing tradeoffs.",
+            "sources": [
+              {
+                "node_id": 39,
+                "pages": [
+                  77
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Compare relational and NoSQL representations without treating one as universally better.",
+            "sources": [
+              {
+                "node_id": 41,
+                "pages": [
+                  79,
+                  82
+                ]
+              },
+              {
+                "node_id": 42,
+                "pages": [
+                  83,
+                  85
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish structured and unstructured data and the implications for schemas.",
+            "sources": [
+              {
+                "node_id": 43,
+                "pages": [
+                  86
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish transactional from analytical workloads and explain ETL.",
+            "sources": [
+              {
+                "node_id": 45,
+                "pages": [
+                  87,
+                  89
+                ]
+              },
+              {
+                "node_id": 46,
+                "pages": [
+                  90,
+                  91
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Compare passing data through databases, request-driven services and real-time transports.",
+            "sources": [
+              {
+                "node_id": 48,
+                "pages": [
+                  92
+                ]
+              },
+              {
+                "node_id": 49,
+                "pages": [
+                  93
+                ]
+              },
+              {
+                "node_id": 50,
+                "pages": [
+                  94,
+                  97
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish batch and stream processing and explain why ML can need both historical and fresh features.",
+            "sources": [
+              {
+                "node_id": 51,
+                "pages": [
+                  98
+                ]
+              },
+              {
+                "node_id": 52,
+                "pages": [
+                  99,
+                  100
+                ]
+              }
+            ]
+          }
+        ],
         "layout": "A4 readable, no clipping"
       },
       "source": {
@@ -2510,12 +2749,145 @@
       "flow": "revision_sheet",
       "adapter": "sheet",
       "title": "Revision sheet — chapter 6",
-      "tier": "human_review_pending",
+      "tier": "source_backed_author_labels_human_calibration_pending",
       "inputs": {
-        "chapter": 6
+        "chapter": 6,
+        "dataset": "evaluation/revision_sheet_gold.json"
       },
       "expected": {
-        "coverage_points": [],
+        "coverage_points": [
+          "Choose a model using task requirements and model assumptions rather than novelty alone.",
+          "Explain the purpose and tradeoffs of combining models in an ensemble.",
+          "Track experiment configuration, data and model versions so an evaluation can be reproduced.",
+          "Distinguish data, model and pipeline parallelism and identify distributed-training resource tradeoffs.",
+          "Explain what AutoML automates and where problem framing or human decisions remain necessary.",
+          "Compare against meaningful simple, existing-system or human baselines before adding model complexity.",
+          "Evaluate beyond an aggregate score using tests, error analysis and relevant data slices.",
+          "Explain why offline labels and evaluation conditions may differ from production feedback."
+        ],
+        "concept_sources": [
+          {
+            "point": "Choose a model using task requirements and model assumptions rather than novelty alone.",
+            "sources": [
+              {
+                "node_id": 91,
+                "pages": [
+                  170,
+                  175
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain the purpose and tradeoffs of combining models in an ensemble.",
+            "sources": [
+              {
+                "node_id": 92,
+                "pages": [
+                  176,
+                  181
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Track experiment configuration, data and model versions so an evaluation can be reproduced.",
+            "sources": [
+              {
+                "node_id": 93,
+                "pages": [
+                  182,
+                  187
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish data, model and pipeline parallelism and identify distributed-training resource tradeoffs.",
+            "sources": [
+              {
+                "node_id": 94,
+                "pages": [
+                  188,
+                  191
+                ]
+              },
+              {
+                "node_id": 95,
+                "pages": [
+                  192
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain what AutoML automates and where problem framing or human decisions remain necessary.",
+            "sources": [
+              {
+                "node_id": 95,
+                "pages": [
+                  192,
+                  197
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Compare against meaningful simple, existing-system or human baselines before adding model complexity.",
+            "sources": [
+              {
+                "node_id": 97,
+                "pages": [
+                  199,
+                  200
+                ]
+              },
+              {
+                "node_id": 98,
+                "pages": [
+                  201
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Evaluate beyond an aggregate score using tests, error analysis and relevant data slices.",
+            "sources": [
+              {
+                "node_id": 98,
+                "pages": [
+                  201,
+                  207
+                ]
+              },
+              {
+                "node_id": 99,
+                "pages": [
+                  208,
+                  210
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain why offline labels and evaluation conditions may differ from production feedback.",
+            "sources": [
+              {
+                "node_id": 97,
+                "pages": [
+                  199
+                ]
+              },
+              {
+                "node_id": 98,
+                "pages": [
+                  201,
+                  207
+                ]
+              }
+            ]
+          }
+        ],
         "layout": "A4 readable, no clipping"
       },
       "source": {
@@ -2539,12 +2911,152 @@
       "flow": "revision_sheet",
       "adapter": "sheet",
       "title": "Revision sheet — chapter 8",
-      "tier": "human_review_pending",
+      "tier": "source_backed_author_labels_human_calibration_pending",
       "inputs": {
-        "chapter": 8
+        "chapter": 8,
+        "dataset": "evaluation/revision_sheet_gold.json"
       },
       "expected": {
-        "coverage_points": [],
+        "coverage_points": [
+          "Distinguish software-system failures from ML-specific failures and identify plausible causes.",
+          "Distinguish covariate shift, label shift and concept drift using the distribution that changes.",
+          "Explain how distribution shifts can be detected and why a detection signal is not proof of a causal failure.",
+          "Describe responses to shifts and their dependence on model or infrastructure maturity.",
+          "Distinguish operational health from ML-specific data, feature, prediction and performance metrics.",
+          "Explain the limitations of monitoring model quality when timely ground-truth labels are unavailable.",
+          "Explain monitoring windows, thresholds and alert policies with attention to useful rather than noisy alerts.",
+          "Distinguish aggregated monitoring from the diagnostic detail provided by observability."
+        ],
+        "concept_sources": [
+          {
+            "point": "Distinguish software-system failures from ML-specific failures and identify plausible causes.",
+            "sources": [
+              {
+                "node_id": 120,
+                "pages": [
+                  247,
+                  248
+                ]
+              },
+              {
+                "node_id": 121,
+                "pages": [
+                  249,
+                  254
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish covariate shift, label shift and concept drift using the distribution that changes.",
+            "sources": [
+              {
+                "node_id": 123,
+                "pages": [
+                  257,
+                  260
+                ]
+              },
+              {
+                "node_id": 124,
+                "pages": [
+                  261
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain how distribution shifts can be detected and why a detection signal is not proof of a causal failure.",
+            "sources": [
+              {
+                "node_id": 125,
+                "pages": [
+                  262,
+                  267
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Describe responses to shifts and their dependence on model or infrastructure maturity.",
+            "sources": [
+              {
+                "node_id": 126,
+                "pages": [
+                  268,
+                  269
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish operational health from ML-specific data, feature, prediction and performance metrics.",
+            "sources": [
+              {
+                "node_id": 127,
+                "pages": [
+                  270
+                ]
+              },
+              {
+                "node_id": 128,
+                "pages": [
+                  271,
+                  275
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain the limitations of monitoring model quality when timely ground-truth labels are unavailable.",
+            "sources": [
+              {
+                "node_id": 128,
+                "pages": [
+                  271,
+                  275
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain monitoring windows, thresholds and alert policies with attention to useful rather than noisy alerts.",
+            "sources": [
+              {
+                "node_id": 129,
+                "pages": [
+                  276,
+                  278
+                ]
+              },
+              {
+                "node_id": 130,
+                "pages": [
+                  279
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish aggregated monitoring from the diagnostic detail provided by observability.",
+            "sources": [
+              {
+                "node_id": 130,
+                "pages": [
+                  279,
+                  280
+                ]
+              },
+              {
+                "node_id": 131,
+                "pages": [
+                  281,
+                  282
+                ]
+              }
+            ]
+          }
+        ],
         "layout": "A4 readable, no clipping"
       },
       "source": {
@@ -2568,12 +3080,147 @@
       "flow": "revision_sheet",
       "adapter": "sheet",
       "title": "Revision sheet — chapter 10",
-      "tier": "human_review_pending",
+      "tier": "source_backed_author_labels_human_calibration_pending",
       "inputs": {
-        "chapter": 10
+        "chapter": 10,
+        "dataset": "evaluation/revision_sheet_gold.json"
       },
       "expected": {
-        "coverage_points": [],
+        "coverage_points": [
+          "Explain storage and compute needs and why they depend on the workload.",
+          "Compare public cloud and private data centers using workload and organizational tradeoffs.",
+          "Explain reproducible development environments and the gap between development and production.",
+          "Explain containers as a way to package runtime dependencies without assuming they solve every deployment problem.",
+          "Distinguish cron jobs, schedulers, orchestrators and data-science workflow management.",
+          "Explain the roles of model deployment and a model store, including artifact provenance.",
+          "Explain the purpose of a feature store and consistency between training and serving features.",
+          "Evaluate build-versus-buy decisions using maturity, effort and requirements rather than tool popularity."
+        ],
+        "concept_sources": [
+          {
+            "point": "Explain storage and compute needs and why they depend on the workload.",
+            "sources": [
+              {
+                "node_id": 147,
+                "pages": [
+                  317,
+                  319
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Compare public cloud and private data centers using workload and organizational tradeoffs.",
+            "sources": [
+              {
+                "node_id": 148,
+                "pages": [
+                  320,
+                  321
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain reproducible development environments and the gap between development and production.",
+            "sources": [
+              {
+                "node_id": 150,
+                "pages": [
+                  323,
+                  325
+                ]
+              },
+              {
+                "node_id": 151,
+                "pages": [
+                  326,
+                  327
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain containers as a way to package runtime dependencies without assuming they solve every deployment problem.",
+            "sources": [
+              {
+                "node_id": 152,
+                "pages": [
+                  328,
+                  330
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Distinguish cron jobs, schedulers, orchestrators and data-science workflow management.",
+            "sources": [
+              {
+                "node_id": 154,
+                "pages": [
+                  331,
+                  333
+                ]
+              },
+              {
+                "node_id": 155,
+                "pages": [
+                  334,
+                  338
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain the roles of model deployment and a model store, including artifact provenance.",
+            "sources": [
+              {
+                "node_id": 157,
+                "pages": [
+                  340
+                ]
+              },
+              {
+                "node_id": 158,
+                "pages": [
+                  341,
+                  344
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Explain the purpose of a feature store and consistency between training and serving features.",
+            "sources": [
+              {
+                "node_id": 159,
+                "pages": [
+                  345,
+                  346
+                ]
+              }
+            ]
+          },
+          {
+            "point": "Evaluate build-versus-buy decisions using maturity, effort and requirements rather than tool popularity.",
+            "sources": [
+              {
+                "node_id": 160,
+                "pages": [
+                  347,
+                  348
+                ]
+              },
+              {
+                "node_id": 161,
+                "pages": [
+                  349,
+                  350
+                ]
+              }
+            ]
+          }
+        ],
         "layout": "A4 readable, no clipping"
       },
       "source": {

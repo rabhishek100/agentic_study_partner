@@ -190,6 +190,8 @@ def test_sheet_adapter_persists_pdf_provenance_and_explicit_review_gaps(monkeypa
                                            "title": "Chapter 1. Overview"}}}
     adapters = NativeAdapters({"owner_id": "00000000-0000-4000-8000-000000000001"})
     monkeypatch.setattr(adapters, "book_binding", lambda case: bound)
+    monkeypatch.setattr(adapters, "dataset", lambda case: {})
+    monkeypatch.setattr(module, "remap_gold", lambda expected, book: {"coverage_points": ["Independent fixture criterion"]})
     monkeypatch.setattr(module, "connection", fake_connection)
     source = SimpleNamespace(text="Complete canonical evidence", references={}, units={"p1": {"[N2585:P1]"}}, fingerprint="source")
     requested = []
@@ -204,6 +206,7 @@ def test_sheet_adapter_persists_pdf_provenance_and_explicit_review_gaps(monkeypa
     assert requested[0].chapter_node_id == 2585 and requested[0].book_id == 526
     assert (tmp_path / result["artifacts"]["pdf"]["path"]).read_bytes() == b"%PDF-fixture"
     assert result["checks"] == {"production_findings_clear": False, "independent_concept_coverage": None, "human_layout_review": None}
+    assert result["evidence"]["bound_expected"]["coverage_points"] == ["Independent fixture criterion"]
 
 
 def run(id, kind="chain", parent=None, **kwargs):

@@ -256,6 +256,8 @@ class NativeAdapters:
         from revision_sheets.source import load_source
         from revision_sheets.generate import generate
         book = self.book_binding(case)
+        self.dataset(case)
+        gold = remap_gold(case.expected, book)
         chapters = [node for node in book["nodes"].values() if node["node_type"] == "chapter" and node["parent_id"] is None]
         matches = [node for node in chapters if re.match(rf"Chapter\s+{case.inputs['chapter']}[.\s]", node["title"], re.I)]
         if len(matches) != 1:
@@ -271,7 +273,8 @@ class NativeAdapters:
             on_review=lambda review: atomic_json(Path(directory) / "artifacts" / case.id / "production-review.json", review.model_dump(mode="json")))
         artifacts = {"pdf": write_artifact(directory, case.id, "sheet.pdf", pdf),
                      "provenance": write_artifact(directory, case.id, "provenance.json", json.dumps(provenance, default=str).encode())}
-        return {"output": sheet.model_dump(mode="json"), "evidence": {"text": source.text, "references": source.references},
+        return {"output": sheet.model_dump(mode="json"), "evidence": {"text": source.text, "references": source.references,
+                                                                   "bound_expected": gold},
                 "artifacts": artifacts, "source_fingerprint": source.fingerprint,
                 "checks": {"production_findings_clear": not provenance.get("outstanding_findings"),
                            "independent_concept_coverage": None, "human_layout_review": None}}

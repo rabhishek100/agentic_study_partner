@@ -15,6 +15,7 @@ def build():
     video = json.loads((ROOT / "evaluation/video_gold.json").read_text())
     candidate = json.loads((ROOT / "evaluation/interview_candidate_profiles.json").read_text())
     ideal = json.loads((ROOT / "evaluation/ideal_interview_flow_seed.json").read_text())
+    sheets = json.loads((ROOT / "evaluation/revision_sheet_gold.json").read_text())
     wanted = {f"mt-{c:03}-t{t}" for c, turns in [(1, [1, 2, 3, 4]), (2, [2]), (3, [1, 2, 3, 4]),
                (4, [1]), (5, [1, 2, 3, 4]), (6, [1]), (8, [1, 2, 3, 4]), (9, [1, 2]),
                (10, [1]), (11, [1, 2])] for t in turns}
@@ -65,9 +66,12 @@ def build():
                           depends_on=["course-synthesis"] if id_ == "course-followup" else [],
                           aspects=["course", "source_exclusion", "history", "abstention", "grounding", "efficiency"]))
     for chapter in (1, 3, 6, 8, 10):
+        criteria = next(item["criteria"] for item in sheets["chapters"] if item["chapter"] == chapter)
         cases.append(Case(id=f"sheet-chapter-{chapter}", flow="revision_sheet", adapter="sheet",
-                          title=f"Revision sheet — chapter {chapter}", tier="human_review_pending",
-                          inputs={"chapter": chapter}, expected={"coverage_points": [], "layout": "A4 readable, no clipping"},
+                          title=f"Revision sheet — chapter {chapter}", tier=sheets["review_status"],
+                          inputs={"chapter": chapter, "dataset": "evaluation/revision_sheet_gold.json"},
+                          expected={"coverage_points": [item["point"] for item in criteria], "concept_sources": criteria,
+                                    "layout": "A4 readable, no clipping"},
                           source={"kind": "book", "file_hash": book["book"]["source_file_sha256"], "title": book["book"]["title"]},
                           aspects=["scope", "concepts", "grounding", "figures", "layout", "repair", "efficiency"]))
     for profile in candidate["profiles"]:
