@@ -137,7 +137,8 @@ def write_report(bundle, directory):
              "| Case | Status | Deterministic failures | Judge grounding | Seconds | Trace USD |",
              "| --- | --- | --- | --- | --- | --- |"]
     for row in bundle["cases"]:
-        failed = ", ".join(key for key, value in row.get("checks", {}).items() if value is False) or "—"
+        failed = ", ".join(key for key, value in row.get("checks", {}).items()
+                           if value is False and key != "standalone_exact") or "—"
         metrics = row.get("metrics", {})
         def measured(key):
             value = metrics.get(key)
@@ -153,7 +154,10 @@ def write_report(bundle, directory):
     for label in labels:
         lines.append("| " + " | ".join(safe(label.get(key)) for key in
             ("case_id", "reviewer", "grounding", "correctness", "coverage", "usefulness", "verdict")) + " |")
-    lines += ["", "Citation locator validity alone does not prove supported claims."]
+    rewrite_mismatches = sum(row.get("checks", {}).get("standalone_exact") is False for row in bundle["cases"])
+    lines += ["", f"Strict rewrite-text mismatches: {rewrite_mismatches}. `standalone_exact` is a diagnostic, "
+              "not a semantic correctness gate; missing rewrite gold remains unknown.", "",
+              "Citation locator validity alone does not prove supported claims."]
     path = Path(directory) / "report.md"
     path.write_text("\n".join(lines) + "\n")
     path.chmod(0o600)

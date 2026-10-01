@@ -74,7 +74,7 @@ def _score(turn: dict, result: TurnResult, state: ConversationState) -> dict:
         "standalone_exact": (
             (result.standalone_query or "").strip().casefold()
             == (turn.get("expected_standalone_query") or "").strip().casefold()
-        ),
+        ) if "expected_standalone_query" in turn else None,
     }
     if turn.get("answerable", True):
         checks["evidence_recall"] = recall

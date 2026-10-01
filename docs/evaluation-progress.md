@@ -229,6 +229,11 @@ repository-wide and independent of this five-flow selection.
   checks passed (0.79s); manifest regeneration and read-only source binding
   passed. Live variant output and human equation/PDF review remain pending.
 
+- Unit 8e preparation: reporting separates exact rewrite-text mismatches from
+  semantic/contract failures; absent rewrite gold stays unknown. Baseline
+  outputs/scores remain immutable. Related evaluator/review/runner checks
+  were run before the next paid experiment.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
