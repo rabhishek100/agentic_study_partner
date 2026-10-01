@@ -332,6 +332,8 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                 word_count=2,
             ),
             visual_analyzer=analyze_two_frames,
+            # Match the pinned mock provenance, independent of production defaults.
+            visual_model="openai/gpt-5.6-luna",
             text_embedder=FakeTextEmbedder(),
             image_embedder=FakeRegionEmbedder(),
             pdf_downloader=self._download_deck,
@@ -485,6 +487,8 @@ class VideoAcquisitionStageTests(unittest.TestCase):
                 text="Attention diagram", confidence=0.96, word_count=2
             ),
             visual_analyzer=analyze_two_frames,
+            # Match the pinned mock provenance, independent of production defaults.
+            visual_model="openai/gpt-5.6-luna",
         )
         with connection(self.database_url) as database:
             course = create_youtube_course(

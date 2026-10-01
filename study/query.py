@@ -73,7 +73,7 @@ class QueryExecutionError(RuntimeError):
 
 
 SOURCE_CITATION = re.compile(r"\[S(\d+)]")
-DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_GENERATION_MODEL = "openai/gpt-6-luna"
 INSUFFICIENT_EVIDENCE_MARKER = "INSUFFICIENT_EVIDENCE:"
 INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\b(?:the\s+)?evidence\s+is\s+insufficient\b|"

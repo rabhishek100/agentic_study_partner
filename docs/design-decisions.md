@@ -25,13 +25,13 @@ Configuration: [.env.example](../.env.example).
 
 | Role | Default | Selection basis / fallback |
 |---|---|---|
-| Answers, routing, cards, interviews, revision composition/review | `openai/gpt-5.6-luna` | Shared structured/vision default; cost control |
+| Answers, routing, cards, interviews, revision composition/review | `openai/gpt-6-luna` | Shared structured/vision default; cost control |
 | Text embeddings | `openai/text-embedding-3-large` | Shared text model; evaluated as part of hybrid retrieval |
 | Reranking | `cohere/rerank-4-pro` | Measured Recall@5 gain; hybrid fallback on failure |
 | Scanned-page OCR | `qwen/qwen3-vl-32b-instruct` | Measured prose quality/cost |
 | OCR evaluation fallback / general evaluation judge | `google/gemini-3-flash-preview` | Difficult-page fallback in the transcription evaluation script; separate quality judging |
 | Figure captions / spoken figure descriptions | `google/gemini-2.5-flash-lite` | Bounded vision descriptions |
-| Video frame analysis | `openai/gpt-5.6-luna` | Shared vision default; timed observations |
+| Video frame analysis | `openai/gpt-6-luna` | Shared vision default; timed observations |
 | Video region embeddings | `google/gemini-embedding-2` | Question/diagram similarity in a separate space |
 | Lecture audio / composer dictation | `openai/whisper-1` | Timed speech; captions preferred for lectures |
 | HTTP interview transcription | `openai/whisper-large-v3-turbo` | Short ephemeral clips |
@@ -41,6 +41,22 @@ Configuration: [.env.example](../.env.example).
 
 Revision review is a separate pass using the composition model unless
 overridden. Generation/speech defaults lack comparative model benchmarks.
+
+On October 1, 2026, active Luna defaults moved from GPT-5.6 Luna to GPT-6 Luna
+after checking the [OpenRouter model catalog](https://openrouter.ai/api/v1/models)
+and official OpenAI model pages for [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
+and [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna).
+Standard rates per million tokens fell from $0.20 to $0.10 for input, $0.02
+to $0.01 for cached input, and $1.20 to $0.50 for output. Both retain text/image
+input, structured output, a 1,050,000-token context window, and a 128,000-token
+output limit. Prompts above 272,000 input tokens have higher rates. The switch
+preserves reasoning settings and output contracts; it is a cost decision,
+not a measured improvement in answer quality. Saved artifacts retain their
+original model provenance, and experiment/evaluation baselines remain pinned.
+Live smoke checks passed for cited text generation with reasoning disabled,
+structured interview output with low reasoning, and production frame analysis
+with recorded model provenance. These establish API compatibility, not
+comparative study quality.
 
 ### Where models are configured and called
 

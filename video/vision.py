@@ -25,7 +25,7 @@ from pydantic import (
 
 
 OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_VISUAL_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_VISUAL_MODEL = "openai/gpt-6-luna"
 PROMPT_VERSION = "technical-lecture-visual-v1"
 MAX_ATTEMPTS = 2
 MAX_OUTPUT_TOKENS = 2_000

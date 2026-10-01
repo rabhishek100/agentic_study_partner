@@ -151,7 +151,7 @@ class VideoPipelineDependencies:
     visual_analyzer: VisualAnalyzer | None = None
     visual_model: str = field(
         default_factory=lambda: _configured_model(
-            "OPENROUTER_VIDEO_VISION_MODEL", "openai/gpt-5.6-luna"
+            "OPENROUTER_VIDEO_VISION_MODEL", "openai/gpt-6-luna"
         )
     )
     audio_transcriber: AudioTranscriber | None = None

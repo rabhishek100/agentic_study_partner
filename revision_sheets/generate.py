@@ -137,7 +137,7 @@ LAYOUT_COMBINATIONS = (
 
 
 def model_name() -> str:
-    return os.getenv("OPENROUTER_REVISION_MODEL") or "openai/gpt-5.6-luna"
+    return os.getenv("OPENROUTER_REVISION_MODEL") or "openai/gpt-6-luna"
 
 
 def config_key() -> str:

@@ -27,7 +27,7 @@ MODEL_LITERAL = re.compile(r'"(?P<model>[a-z0-9-]+/[a-zA-Z0-9.\-]+)"')
 # What production code is allowed to reach for without further discussion.
 # Generation is Luna; the rest are cheap specialists doing a narrow job.
 APPROVED = {
-    "openai/gpt-5.6-luna",
+    "openai/gpt-6-luna",  # Lower token rates than 5.6 Luna; see design-decisions.md.
     "openai/text-embedding-3-large",
     "openai/text-embedding-3-small",
     "openai/whisper-1",
@@ -85,7 +85,7 @@ class ModelDefaultTests(unittest.TestCase):
 
         from revision_sheets.generate import model_name
 
-        self.assertEqual(model_name(), "openai/gpt-5.6-luna")
+        self.assertEqual(model_name(), "openai/gpt-6-luna")
 
 
 if __name__ == "__main__":

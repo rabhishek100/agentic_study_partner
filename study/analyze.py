@@ -438,7 +438,7 @@ figure, or which section is meant: the reader has already told you by being
 there, and asking hands back the one thing they did not have to say.
 """.strip()
 
-DEFAULT_CONTROL_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_CONTROL_MODEL = "openai/gpt-6-luna"
 
 
 def _openrouter_model() -> AnalysisModel:

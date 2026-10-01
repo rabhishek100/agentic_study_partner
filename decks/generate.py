@@ -30,7 +30,7 @@ from .validate import (
 
 logger = logging.getLogger("study_partner.decks")
 
-DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_GENERATION_MODEL = "openai/gpt-6-luna"
 # One card for a thin section, four for a dense one. Above four the model
 # starts splitting one idea across cards, which reads as coverage and reviews
 # as repetition.

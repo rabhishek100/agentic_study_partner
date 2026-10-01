@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from video.models import reported_cost_usd
 
 
-DEFAULT_INTERVIEW_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_INTERVIEW_MODEL = "openai/gpt-6-luna"
 
 
 class InterviewModelError(RuntimeError):
