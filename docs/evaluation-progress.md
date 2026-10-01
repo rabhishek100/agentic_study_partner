@@ -17,6 +17,9 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 3 | Test cleanup and complete CI discovery | Complete | Edited suites and generated-doc checks; preserve documented baseline failures |
 | 4 | Evaluator integrity | Complete | No empty-citation pass or missing-gold perfect recall; judge failures retain predictions; evidence-aware judging |
 | 5 | Shared five-flow manifest, resumable runner and cost guard | In progress | Coverage mapping; isolated fixture run; interrupted-run resume; generation/judging/retries share a fail-closed $2 ceiling |
+| 5a | Durable inference budget and request capture | Complete | Sync/async/retry transport; unknown receipts; concurrency; crash/resume; no over-cap request sent |
+| 5b | Coverage manifest and resumable orchestration | Pending | Five-flow mapping; durable generation before judging; source/configuration fingerprints; fixture resume |
+| 5c | Production adapters and trace-backed reporting | Pending | Canonical source identity; all five output types; exact generation inputs; real LangSmith metrics |
 | 6 | Simple local evidence/artifact review UI | Pending | All five artifact types; blind review; output-hash labels; save/resume/export; keyboard and unsafe-content checks |
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
@@ -82,6 +85,11 @@ repository-wide and independent of this five-flow selection.
   receives available evidence/citations/prior history and explicit insufficient-
   evidence outcomes; full captured prompts/images remain unit 5 work.
 
+- Unit 5a: 34 budget/integrity cases passed, including real sync/async httpx
+  fixture transports. The guard snapshots current OpenRouter chat/embedding
+  metadata, caps provider prices, saves exact bounded requests without headers,
+  and persists unknown reservations across resume. No paid inference performed.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
@@ -91,5 +99,6 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Implement unit 5: a shared manifest, durable per-case output/state, production
-adapters, model-call budget guard and explicit coverage/unknown accounting.
+Implement unit 5b: coverage manifest and durable per-case orchestration, then
+5c production adapters and trace-backed reports. Budget/capture is already
+implemented; import `evals.budget` rather than adding a second accounting path.
