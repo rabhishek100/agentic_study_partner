@@ -1,6 +1,6 @@
 # Evaluation and metrics: five flows in depth
 
-Draft v6 · 1 October 2026 · proposed work, not completed implementation.
+Scope v6 · 1 October 2026 · execution status in [evaluation-progress.md](evaluation-progress.md).
 
 The goal is thorough coverage of the five most important product flows with a
 small shared evaluation system. Target implementation today and $1–$2 per paid
@@ -228,7 +228,8 @@ summaries separately, preserving private source/audio/artifact material locally.
 
 References: [evaluation guide](evaluation.md), [implemented flows](flows.md),
 [LangSmith evaluation](https://docs.langchain.com/langsmith/evaluation).
-Only the plan has changed so far; this document supersedes drafts v2–v4.
+This document defines scope; use the linked tracker and measured artifacts for
+what is implemented or verified. It supersedes drafts v2–v4.
 
 ## Test scope and maintenance
 

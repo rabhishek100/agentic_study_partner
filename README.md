@@ -103,7 +103,7 @@ npm run build
 ```
 
 Provision the test database once, then run
-`scripts.bootstrap_postgres --url-env TEST_DATABASE_URL` to apply the schema.
+`uv run --frozen --extra voice python -m scripts.bootstrap_postgres --url-env TEST_DATABASE_URL` to apply the schema.
 CI provides an empty migrated Supabase instance. Local Storage integration tests
 also need loopback `SUPABASE_URL` and its local development service-role key;
 missing Storage/corpus fixtures are reported as skips. Pytest keeps hosted media,

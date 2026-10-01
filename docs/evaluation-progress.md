@@ -153,6 +153,20 @@ repository-wide and independent of this five-flow selection.
   $1.99 ceiling, keeping both attempts together below $2.
   Configuration reference: https://reference.langchain.com/python/langchain-openai/chat_models/base/BaseChatOpenAI
 
+- Unit 7b first sample: all 11 selected native cases generated and judged,
+  spanning every flow, with original images and two PDFs. Provider-reported
+  generation/judge spend $0.214675225; no unknown reservations. Hosted trace
+  readback verified all generation roots ended, with tokens/cost/latency.
+  Sheets took 222.41/239.74s versus roughly 5–28s for other sampled cases.
+  Independent sheet concept coverage was 3/4 in both diagnostic judgments;
+  production findings/layout and human support still require review.
+  Found a LoRA abstention classified as an answer, a course RPC retrieval miss,
+  a summary citation-support concern and incomplete visual explanation.
+  Sanitized immutable sample: `evaluation/five_flow_sample_20261001.json`.
+  The same experiment is now resuming the remaining cases under its original
+  $1.99 cap. The review server points at this corrected bundle on port 8766;
+  the panel-open request was queued. No human labels were created.
+
 ## Workspace exclusions
 
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`

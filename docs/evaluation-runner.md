@@ -12,7 +12,8 @@ case units: 19 chat (including one context prerequisite), six complete summaries
 eight lecture and four course cases, five sheets, six candidate assessments and
 two ideal dialogues. Existing frozen book/video/candidate/ideal datasets are
 reused. Course expectations are author-labelled and await human review. Sheet
-essential-concept labels are currently missing; this is an explicit quality gap.
+criteria contain 38 independently authored source-backed concepts across five
+chapters; their importance and PDF layout still await human calibration.
 Cases are not provider-call counts. A dependency graph retains conversational
 context and lets subsequent cases reuse the preceding saved state.
 
@@ -94,7 +95,7 @@ persist new user conversations or enqueue/replace user artifacts. Exact generati
 requests, sheet PDFs/provenance, partial failed dialogue drafts, expected values,
 checks, diagnostic judgments and LangSmith links are inspectable in the private
 bundle. The judge receives complete captured contexts and original supplied
-images; text-only PDF layout and missing independent sheet labels remain unknown.
+images; PDF layout and unreviewed concept importance remain unknown.
 Luna judging is a diagnostic from the same model family, pending human calibration.
 
 Book binding requires the original file hash and unique owned canonical TOC.
