@@ -1,14 +1,15 @@
 # Five-flow evaluation: results and improvements
 
 2 October 2026. Implementation, commits and resume instructions are tracked in
-[evaluation-progress.md](evaluation-progress.md). Human calibration is deferred
-by the user; all model quality scores remain diagnostic.
+[evaluation-progress.md](evaluation-progress.md). LLM-as-judge is the default
+review path, including rendered PDF pages. Manual review is optional and does
+not block this iteration. Model scores are not human calibration.
 
 ## Delivery status
 
 | Workstream | Implemented and verified | Remaining limitation |
 | --- | --- | --- |
-| Five-flow evals | 54-case manifest; native adapters; complete source/image capture; shared budget; resumable runs; simple human review UI; baseline and improvement runs | Zero human labels; selected rechecks use different configurations, so there is no combined final 54-case quality score |
+| Five-flow evals | 54-case manifest; native adapters; source/image capture; shared budget; resumable runs; automated review UI; baseline, improvements and ten rendered-artifact reviews | Same-family automated judgments, zero human labels; selected rechecks are not a combined final 54-case quality score |
 | Repository-wide LangSmith | HTTP/SSE, LangGraph, Python workflows, providers and workers; correlation IDs, consistent operation names, flow and experiment tags | Hosted live readback covers the evaluated five flows; real voice room and every deployed process still need runtime acceptance |
 | Metrics/logs/traces | OpenTelemetry to Grafana Cloud; structured correlated logs; latency/errors, CPU and memory dashboard | Existing application processes need restart to load exporter credentials; no hosted application deployment performed |
 | UI analytics | PostHog page/control/flow events, opt-in and privacy filtering; hosted events and dashboard verified | No session replay, prompt/form contents or automatic capture; usage funnels need real users |
@@ -29,7 +30,47 @@ uv run --frozen --extra voice python -m scripts.review_evaluations \
 ```
 
 The UI presents immutable outputs and original evidence, with save/resume/export.
-The ten-output calibration can happen later; no agent-created human ratings exist.
+LLM scores appear by default, with manual labels in a collapsed optional form.
+No agent-created human ratings exist.
+
+## Automated review replacing the manual step
+
+Ten immutable saved outputs were reviewed again with Luna, **two per flow**,
+without regenerating answers. The reviewer receives original captured source
+text/images, independent criteria, saved outputs and deterministic checks.
+For sheets it also sees every rendered PDF page, explicitly labelled as derived
+output rather than source evidence. The run completed for **$0.136506925** under
+a $1 cap, with zero unknown receipts. Future native runs use this review rubric
+automatically; saved runs can be reviewed with:
+
+```bash
+uv run --frozen --extra voice python -m scripts.judge_saved_evaluations \
+  --output evaluation/runs/NEW_REVIEW --max-usd 1
+```
+
+| Flow | Automated result | Main findings |
+| --- | --- | --- |
+| Chat | One usable, one needs work | Model-card answer lacks the requested detailed checklist |
+| Summaries | Two usable under the rubric | Paper summary still omits future directions; usable does not mean complete |
+| Video/course | One usable, one needs work | Indexed Spanner answer omits parallel-throughput and leader/log-ordering coverage |
+| Sheets | Both need work; both PDFs readable | Chapter 6 omits AutoML details and contains an unfinished sentence; paper sheet omits data/parsing/future directions; both have uneven page density |
+| Interviews | One usable, one needs work | Ideal dialogue meets the rubric; candidate feedback coverage remains partial |
+
+[Automated review artifact](../evaluation/automated_review_20261002.json) contains
+scores, criterion statuses, PDF findings, output hashes and judge trace links.
+The classification requires supported grounding, scores at least 3/4, no false
+semantic contract, and readable layout for sheets. Strict rewrite-text matches
+remain diagnostic. PDF-only checks do not gate ordinary text artifacts; original
+run classifications are retained alongside the corrected applicability rule.
+This selected sample is not a representative pass rate or evidence of judge
+accuracy. Same-family judgment variation remains visible in earlier runs.
+The live viewer reports 43 baseline outputs already LLM-reviewed; the ten new
+reviews cover selected baseline and repaired outputs across private runs.
+Hosted readback verified ten completed review roots, each with one physical
+model call and token/latency data. For the long-context chapter-sheet review,
+LangSmith's estimated $0.05159 differs from the provider receipt's $0.10281;
+the budget and published review costs use provider receipts. This is why
+estimated trace price and reported billing remain separate.
 
 ## Baseline
 
@@ -96,8 +137,9 @@ comparison of prose quality, and citation coverage is not concept coverage.
 The manifest adds four independently source-backed cases: paper QA, complete
 paper summary, whole-paper sheet and indexed Spanner course study. These add
 coverage rather than replace missing-source or failed baseline cases. Paper
-criteria were authored from canonical content before generation; original-page
-equation and experiment-table fidelity still need human review.
+criteria were authored from canonical content before generation. Automated
+artifact review does not resolve source parsing or experiment-table ambiguity;
+missing original evidence stays explicit rather than becoming a visual pass.
 
 The ten-case `unit8-source-and-repairs` experiment completed for **$0.497982575**
 under a $1.50 ceiling. Paper QA and indexed Spanner course have valid citations
@@ -121,6 +163,9 @@ full final run under one configuration. Baseline, aborted attempt and improvemen
 total **$0.878128675**; including the earlier grading smoke, **$0.879461025**.
 Every experiment stayed below its ceiling; zero unknown reservations remain.
 The initial 11-case sample spend is already included in the full baseline.
+With the automated artifact-review run, total paid evaluation spend is
+**$1.015967950**, including the earlier grading smoke. Each experiment retains
+its own ceiling; the automated review itself cost approximately $0.14.
 
 ## Verification and test decisions
 
@@ -148,12 +193,11 @@ See [test audit](test-suite-audit.md) for replacement candidates and limits.
 
 ## Next work, in priority order
 
-1. **Human calibration when ready:** ten outputs, two per flow, plus original
-   equations/PDFs. Inspect omitted concepts, claim support and interview utility
-   before calling the same-family judge credible quality evidence.
-2. **Sheet quality:** use saved findings to improve sentence completion,
+1. **Sheet quality:** use saved automated findings to improve sentence completion,
    independent concept/figure coverage and page density. Compare unchanged
    source/gold before exploring cheaper context or faster rendering.
+2. **Answer completeness:** repair model-card checklist, Spanner explanation
+   and candidate-feedback omissions; compare saved criteria before/after.
 3. **Source readiness:** original RPC/OCC course members lack indexed evidence;
    GFS/Raft are unpublished. Ingestion/readiness comes before retrieval tuning.
    Keep safe abstention distinct from an expected-answer mismatch.
@@ -166,6 +210,9 @@ See [test audit](test-suite-audit.md) for replacement candidates and limits.
    deployment was performed. Add actual contrast/focus-return browser checks
    before deleting corresponding styling guards.
 
+Manual calibration can be added later if useful; it is no longer a required
+next action. Automated grounding, concept and PDF checks are the review path now.
+
 Repository-wide LangSmith, Grafana and PostHog implementation and hosted delivery
 checks are recorded in [observability verification](observability-verification.md).
 They establish transport and instrumentation, not all deployed journeys.
@@ -176,6 +223,6 @@ Explain canonical source → deterministic retrieval → explicit LangGraph rout
 → cited output. Show a trace and a failed case. Distinguish valid locators from
 supported claims and independent concept coverage. Demonstrate unchanged-gold
 canonical-scope or paper-routing before/after results. Explain BM25's bounded
-cost, missing-source failures, and why human review is necessary for a
+cost, missing-source failures, and the limitations of an uncalibrated
 same-family judge. Show Grafana latency/errors/CPU/RSS and PostHog usage events:
 tracing, operations and product analytics answer different questions.

@@ -1,4 +1,4 @@
-"""Open the local artifact-review UI; reads bundles and writes human labels."""
+"""View saved automated scores and optionally record separate manual labels."""
 import argparse
 from pathlib import Path
 import secrets

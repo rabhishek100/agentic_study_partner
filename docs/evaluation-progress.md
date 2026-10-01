@@ -27,7 +27,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 7c | Connected five-flow journeys | Complete | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
 | 8 | Measured improvements and final report | Complete | Unchanged-source/gold rechecks, diagnostic limits, final report and recruiter walkthrough; human calibration deferred |
 | 9a | Default automated artifact review | Complete | LLM scores visible by default; manual review optional; rendered PDF pages and immutable saved-output review |
-| 9b | Ten saved-output LLM reviews | In progress | Two per flow; source/PDF hashes verified; no regeneration; shared $1 cap and trace-backed results |
+| 9b | Ten saved-output LLM reviews | Complete | Two per flow; source/PDF hashes verified; no regeneration; $0.136506925 under $1 cap; hosted trace readback |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -328,8 +328,6 @@ repository-wide and independent of this five-flow selection.
   endpoint catalog, all five LangGraph diagrams, 61 local links and patch
   whitespace validation. No runtime or frontend code changed after verification.
 
-## Workspace exclusions
-
 - Unit 9a (user supersedes manual-review step): automated Luna review is the
   default; manual calibration is optional, not a prerequisite. All saved
   judgments and actual human labels remain distinct. Added resumable saved-output
@@ -341,6 +339,24 @@ repository-wide and independent of this five-flow selection.
   optional manual save/reload/export, mobile/focus and unsafe-content checks.
   Ten selected immutable cases bind successfully, exactly two per flow.
 
+- Unit 9b: all ten saved-output reviews completed, with $0.136506925 in
+  provider receipts and zero unknown reservations. Ten hosted review roots
+  ended, with one physical model call each and token/latency readback.
+  All five PDF pages were supplied to the judge; both artifacts are readable
+  but need semantic/coverage work. Final classification: five usable under
+  the rubric, five need work; this selected sample is not a population pass rate.
+  Corrected a PDF applicability gate: unknown layout must not reject non-PDF
+  text artifacts. Original judgments and run verdicts remain immutable; the
+  public artifact records original and corrected classifications. Sixty-one
+  targeted tests passed again (1.04s). Live review viewer restarted with the
+  same session token and reports 43 LLM-reviewed baseline outputs, manual
+  required false. Public artifact: `evaluation/automated_review_20261002.json`.
+  The long-context sheet's trace estimate differs from its provider receipt;
+  billing totals use the receipt. No answers were regenerated or human ratings
+  fabricated. Review plan and final report now make manual calibration optional.
+
+## Workspace exclusions
+
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
 contains unrelated/unreviewed local artifacts. Preserve both; exclude them
 from task commits. Local `.env` and `frontend/.env.local` contain credentials
@@ -348,8 +364,10 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Run unit 9b with `scripts.judge_saved_evaluations`, the committed ten-case selection,
-and a distinct private review experiment under $1. Preserve original outputs
-and judgments; review rendering does not regenerate answers. Then update the
-final report and publish a sanitized automated-review summary. Manual labels
-remain zero and optional. Keep the shared receipt budget and snapshot identities.
+Automated review replacement is complete; no user rating is required. Future
+live evals use the updated judge. To review saved outputs, use the committed
+selection and `scripts.judge_saved_evaluations` in a new $1-capped directory;
+resume only with matching reviewer code/configuration and output hashes.
+The next quality priorities are sheet semantic/concept coverage and the other
+automated findings in the final report, then source readiness and runtime
+acceptance. Preserve immutable runs, receipt budgets and optional manual labels.

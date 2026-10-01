@@ -40,7 +40,7 @@ def saved_cases(selection, runs_root):
     return result
 
 
-def review_verdict(judgment, checks=None):
+def review_verdict(judgment, checks=None, *, flow=None):
     if any(value is False for key, value in (checks or {}).items() if key != 'standalone_exact'):
         return 'needs_work'
     if judgment.get('grounding_status') == 'unsupported' or judgment.get('layout') == 'needs_fix':
@@ -48,7 +48,8 @@ def review_verdict(judgment, checks=None):
     scores = [judgment.get(key) for key in ('correctness', 'coverage', 'usefulness')]
     if any(score is not None and score < 3 for score in scores):
         return 'needs_work'
-    if judgment.get('grounding_status') != 'supported' or judgment.get('layout') == 'unknown' or any(score is None for score in scores):
+    layout_unknown = judgment.get('layout') == 'unknown' and (flow is None or flow == 'revision_sheet')
+    if judgment.get('grounding_status') != 'supported' or layout_unknown or any(score is None for score in scores):
         return 'unsure'
     return 'usable'
 
@@ -85,7 +86,8 @@ def run_saved_reviews(selection, directory, *, runs_root, judge, config, budget=
             save()
             try:
                 judgment = judge(case, row, source)
-                entry.update(status='completed', judgment=judgment, verdict=review_verdict(judgment, row.get('checks')))
+                entry.update(status='completed', judgment=judgment,
+                             verdict=review_verdict(judgment, row.get('checks'), flow=case.flow))
                 entry.pop('error', None)
                 save()
             except BudgetStop as error:

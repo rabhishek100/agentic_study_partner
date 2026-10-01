@@ -1,11 +1,12 @@
 # Evaluation and metrics: five flows in depth
 
-Scope v6 · 1 October 2026 · execution status in [evaluation-progress.md](evaluation-progress.md).
+Scope v7 · 2 October 2026 · execution status in [evaluation-progress.md](evaluation-progress.md).
 
 The goal is thorough coverage of the five most important product flows with a
 small shared evaluation system. Target implementation today and $1–$2 per paid
-experiment. Human review uses a simple local UI. The five-flow selection below
-is confirmed by the user.
+experiment. LLM-as-judge is the default review path; the user has no bandwidth
+for manual review now. The UI shows automated scores and makes manual labels
+optional. The five-flow selection below is confirmed by the user.
 
 ## Scope and meaning of coverage
 
@@ -80,9 +81,10 @@ separate three layers:
    schedules, retry bounds, persistence, errors and state transitions; no paid
    provider required. Run these in CI.
 2. **Live quality:** representative generated outputs on real canonical sources,
-   using the production path/configuration, evidence-aware Luna judgments and
-   human review. Include all five flows; model scores remain diagnostic where
-   human review is pending.
+   using the production path/configuration and evidence-aware Luna judgments.
+   Include all five flows; automate rendered PDF readability review as well.
+   Manual review is optional and does not block this iteration. Automated scores
+   remain model judgments, not human calibration or measured judge accuracy.
 3. **End-to-end/performance:** one meaningful API/UI journey per flow, plus
    boundary recovery checks and resource samples. Attribute success to the
    layers actually exercised; fixture/replay latency excludes provider latency.
@@ -129,7 +131,9 @@ with transcript/frame/slide evidence, rendered sheet pages, or interview
 question/candidate answer/grade/dialogue. Video evidence includes the actual
 frame or supporting page where relevant and a timestamp navigation control.
 Show source passages as well as references; a citation link alone is insufficient
-for quick review. Keep model verdicts hidden until the user submits a rating.
+for quick review. Show model verdicts by default, with their evidence gaps and
+limitations. Manual labels remain in a collapsed optional form and are stored
+separately from automated judgments.
 
 Common review controls:
 
@@ -144,12 +148,14 @@ per flow. Support keyboard/focus/AA contrast, autosave/resume, skip without a
 pass, and validated label export keyed to case/output hash. Changed outputs
 invalidate old labels. Each item links to its exact LangSmith trace. The page generates no answers or provider calls.
 
-Start human calibration with **ten reviews: two per flow**, including one strong
-and one failure/boundary example. For multi-part artifacts/sessions the UI groups the relevant
-items, rather than requiring a whole book/session review. Add disputed/low-score
-cases afterward as needed. Ten reviews calibrate the judge; they do not make the
-entire suite human-verified. Intentionally altered calibration artifacts remain
-labelled separately from actual application outputs in the resulting report.
+Run **ten automated artifact reviews: two per flow**, including boundary or
+incomplete outputs. Reuse immutable generation context and original images;
+render every saved PDF page for visual review. Generated PDF pages are output
+to inspect, never original evidence for grounding. Save the model, rubric,
+source/output hashes, criteria, findings, trace links and cost. Do not regenerate
+outputs or change old labels to manufacture improvement. Existing generation
+and judgment snapshots remain immutable. A manual sample may later test judge
+agreement, but no user review is required now.
 
 ## Metrics for every flow
 
@@ -198,7 +204,7 @@ prevents a live check, show the uncovered aspect and do not mark that flow done.
    Establish the shared trace structure and cover Python/provider/worker gaps
    before treating baseline latency or cost as complete.
 2. Build the review page and prepare two representative outputs per flow.
-   The user reviews while tracing/metrics and remaining cases are prepared.
+   LLM-as-judge reviews them, including rendered PDFs; manual input is optional.
 3. Run the five-flow baseline with component, contract and end-to-end checks;
    collect cost/latency and per-flow CPU/memory; surface coverage gaps explicitly.
 4. Choose one or two clear baseline failures. Change one thing per experiment,

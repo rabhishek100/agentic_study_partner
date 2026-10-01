@@ -113,6 +113,8 @@ def test_model_verdict_does_not_hide_unsupported_or_unknown(judgment, expected):
 def test_unknown_visual_review_and_failed_contract_cannot_be_usable():
     judgment = {'grounding_status':'supported','correctness':4,'coverage':4,'usefulness':4,'layout':'unknown'}
     assert review_verdict(judgment) == 'unsure'
+    assert review_verdict(judgment, flow='summary') == 'usable'
+    assert review_verdict(judgment, flow='revision_sheet') == 'unsure'
     judgment['layout'] = 'not_applicable'
     assert review_verdict(judgment, {'citations_valid':False}) == 'needs_work'
     assert review_verdict(judgment, {'standalone_exact':False}) == 'usable'
