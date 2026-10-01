@@ -1,0 +1,730 @@
+{
+  "date": "2026-10-02",
+  "layer": "native generation + evidence-aware diagnostic Luna judge",
+  "human_reviews": 0,
+  "baseline": "five_flow_baseline_20261001.json",
+  "limitations": [
+    "Original baseline preserved; selected rechecks are not a full 54-case final run.",
+    "Same-family judge is uncalibrated; no human quality pass.",
+    "128k chapter sheets generated but production findings remain.",
+    "Labelled general-knowledge fallback retained by user; old source-only gold mismatch remains.",
+    "Original-source paper equation and experiment-table fidelity needs human review."
+  ],
+  "experiments": [
+    {
+      "experiment_directory": "evaluation/runs/unit8-scope-corrected",
+      "experiment_fingerprint": "d78d7ddf44bffd8b3da5314528ca61ed99409bbcd523a6e26416be4f3ce347bc",
+      "implementation_sha256": "07662ebc8d33a738f6f41f3cbd8d28837571e0a8504d8d94d4a2814a8d40d192",
+      "retrieval_mode": "bm25",
+      "cap_usd": "0.30",
+      "reported_usd": "0.007109685",
+      "unknown_reservations": 0,
+      "executed_cases": 3,
+      "cases": [
+        {
+          "case_id": "mt-002-t1",
+          "flow": "chat",
+          "status": "completed",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": null,
+            "standalone_exact": false,
+            "evidence_recall": null
+          },
+          "judge": {
+            "grounding_status": "insufficient_evidence",
+            "correctness": 3,
+            "coverage": 4,
+            "usefulness": 4
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 0.731047,
+            "total_tokens": 0,
+            "cost_usd": 0.0,
+            "physical_model_spans": 0,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.26883411199999985,
+              "peak_rss_bytes": 364478464,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": null,
+          "output_hash": "6c9a539e6d3bc8f60a0630724714d1f4113eba91172f527a3e772cf58a3eab82",
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_calls": 0,
+          "citation_repair_calls": 0,
+          "generation_usd": "0",
+          "judging_usd": "0.00048059"
+        },
+        {
+          "case_id": "mt-002-t2",
+          "flow": "summary",
+          "status": "completed",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 4,
+            "coverage": 4,
+            "usefulness": 4
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 13.444015,
+            "total_tokens": 8349,
+            "cost_usd": 0.00154035,
+            "physical_model_spans": 2,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.33188889600000004,
+              "peak_rss_bytes": 383418368,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/888f9c2e-bd23-4121-a057-9ece3ec91664/r/01a0f83a-53e5-7551-9deb-c833f5374c73?poll=true",
+          "output_hash": "229972b28afe927e0651829cc7e5b4eed3057146f1210d9d6927a3ce14329f5e",
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_calls": 2,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.00154035",
+          "judging_usd": "0.0020373"
+        },
+        {
+          "case_id": "mt-004-t1",
+          "flow": "summary",
+          "status": "completed",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 4,
+            "coverage": 4,
+            "usefulness": 4
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 13.56813,
+            "total_tokens": 7514,
+            "cost_usd": 0.00124477,
+            "physical_model_spans": 2,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.26125011200000026,
+              "peak_rss_bytes": 169869312,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/888f9c2e-bd23-4121-a057-9ece3ec91664/r/01a0f83a-b987-71b1-bea7-51d5ad2aac0f?poll=true",
+          "output_hash": "aa6e8eefb8fa46a79106c1c4c216616a32cccc75a52d972385365dd4361e7eea",
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_calls": 2,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.00124477",
+          "judging_usd": "0.001806675"
+        }
+      ]
+    },
+    {
+      "experiment_directory": "evaluation/runs/unit8-source-and-repairs",
+      "experiment_fingerprint": "75ac4b8bdeffc9d2e4001eef2620dc11d74072c56a70652a87e4a24728b77924",
+      "implementation_sha256": "792ec7d269d750a1d73ebc0f6bfaadc3b864d3d8f9b85ae79587827ab922f4a5",
+      "retrieval_mode": "bm25",
+      "cap_usd": "1.50",
+      "reported_usd": "0.497982575",
+      "unknown_reservations": 0,
+      "executed_cases": 10,
+      "cases": [
+        {
+          "case_id": "mt-010-t1",
+          "flow": "chat",
+          "status": "completed",
+          "checks": {
+            "route": false,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": false,
+            "citations_valid": null,
+            "standalone_exact": false
+          },
+          "judge": {
+            "grounding_status": "insufficient_evidence",
+            "correctness": 1,
+            "coverage": 1,
+            "usefulness": 1
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 15.194869,
+            "total_tokens": 2299,
+            "cost_usd": 0.0007215,
+            "physical_model_spans": 3,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.40236992000000027,
+              "peak_rss_bytes": 348127232,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f843-a764-7ca1-a53e-e49e17b24eaa?poll=true",
+          "output_hash": "eae41307df185056a13022b2a879b09b814210b6d74c4602eec84c5b9f7cd262",
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_calls": 3,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.0007215",
+          "judging_usd": "0.0007788"
+        },
+        {
+          "case_id": "paper-scaled-attention",
+          "flow": "chat",
+          "status": "completed",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 4,
+            "coverage": 4,
+            "usefulness": 4
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 6.394276,
+            "total_tokens": 5349,
+            "cost_usd": 0.00085485,
+            "physical_model_spans": 2,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.16335033600000015,
+              "peak_rss_bytes": 139919360,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f844-191f-7520-9077-b42f720db632?poll=true",
+          "output_hash": "6c5e0cdc4a685c26fcf667bada6dfe8e14277ebb7afc84eda87f7da9d01d5296",
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_calls": 2,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.000854850",
+          "judging_usd": "0.00151205"
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "checks": {
+            "route": false,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": false,
+            "standalone_exact": null,
+            "evidence_recall": 0.5
+          },
+          "judge": {
+            "grounding_status": "insufficient_evidence",
+            "correctness": 3,
+            "coverage": 2,
+            "usefulness": 3
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 19.411016,
+            "total_tokens": 9336,
+            "cost_usd": 0.001686115,
+            "physical_model_spans": 3,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.21014195199999985,
+              "peak_rss_bytes": 143802368,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f844-612e-7ea0-822f-3a17fef69778?poll=true",
+          "output_hash": "4d1e671f04d555630852cfaa57347717e3023f93b1bd8c09faba7fe807d7157a",
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_calls": 3,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.001686115",
+          "judging_usd": "0.0024183"
+        },
+        {
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 3,
+            "coverage": 2,
+            "usefulness": 2
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 136.191782,
+            "total_tokens": 126419,
+            "cost_usd": 0.018462835,
+            "physical_model_spans": 7,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 2.9234706560000006,
+              "peak_rss_bytes": 238845952,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f845-08b7-7c73-a113-3ba07133f27f?poll=true",
+          "output_hash": "d03b78b67f364e3751a81697e13d908a43d858932233012ccc1ca97289bf5c20",
+          "source_fingerprint": "5029870b7ae7de30f37da9d38e4b2f710dfc4f897b556e70724ede3907337c4f",
+          "generation_calls": 7,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.020198160",
+          "judging_usd": "0.0177563"
+        },
+        {
+          "case_id": "course-spanner-indexed",
+          "flow": "video_course",
+          "status": "completed",
+          "checks": {
+            "outcome": true,
+            "selected_sources_only": true,
+            "claim_support": null,
+            "citations_valid": true
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 3,
+            "coverage": 2,
+            "usefulness": 2
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 5.702178,
+            "total_tokens": 1094,
+            "cost_usd": 0.00013883,
+            "physical_model_spans": 3,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.46035059199999884,
+              "peak_rss_bytes": 363102208,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f847-9e63-7483-8665-ce42ecdef7ba?poll=true",
+          "output_hash": "fc18ddc7895f0c750f1fcb76e260a78d52d0442acf4ab2b8cbebd73fcd3e69d1",
+          "source_fingerprint": "f93395894612d39ba6c053137b6769bead6e801c1fc8a3b6821b7e9cb817d968",
+          "generation_calls": 3,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.00013883",
+          "judging_usd": "0.001059925"
+        },
+        {
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "checks": {
+            "production_findings_clear": false,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 3,
+            "coverage": 2,
+            "usefulness": 2
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 267.473252,
+            "total_tokens": 370203,
+            "cost_usd": 0.05238006,
+            "physical_model_spans": 10,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 6.570014975999998,
+              "peak_rss_bytes": 247021568,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f848-011a-70a0-a3bc-722034793687?poll=true",
+          "output_hash": "f57c282d864542c8fbb56a9d756526237874b1a4e7adf42579fef6c539f35e6b",
+          "source_fingerprint": "0d779ab3d3be6da247074c3b890da6e559df86bba40a19e77c6b25e599327081",
+          "generation_calls": 10,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.054530290",
+          "judging_usd": "0.10147935"
+        },
+        {
+          "case_id": "sheet-chapter-8",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "checks": {
+            "production_findings_clear": false,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 4,
+            "coverage": 3,
+            "usefulness": 3
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 243.478681,
+            "total_tokens": 352894,
+            "cost_usd": 0.048597985,
+            "physical_model_spans": 9,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 5.203174144000002,
+              "peak_rss_bytes": 368263168,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f84c-a4b4-7131-8879-40acd16d21f5?poll=true",
+          "output_hash": "c4d8475746bcf5f6679efadea2e696dc3eab8ea0fb5461c965ee6af2748da561",
+          "source_fingerprint": "ed91937c788dbcb0a970036157fcaadcb78ff593c8a3e5e116653efc0b9bfb1a",
+          "generation_calls": 9,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.051918615",
+          "judging_usd": "0.09685685"
+        },
+        {
+          "case_id": "sheet-chapter-10",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "checks": {
+            "production_findings_clear": false,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 3,
+            "coverage": 3,
+            "usefulness": 3
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 239.538765,
+            "total_tokens": 336923,
+            "cost_usd": 0.044710235,
+            "physical_model_spans": 10,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 6.007901696000003,
+              "peak_rss_bytes": 385220608,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f851-0133-7861-9043-1a85406b60c6?poll=true",
+          "output_hash": "ef70eb1f8d359f06a113d80e5f238c1f2e683813b24db388de4a278a18a99449",
+          "source_fingerprint": "170c1395e26137557c1fcd07584085afa8f0c3a61e72dd9eeb17151105c99c92",
+          "generation_calls": 10,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.048935915",
+          "judging_usd": "0.0926986"
+        },
+        {
+          "case_id": "ideal-notification-system",
+          "flow": "interview",
+          "status": "completed",
+          "checks": {
+            "exact_topic_coverage": true,
+            "citation_presence": true,
+            "citation_marker_coverage": true,
+            "citation_locator_validity": true,
+            "spoken_text_has_no_markers": true,
+            "questions_are_interview_shaped": true,
+            "answers_are_speakable": true,
+            "human_reasoning_signals": true,
+            "system_design_progression": true,
+            "human_interview_usefulness": null
+          },
+          "judge": {
+            "grounding_status": "insufficient_evidence",
+            "correctness": 3,
+            "coverage": 4,
+            "usefulness": 3
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 22.44581,
+            "total_tokens": 4581,
+            "cost_usd": 0.0010161,
+            "physical_model_spans": 4,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.43043737599999954,
+              "peak_rss_bytes": 199802880,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f855-3b6b-70b1-b238-9b6fbf328af3?poll=true",
+          "output_hash": "823765351c8e4b87228fce9bd08056990de74b8f9bcfe90d3f99a6ab139aa258",
+          "source_fingerprint": "3465a546fa7ea5114efafb0fbda083ee2c9318cc31ab2969bc93f44f103b0b74",
+          "generation_calls": 4,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.0010161",
+          "judging_usd": "0.00107855"
+        },
+        {
+          "case_id": "ideal-rag-platform",
+          "flow": "interview",
+          "status": "completed",
+          "checks": {
+            "exact_topic_coverage": true,
+            "citation_presence": true,
+            "citation_marker_coverage": true,
+            "citation_locator_validity": true,
+            "spoken_text_has_no_markers": true,
+            "questions_are_interview_shaped": true,
+            "answers_are_speakable": true,
+            "human_reasoning_signals": true,
+            "system_design_progression": true,
+            "human_interview_usefulness": null
+          },
+          "judge": {
+            "grounding_status": "insufficient_evidence",
+            "correctness": 3,
+            "coverage": 4,
+            "usefulness": 3
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 23.403703,
+            "total_tokens": 5645,
+            "cost_usd": 0.0011778,
+            "physical_model_spans": 5,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.418615808000002,
+              "peak_rss_bytes": 125517824,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/531a42c5-e12a-42f4-924c-ddcce797c0ac/r/01a0f855-ce14-7ba1-8597-b8c5cc5205b5?poll=true",
+          "output_hash": "2624042bed6a7640bdccf17f837497c9fbc6420f0b7380e7ea1379bc196b2d7c",
+          "source_fingerprint": "f2065fd704f34dff53583a469afac3bd40f1b567164a29379038333e4120b9f5",
+          "generation_calls": 5,
+          "citation_repair_calls": 1,
+          "generation_usd": "0.0011778",
+          "judging_usd": "0.001165675"
+        }
+      ]
+    },
+    {
+      "experiment_directory": "evaluation/runs/unit8-paper-route-corrected",
+      "experiment_fingerprint": "4eef084a80fe5cc98be998e45a35924927461d3961d9cc8c2c719bcedd6be8be",
+      "implementation_sha256": "b2f3e0b5e412745a8fe267789bcc7c3953f50dcfe60811860faa95970887fc54",
+      "retrieval_mode": "bm25",
+      "cap_usd": "0.30",
+      "reported_usd": "0.0064758",
+      "unknown_reservations": 0,
+      "executed_cases": 1,
+      "cases": [
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "judge": {
+            "grounding_status": "unsupported",
+            "correctness": 3,
+            "coverage": 3,
+            "usefulness": 2
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 21.863446,
+            "total_tokens": 15659,
+            "cost_usd": 0.002959,
+            "physical_model_spans": 2,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.6666010879999998,
+              "peak_rss_bytes": 386809856,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/ac3abea1-8bef-43db-8bad-2ab68727b22f/r/01a0f85a-5a7a-7872-a93e-630637eff2ba?poll=true",
+          "output_hash": "3d48a50d9039ccdbb7bbf383cd008973ca64ced65ba33807f86e4fffa80de9b1",
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_calls": 2,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.0029590",
+          "judging_usd": "0.0035168"
+        }
+      ]
+    },
+    {
+      "experiment_directory": "evaluation/runs/unit8-paper-repair-corrected",
+      "experiment_fingerprint": "48f2c7ef4f1306ad3eff520440462de2ac4663d9e9de85c22d1f7e5b55432da3",
+      "implementation_sha256": "443decd5d0f117e01a7dfd7c1df5879fb642ded513c039ad15fb24bd21b67fbf",
+      "retrieval_mode": "bm25",
+      "cap_usd": "0.30",
+      "reported_usd": "0.01012690",
+      "unknown_reservations": 0,
+      "executed_cases": 1,
+      "cases": [
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "judge": {
+            "grounding_status": "supported",
+            "correctness": 3,
+            "coverage": 3,
+            "usefulness": 3
+          },
+          "generation_metrics": {
+            "source": "langsmith_readback",
+            "latency_seconds": 25.682789,
+            "total_tokens": 29121,
+            "cost_usd": 0.00484935,
+            "physical_model_spans": 2,
+            "unknown_token_spans": 0,
+            "unknown_cost_spans": 0,
+            "first_content_seconds": null,
+            "note": "Non-streaming generation; first content latency is unmeasured.",
+            "status": "available",
+            "resources": {
+              "cpu_seconds": 0.7318229760000003,
+              "peak_rss_bytes": 324304896,
+              "sample_interval_seconds": 0.1,
+              "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+            }
+          },
+          "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/51fe8c8e-ce22-4b7b-a937-c398cac69b0a/r/01a0f8eb-6d1e-76c3-b2a2-d17cd9a67c5b?poll=true",
+          "output_hash": "d6d223fa77e885a3c8becf002b29f1b48b7deb8c5668be0bc04d4b6913a6cefa",
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_calls": 2,
+          "citation_repair_calls": 0,
+          "generation_usd": "0.00484935",
+          "judging_usd": "0.00527755",
+          "coverage_repair_verified": {
+            "full_source": true,
+            "previous_answer_retained": true,
+            "repair_calls": 1
+          }
+        }
+      ]
+    }
+  ],
+  "reported_improvement_usd": "0.521694960"
+}

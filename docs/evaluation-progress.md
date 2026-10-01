@@ -304,6 +304,24 @@ repository-wide and independent of this five-flow selection.
   Summary/routing/conversation group: 55 passed, 20 subtests (2.05s).
   The next live paper recheck uses a new run directory and unchanged gold.
 
+- Unit 8h paired live: unchanged paper case completed in 25.68s, with the
+  hierarchy route, valid citations and evidence recall 1.0. Both captured calls
+  and hosted physical model spans confirm one full-source addendum; its prompt
+  includes the preceding answer, which remains an exact prefix of the output.
+  Luna changed from unsupported to supported, but still finds omitted future
+  directions (3/3/3 diagnostic scores). This fresh draw is not a controlled
+  causal prose comparison. Spend $0.01012690, zero unknown receipts.
+  Sanitized four-experiment results and receipt-sum checks are saved in
+  `evaluation/five_flow_improvements_20261002.json` (15 case attempts).
+  All nine pages of the new chapter 6/8/10 PDFs were visually inspected:
+  readable without observed layout clipping, but whitespace and incomplete
+  generated sentences remain. Agent inspection is not human calibration.
+
+- Final runtime checkpoint: isolated full backend suite passed 2,080 tests,
+  962 subtests, with 38 skips and 12 warnings (129.73s). The Storage/corpus
+  distinction recorded in unit 7a still applies. Connected journeys are being
+  rechecked after the final runtime changes; then finalize the report.
+
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
 contains unrelated/unreviewed local artifacts. Preserve both; exclude them
 from task commits. Local `.env` and `frontend/.env.local` contain credentials
