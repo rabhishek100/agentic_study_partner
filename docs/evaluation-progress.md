@@ -24,7 +24,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 7 | Connected journeys, remaining test failures and live baselines | Pending | Authenticated five-flow journeys; stream recovery; baseline results with explicit unknowns and spend |
 | 7a | Test isolation and six baseline failures | Complete | Reproduction; dedicated migrated database; local Storage fixtures; privacy and queue protection |
 | 7b | Independent sheet criteria and live baselines | Complete | Source-backed gold criteria; all five native flows; explicit failed/unknown spend and quality |
-| 7c | Connected five-flow journeys | Pending | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
+| 7c | Connected five-flow journeys | Complete | Frontend/API persistence, navigation and recovery with fixture providers; voice gaps explicit |
 | 8 | Measured improvements and final report | Pending | Paired cases/configurations; at least one measured improvement or documented failed experiment; recruiter walkthrough |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
@@ -167,8 +167,6 @@ repository-wide and independent of this five-flow selection.
   $1.99 cap. The review server points at this corrected bundle on port 8766;
   the panel-open request was queued. No human labels were created.
 
-## Workspace exclusions
-
 - Unit 7b complete baseline: all 50 cases attempted; 43 generated/judged and
   seven failed safely (two canonical section scope resolution errors, three
   complete-source sheet context limits, two ideal-answer citation rejections).
@@ -180,6 +178,22 @@ repository-wide and independent of this five-flow selection.
   legible, no observed clipping, but uneven whitespace and unresolved content
   findings. This agent inspection is not a human review label.
 
+- Unit 7c: connected Chromium -> real FastAPI -> isolated Postgres passed chat
+  and summary SSE/persistence/reopen, revision enqueue/worker/PDF/follow-up,
+  lecture answers, course exclusion/persistence/reopen, and interview
+  pause/reload/resume/grading/report. No browser JS errors or HTTP 5xx;
+  reduced-motion, keyboard focus and 390px horizontal fit checked. Fixture
+  authentication/models/speech and blocked hosted browser requests mean this
+  does not prove real sign-in, voice quality, playback or full accessibility.
+  Found and reproduced video starter questions referencing nonexistent
+  `start_time_seconds`; fixed to canonical `start_ms, chapter_index`.
+  Real SQL/cache regression failed before the fix; 25 video API/question cases
+  passed after (5.33s). Broader five-flow/voice/telemetry contracts: 222 cases
+  and five subtests passed (83.58s). Explicit journey command:
+  `TEST_DATABASE_URL=...study_partner_eval_test uv run --frozen --extra voice python -m tests.check_five_flow_journeys`.
+
+## Workspace exclusions
+
 At task start, `.gitignore` has unrelated local demo-video exclusions and `tmp/`
 contains unrelated/unreviewed local artifacts. Preserve both; exclude them
 from task commits. Local `.env` and `frontend/.env.local` contain credentials
@@ -187,8 +201,7 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Continue unit 7c: fix the reproduced starter-question SQL failure, complete
-connected browser journeys, then repair measured canonical scope and abstention
-failures in unit 8. Paper gold is prepared but unbound/unexecuted. Preserve the
+Continue unit 8: repair measured canonical scope and abstention failures.
+Paper gold is prepared but unbound/unexecuted. Preserve the
 original 50-case baseline. Human calibration and full-source large-sheet/ideal
 answer improvements remain explicit work.

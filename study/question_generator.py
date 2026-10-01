@@ -337,7 +337,7 @@ def generate_video_questions(
         select title
         from video.chapters
         where owner_id = %s and video_id = %s
-        order by start_time_seconds
+        order by start_ms, chapter_index
         """,
         (owner, UUID(str(video_id))),
     ).fetchall()
