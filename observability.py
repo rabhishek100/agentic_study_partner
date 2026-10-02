@@ -98,6 +98,10 @@ def _langsmith_span(name: str, *, inputs=None, metadata=None, run_type="chain", 
         return
     inherited = context.get("metadata") or {}
     run_metadata = {**inherited, **(metadata or {})}
+    if operations.user_id():
+        run_metadata["user_id"] = operations.user_id()
+    else:
+        run_metadata.pop("user_id", None)
     run_tags = list(dict.fromkeys([*(context.get("tags") or []), *(tags or [])]))
     parent = get_current_run_tree()
     # Polling has full traces in a separate project. Existing ancestry and
@@ -168,6 +172,43 @@ def annotate(**metadata):
     operations.annotate(**metadata)
     for run in _enclosing_runs():
         _telemetry(lambda run=run: run.add_metadata(safe_value(metadata)))
+
+
+def bind_user(owner_id):
+    """Attach an authenticated account to the current HTTP/voice root only."""
+    identity = operations.bind_user(owner_id)
+    run = get_current_run_tree()
+    if identity is not None and run is not None:
+        _telemetry(lambda: run.add_metadata({"user_id": identity}))
+
+
+@contextmanager
+def authenticated_user(owner_id):
+    """Keep public SDK context active for native LangGraph/LangChain children.
+
+    The enclosing HTTP/job boundary owns identity reset. Never mutate the SDK's
+    inherited metadata dict, which may be shared by concurrent requests.
+    """
+    bind_user(owner_id)
+    metadata = {**(get_tracing_context().get("metadata") or {})}
+    if operations.user_id():
+        metadata["user_id"] = operations.user_id()
+    with tracing_context(parent=get_current_run_tree(), metadata=metadata):
+        yield
+
+
+def _user_for_call(arguments):
+    # HTTP identity wins. These other values are server-side service arguments,
+    # persisted job rows or validated voice bindings, never request bodies/headers.
+    if operations.user_id():
+        return operations.user_id()
+    values = [arguments.get("owner_id")]
+    for key in ("job", "binding"):
+        value = arguments.get(key)
+        values.append(value.get("owner_id") if isinstance(value, dict) else getattr(value, "owner_id", None))
+    binding = getattr(arguments.get("self"), "binding", None)
+    values.append(getattr(binding, "owner_id", None))
+    return next((identity for value in values if (identity := operations.normalized_user_id(value))), None)
 
 
 def organize(flow):
@@ -255,35 +296,37 @@ def traced(name: str, *, flow: str, run_type="chain", operational=False):
         if inspect.iscoroutinefunction(function):
             @wraps(function)
             async def wrapper(*args, **kwargs):
-                _telemetry(lambda: operations.configure("study-partner-" + flow.replace("_", "-") if flow.endswith("voice") else "study-partner-cli"))
-                if not tracing_is_enabled() and not operations.enabled():
-                    return await function(*args, **kwargs)
-                prepared = _telemetry(lambda: operation(args, kwargs))
-                if prepared is None:
-                    return await function(*args, **kwargs)
-                boundary, metadata = prepared
-                with boundary as run:
-                    _telemetry(lambda: organize(flow))
-                    annotate(**{k: v for k, v in metadata.items() if k in _IDS or k == "thread_id"})
-                    result = await function(*args, **kwargs)
-                    _telemetry(lambda: finish(run, result))
-                    return result
+                with operations.user_scope(_user_for_call(signature.bind_partial(*args, **kwargs).arguments)):
+                    _telemetry(lambda: operations.configure("study-partner-" + flow.replace("_", "-") if flow.endswith("voice") else "study-partner-cli"))
+                    if not tracing_is_enabled() and not operations.enabled():
+                        return await function(*args, **kwargs)
+                    prepared = _telemetry(lambda: operation(args, kwargs))
+                    if prepared is None:
+                        return await function(*args, **kwargs)
+                    boundary, metadata = prepared
+                    with boundary as run:
+                        _telemetry(lambda: organize(flow))
+                        annotate(**{k: v for k, v in metadata.items() if k in _IDS or k == "thread_id"})
+                        result = await function(*args, **kwargs)
+                        _telemetry(lambda: finish(run, result))
+                        return result
         else:
             @wraps(function)
             def wrapper(*args, **kwargs):
-                _telemetry(lambda: operations.configure("study-partner-" + flow.replace("_", "-") if flow.endswith("voice") else "study-partner-cli"))
-                if not tracing_is_enabled() and not operations.enabled():
-                    return function(*args, **kwargs)
-                prepared = _telemetry(lambda: operation(args, kwargs))
-                if prepared is None:
-                    return function(*args, **kwargs)
-                boundary, metadata = prepared
-                with boundary as run:
-                    _telemetry(lambda: organize(flow))
-                    annotate(**{k: v for k, v in metadata.items() if k in _IDS or k == "thread_id"})
-                    result = function(*args, **kwargs)
-                    _telemetry(lambda: finish(run, result))
-                    return result
+                with operations.user_scope(_user_for_call(signature.bind_partial(*args, **kwargs).arguments)):
+                    _telemetry(lambda: operations.configure("study-partner-" + flow.replace("_", "-") if flow.endswith("voice") else "study-partner-cli"))
+                    if not tracing_is_enabled() and not operations.enabled():
+                        return function(*args, **kwargs)
+                    prepared = _telemetry(lambda: operation(args, kwargs))
+                    if prepared is None:
+                        return function(*args, **kwargs)
+                    boundary, metadata = prepared
+                    with boundary as run:
+                        _telemetry(lambda: organize(flow))
+                        annotate(**{k: v for k, v in metadata.items() if k in _IDS or k == "thread_id"})
+                        result = function(*args, **kwargs)
+                        _telemetry(lambda: finish(run, result))
+                        return result
         wrapper.__trace_name__ = name
         return wrapper
     return decorate
@@ -386,7 +429,7 @@ class LangSmithMiddleware:
         metadata = {"transport": "http", "method": method}
         if method == "GET" and scope.get("path", "").rstrip("/") == "/api/notifications":
             metadata["operational"] = True
-        with span(f"http.{method}", metadata=metadata, tags=["http"]) as run:
+        with operations.user_scope(), span(f"http.{method}", metadata=metadata, tags=["http"]) as run:
             status_code = 500
             async def traced_send(message):
                 nonlocal status_code

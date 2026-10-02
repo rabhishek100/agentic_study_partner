@@ -19,7 +19,7 @@ from livekit.agents import (
     cli, inference, room_io, stt,
 )
 
-from observability import record_voice_metrics, traced, annotate, flush_traces, record_estimate
+from observability import authenticated_user, record_voice_metrics, traced, annotate, flush_traces, record_estimate
 from operations_telemetry import configure_voice_worker
 from interviews import store
 from interviews.livekit_voice import (
@@ -262,21 +262,22 @@ async def interview_voice(ctx: JobContext):
         raise ValueError("voice dispatch room mismatch")
     media = InterviewMedia(ctx, binding)
     await asyncio.to_thread(media.load_session)
-    ctx.add_shutdown_callback(media.close)
-    await ctx.connect()
-    await media.speech.start(
-        agent=Agent(instructions="Speak only explicitly supplied interview text."),
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            participant_identity=binding.participant_identity,
-            audio_input=False, text_input=False, video_input=False,
-            text_output=False,
-        ),
-        record=False,
-    )
-    media.speech_started = True
-    ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
-    await ctx.room.local_participant.set_attributes({"interview.voice.ready": "true"})
+    with authenticated_user(binding.owner_id):
+        ctx.add_shutdown_callback(media.close)
+        await ctx.connect()
+        await media.speech.start(
+            agent=Agent(instructions="Speak only explicitly supplied interview text."),
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                participant_identity=binding.participant_identity,
+                audio_input=False, text_input=False, video_input=False,
+                text_output=False,
+            ),
+            record=False,
+        )
+        media.speech_started = True
+        ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
+        await ctx.room.local_participant.set_attributes({"interview.voice.ready": "true"})
 
 
 if __name__ == "__main__":

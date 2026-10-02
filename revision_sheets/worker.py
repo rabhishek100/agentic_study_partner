@@ -4,7 +4,7 @@
 import logging
 import threading
 
-from observability import traced, record_error
+from observability import in_current_context, traced, record_error
 from storage.database import connection
 from . import store
 from .contracts import RevisionError
@@ -48,7 +48,7 @@ class RevisionWorker:
                     lost.set()
                     return
 
-        thread = threading.Thread(target=renew, daemon=True, name=f"revision-{job['id']}")
+        thread = threading.Thread(target=in_current_context(renew), daemon=True, name=f"revision-{job['id']}")
         thread.start()
         try:
             progress("reading_source")

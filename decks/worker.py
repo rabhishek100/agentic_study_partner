@@ -6,7 +6,7 @@ import logging
 import os
 import threading
 
-from observability import traced, record_error
+from observability import in_current_context, traced, record_error
 from storage.database import connection as database_connection
 
 from . import jobs
@@ -36,7 +36,7 @@ class _LeaseRenewal:
 
     def __enter__(self) -> "_LeaseRenewal":
         self._thread = threading.Thread(
-            target=self._renew, name=f"deck-lease-{self.job.id}", daemon=True
+            target=in_current_context(self._renew), name=f"deck-lease-{self.job.id}", daemon=True
         )
         self._thread.start()
         return self

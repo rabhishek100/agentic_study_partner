@@ -10,7 +10,7 @@ import threading
 from collections.abc import Collection
 from pathlib import Path
 
-from observability import traced, record_error
+from observability import in_current_context, traced, record_error
 from decks.source_preferences import enqueue_initial_for_video
 from storage.database import connection as database_connection
 from video.acquisition import AcquisitionError, acquire_youtube
@@ -83,7 +83,7 @@ class _LeaseRenewal:
 
     def __enter__(self) -> "_LeaseRenewal":
         self._thread = threading.Thread(
-            target=self._renew,
+            target=in_current_context(self._renew),
             name=f"video-lease-{self.job.id}",
             daemon=True,
         )

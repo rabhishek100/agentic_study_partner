@@ -23,7 +23,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
-from observability import traced, record_error, flush_traces
+from observability import in_current_context, traced, record_error, flush_traces
 from api.version import build_revision, build_time
 from decks.source_preferences import (
     enqueue_initial_for_book,
@@ -87,7 +87,7 @@ class _LeaseRenewal:
     def __enter__(self) -> "_LeaseRenewal":
         self._stop = threading.Event()
         self._thread = threading.Thread(
-            target=self._renew, name=f"lease-{self.job_id}", daemon=True
+            target=in_current_context(self._renew), name=f"lease-{self.job_id}", daemon=True
         )
         self._thread.start()
         return self

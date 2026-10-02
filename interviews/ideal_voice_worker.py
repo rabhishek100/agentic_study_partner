@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, TurnHandlingOptions, cli, inference, room_io
 
-from observability import record_voice_metrics, traced, annotate, flush_traces, record_estimate
+from observability import authenticated_user, record_voice_metrics, traced, annotate, flush_traces, record_estimate
 from operations_telemetry import configure_voice_worker
 from interviews import ideal_store
 from interviews.ideal_livekit import (
@@ -237,22 +237,23 @@ async def ideal_interview_voice(ctx: JobContext):
         raise ValueError("ideal interview voice dispatch room mismatch")
     media = IdealInterviewMedia(ctx, binding)
     await asyncio.to_thread(media.load_flow)
-    ctx.add_shutdown_callback(media.close)
-    await ctx.connect()
-    await media.speech.start(
-        agent=Agent(instructions="Speak only the persisted ideal interview transcript."),
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            participant_identity=binding.participant_identity,
-            audio_input=False,
-            text_input=False,
-            video_input=False,
-            text_output=False,
-        ),
-        record=False,
-    )
-    ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
-    await ctx.room.local_participant.set_attributes({"ideal.interview.voice.ready": "true"})
+    with authenticated_user(binding.owner_id):
+        ctx.add_shutdown_callback(media.close)
+        await ctx.connect()
+        await media.speech.start(
+            agent=Agent(instructions="Speak only the persisted ideal interview transcript."),
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                participant_identity=binding.participant_identity,
+                audio_input=False,
+                text_input=False,
+                video_input=False,
+                text_output=False,
+            ),
+            record=False,
+        )
+        ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
+        await ctx.room.local_participant.set_attributes({"ideal.interview.voice.ready": "true"})
 
 
 if __name__ == "__main__":

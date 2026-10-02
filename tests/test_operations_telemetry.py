@@ -137,6 +137,131 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(run.attributes["status_code"], 429)
         self.assertNotIn("private", str(run.attributes))
 
+    def test_concurrent_authenticated_streams_and_spoofed_anonymous_identity(self):
+        from uuid import uuid4
+        from fastapi import Depends
+        from api.auth import authenticated_identity, AuthenticatedIdentity, TokenVerificationError
+        from tests.test_observability import RecordingClient
+        from langgraph.graph import StateGraph, START, END
+        from typing_extensions import TypedDict
+        users = {"one": uuid4(), "two": uuid4()}
+        client = RecordingClient()
+        logs = []
+        app = FastAPI()
+        app.add_middleware(LangSmithMiddleware)
+        class State(TypedDict):
+            value: str
+        graph_builder = StateGraph(State)
+        from langchain_core.language_models.fake_chat_models import FakeListChatModel
+        def retrieve(state):
+            FakeListChatModel(responses=["grounded fixture"]).invoke("fixture")
+            return state
+        graph_builder.add_node("retrieve", retrieve)
+        graph_builder.add_edge(START, "retrieve")
+        graph_builder.add_edge("retrieve", END)
+        graph = graph_builder.compile()
+        def verify(token):
+            if token not in users:
+                raise TokenVerificationError("invalid")
+            return AuthenticatedIdentity(owner_id=users[token], email="private@example.com", role="authenticated")
+        @app.get("/api/study")
+        async def stream(identity=Depends(authenticated_identity)):
+            await asyncio.sleep(.002)
+            await asyncio.to_thread(graph.invoke, {"value": "source"})
+            async def chunks():
+                with span("stream.chunk"):
+                    await asyncio.sleep(.002)
+                    logs.append(json.loads(ops.JsonFormatter().format(logging.makeLogRecord({"msg": "streaming"}))))
+                    yield str(identity.owner_id).encode()
+            return StreamingResponse(chunks())
+        @app.get("/api/health")
+        async def health():
+            logs.append(json.loads(ops.JsonFormatter().format(logging.makeLogRecord({"msg": "anonymous"}))))
+            return {"ok": True}
+        async def requests():
+            with tracing_context(enabled=True, client=client):
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as http:
+                    responses = await asyncio.gather(*(http.get("/api/study?user_id=spoof", headers={"Authorization": f"Bearer {token}", "X-User-Id": "spoof"}) for token in users))
+                    denied = await http.get("/api/study", headers={"Authorization": "Bearer invalid", "X-User-Id": str(users["one"])})
+                    anonymous = await http.get("/api/health?user_id=spoof", headers={"X-User-Id": str(users["two"])})
+                    return responses, denied, anonymous
+        with patch("api.auth.verify_access_token", side_effect=verify):
+            responses, denied, anonymous = asyncio.run(requests())
+        self.assertEqual([r.status_code for r in responses], [200, 200])
+        self.assertEqual(denied.status_code, 401)
+        self.assertEqual(anonymous.status_code, 200)
+        spans = self.exporter.get_finished_spans()
+        roots = [s for s in spans if s.parent is None]
+        for response, expected in zip(responses, users.values()):
+            root = next(s for s in roots if f"{s.context.trace_id:032x}" == response.headers["x-trace-id"])
+            self.assertEqual(root.attributes["user_id"], str(expected))
+            children = [s for s in spans if s.context.trace_id == root.context.trace_id]
+            self.assertTrue(all(s.attributes["user_id"] == str(expected) for s in children))
+            ls_id = response.headers["x-langsmith-trace-id"]
+            ls_runs = [r for r in client.created + client.updated if str(r.get("trace_id")) == ls_id]
+            self.assertTrue(ls_runs)
+            # Initial HTTP post occurs before auth; final update must have identity.
+            final_roots = [r for r in client.updated if str(r.get("run_id")) == ls_id]
+            self.assertEqual(final_roots[-1]["extra"]["metadata"]["user_id"], str(expected))
+            graph_runs = [r for r in ls_runs if r["name"] in ("LangGraph", "retrieve", "FakeListChatModel", "stream.chunk")]
+            self.assertTrue(any(r["name"] == "FakeListChatModel" for r in graph_runs))
+            self.assertTrue(all(r["extra"]["metadata"].get("user_id") == str(expected) for r in graph_runs))
+        self.assertEqual({r["user_id"] for r in logs if "user_id" in r}, {str(v) for v in users.values()})
+        self.assertNotIn("user_id", logs[-1])
+        self.assertTrue(all("user_id" not in s.attributes for s in roots if s.attributes.get("status_code") == 401 or s.attributes.get("route") == "/api/health"))
+        self.assertNotIn("private@example.com", str(spans) + str(client.created) + str(logs))
+        self.assertIsNone(ops.user_id())
+        points = [p for r in self.reader.get_metrics_data().resource_metrics for s in r.scope_metrics for m in s.metrics for p in m.data.data_points]
+        self.assertTrue(points)
+        self.assertTrue(all("user_id" not in p.attributes for p in points))
+
+    def test_job_owner_inheritance_threads_failures_and_multiuser_batch(self):
+        from types import SimpleNamespace
+        from uuid import uuid4
+        from tests.test_observability import RecordingClient
+        first, second = uuid4(), uuid4()
+        logs, client = [], RecordingClient()
+        @traced("worker.process", flow="ingestion")
+        def process(job, fail=False):
+            def stage():
+                with span("worker.stage"):
+                    logs.append(json.loads(ops.JsonFormatter().format(logging.makeLogRecord({"msg": "stage"}))))
+            thread = threading.Thread(target=in_current_context(stage))
+            thread.start(); thread.join()
+            if fail:
+                raise ValueError("fixture")
+        with tracing_context(enabled=True, client=client), span("batch"):
+            process(SimpleNamespace(id="first", owner_id=first))
+            with self.assertRaises(ValueError):
+                process({"id": "second", "owner_id": second}, fail=True)
+            with span("idle"):
+                logs.append(json.loads(ops.JsonFormatter().format(logging.makeLogRecord({"msg": "idle"}))))
+        spans = self.exporter.get_finished_spans()
+        self.assertEqual([l.get("user_id") for l in logs], [str(first), str(second), None])
+        for name in ("batch", "idle"):
+            self.assertNotIn("user_id", next(s for s in spans if s.name == name).attributes)
+            self.assertNotIn("user_id", next(r for r in client.updated if r["name"] == name)["extra"]["metadata"])
+        self.assertIsNone(ops.user_id())
+
+    def test_identity_without_exporters_and_request_body_is_not_trusted(self):
+        from uuid import uuid4
+        from types import SimpleNamespace
+        owner = uuid4()
+        @traced("service", flow="chat")
+        def service(owner_id=None, request=None):
+            return json.loads(ops.JsonFormatter().format(logging.makeLogRecord({"msg": "service"})))
+        @traced("voice.command", flow="narration_voice")
+        def command(self):
+            return ops.user_id()
+        with patch.object(ops, "_RUNTIME", None), tracing_context(enabled=False):
+            self.assertEqual(service(owner_id=owner)["user_id"], str(owner))
+            self.assertNotIn("user_id", service(request={"owner_id": owner, "user_id": owner}))
+            with ops.user_scope(owner):
+                self.assertEqual(service(owner_id=uuid4())["user_id"], str(owner))
+            self.assertEqual(command(SimpleNamespace(binding=SimpleNamespace(owner_id=owner))), str(owner))
+            self.assertIsNone(ops.user_id())
+
+
     def test_json_validity_and_redaction(self):
         record = logging.LogRecord("worker", 40, __file__, 1, 'failed "quoted" url https://host/path?token=secret Bearer private', (), None)
         record.api_key = "secret"

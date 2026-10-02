@@ -11,6 +11,7 @@ The old names still work for one release, with a warning that names the
 variable and never its value.
 """
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 import logging
 import os
@@ -272,7 +273,7 @@ UNAUTHENTICATED = HTTPException(
 async def authenticated_identity(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
-) -> AuthenticatedIdentity:
+) -> AsyncIterator[AuthenticatedIdentity]:
     """Resolve the verified caller or fail the request with 401."""
 
     if credentials is None or credentials.scheme.lower() != "bearer":
@@ -283,8 +284,10 @@ async def authenticated_identity(
         # The reason stays server-side; tokens and claims are never logged.
         request.state.authentication_error = str(error)
         raise UNAUTHENTICATED from error
+    from observability import authenticated_user
     request.state.owner_id = identity.owner_id
-    return identity
+    with authenticated_user(identity.owner_id):
+        yield identity
 
 
 IDENTITY_CONFLICT = HTTPException(

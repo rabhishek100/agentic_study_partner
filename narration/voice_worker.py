@@ -26,7 +26,7 @@ from livekit.agents import (
     stt,
 )
 
-from observability import record_voice_metrics, traced, annotate, flush_traces
+from observability import authenticated_user, record_voice_metrics, traced, annotate, flush_traces
 from operations_telemetry import configure_voice_worker
 from narration.livekit_voice import (
     AGENT_NAME,
@@ -331,23 +331,24 @@ async def narration_voice(ctx: JobContext):
         raise ValueError("voice dispatch room mismatch")
     media = NarrationMedia(ctx, binding)
     await asyncio.to_thread(media.require_conversation)
-    ctx.add_shutdown_callback(media.close)
-    await ctx.connect()
-    await media.speech.start(
-        agent=Agent(instructions="Speak only persisted, source-grounded answers."),
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            participant_identity=binding.participant_identity,
-            audio_input=False,
-            text_input=False,
-            video_input=False,
-            text_output=False,
-        ),
-        record=False,
-    )
-    media.speech_started = True
-    ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
-    await ctx.room.local_participant.set_attributes({"narration.voice.ready": "true"})
+    with authenticated_user(binding.owner_id):
+        ctx.add_shutdown_callback(media.close)
+        await ctx.connect()
+        await media.speech.start(
+            agent=Agent(instructions="Speak only persisted, source-grounded answers."),
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                participant_identity=binding.participant_identity,
+                audio_input=False,
+                text_input=False,
+                video_input=False,
+                text_output=False,
+            ),
+            record=False,
+        )
+        media.speech_started = True
+        ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
+        await ctx.room.local_participant.set_attributes({"narration.voice.ready": "true"})
 
 
 if __name__ == "__main__":

@@ -99,6 +99,33 @@ automatic model inputs/outputs. Prompt text and bounded source evidence are
 still trace data: use the appropriate project access and retention settings.
 The public HTTP boundary ignores incoming LangSmith trace headers.
 
+## User identity
+
+Authenticated API requests carry `user_id`, the verified auth `sub` UUID, on
+Grafana JSON logs/Tempo span attributes and LangSmith run metadata. It is the
+same UUID used by PostHog `distinct_id`; email remains in the account registry.
+Headers, query strings and request-body identity fields do not establish this
+identity. Authentication failures and anonymous health checks have no user ID.
+
+The HTTP scope lasts through streaming and restores context at completion.
+Native LangGraph/LangChain runs inherit the authenticated LangSmith context.
+Persisted worker `owner_id` and validated voice bindings provide the same field
+for independent job/voice traces. Manual lease-renewal threads copy context.
+Each job restores its previous identity, including on failure; reminder batches
+scope each owner's work without assigning a user to the multi-user batch root.
+Process startup and other system-wide logs have no individual user.
+
+`user_id` is a searchable field, never a metric label or Loki stream label.
+For Grafana Explore/Loki, replace the UUID in this query:
+
+```logql
+{deployment_environment_name="production"} | json | user_id="<account-uuid>"
+```
+
+In Tempo search use `{ span.user_id = "<account-uuid>" }`. In LangSmith use
+**Filter → Metadata → user_id**, then select the account UUID and open the
+root trace to inspect its children. Older telemetry is not rewritten.
+
 ## Verification
 
 No-network regression checks:

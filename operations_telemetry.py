@@ -16,7 +16,7 @@ from functools import partial
 from contextlib import contextmanager
 from contextvars import ContextVar
 from time import perf_counter
-from uuid import uuid4
+from uuid import UUID, uuid4
 from urllib.parse import urlsplit, urlunsplit
 
 from opentelemetry import trace
@@ -37,11 +37,46 @@ import psutil
 _FIELDS = frozenset(("flow", "operation", "method", "provider", "provider_attempt", "ls_model_name", "page_number", "purpose", "cache_hit", "transport", "job_id", "book_id", "video_id",
     "course_id", "session_id", "conversation_id", "sheet_id", "stage", "attempt_count",
     "attempt", "status", "status_code", "error_code", "error_detail", "pages", "chunks",
-    "elapsed_seconds", "langsmith_trace_id", "route", "outcome"))
+    "elapsed_seconds", "langsmith_trace_id", "route", "outcome", "user_id"))
 _STACK = ContextVar("operational_stack", default=())
 _CURRENT = ContextVar("operational_span", default=None)
+_USER_ID = ContextVar("telemetry_user_id", default=None)
 _RUNTIME = None
 _LOCK = threading.Lock()
+
+
+def user_id():
+    return _USER_ID.get()
+
+
+def normalized_user_id(value):
+    """Only opaque account UUIDs belong in identity telemetry."""
+    try:
+        return str(UUID(str(value))) if value is not None else None
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+@contextmanager
+def user_scope(value=None):
+    """Isolate requests/jobs, including when all exporters are disabled."""
+    token = _USER_ID.set(normalized_user_id(value))
+    try:
+        yield
+    finally:
+        _USER_ID.reset(token)
+
+def bind_user(value):
+    """Call only after authentication or canonical voice ownership checks."""
+    identity = normalized_user_id(value)
+    _USER_ID.set(identity)
+    current = _CURRENT.get()
+    if identity is not None and current is not None:
+        try:
+            current.set_attribute("user_id", identity)
+        except Exception:
+            pass
+    return identity
 
 
 def _clean(value):
@@ -79,6 +114,10 @@ class JsonFormatter(logging.Formatter):
         if run is not None:
             payload["langsmith_trace_id"] = str(run.trace_id)
             payload.update(attributes(run.metadata))
+        # Context wins over arbitrary logger extras or stale ancestor metadata.
+        payload.pop("user_id", None)
+        if user_id() is not None:
+            payload["user_id"] = user_id()
         # Include stack locations and type, omitting exception text/locals.
         if record.exc_info:
             kind, _, tb = record.exc_info
@@ -201,7 +240,7 @@ def annotate(**values):
         try:
             captured = attributes(values)
             current.set_attributes(captured)
-            ids = {k: v for k, v in captured.items() if k.endswith("_id")}
+            ids = {k: v for k, v in captured.items() if k.endswith("_id") and k != "user_id"}
             if ids:
                 for parent in _STACK.get():
                     if parent is not current:
@@ -251,7 +290,7 @@ def operation(name, metadata=None):
     started = perf_counter()
     # Avoid the SDK's automatic exception message/stack payload capture.
     try:
-        boundary = runtime["tracer"].start_as_current_span(name, attributes=attributes(metadata or {}),
+        boundary = runtime["tracer"].start_as_current_span(name, attributes=attributes({**(metadata or {}), **({"user_id": user_id()} if user_id() else {})}),
             record_exception=False, set_status_on_exception=False)
         current = boundary.__enter__()
     except Exception:
