@@ -39,7 +39,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\"}[5m]))",
+          "expr": "sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\", deployment_environment_name=~\"$environment\"}[5m]))",
           "legendFormat": "{{job}} {{flow}}"
         }
       ],
@@ -74,7 +74,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, job, flow) (rate(study_operation_duration_seconds_bucket{job=~\"study-partner-.*\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, job, flow) (rate(study_operation_duration_seconds_bucket{job=~\"study-partner-.*\", deployment_environment_name=~\"$environment\"}[5m])))",
           "legendFormat": "{{job}} {{flow}}"
         }
       ],
@@ -109,7 +109,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\", outcome=\"failed\"}[5m])) or on (job, flow) (0 * sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\"}[5m])))) / sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\"}[5m]))",
+          "expr": "(sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\", deployment_environment_name=~\"$environment\", outcome=\"failed\"}[5m])) or on (job, flow) (0 * sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\", deployment_environment_name=~\"$environment\"}[5m])))) / sum by (job, flow) (rate(study_operation_count_total{job=~\"study-partner-.*\", deployment_environment_name=~\"$environment\"}[5m]))",
           "legendFormat": "{{job}} {{flow}}"
         }
       ],
@@ -146,7 +146,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * sum by (job, instance) (rate(process_cpu_time_seconds_total{job=~\"study-partner-.*\"}[5m]))",
+          "expr": "100 * sum by (job, instance) (rate(process_cpu_time_seconds_total{job=~\"study-partner-.*\", deployment_environment_name=~\"$environment\"}[5m]))",
           "legendFormat": "{{job}} {{instance}}"
         }
       ],
@@ -181,7 +181,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (job, instance) (process_memory_usage_bytes{job=~\"study-partner-.*\"})",
+          "expr": "max by (job, instance) (process_memory_usage_bytes{job=~\"study-partner-.*\", deployment_environment_name=~\"$environment\"})",
           "legendFormat": "{{job}} {{instance}}"
         }
       ],
@@ -200,5 +200,35 @@
       "description": "Current process RSS. This is not host/container memory or per-evaluation peak memory."
     }
   ],
-  "description": "API, worker and voice operation health. AI tokens and cost are in LangSmith. CPU/RSS are per process. Telemetry must be enabled before charts contain data."
+  "description": "API, worker and voice operation health. AI tokens and cost are in LangSmith. CPU/RSS are per process. Telemetry must be enabled before charts contain data.",
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "custom",
+        "query": "production,local",
+        "current": {
+          "selected": true,
+          "text": "production",
+          "value": "production"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          },
+          {
+            "selected": false,
+            "text": "local",
+            "value": "local"
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  }
 }

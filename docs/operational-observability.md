@@ -184,7 +184,12 @@ is separate from application ingestion credentials.
   appears in the hosted visitor chart and retention cohort. Full authenticated
   study-flow conversions have not been exercised in this setup check.
 - [Grafana operations dashboard](https://petitecicada3339.grafana.net/d/study-partner-operations)
-  is saved in the **Study Partner** folder using the stack's existing
+  defaults to the `production` environment. Its Environment dropdown also offers
+  `local`; all five panel queries filter `deployment_environment_name`, preventing
+  local test traffic from entering production charts. The source template matches
+  the hosted queries. On 2 October, server validation, stored-query readback,
+  all five production queries and a rendered dashboard inspection passed.
+  It is saved in the **Study Partner** folder using the stack's existing
   `grafanacloud-prom` data source. Resource validation, server dry-run, push,
   saved-object readback, and image rendering succeeded. After enabling export,
   all five panel queries returned data from the temporary
