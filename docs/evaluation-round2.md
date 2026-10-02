@@ -98,6 +98,13 @@ interpret/reproduce the paper's main results. Native rubric becomes
 This trial combines those quality refinements with the controlled browser reuse;
 do not attribute end-to-end differences solely to browser reuse.
 
+Refinement verification: 52 focused tests and 9 subtests; full suite 2,114 tests
+and 964 subtests (38 skipped). The new "cover" regression fails against the first
+quality candidate and passes with this refinement. Sheet recomposition now has
+an output-based regression checking an added note/coverage ledger and the complete
+new condition in the rendered PDF, while preserving existing notes.
+Refined live directory: `evaluation/runs/round2-refined-bm25-20261003`.
+
 ### Speed candidate prepared
 
 Reuse Chromium startup within one sheet layout search. Each attempt still creates

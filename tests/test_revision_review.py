@@ -123,12 +123,32 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(provenance["quality_repairs"], 1)
 
     def test_missing_essential_concept_recomposes_instead_of_existing_note_patch(self):
-        author = SequenceModel(fixture(), fixture())
+        from revision_sheets.contracts import Concept, Item
+        source = source_fixture()
+        source.text += " Retries after failed deliveries must use capped exponential backoff."
+        complete = fixture()
+        condition = 'Retries after failed deliveries use capped exponential backoff.'
+        complete.essential_notes.append(Item(id='retry', heading='Retry policy', text=condition, citations=['[N1:P1]']))
+        complete.essential_concepts.append(Concept(id='retry', label='Retry policy', citations=['[N1:P1]'], item_ids=['retry']))
+        complete.source_dispositions[0].item_ids.append('retry')
+        expected = inventory()
+        expected.concepts.append(EvidenceConcept(id='retry', label='Retry policy', explanation=condition,
+                                               citations=['[N1:P1]'], importance='essential'))
+        missing, covered = review(), review()
+        missing.coverage.append(Coverage(concept_id='retry', item_ids=[], status='missing', reason='Absent condition'))
+        covered.coverage.append(Coverage(concept_id='retry', item_ids=['retry'], status='covered', reason='Printed condition'))
+        author = SequenceModel(fixture(), complete)
         editor = Mock(invoke=Mock(return_value=SheetPatch(edits=[], diagram=None)))
         with patch("revision_sheets.generate.revision_model", side_effect=lambda schema=Draft, **kwargs: author if schema is Draft else editor), \
-             patch("revision_sheets.generate.make_inventory", return_value=inventory()), \
-             patch("revision_sheets.generate.judge_sheet", side_effect=[review("missing"), review()]):
-            _, pdf, provenance = generate(source_fixture(), review_clients=(None, None, None))
+             patch("revision_sheets.generate.make_inventory", return_value=expected), \
+             patch("revision_sheets.generate.judge_sheet", side_effect=[missing, covered, covered]):
+            result, pdf, provenance = generate(source, review_clients=(None, None, None))
+        self.assertEqual(result.essential_notes[-1].text, condition)
+        self.assertEqual(result.essential_notes[:-1], fixture().essential_notes)
+        self.assertEqual(result.essential_concepts[-1].item_ids, ['retry'])
+        with pymupdf.open(stream=pdf, filetype='pdf') as document:
+            printed = ' '.join(''.join(page.get_text() for page in document).split())
+            self.assertIn(condition, printed)
         self.assertEqual(len(author.calls), 2)
         self.assertEqual(editor.invoke.call_count, 0)
         self.assertEqual(provenance["quality_repairs"], 1)

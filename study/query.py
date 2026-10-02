@@ -103,7 +103,7 @@ def retrieval_limit(response_depth: ResponseDepth) -> int:
 
 
 CHECKLIST_REQUEST = re.compile(
-    r"\bchecklist\b|\bwhat\b.{0,100}\b(?:include[ds]?|go\s+into|contains?)\b",
+    r"\bchecklist\b|\bwhat\b.{0,100}\b(?:include[ds]?|go\s+into|contains?|cover(?:s|ed)?)\b",
     re.IGNORECASE,
 )
 
@@ -111,14 +111,17 @@ CHECKLIST_REQUEST = re.compile(
 def _checklist_continuations(documents, question, *, database_url, owner, scope, limit):
     """Keep a selected list's next chunk before lower-ranked unrelated nodes.
 
-    Follow at most two strongest hits, within the same owner/book/node/build.
+    Follow at most two strongest hits that have a continuation, within the
+    same owner/book/node/build.
     No extra model call or larger context-item budget is introduced.
     """
     if not CHECKLIST_REQUEST.search(question):
         return documents
     following = {}
     with database_connection(database_url, readonly=True) as source:
-        for document in documents[:2]:
+        for document in documents:
+            if len(following) == 2:
+                break
             chunk_id = document.metadata.get("chunk_id")
             if not chunk_id:
                 continue
