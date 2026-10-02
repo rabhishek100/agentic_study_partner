@@ -295,6 +295,11 @@ class NarrationMedia:
                             await asyncio.wait_for(
                                 asyncio.shield(self.capture), timeout=5
                             )
+                        except asyncio.TimeoutError:
+                            # A final transcript can arrive while the provider
+                            # keeps its stream open. End the bounded drain and
+                            # acknowledge flush after cancelling that capture.
+                            pass
                         finally:
                             await self.cancel_capture()
                 elif command.action == "speak":

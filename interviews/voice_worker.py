@@ -219,6 +219,11 @@ class InterviewMedia:
                         self.stream.end_input()
                         try:
                             await asyncio.wait_for(asyncio.shield(self.capture), timeout=5)
+                        except asyncio.TimeoutError:
+                            # Final text may precede provider stream closure.
+                            # Bounded drain expiry is normal cleanup, not a
+                            # failed RPC or a discarded transcript.
+                            pass
                         finally:
                             await self.cancel_capture()
                 elif command.action == "listen":

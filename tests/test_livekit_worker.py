@@ -45,6 +45,55 @@ def test_all_voice_servers_initialize_parent_and_pickled_child_telemetry():
             configure.assert_called_once_with(service)
 
 
+@pytest.mark.parametrize("kind", ["interview", "narration"])
+def test_flush_acknowledges_final_transcript_when_provider_keeps_stream_open(kind):
+    from narration.voice_worker import NarrationMedia
+
+    async def scenario():
+        worker = (InterviewMedia if kind == "interview" else NarrationMedia).__new__(
+            InterviewMedia if kind == "interview" else NarrationMedia
+        )
+        worker.binding = SimpleNamespace(participant_identity="candidate")
+        worker.lock = asyncio.Lock()
+        worker.emit = AsyncMock()
+        ended = asyncio.Event()
+        cancelled = asyncio.Event()
+        worker.stream = Mock()
+        worker.stream.end_input.side_effect = ended.set
+
+        async def capture():
+            try:
+                await ended.wait()
+                await worker.emit("transcript", epoch=1, text="final words")
+                await asyncio.Future()  # provider remains open after final text
+            finally:
+                cancelled.set()
+
+        worker.capture = asyncio.create_task(capture())
+        worker.feed = asyncio.create_task(asyncio.sleep(60))
+        original_wait = asyncio.wait_for
+
+        async def short_drain(awaitable, timeout):
+            return await original_wait(awaitable, .01 if timeout == 5 else timeout)
+
+        try:
+            with patch("asyncio.wait_for", short_drain):
+                response = await original_wait(worker.command(SimpleNamespace(
+                    caller_identity="candidate", payload='{"action":"flush","epoch":1}'
+                )), 1)
+            assert response == "ok"
+            worker.emit.assert_awaited_once_with("transcript", epoch=1, text="final words")
+            assert cancelled.is_set()
+            assert worker.capture is None
+            assert worker.feed.done()
+        finally:
+            if worker.capture:
+                worker.capture.cancel()
+                await asyncio.gather(worker.capture, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
 def media():
     worker = InterviewMedia.__new__(InterviewMedia)
     worker.binding = VoiceBinding(

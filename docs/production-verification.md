@@ -48,6 +48,14 @@ servers using LiveKit's parent startup event and picklable child setup callback.
 This also exports idle parent CPU/RSS. Targeted voice/observability verification:
 43 tests and six subtests passed. Real room/audio transport remains pending.
 
+Live narration subsequently produced speech and a final synthetic-microphone
+transcript, but its flush RPC returned `1502 Response timeout`. Both narration
+and adaptive workers propagated the expected five-second drain timeout when the
+provider remained open after final text. Two regression cases reproduced it.
+The fix acknowledges flush after bounded cancellation, retaining delivered text.
+Targeted voice/observability checks now pass 45 tests and six subtests. Redeploy
+and real transport recheck are required before closing this finding.
+
 ### Deployment evidence
 
 | Service | Deployment ID |
