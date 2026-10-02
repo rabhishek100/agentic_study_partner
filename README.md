@@ -84,6 +84,8 @@ Web: `http://localhost:3000`; API health: `http://localhost:8000/api/health`.
 
 ## Verify changes
 
+Step-by-step checks for every feature, automated suite and hosted integration:
+[complete verification checklist](docs/verification-checklist.md).
 Five-flow baseline, measured improvements and quality limits:
 [evaluation results](docs/evaluation-results.md).
 Resumable work units, verification and next steps:

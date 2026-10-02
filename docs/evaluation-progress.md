@@ -28,6 +28,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 8 | Measured improvements and final report | Complete | Unchanged-source/gold rechecks, diagnostic limits, final report and recruiter walkthrough; human calibration deferred |
 | 9a | Default automated artifact review | Complete | LLM scores visible by default; manual review optional; rendered PDF pages and immutable saved-output review |
 | 9b | Ten saved-output LLM reviews | Complete | Two per flow; source/PDF hashes verified; no regeneration; $0.136506925 under $1 cap; hosted trace readback |
+| 10 | Complete verification checklist | Complete | Ordered commands, every feature family, expected results, hosted checks and explicit coverage gaps |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -354,6 +355,17 @@ repository-wide and independent of this five-flow selection.
   The long-context sheet's trace estimate differs from its provider receipt;
   billing totals use the receipt. No answers were regenerated or human ratings
   fabricated. Review plan and final report now make manual calibration optional.
+
+- Unit 10: added `docs/verification-checklist.md` and README entrypoint. Covers
+  environment/test isolation, backend/frontend/contracts/Docker, both connected
+  harnesses, every current product feature family, recovery/accessibility,
+  repo-wide LangSmith and Grafana/PostHog, capped quality judging and acceptance
+  evidence. This is a reproducible procedure, not a new execution/pass record.
+  CLI options were checked locally; existing snapshots and quality findings
+  are retained. No paid inference, live source mutation or service restart ran
+  while preparing this guide.
+  Guide validation passed: 44 local links, 11 shell command blocks and embedded
+  Python syntax; bootstrap/eval/review CLI help matched the documented options.
 
 ## Workspace exclusions
 
