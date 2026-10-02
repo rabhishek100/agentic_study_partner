@@ -25,7 +25,7 @@ labelled-general-knowledge policy is disclosed separately from grounded quality.
 | Unit | Change | State | Acceptance |
 | --- | --- | --- | --- |
 | 15 | Freeze comparison and fresh current-code baseline | In progress | All 54 attempted; explicit failures, receipts, trace metrics and per-flow findings |
-| 16 | Quality candidate | Pending | Address measured missing details, exact claim citations, summary/sheet completeness and justified interview feedback; meaningful regression tests; unchanged-case full rerun |
+| 16 | Quality candidate | Prepared; live comparison pending | Address measured missing details, exact claim citations, summary/sheet completeness and justified interview feedback; meaningful regression tests; unchanged-case full rerun |
 | 17 | Speed candidate | Pending | Target measured repeated work; preserve dependencies, source isolation and bounded repairs; compare all 54 to quality winner |
 | 18 | Selection and final verification | Pending | Per-flow before/after evidence; repeat material regressions or close results; full relevant contracts/journeys; commit/push retained changes |
 
@@ -45,3 +45,27 @@ resume. Budget stops and unknown receipts must remain explicit.
 Source readiness, model configuration and results will be recorded below after
 the baseline. Existing operational telemetry and user identity work is complete;
 this round changes evaluation/quality behavior rather than hosted setup.
+
+### Quality candidate prepared
+
+- Preserve the complete bounded course retrieval passage rather than truncating
+  it to a 700-character preview. The regression reproduces a missing mechanism
+  and verifies selected-lecture isolation.
+- For explicit book checklist questions, include the following chunk from at
+  most two highest-ranked sections, within the existing retrieval item limit.
+  The fresh baseline's model-card checklist is split across two chunks of the
+  same section. Expansion stays within owner, book, section and source build.
+- Version prompts to cover requested details and exact claim support, required
+  summary sections, source limitations and justified interview feedback.
+- Let sheet length follow essential source concepts within the existing page
+  limit. Missing essential concepts trigger recomposition because the existing
+  note patch cannot add a note or its coverage ledger. Retain bounded repairs.
+- Correct artifact review to distinguish a weak candidate answer (input) from
+  the grader feedback being evaluated (output). Rejudge frozen baseline outputs
+  with `artifact-review-v3` before comparing; preserve their original v2 reviews.
+
+Verification: 96 relevant application tests plus 26 subtests; 69 evaluation,
+saved-review integrity, adapter and budget tests. Three new behavior regressions
+were verified to fail on the original code and pass on the candidate. Candidate
+is experimental until the complete live comparison and regression checks finish;
+no production deployment or quality improvement is claimed yet.

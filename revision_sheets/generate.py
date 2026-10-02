@@ -23,7 +23,7 @@ from .review import (Inventory, FigureBatch, Review, RUBRIC_VERSION, make_invent
 from .source import Source
 from .validate import validate_sheet, resolve_disposition_concepts
 
-PROMPT_VERSION = "revision-prompt-v9"
+PROMPT_VERSION = "revision-prompt-v10"
 PROMPT = """Create an A4 revision sheet of at most five pages for a reader who already studied
 this complete chapter or paper. Optimize for rapid recall and reconstruction
 of its mental model, with one clear overview diagram and compact notes.
@@ -43,8 +43,10 @@ never omit an essential concept. References and repeated summaries may be
 supporting; appendices, short sections and figure-only pages are not automatically
 optional. Valid citations alone do not establish semantic coverage.
 
-Target 450-550 visible words including diagram labels. Prefer 8-10 essential
-notes of 20-35 words each (up to 12 when needed for distinct mechanisms), 2-3 trade-off/result rows of 15-25 words each,
+Let source complexity determine length within the supplied page allowance.
+Use as many distinct essential notes as the inventory needs, up to 24,
+instead of squeezing unrelated concepts into one oversized note.
+Prefer essential notes of 20-35 words each, 2-3 trade-off/result rows of 15-25 words each,
 1-2 recall cues of 10-15 words each, and a central idea under 30 words.
 The diagram description is at most 15 words. Write dense recall cues rather
 than explanatory paragraphs; the reader has already studied the material.
@@ -54,6 +56,9 @@ Unicode notation (not LaTeX), and includes symbol definitions and assumptions.
 If using the equation field, do not repeat that equation in another note.
 Do not fill optional areas with unsupported facts. Recall cues should help
 reconstruct concepts rather than introduce new factual claims.
+Every printed note must express a complete thought. Each text field is limited
+to 650 characters: shorten or split the explanation before reaching that
+limit, never cut a word, sentence, mechanism or qualification halfway through.
 
 Use 2-8 diagram nodes, preferably 3-5; order them in the main flow direction.
 Each edge is a directed relationship with a concise verb phrase, not a vague
@@ -210,6 +215,9 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
     inventory_client, judge_client, figure_client = review_clients or (
         revision_model(Inventory), revision_model(Review, judge=True), revision_model(FigureBatch))
     human_text = (f"Source: {source.title}\nScope: {source.scope_title}\nTemplate: {source.request.scope_kind}\n"
+                  f"Page allowance: at most {max_pages()} A4 pages. For a dense source, up to "
+                  f"{max_pages() * 275} visible words may be useful; use fewer for simpler sources. "
+                  "Do not add padding to meet a word target. Preserve essential concepts before optional examples.\n"
                   f"Source units: {json.dumps(list(source.units))}\nUninspected figures: {uninspected}\n\n{source.text}")
     # Check full source before any model call; figure batches are bounded separately.
     tokens = len(tiktoken.get_encoding("cl100k_base").encode(PROMPT + human_text + json.dumps(Draft.model_json_schema())))
@@ -353,7 +361,13 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
                 return {"review": review, "reviews": history,
                         "outstanding_findings": failures, "next": "done"}
             progress("revising_sheet")
-            return {"reviews": history, "quality_patch": True, "quality_repairs": state.get("quality_repairs", 0) + 1,
+            # An existing-note patch cannot add a missing concept or its
+            # coverage ledger. Recompose for missing essential concepts;
+            # keep narrow patches for incomplete existing explanations.
+            missing = any(c.importance == "essential" and not any(
+                row.concept_id == c.id and row.status != "missing"
+                for row in review.coverage) for c in state["inventory"].concepts)
+            return {"reviews": history, "quality_patch": not missing, "quality_repairs": state.get("quality_repairs", 0) + 1,
                     "feedback": "Independent review failures:\n" + json.dumps(failures + review.revision_instructions)
                     + "\nExact essential-concept gaps to repair (preserve what is already covered):\n" + json.dumps([
                         c.model_dump() for c in review.coverage if c.status != "covered" and

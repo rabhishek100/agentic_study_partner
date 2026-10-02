@@ -52,12 +52,13 @@ def main():
         from evals.adapters import bind_sources, NativeAdapters
         from evals.budget import Budget, pricing_snapshot
         from evals.reporting import traced_adapters, refresh_metrics
-        from evals.suite_judge import SuiteJudge
+        from evals.suite_judge import REVIEW_VERSION, SuiteJudge
         from langsmith import Client
         from observability import safe_value, flush_traces
         from storage.database import environment_owner_id
         if not os.getenv("LANGSMITH_API_KEY"):
             parser.error("LANGSMITH_API_KEY is required for trace-backed live evaluation")
+        config["review_version"] = REVIEW_VERSION
         config["bindings"] = bind_sources(manifest, owner_id=environment_owner_id())
         # Freeze model and prompt-affecting environment without credential values.
         config["model_environment"] = {key: value for key, value in os.environ.items() if key.startswith("OPENROUTER_")

@@ -160,7 +160,9 @@ def retrieve_course_evidence(
             rank=rank,
             evidence_id=item.id,
             modality=item.modality,
-            excerpt=item.text[:700],
+            # Retrieval already bounds windows and item count. A display
+            # preview here cut off mechanisms while keeping full timestamps.
+            excerpt=item.text,
             retrieval_method=item.retrieval_method,
             score=round(float(item.score), 6),
             start_ms=item.start_ms,

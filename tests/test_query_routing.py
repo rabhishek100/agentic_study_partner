@@ -519,6 +519,34 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
             self.assertEqual(retriever.call_args.kwargs["k"], expected_k)
             self.assertTrue(retriever.call_args.kwargs["unique_nodes"])
 
+    def test_checklist_answer_receives_same_section_continuation(self):
+        from parsing.models import ParsedBook, Section, TextBlock
+        from retrieval.models import ChunkingConfig
+        from retrieval.postgres import rebuild
+        from uuid import uuid4
+        tail = "Training data, evaluation metrics, subgroup results and intended uses must be documented."
+        source = ParsedBook(source="fixture.pdf", toc=[(1, "Chapter 1. Reporting", 1)],
+            sections=[Section(path=["Chapter 1. Reporting"], level=1, start_page=1, end_page=1,
+                texts=[TextBlock(text="Model cards document requirements. " + "Introductory context. " * 10,
+                                 category="NarrativeText", page=1),
+                       TextBlock(text=tail, category="NarrativeText", page=1)])])
+        with database_connection(self.database_url) as db:
+            book_id = ingest_book(db, source, owner_id=self.owner_id, title="Reporting",
+                author="Fixture", file_hash=uuid4().hex * 2, page_count=1, parser_version="fixture")
+            rebuild(db, book_id, owner_id=self.owner_id,
+                config=ChunkingConfig(target_tokens=40, max_tokens=60, overlap_tokens=0))
+        model = MagicMock()
+        model.invoke.return_value = SimpleNamespace(content="Include training data and evaluation metrics [S2].")
+        result = execute_query("What should a model card document include?",
+            database_url=self.database_url, book_id=book_id, owner_id=self.owner_id,
+            model=model, force_retrieval=True, retrieval_mode="bm25")
+        self.assertIn(tail, model.invoke.call_args.args[0][-1][1])
+        self.assertEqual(len(result.evidence), 2)
+        self.assertEqual(result.evidence[1].retrieval_method, "hierarchy_continuation")
+        self.assertEqual(result.evidence[0].node_id, result.evidence[1].node_id)
+        self.assertEqual(result.citations[0].evidence_rank, 2)
+        self.assertEqual(result.citations[0].book_id, book_id)
+
     def test_system_design_allows_several_chunks_from_one_scope_node(self):
         document = SimpleNamespace(
             page_content="A supported architecture.",

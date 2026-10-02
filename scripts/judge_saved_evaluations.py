@@ -24,11 +24,11 @@ def main():
     selection = json.loads(args.selection.read_text())['cases']
     from evals.automated_reviews import run_saved_reviews
     from evals.budget import Budget, pricing_snapshot
-    from evals.suite_judge import SuiteJudge
+    from evals.suite_judge import REVIEW_VERSION, SuiteJudge
     from langsmith import Client, tracing_context
     from observability import flush_traces, safe_value, span
     project = f'study-partner-evals-{output.name}'
-    config = {'judge_model': args.judge_model, 'review_version': 'artifact-review-v2',
+    config = {'judge_model': args.judge_model, 'review_version': REVIEW_VERSION,
               'project': project, 'review_kind': 'llm_judge', 'human_calibration': False,
               'implementation': {name: sha256((root / name).read_bytes()).hexdigest() for name in
                                  ['evals/automated_reviews.py', 'evals/suite_judge.py']}}

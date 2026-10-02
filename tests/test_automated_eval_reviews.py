@@ -144,3 +144,28 @@ def test_judge_receives_distinct_source_and_rendered_pdf_images(tmp_path, monkey
     assert len([part for part in parts if part['type']=='image_url']) == 4  # Three source inputs plus one output page.
     assert parts[-2]['text'] == 'DERIVED OUTPUT PDF PAGES (not source evidence):'
     assert result['rendered_pdf_pages'] == 1 and result['human_review_status'] == 'optional'
+
+
+def test_interview_review_keeps_candidate_input_separate_from_feedback_artifact(tmp_path):
+    from evals.suite import Case
+    from evals.suite_judge import judge_payload
+    capture = {'model': 'fixture', 'messages': [{'role': 'user', 'content': json.dumps({
+        'question': 'Explain the consistency tradeoff', 'candidate_answer': 'It is fast.',
+        'source_evidence': 'Strong consistency requires coordination.'})}]}
+    path = tmp_path / 'requests/grade.json'
+    atomic_json(path, capture)
+    feedback = {'gaps': ['Coordination cost is missing.'], 'recommended_answer':
+                'Coordination provides consistency at a latency cost.'}
+    row = {'output': feedback, 'request_capture': ['requests/grade.json'], 'evidence': {
+        'generation_capture_hashes': {'requests/grade.json': sha256(path.read_bytes()).hexdigest()}}}
+    case = Case(id='weak-answer', flow='interview', adapter='interview_grade', title='Weak answer',
+                tier='fixture', inputs={}, source={}, expected={'coverage_points': ['Coordination cost']})
+    payload, images = judge_payload(case, row, tmp_path)
+    assert payload['review_target'] == 'grader_feedback'
+    assert payload['output'] == feedback
+    original = json.loads(payload['exact_generation_contexts'][0]['messages'][0]['content'])
+    assert original['candidate_answer'] == 'It is fast.'
+    assert original['source_evidence'] == 'Strong consistency requires coordination.'
+    assert not images
+    case.adapter = 'ideal_interview'
+    assert judge_payload(case, row, tmp_path)[0]['review_target'] == 'study_artifact'

@@ -10,7 +10,7 @@ from typing import Any
 
 from .contracts import AnswerArchetype, PromptProfile, ResponseDepth, Route
 
-PROMPT_SCHEMA_VERSION = "interview-v3"
+PROMPT_SCHEMA_VERSION = "interview-v4"
 
 LOCKED_GROUNDING_PROMPT = """
 You answer from technical-book or scientific-paper evidence supplied by the
@@ -22,6 +22,9 @@ Grounding requirements:
   discussed in interviews.
 - Cite substantive claims with the citation markers present in the evidence.
   Copy markers exactly and place them beside the claims they support.
+- Match each marker to the precise definition, quantity, condition or
+  comparison being claimed. A nearby mention of the topic does not support
+  a different definition, denominator, threshold or recommendation.
 - Before drafting, map each factual explanation, recommendation, design
   choice, trade-off, example, and follow-up answer to supporting markers. Omit
   any point that has no supporting marker.
@@ -58,6 +61,13 @@ Prioritize intuition, mechanics, assumptions, trade-offs, limitations,
 contrasts, concrete examples, common misconceptions, and memorable mental
 models when the evidence supports them. Include likely interviewer follow-up
 questions with short model answers when useful.
+
+Before answering, identify every explicitly requested part, comparison axis
+or checklist item. Answer all supported parts before optional interview
+follow-ups or memory aids. For a source checklist, preserve its distinct
+categories and qualifications rather than replacing them with broad themes.
+If a requested part lacks evidence, identify that specific gap; do not
+silently omit it or fill it from general knowledge.
 
 For a deeper follow-up, focus on the requested point and build on the previous
 explanation without repeating the whole answer. Honor explicit requests for

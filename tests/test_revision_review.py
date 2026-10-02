@@ -122,6 +122,19 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result, fixture())
         self.assertEqual(provenance["quality_repairs"], 1)
 
+    def test_missing_essential_concept_recomposes_instead_of_existing_note_patch(self):
+        author = SequenceModel(fixture(), fixture())
+        editor = Mock(invoke=Mock(return_value=SheetPatch(edits=[], diagram=None)))
+        with patch("revision_sheets.generate.revision_model", side_effect=lambda schema=Draft, **kwargs: author if schema is Draft else editor), \
+             patch("revision_sheets.generate.make_inventory", return_value=inventory()), \
+             patch("revision_sheets.generate.judge_sheet", side_effect=[review("missing"), review()]):
+            _, pdf, provenance = generate(source_fixture(), review_clients=(None, None, None))
+        self.assertEqual(len(author.calls), 2)
+        self.assertEqual(editor.invoke.call_count, 0)
+        self.assertEqual(provenance["quality_repairs"], 1)
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertFalse(provenance["outstanding_findings"])
+
     def test_html_escapes_source_and_prints_at_most_two_pages_without_clipping(self):
         source = source_fixture(); sheet = fixture()
         html = make_html(sheet, source_title='<script>alert("x")</script>', scope_title=source.scope_title, references=source.references)

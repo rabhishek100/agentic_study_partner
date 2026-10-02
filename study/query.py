@@ -102,6 +102,54 @@ def retrieval_limit(response_depth: ResponseDepth) -> int:
     return RETRIEVAL_LIMIT_BY_DEPTH[response_depth]
 
 
+CHECKLIST_REQUEST = re.compile(
+    r"\bchecklist\b|\bwhat\b.{0,100}\b(?:include[ds]?|go\s+into|contains?)\b",
+    re.IGNORECASE,
+)
+
+
+def _checklist_continuations(documents, question, *, database_url, owner, scope, limit):
+    """Keep a selected list's next chunk before lower-ranked unrelated nodes.
+
+    Follow at most two strongest hits, within the same owner/book/node/build.
+    No extra model call or larger context-item budget is introduced.
+    """
+    if not CHECKLIST_REQUEST.search(question):
+        return documents
+    following = {}
+    with database_connection(database_url, readonly=True) as source:
+        for document in documents[:2]:
+            chunk_id = document.metadata.get("chunk_id")
+            if not chunk_id:
+                continue
+            row = source.execute(
+                """select following.* from chunks as seed join chunks as following
+                on following.owner_id = seed.owner_id
+                  and following.source_book_id = seed.source_book_id
+                  and following.source_node_id = seed.source_node_id
+                  and following.build_id = seed.build_id
+                  and following.chunk_index = seed.chunk_index + 1
+                where seed.owner_id = %s and seed.id = %s
+                  and (%s::bigint[] is null or seed.source_book_id = any(%s))""",
+                (owner, chunk_id, scope, scope),
+            ).fetchone()
+            if row:
+                following[chunk_id] = document_from_result(search_result_from_row(
+                    row, score=document.metadata.get("score") or 0,
+                    retrieval_method="hierarchy_continuation"))
+    expanded, seen = [], set()
+    for document in documents:
+        for item in (document, following.get(document.metadata.get("chunk_id"))):
+            if item is None:
+                continue
+            key = item.metadata.get("chunk_id")
+            if key is not None and key in seen:
+                continue
+            seen.add(key)
+            expanded.append(item)
+    return expanded[:limit]
+
+
 def _summary_config() -> SummaryConfig:
     return SummaryConfig(
         context_window_tokens=int(os.getenv("SUMMARY_CONTEXT_WINDOW_TOKENS", "64000")),
@@ -578,6 +626,9 @@ def _answer_retrieval_question(
         # discards most of that design while admitting unrelated chapters.
         unique_nodes=archetype != "system_design",
     ).invoke(question)
+    retrieved = _checklist_continuations(retrieved, question,
+        database_url=database_url, owner=owner, scope=scope,
+        limit=retrieval_limit(response_depth))
     pinned = _pinned_documents(
         pinned_chunk_ids,
         database_url=database_url,

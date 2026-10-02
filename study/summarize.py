@@ -213,6 +213,11 @@ allowed list.
 Complete coverage is mandatory: cite every node in Required coverage at least
 once. Preserve the listed source order internally even when organizing the
 answer by interview usefulness. Do not infer omitted images.
+For each required section, explain its important ideas and qualifications,
+not merely its title or a token citation. Preserve distinct mechanisms,
+comparisons and experimental conditions. Include source-stated limitations
+and future directions when present; distinguish proposals from demonstrated
+results. Compress repeated examples and optional interview advice first.
 
 Required coverage:
 {required_sections}

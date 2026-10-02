@@ -266,6 +266,34 @@ class VideoCourseTests(unittest.TestCase):
         self.assertEqual(first.lectures[0].ingestion_job_id, replay.lectures[0].ingestion_job_id)
         self.assertTrue(replay.lectures[0].reused)
 
+    def test_course_answer_keeps_mechanism_after_long_transcript_intro(self) -> None:
+        tail = "Writes go to the shard leader, which replicates an ordered log to followers."
+        transcript = "Paxos groups shard replication. " * 30 + tail
+        model = FakeAnswerModel(tail + " [S1]")
+        with connection(self.database_url) as database:
+            video = publish_video_with_evidence(database, owner_id=self.owner,
+                title="Sharded replication", url="https://youtu.be/abcdefghijk",
+                transcript_vtt="WEBVTT\n\n00:00.000 --> 00:50.000\n" + transcript + "\n")
+            excluded = publish_video_with_evidence(database, owner_id=self.owner,
+                title="Excluded replication", url="https://youtu.be/lmnopqrstuv",
+                transcript_vtt="WEBVTT\n\n00:00.000 --> 00:50.000\nExcluded secret mechanism.\n")
+            course = create_course(database, owner_id=self.owner,
+                creation_key=uuid4(), title="Replication course")
+            for lecture in (video, excluded):
+                attach_course_lecture(database, course.course_id, lecture.video_id, owner_id=self.owner)
+            result, _, versions = execute_course_turn(database,
+                "Explain Paxos shard replication and write ordering.",
+                new_course_conversation_state(course_id=course.course_id),
+                owner_id=self.owner, course_id=course.course_id,
+                course_title="Replication course", video_ids=[video.video_id],
+                dependencies=VideoAnswerDependencies(model=model))
+        supplied = model.requests[0][1]["content"]
+        self.assertIn(tail, supplied)
+        self.assertNotIn("Excluded secret mechanism", supplied)
+        self.assertEqual(set(versions), {video.video_id})
+        self.assertEqual({item.video_id for item in result.citations}, {str(video.video_id)})
+        self.assertTrue(any(tail in item.excerpt for item in result.evidence))
+
     def test_course_turn_retrieves_and_cites_more_than_one_lecture(self) -> None:
         model = FakeAnswerModel(
             "The first lecture introduces attention [S1], while the second "

@@ -16,7 +16,7 @@ from video.contracts import VideoEvidenceRef
 
 
 INSUFFICIENT_EVIDENCE_MARKER = "INSUFFICIENT_EVIDENCE:"
-PROMPT_VERSION = "video-answer-v1"
+PROMPT_VERSION = "video-answer-v2"
 
 LOCKED_GROUNDING_PROMPT = """
 You answer questions about one recorded lecture using only the evidence the
@@ -28,6 +28,9 @@ Grounding requirements:
   obvious.
 - Cite every substantive claim with its evidence marker: [S1], [S2], and so
   on. Place the marker at the claim it supports, not at the end of the answer.
+- Address every supported part of the question before adding background.
+  Explain the requested mechanisms and consequences. Name a specific missing
+  part when evidence is incomplete rather than silently dropping it.
 - Evidence marked "Frame" or "Visual change" describes what is on screen. Some
   frames are supplied to you as images; read them directly. Describe what is
   shown as something visible in the lecture, not as something that was said.
