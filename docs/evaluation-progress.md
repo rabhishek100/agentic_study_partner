@@ -30,7 +30,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 9b | Ten saved-output LLM reviews | Complete | Two per flow; source/PDF hashes verified; no regeneration; $0.136506925 under $1 cap; hosted trace readback |
 | 10 | Complete verification checklist | Complete | Ordered commands, every feature family, expected results, hosted checks and explicit coverage gaps |
 | 11 | Production deployment and acceptance | Complete, bounded | Five services at d58c608; every feature family exercised, four runtime defects fixed and rechecked, production dashboard filtered; explicit device/external/quality limits in production-verification.md |
-| 12 | LangSmith notification noise | In progress | Routing implemented; 38 targeted tests and full isolated suite (2,104 tests / 962 subtests, 38 skips) pass; API deployment and hosted readback pending |
+| 12 | LangSmith notification noise | Complete | API/worker 8bd52be deployed; notification polls and periodic reminders read back in production-operations; real AI trace remains in main with 28 connected spans / two LLM calls; 2,104 tests / 962 subtests passed, 38 skips |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -379,8 +379,13 @@ and stay ignored. Public setup templates contain placeholders only.
 ## Next action
 
 Production deployment and bounded acceptance are complete; resume from
-`docs/production-verification.md`. Release `d58c608` is live on all five services;
-dashboard-only changes do not need an application release. Isolated backend:
+`docs/production-verification.md`. Original acceptance used `d58c608` on all five
+services. The 3 October notification-noise follow-up deployed API/combined worker
+`8bd52be`; web and voice retain their accepted release. Routine polling now has
+complete traces in `agentic-study-partner-production-operations`; the main project
+retains AI trees. Hosted readback confirms both destinations and two completed
+periodic reminder checks. The follow-up isolated suite passed 2,104 tests / 962
+subtests with 38 skips. Original acceptance backend evidence:
 2,102 tests and 962 subtests passed, 38 skipped. Real providers exercised the five
 primary flows, PDF/paper/OCR/uploaded-video ingestion, cards, reader, reminders,
 settings and HTTP/live voice. All five flow-family review outputs are usable

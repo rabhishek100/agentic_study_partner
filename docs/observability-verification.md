@@ -82,3 +82,20 @@ check. The existing application process was left running unchanged.
 
 These are transport checks, not latency benchmarks or completed study-flow
 evaluations. Restart running backend services to activate their exporters.
+
+## Notification isolation — 3 October 2026
+
+The API/combined worker release `8bd52be` separates routine notification GET polls
+and periodic reminder reconciliation into `agentic-study-partner-production-operations`.
+Full spans/errors remain recorded. Existing parent trees, evaluation projects,
+HTTP trace headers and Grafana exports retain their behavior.
+
+Two regressions failed before the change. After repair, 38 targeted tests and
+six subtests passed; the full isolated backend suite passed 2,104 tests and 962
+subtests, with 38 skips. Hosted readback verified a real notification poll and
+two completed reminder roots in operations, and a real grounded AI request in
+the main project: 28 connected spans, two physical LLM calls, successful completion.
+The deployment/trace identifiers are recorded in
+[production acceptance](production-verification.md#follow-up--3-october-notification-trace-noise).
+Old polling history is retained; this change routes new traces rather than deleting
+historical records or depending on UI filters.

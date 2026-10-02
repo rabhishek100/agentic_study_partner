@@ -6,6 +6,22 @@ model-quality certification. Device audio, fresh external YouTube acquisition an
 broader quality coverage remain open. The provider budget was $5 total, with each
 evaluation experiment capped at $1–$2; no manual rating was required.
 
+### Follow-up — 3 October: notification trace noise
+
+API/combined worker revision `8bd52be` deployed successfully as
+`b8931dac-b1c5-4bd7-90bc-fb511c32f5b7`. Routine notification GET polls and periodic
+reminder checks now go to `agentic-study-partner-production-operations`, retaining
+complete traces and errors. Existing evaluation and parent contexts stay intact.
+Web/voice deployments remain at the accepted revision below.
+
+Live readback verified notification trace `01a0fe3d-e748-7670-ae9b-d814ba8d0228`
+in the operations project, two completed reminder checks there, and a real grounded
+chat trace `01a0fe3d-e877-7c11-a968-de6d522b8493` in the main production project
+with 28 spans, two LLM calls and no missing parents. Targeted checks: 38 tests /
+six subtests; full isolated suite: 2,104 tests / 962 subtests, 38 skips (117.58s).
+Historical notification traces are retained and can remain in old time windows
+and frequent-name shortcuts; newly received polling no longer fills the main list.
+
 ## Release and recovery
 
 - [Production application](https://web-production-8529e.up.railway.app).
