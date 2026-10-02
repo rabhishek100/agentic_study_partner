@@ -29,7 +29,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 9a | Default automated artifact review | Complete | LLM scores visible by default; manual review optional; rendered PDF pages and immutable saved-output review |
 | 9b | Ten saved-output LLM reviews | Complete | Two per flow; source/PDF hashes verified; no regeneration; $0.136506925 under $1 cap; hosted trace readback |
 | 10 | Complete verification checklist | Complete | Ordered commands, every feature family, expected results, hosted checks and explicit coverage gaps |
-| 11 | Production deployment and acceptance | In progress | Five services at one revision; real hosted telemetry and all-feature smoke within $5; see production-verification.md |
+| 11 | Production deployment and acceptance | Complete, bounded | Five services at d58c608; every feature family exercised, four runtime defects fixed and rechecked, production dashboard filtered; explicit device/external/quality limits in production-verification.md |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -377,16 +377,31 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Production acceptance is active; resume from `docs/production-verification.md`.
-Release `74c7f9c` is live on all five services. Private probe/session/results are
-in `/tmp/study-production-verification` (session expires; do not commit it).
-Initial deployment and real-provider smoke passed; ingestion, artifact, voice,
-full telemetry and remaining feature checks continue under the $5 total cap.
+Production deployment and bounded acceptance are complete; resume from
+`docs/production-verification.md`. Release `d58c608` is live on all five services;
+dashboard-only changes do not need an application release. Isolated backend:
+2,102 tests and 962 subtests passed, 38 skipped. Real providers exercised the five
+primary flows, PDF/paper/OCR/uploaded-video ingestion, cards, reader, reminders,
+settings and HTTP/live voice. All five flow-family review outputs are usable
+under the bounded Luna rubric after supplying original figure pixels for the
+sheet; the original unsure judgment is preserved. This is not a full gold rerun.
+Recorded OpenRouter delta $0.179652 includes $0.0833288 judging; separate voice
+estimates $0.012254, with partial/delayed billing caveats. Private proofs and
+expiring login state stay in `/tmp/study-production-verification`, outside Git.
+
+Remaining: user-device microphone/playback, fresh external YouTube acquisition,
+actual device analytics opt-out, wider accessibility/browser coverage, broader
+quality and separately scoped resilience/load tests. Four production defects
+were reproduced with regressions and rechecked live: telemetry startup, voice
+flush timeout, completed-upload acquisition and OCR chapter page boundaries.
+Grafana now defaults to production and filters every panel; validation, hosted
+queries and rendered inspection passed. One historical summary-open 500 was a
+Railway internal connection timeout; retry passed, underlying cause unproven.
 
 Automated review replacement is complete; no user rating is required. Future
 live evals use the updated judge. To review saved outputs, use the committed
 selection and `scripts.judge_saved_evaluations` in a new $1-capped directory;
 resume only with matching reviewer code/configuration and output hashes.
-The next quality priorities are sheet semantic/concept coverage and the other
-automated findings in the final report, then source readiness and runtime
-acceptance. Preserve immutable runs, receipt budgets and optional manual labels.
+The next quality priorities are sheet semantic/concept coverage, exact chat
+citation alignment and summary completeness, then measured generation-latency
+improvements. Preserve immutable runs, receipt budgets and optional manual labels.

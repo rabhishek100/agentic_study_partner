@@ -86,6 +86,8 @@ Web: `http://localhost:3000`; API health: `http://localhost:8000/api/health`.
 
 Step-by-step checks for every feature, automated suite and hosted integration:
 [complete verification checklist](docs/verification-checklist.md).
+Deployed release, real-provider checks and remaining device/external checks:
+[production acceptance record](docs/production-verification.md).
 Five-flow baseline, measured improvements and quality limits:
 [evaluation results](docs/evaluation-results.md).
 Resumable work units, verification and next steps:
