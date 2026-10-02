@@ -269,4 +269,32 @@ Real isolated-Postgres regressions cover concurrent identical requests, settings
 isolation, cache reuse and failed-generation retry. Twelve targeted tests passed.
 Full isolated suite: 2,106 tests and 962 subtests passed, 38 skipped (134.93s).
 Frontend: 753 tests passed (28.65s); TypeScript and production build passed.
-Deployment and production web-origin acceptance are pending.
+Fix checkpoint `ba6a887` was committed and pushed. Production deployments:
+API/combined worker `62eab578-fc36-4e0b-8ace-40de69abf7c0` and web
+`4635f254-db6b-45e5-a9ec-24b75f1d934b`, both SUCCESS. API health reports
+`ba6a887`; voice services were not changed.
+
+Two overlapping authenticated demo requests went through
+`https://web-production-8529e.up.railway.app/api/ideal-interviews`, not the API
+origin, for a previously uncached chapter (book 10000542, node 10005641).
+Both returned 201 and the same flow `1385c751-07c8-4f58-be9e-dcbda4fe23c3`
+after 264.736s and 262.730s. All 45 topics are represented once with citations;
+the responses and persisted GET transcript match. Browser readback displayed
+45/45 topics and page grounding. Audio playback was not repeated in this
+follow-up; generation/persistence/proxy behavior is the acceptance scope.
+
+Hosted LangSmith readback:
+
+- [Generation tree](https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/46a8e1c0-2129-4a17-9784-8820723cc749/r/01a0fe5f-1490-73f3-a5f8-0a127ee14262?poll=true): 728 spans, 45 generated exchanges, 68 model calls including citation repairs.
+- [Concurrent retry tree](https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/46a8e1c0-2129-4a17-9784-8820723cc749/r/01a0fe5f-1c0f-74c2-9239-978a750497ca?poll=true): three spans, zero generated exchanges/model calls, same saved flow.
+
+Both roots ended with 201; all spans ended, no errors or missing parents.
+Observed OpenRouter key-usage increase during acceptance was $0.030895495;
+the returned generation estimate was $0.019387. These are distinct measures:
+key usage may include concurrent activity and delayed receipts, and the app's
+estimate is not invoice reconciliation. Cumulative key delta from the original
+production-test baseline is $0.259293, below the authorized $5 ceiling.
+Private response and trace proofs remain in `/tmp/study-production-trace-diagnosis`
+and `/tmp/study-production-verification`, outside Git. This confirms delivery,
+coverage/citation contracts and duplicate prevention; no new quality-judge or
+human-calibration result is implied.

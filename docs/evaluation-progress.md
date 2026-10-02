@@ -31,7 +31,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 10 | Complete verification checklist | Complete | Ordered commands, every feature family, expected results, hosted checks and explicit coverage gaps |
 | 11 | Production deployment and acceptance | Complete, bounded | Five services at d58c608; every feature family exercised, four runtime defects fixed and rechecked, production dashboard filtered; explicit device/external/quality limits in production-verification.md |
 | 12 | LangSmith notification noise | Complete | API/worker 8bd52be deployed; notification polls and periodic reminders read back in production-operations; real AI trace remains in main with 28 connected spans / two LLM calls; 2,104 tests / 962 subtests passed, 38 skips |
-| 13 | Ideal interview generation through the web proxy | In verification | Confirmed 30s Next rewrite disconnect and overlapping retry unique-key failure; 10-minute proxy budget and transaction-scoped generation lock implemented; real Next 35s proxy regression and Postgres concurrency checks passed; 2,106 backend tests / 962 subtests passed (38 skips), 753 frontend tests plus types/build passed; deployment acceptance pending |
+| 13 | Ideal interview generation through the web proxy | Complete, bounded | API and web ba6a887 deployed; concurrent web-origin requests returned one complete 45-topic flow after 264.736s / 262.730s; first trace 68 model calls, retry zero; connected trees and UI readback passed; 2,106 backend tests / 962 subtests (38 skips), 753 frontend tests, types/build and real 35s proxy regression passed |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -379,23 +379,28 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Resume unit 13: commit and push the verified fix, then deploy API and web from the clean release worktree, and exercise a fresh ideal
-chapter generation through the production **web** URL. Direct API acceptance
-does not validate the web proxy timeout. Verify concurrent retry shares the
-same saved flow and introduces no extra model calls; read back the LangSmith
-trees. The user's already completed Chapter 6 flow can be opened without
-regeneration at `/interviews/ideal/325f485a-2af5-4cf3-9dc8-dc6ce2f7d30a`.
-Private diagnosis and provider budgets remain outside Git. The previous
-acceptance below predates this newly reproduced failure.
+Unit 13 is complete: API/combined worker and web now run `ba6a887`. Production
+web-origin acceptance returned the same fully cited, 45-topic ideal interview
+for two overlapping requests after 264.736s and 262.730s. The first trace has
+45 exchanges and 68 model calls (including citation repairs); the retry has
+zero exchanges/model calls. Both trees ended without errors or missing parents.
+Browser readback showed 45/45 topics, transcript and source-page grounding.
+The user's completed Chapter 6 flow remains reusable at
+`/interviews/ideal/325f485a-2af5-4cf3-9dc8-dc6ce2f7d30a`. Resume future work from
+the remaining device/quality items below, not by regenerating these interviews.
+The synchronous implementation has a finite 10-minute proxy budget; restart
+recovery and generation beyond that budget are not claimed as solved.
 
 Production deployment and bounded acceptance are complete; resume from
 `docs/production-verification.md`. Original acceptance used `d58c608` on all five
 services. The 3 October notification-noise follow-up deployed API/combined worker
-`8bd52be`; web and voice retain their accepted release. Routine polling now has
+`8bd52be`; the ideal-generation follow-up subsequently deployed API and web
+`ba6a887`. Voice services retain their accepted release. Routine polling now has
 complete traces in `agentic-study-partner-production-operations`; the main project
 retains AI trees. Hosted readback confirms both destinations and two completed
 periodic reminder checks. The follow-up isolated suite passed 2,104 tests / 962
-subtests with 38 skips. Original acceptance backend evidence:
+subtests with 38 skips; the subsequent ideal-generation fix passed 2,106 tests
+and 962 subtests, with 38 skips. Original acceptance backend evidence:
 2,102 tests and 962 subtests passed, 38 skipped. Real providers exercised the five
 primary flows, PDF/paper/OCR/uploaded-video ingestion, cards, reader, reminders,
 settings and HTTP/live voice. All five flow-family review outputs are usable

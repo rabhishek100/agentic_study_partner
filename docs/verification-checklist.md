@@ -90,6 +90,12 @@ CI additionally audits production dependencies and builds/parses a PDF in the
 production Docker image; [the workflow](../.github/workflows/ci.yml) contains the
 exact image smoke. Hosted CI triggers on main or PRs, not every branch push.
 
+For changes to API rewrites or long synchronous generation, also run
+`npm --prefix frontend run verify:proxy`. This local smoke check starts the real
+Next server and delays an ideal-interview POST by 35 seconds. Expect 201 with
+the body and authorization preserved; it makes no paid calls. It specifically
+guards against Next's former 30-second default rewrite timeout.
+
 To check the production API image locally, including a real digital-PDF parse:
 
 ```bash
@@ -172,7 +178,7 @@ are billed separately from the capped eval experiments.
 | Reminders | Enable timezone/time preference with due cards; keep worker running through the due time; refresh notifications; read/dismiss; reopen Today | One daily notification per local date; persistence and read/dismiss work; browser alert only with permission and running app |
 | Revision sheets | Generate small and large chapter/paper sheets; follow job; open/download PDF; refresh; ask a follow-up | Artifact bytes and warnings persist; source-based follow-up cites original content; failed job offers explicit recovery |
 | Adaptive interview | Start; answer weakly then more fully; request clarification/hint; pause; refresh/resume; submit; end/open report | Exactly one saved transition per submission; scores/feedback/report persist; scope and session recover correctly |
-| Ideal interview | Generate; reopen; inspect exchanges/citations; start and stop two-voice playback | Saved reusable dialogue; no candidate grading; playback reads persisted exchanges |
+| Ideal interview | Generate an uncached chapter through the web UI/proxy (include a >30s case); submit an overlapping identical request; reopen; inspect exchanges/citations; start and stop two-voice playback | Both requests return the same saved dialogue; only the first makes model calls; complete cited topic coverage; no candidate grading; playback reads persisted exchanges |
 | Dictation/HTTP speech | Record a short answer; edit transcript; submit; play saved question/answer | Transcription fills editable draft; only explicit submit advances state; audio failures leave usable text |
 | LiveKit interview | Connect; hear question; speak; stop/flush; edit; submit; disconnect/reconnect | Same API-owned session; no unsolicited advancement; stale capture/playback stops; explicit listen resumes capture |
 | Read-aloud/narration | Speak answer and source passage; pause/stop; replay; interrupt with a voice question if enabled | Spoken content follows saved text; cache is identifiable; interruption preserves reading position and anchored thread |
