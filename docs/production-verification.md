@@ -63,6 +63,21 @@ also claim completed primary uploads, preserving external-download separation
 and the acquisition checkpoint. All 45 targeted video tests and three subtests
 passed against an isolated database. Production pipeline recheck is pending.
 
+That upload subsequently reached `ready` in production; recorded ingestion cost
+was $0.000593. Real narration and active adaptive interview rooms now play
+non-silent audio, transcribe a synthetic microphone and acknowledge flush.
+An expired room-token reconnect returned 401; refreshing the ten-minute token
+through the normal authenticated endpoint restored the connection.
+
+The disposable OCR scan preserved all four pages, but numbered/renamed reviewed
+headings failed to open their chapter on the declared page. The last chapter
+was empty and its automatic cards failed with `source_unavailable`. Two new
+regressions reproduced the assignment defects; a third preserves legitimate
+continuation text before a matched heading. Numeric prefixes now normalize and
+unlocated headings fall back to the confirmed page boundary. All 75 targeted
+transcription/parser/OCR/outline tests passed. Deployment and a new scan check
+are pending; existing sources are not rewritten automatically.
+
 ### Deployment evidence
 
 | Service | Deployment ID |

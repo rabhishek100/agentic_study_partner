@@ -203,6 +203,34 @@ class BuildTranscribedBookTests(unittest.TestCase):
         self.assertNotIn("Cover text.", texts)
         self.assertIn("Body.", texts)
 
+    def test_numbered_scan_headings_open_unnumbered_reviewed_entries(self) -> None:
+        book = self._build(
+            [(1, "Evaluation fundamentals", 1), (1, "Safe automation", 2)],
+            [(1, "# 1. Evaluation fundamentals\n\nPrecision and recall."),
+             (2, "# 2. Safe automation\n\nDurable jobs and leases.")],
+        )
+        self.assertIn("Durable jobs and leases.", book.sections[1].full_text)
+        self.assertNotIn("Durable jobs and leases.", book.sections[0].full_text)
+
+    def test_unmatched_reviewed_heading_owns_its_declared_page(self) -> None:
+        book = self._build(
+            [(1, "Introduction", 1), (1, "Renamed chapter", 2)],
+            [(1, "# Introduction\n\nOpening."),
+             (2, "# Printed title\n\nLast chapter body.")],
+        )
+        self.assertIn("Last chapter body.", book.sections[1].full_text)
+        self.assertNotIn("Last chapter body.", book.sections[0].full_text)
+
+    def test_content_before_matched_scan_heading_stays_in_prior_section(self) -> None:
+        book = self._build(
+            [(1, "Introduction", 1), (1, "Next chapter", 2)],
+            [(1, "# Introduction\n\nOpening."),
+             (2, "Continued introduction.\n\n# Next chapter\n\nNext body.")],
+        )
+        self.assertIn("Continued introduction.", book.sections[0].full_text)
+        self.assertNotIn("Continued introduction.", book.sections[1].full_text)
+        self.assertIn("Next body.", book.sections[1].full_text)
+
     def test_the_confirmed_outline_is_carried_through_unaltered(self) -> None:
         """The hierarchy is the one thing a human vouched for."""
 
