@@ -20,6 +20,7 @@ from livekit.agents import (
 )
 
 from observability import record_voice_metrics, traced, annotate, flush_traces, record_estimate
+from operations_telemetry import configure_voice_worker
 from interviews import store
 from interviews.livekit_voice import (
     AGENT_NAME, EVENT_TOPIC, RPC_METHOD, VoiceBinding, VoiceCommand,
@@ -37,6 +38,7 @@ server = AgentServer(
     port=int(os.getenv("PORT", "8081")),
     drain_timeout=30,
 )
+configure_voice_worker(server, "study-partner-interview-voice")
 
 
 class InterviewMedia:
@@ -249,8 +251,6 @@ class InterviewMedia:
 @server.rtc_session(agent_name=AGENT_NAME)
 @traced("interviews.voice_worker.interview_voice", flow="interview_voice")
 async def interview_voice(ctx: JobContext):
-    from operations_telemetry import configure_logging
-    configure_logging("study-partner-interview-voice")
     binding = VoiceBinding.model_validate_json(ctx.job.metadata)
     annotate(session_id=str(binding.session_id), thread_id=str(binding.session_id))
     if ctx.room.name != binding.room_name:

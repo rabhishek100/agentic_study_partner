@@ -1,6 +1,7 @@
 """Exercise stream concurrency and worker authority without provider calls."""
 
 import asyncio
+import pickle
 from contextlib import nullcontext
 from types import SimpleNamespace
 import unittest
@@ -18,6 +19,30 @@ from livekit.agents import stt
 from interviews.livekit_voice import VoiceBinding, VoiceCommand
 from interviews.voice_worker import InterviewMedia
 from tests.test_livekit_voice import active_session, OWNER
+
+
+def test_all_voice_servers_initialize_parent_and_pickled_child_telemetry():
+    from interviews import voice_worker, ideal_voice_worker
+    from narration import voice_worker as narration_worker
+    from livekit.agents import AgentServer
+    from operations_telemetry import configure_voice_worker
+
+    for module, service in [
+        (voice_worker, "study-partner-interview-voice"),
+        (ideal_voice_worker, "study-partner-ideal-interview-voice"),
+        (narration_worker, "study-partner-narration-voice"),
+    ]:
+        # Test the actual registered child callback without launching a room.
+        with patch("operations_telemetry.configure_logging") as configure:
+            pickle.loads(pickle.dumps(module.server.setup_fnc))(SimpleNamespace())
+            configure.assert_called_once_with(service)
+        # A separate server keeps the real server's once hook intact.
+        parent = AgentServer(num_idle_processes=0)
+        configure_voice_worker(parent, service)
+        with patch("operations_telemetry.configure_logging") as configure:
+            parent.emit("worker_started")
+            parent.emit("worker_started")
+            configure.assert_called_once_with(service)
 
 
 def media():

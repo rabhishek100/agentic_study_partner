@@ -12,6 +12,7 @@ import os
 import re
 import threading
 import traceback
+from functools import partial
 from contextlib import contextmanager
 from contextvars import ContextVar
 from time import perf_counter
@@ -118,6 +119,21 @@ def configure_logging(service: str, *, log_file: str = ""):
     configure(service)
     if _RUNTIME:
         root.addHandler(_ExportHandler(logger_provider=_RUNTIME["logs"]))
+
+
+def _configure_voice_process(_process=None, *, service: str):
+    configure_logging(service)
+
+
+def configure_voice_worker(server, service: str):
+    """Initialize both the idle server and each child before its traced session.
+
+    LiveKit initializes job processes separately. The setup callback must be
+    picklable for spawn/forkserver, and the parent hook runs after CLI logging.
+    """
+    initialize = partial(_configure_voice_process, service=service)
+    server.setup_fnc = initialize
+    server.once("worker_started", initialize)
 
 
 def configure(service: str):

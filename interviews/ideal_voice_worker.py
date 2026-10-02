@@ -14,6 +14,7 @@ from livekit import rtc
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, TurnHandlingOptions, cli, inference, room_io
 
 from observability import record_voice_metrics, traced, annotate, flush_traces, record_estimate
+from operations_telemetry import configure_voice_worker
 from interviews import ideal_store
 from interviews.ideal_livekit import (
     AGENT_NAME,
@@ -36,6 +37,7 @@ server = AgentServer(
     port=int(os.getenv("PORT", "8082")),
     drain_timeout=30,
 )
+configure_voice_worker(server, "study-partner-ideal-interview-voice")
 
 
 def spoken_sentences(text: str) -> list[str]:

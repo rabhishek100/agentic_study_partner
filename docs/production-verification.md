@@ -21,8 +21,8 @@ Never run pytest against the production database or restore a backup into it.
 | Step | Status | Evidence / remaining action |
 |---|---|---|
 | Inventory and migration audit | PASS | Authenticated Railway inventory; current production schema |
-| Pre-release logical backup | RUNNING | Off-provider dump; require checksum and archive listing before deploy |
-| Hosted settings | RUNNING | Configure Grafana on API/all voice processes, LangSmith production project, PostHog web build |
+| Pre-release logical backup | PASS | 432 MB custom archive; SHA-256 check passed, 62 data-table entries; private local backup |
+| Hosted settings | CONFIGURED | Grafana on API/all voice processes, LangSmith production project, PostHog web build; runtime delivery pending |
 | Clean release | RUNNING | Managed worktree excludes unrelated local changes and private evaluation artifacts |
 | Five service deployments | PENDING | Same committed revision; check Railway status and runtime identity |
 | Health, authentication and ownership | PENDING | Real HTTP and browser session |
@@ -39,3 +39,11 @@ Use [the complete checklist](verification-checklist.md) for expected behavior an
 the [API catalog](api.md#endpoint-catalog) for routes. Existing local test results
 are prerequisites; they do not count as production passes. Keep production test
 artifacts private, and commit only sanitized findings and trace identifiers.
+
+## Release findings
+
+Voice telemetry initialized inside two session callbacks, after their traced
+root had already started; ideal voice never initialized it. Fixed all three
+servers using LiveKit's parent startup event and picklable child setup callback.
+This also exports idle parent CPU/RSS. Targeted voice/observability verification:
+43 tests and six subtests passed. Real room/audio transport remains pending.

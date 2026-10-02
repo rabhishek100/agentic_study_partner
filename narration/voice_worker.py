@@ -27,6 +27,7 @@ from livekit.agents import (
 )
 
 from observability import record_voice_metrics, traced, annotate, flush_traces
+from operations_telemetry import configure_voice_worker
 from narration.livekit_voice import (
     AGENT_NAME,
     EVENT_TOPIC,
@@ -48,6 +49,7 @@ server = AgentServer(
     port=int(os.getenv("PORT", "8081")),
     drain_timeout=30,
 )
+configure_voice_worker(server, "study-partner-narration-voice")
 
 
 class NarrationMedia:
@@ -318,8 +320,6 @@ class NarrationMedia:
 @server.rtc_session(agent_name=AGENT_NAME)
 @traced("narration.voice_worker.narration_voice", flow="narration_voice")
 async def narration_voice(ctx: JobContext):
-    from operations_telemetry import configure_logging
-    configure_logging("study-partner-narration-voice")
     binding = VoiceBinding.model_validate_json(ctx.job.metadata)
     annotate(conversation_id=str(binding.conversation_id), thread_id=str(binding.conversation_id))
     if ctx.room.name != binding.room_name:
