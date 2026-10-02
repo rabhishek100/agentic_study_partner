@@ -381,6 +381,13 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
+Round-two quality/speed comparison is authorized and in progress; resume from
+[evaluation-round2.md](evaluation-round2.md). Unit 15 freezes all 54 cases and
+starts a fresh current-code, BM25 baseline under $2. Quality, then speed,
+candidates follow only after the baseline is complete. The production reranker
+remains outside the priced budget guard, and missing course evidence and the
+retained labelled-general-knowledge policy remain disclosed separately.
+
 Unit 14 is complete. API/combined worker and all three voice services now run
 `0983a1c`; production health reports that revision. Verified `user_id` is present
 in 23 real chat LangSmith runs (two LLM calls), 11 connected Tempo spans, the
