@@ -377,6 +377,12 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
+Production acceptance is active; resume from `docs/production-verification.md`.
+Release `74c7f9c` is live on all five services. Private probe/session/results are
+in `/tmp/study-production-verification` (session expires; do not commit it).
+Initial deployment and real-provider smoke passed; ingestion, artifact, voice,
+full telemetry and remaining feature checks continue under the $5 total cap.
+
 Automated review replacement is complete; no user rating is required. Future
 live evals use the updated judge. To review saved outputs, use the committed
 selection and `scripts.judge_saved_evaluations` in a new $1-capped directory;

@@ -23,16 +23,16 @@ Never run pytest against the production database or restore a backup into it.
 | Inventory and migration audit | PASS | Authenticated Railway inventory; current production schema |
 | Pre-release logical backup | PASS | 432 MB custom archive; SHA-256 check passed, 62 data-table entries; private local backup |
 | Hosted settings | CONFIGURED | Grafana on API/all voice processes, LangSmith production project, PostHog web build; runtime delivery pending |
-| Clean release | RUNNING | Managed worktree excludes unrelated local changes and private evaluation artifacts |
-| Five service deployments | PENDING | Same committed revision; check Railway status and runtime identity |
-| Health, authentication and ownership | PENDING | Real HTTP and browser session |
+| Clean release | PASS | Managed worktree, release `74c7f9c`; unrelated changes and secrets excluded |
+| Five service deployments | PASS | All five Railway deployments SUCCESS; API/web runtime revision confirmed, adaptive voice runtime checked |
+| Health, authentication and ownership | PARTIAL | Direct/proxied health and signed-in reads pass; missing auth 401, missing source 404, invalid study input 422; cross-account isolation still pending |
 | Ingestion and durable worker | PENDING | Disposable source, queued job, persistence and cleanup |
-| Chat, summaries, video/course, sheets, interviews | PENDING | Real providers, evidence/artifacts and bounded spend |
+| Chat, summaries, video/course, sheets, interviews | PARTIAL | Real providers returned persisted outputs for every primary flow; PDF/recovery/voice and quality checks continue |
 | Cards, reminders, reader, speech and narration | PENDING | Live smoke; device-only checks recorded separately |
 | Failure recovery and accessibility | PENDING | Safe request failures and browser navigation; destructive faults isolated |
-| LangSmith every flow | PENDING | Finished trace roots/LLM children and worker job correlation |
-| Grafana metrics/logs/traces | PENDING | Actual production samples and correlated trace/log readback |
-| PostHog | PENDING | Production page/action events; privacy and opt-out checks |
+| LangSmith every flow | PARTIAL | Chat/summary finished roots and LLM children read back; remaining flows/job correlation pending |
+| Grafana metrics/logs/traces | PARTIAL | Production API/worker/supervisor/all voice RSS samples; chat Tempo trace and correlated Loki log read back |
+| PostHog | PARTIAL | Real production pageview/ui_action/reading-session API events, normalized routes; streamed completion/privacy/opt-out checks pending |
 | Final acceptance record | PENDING | PASS/FAIL/BLOCKED by feature, actual spend and open issues |
 
 Use [the complete checklist](verification-checklist.md) for expected behavior and
@@ -47,3 +47,32 @@ root had already started; ideal voice never initialized it. Fixed all three
 servers using LiveKit's parent startup event and picklable child setup callback.
 This also exports idle parent CPU/RSS. Targeted voice/observability verification:
 43 tests and six subtests passed. Real room/audio transport remains pending.
+
+### Deployment evidence
+
+| Service | Deployment ID |
+|---|---|
+| API/worker | `dc9ae14f-0acc-4dde-b677-bc98c7cc7091` |
+| Web | `2061dd81-06d2-4752-ab88-d5108481b67c` |
+| Adaptive voice | `719ff148-44bc-4d3a-95f5-da301791f709` |
+| Ideal voice | `fea01e12-2789-41c0-88a6-3188cc50fdec` |
+| Narration voice | `b09b114e-d62d-4628-abfd-a2c56f0eb5c2` |
+
+### First live smoke checkpoint
+
+- Book chat: 11.8 seconds, five evidence items and two citations.
+- Complete chapter summary: 28.1 seconds, hierarchy-summary route, 48 evidence
+  items and 67 citations. These counts prove returned evidence, not correctness.
+- Lecture/course study: 13.4 / 4.9 seconds, persisted cited answers.
+- Adaptive interview: create/start, pause/resume, answer/finish/report succeeded.
+- Ideal chapter interview: generated and reopened successfully, 267.9 seconds.
+- Revision sheet: queued, worker composing, then ready; download/reopen pending.
+- Synthetic book/paper PDFs: uploaded to the production source store and queued.
+- Provider usage is delayed: first readbacks reported zero, later $0.071954.
+  Recheck receipts and final usage before reporting a final total. Voice uses
+  separate usage estimates. No manual quality rating has been claimed.
+- Correlated chat trace: LangSmith `01a0fd8a-f8c8-7152-9bc4-c895e19a66f9`,
+  Tempo `6ca0aada30aa73cfa0e3a6614f1bb10d`; matching production Loki log present.
+- First course-create probe omitted its required idempotency header and returned
+  the expected 400 contract error. Corrected request returned 201; this was a
+  probe-input correction, not an application defect.
