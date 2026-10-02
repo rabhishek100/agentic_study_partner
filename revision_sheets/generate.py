@@ -18,7 +18,7 @@ from storage.book_images import load_figure
 from video.media_store import MediaStoreError
 from .contracts import Contract, RevisionError, Sheet, Item, Diagram, SCHEMA_VERSION
 from .graph import State, build_revision_graph
-from .html_render import LAYOUT_VERSION, make_html, max_pages, render_html_pdf
+from .html_render import LAYOUT_VERSION, make_html, max_pages, pdf_render_session, render_html_pdf
 from .review import (Inventory, FigureBatch, Review, RUBRIC_VERSION, make_inventory, judge_sheet)
 from .source import Source
 from .validate import validate_sheet, resolve_disposition_concepts
@@ -307,29 +307,30 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
             # two-page sheet is still the better artifact when the material
             # allows one, and extra paper is a concession to dense chapters
             # rather than a target to fill.
-            for detail_pages in range(1, max_pages()):
-                for compact in (False, True):
-                    for figure_limit, intro_count in LAYOUT_COMBINATIONS:
-                        html = make_html(state["sheet"], source_title=source.title,
-                            scope_title=source.scope_title, references=source.references, figures=assets,
-                            figure_limit=figure_limit, intro_note_count=intro_count, compact=compact,
-                            detail_pages=detail_pages)
-                        try:
-                            fills = []
-                            pdf = render_html_pdf(html, state["sheet"], on_layout=fills.extend)
-                            # Even pages read better than one full page beside
-                            # a sparse one, and a sheet that barely fills its
-                            # last page should have used fewer.
-                            score = (max(fills) - min(fills)) + 0.1 * max(fills) if fills else 0
-                            candidates.append((score, pdf, html, figure_limit, compact, detail_pages))
-                        except RevisionError as error:
-                            if error.code != "page_overflow":
-                                raise
-                            fit_error = error
+            with pdf_render_session() as browser:
+                for detail_pages in range(1, max_pages()):
+                    for compact in (False, True):
+                        for figure_limit, intro_count in LAYOUT_COMBINATIONS:
+                            html = make_html(state["sheet"], source_title=source.title,
+                                scope_title=source.scope_title, references=source.references, figures=assets,
+                                figure_limit=figure_limit, intro_note_count=intro_count, compact=compact,
+                                detail_pages=detail_pages)
+                            try:
+                                fills = []
+                                pdf = render_html_pdf(html, state["sheet"], on_layout=fills.extend, browser=browser)
+                                # Even pages read better than one full page beside
+                                # a sparse one, and a sheet that barely fills its
+                                # last page should have used fewer.
+                                score = (max(fills) - min(fills)) + 0.1 * max(fills) if fills else 0
+                                candidates.append((score, pdf, html, figure_limit, compact, detail_pages))
+                            except RevisionError as error:
+                                if error.code != "page_overflow":
+                                    raise
+                                fit_error = error
+                        if candidates:
+                            break
                     if candidates:
                         break
-                if candidates:
-                    break
             if candidates:
                 _, pdf, html, figure_limit, compact, detail_pages = min(candidates, key=lambda c: c[0])
             elif fit_error:

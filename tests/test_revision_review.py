@@ -148,3 +148,46 @@ class ReviewTests(unittest.TestCase):
         html = make_html(sheet, source_title=source.title, scope_title=source.scope_title, references=source.references)
         with self.assertRaisesRegex(RevisionError, "overlaps"):
             render_html_pdf(html, sheet)
+
+    def test_layout_session_reuses_browser_but_closes_each_context_even_on_overflow(self):
+        from contextlib import contextmanager
+        from types import SimpleNamespace
+        from playwright.sync_api import sync_playwright as real_runtime
+        from revision_sheets.html_render import pdf_render_session
+        browsers, contexts = [], []
+
+        @contextmanager
+        def recorded_runtime():
+            with real_runtime() as runtime:
+                def launch(**kwargs):
+                    real = runtime.chromium.launch(**kwargs)
+                    browser = Mock(wraps=real)
+                    def new_context(**options):
+                        self.assertFalse(options['java_script_enabled'])
+                        context = Mock(wraps=real.new_context(**options))
+                        contexts.append(context)
+                        return context
+                    browser.new_context.side_effect = new_context
+                    browsers.append(browser)
+                    return browser
+                yield SimpleNamespace(chromium=SimpleNamespace(launch=launch))
+
+        source = source_fixture(); sheet = fixture()
+        valid = make_html(sheet, source_title=source.title, scope_title=source.scope_title, references=source.references)
+        oversized = sheet.model_copy(deep=True)
+        oversized.essential_notes[0].text *= 50
+        invalid = make_html(oversized, source_title=source.title, scope_title=source.scope_title, references=source.references)
+        with patch('playwright.sync_api.sync_playwright', recorded_runtime):
+            with pdf_render_session() as browser:
+                first = render_html_pdf(valid, sheet, browser=browser)
+                with self.assertRaisesRegex(RevisionError, 'overlaps'):
+                    render_html_pdf(invalid, oversized, browser=browser)
+                last = render_html_pdf(valid, sheet, browser=browser)
+                self.assertEqual(len(browsers), 1)
+                self.assertEqual(len(contexts), 3)
+                self.assertTrue(all(context.close.call_count == 1 for context in contexts))
+                self.assertEqual(browser.close.call_count, 0)
+            self.assertEqual(browser.close.call_count, 1)
+        with pymupdf.open(stream=first, filetype='pdf') as before, pymupdf.open(stream=last, filetype='pdf') as after:
+            self.assertEqual([page.get_text() for page in before], [page.get_text() for page in after])
+            self.assertEqual(len(before), 2)

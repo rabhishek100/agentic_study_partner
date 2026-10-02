@@ -11,6 +11,7 @@ details after it are distributed, which is what stops a longer sheet from
 becoming an undifferentiated wall.
 """
 from base64 import b64encode
+from contextlib import contextmanager
 from html import escape
 import os
 import re
@@ -24,7 +25,7 @@ from .render import citations
 # Bumped for the multi-page layout: `config_key` includes this, so sheets
 # saved under the two-page spread keep their own provenance and are not
 # silently re-read as if they had been composed under these rules.
-LAYOUT_VERSION = "html-a4-flow-v3"
+LAYOUT_VERSION = "html-a4-flow-v4"
 
 # The ceiling the reader chose. One overview page plus up to four detail pages.
 DEFAULT_MAX_PAGES = 5
@@ -170,36 +171,48 @@ def make_html(sheet, *, source_title, scope_title, references, figures=None, fig
             f'<title>{escape(sheet.title)}</title><style>{css}</style></head><body>{content}{source_key}</body></html>')
 
 
-def render_html_pdf(html, sheet, *, on_preview=None, on_layout=None):
+@contextmanager
+def pdf_render_session():
+    """Reuse browser startup across layouts, never their document contexts."""
     from playwright.sync_api import sync_playwright
     with sync_playwright() as runtime:
         browser = runtime.chromium.launch(headless=True, args=["--no-sandbox"])
         try:
-            context = browser.new_context(java_script_enabled=False, viewport={"width": 1100, "height": 1200})
-            context.route("**/*", lambda route: route.abort())
-            page = context.new_page()
-            page.set_content(html, wait_until="load")
-            page.emulate_media(media="print")
-            failures = page.evaluate("""() => [...document.querySelectorAll('.page')].flatMap((page, index) => {
-                const body = page.querySelector('.body').getBoundingClientRect();
-                const footer = page.querySelector('.footer').getBoundingClientRect();
-                const images = [...page.querySelectorAll('img')];
-                return [...(body.bottom > footer.top - 8 ? [`Page ${index + 1} content overlaps its footer by ${Math.ceil(body.bottom - footer.top + 8)} pixels`] : []),
-                    ...(images.some(i => !i.complete || !i.naturalWidth) ? ['An original figure failed to render'] : [])];
-            })""")
-            if on_layout:
-                on_layout(page.evaluate("""() => [...document.querySelectorAll('.page')].map(p => {
-                    const top = p.getBoundingClientRect().top;
-                    return (p.querySelector('.body').getBoundingClientRect().bottom - top) /
-                        (p.querySelector('.footer').getBoundingClientRect().top - top);
-                })"""))
-            if on_preview:
-                on_preview(page.pdf(format="A4", print_background=True, prefer_css_page_size=True))
-            if failures:
-                raise RevisionError("page_overflow", "; ".join(failures) + ". Shorten prose without removing essential conditions.")
-            data = page.pdf(format="A4", print_background=True, prefer_css_page_size=True)
+            yield browser
         finally:
             browser.close()
+
+
+def render_html_pdf(html, sheet, *, on_preview=None, on_layout=None, browser=None):
+    if browser is None:
+        with pdf_render_session() as owned:
+            return render_html_pdf(html, sheet, on_preview=on_preview, on_layout=on_layout, browser=owned)
+    context = browser.new_context(java_script_enabled=False, viewport={"width": 1100, "height": 1200})
+    try:
+        context.route("**/*", lambda route: route.abort())
+        page = context.new_page()
+        page.set_content(html, wait_until="load")
+        page.emulate_media(media="print")
+        failures = page.evaluate("""() => [...document.querySelectorAll('.page')].flatMap((page, index) => {
+            const body = page.querySelector('.body').getBoundingClientRect();
+            const footer = page.querySelector('.footer').getBoundingClientRect();
+            const images = [...page.querySelectorAll('img')];
+            return [...(body.bottom > footer.top - 8 ? [`Page ${index + 1} content overlaps its footer by ${Math.ceil(body.bottom - footer.top + 8)} pixels`] : []),
+                ...(images.some(i => !i.complete || !i.naturalWidth) ? ['An original figure failed to render'] : [])];
+        })""")
+        if on_layout:
+            on_layout(page.evaluate("""() => [...document.querySelectorAll('.page')].map(p => {
+                const top = p.getBoundingClientRect().top;
+                return (p.querySelector('.body').getBoundingClientRect().bottom - top) /
+                    (p.querySelector('.footer').getBoundingClientRect().top - top);
+            })"""))
+        if on_preview:
+            on_preview(page.pdf(format="A4", print_background=True, prefer_css_page_size=True))
+        if failures:
+            raise RevisionError("page_overflow", "; ".join(failures) + ". Shorten prose without removing essential conditions.")
+        data = page.pdf(format="A4", print_background=True, prefer_css_page_size=True)
+    finally:
+        context.close()
     with pymupdf.open(stream=data, filetype="pdf") as pdf:
         limit = max_pages()
         if len(pdf) > limit:
