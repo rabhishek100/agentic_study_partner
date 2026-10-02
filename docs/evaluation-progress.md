@@ -33,7 +33,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 12 | LangSmith notification noise | Complete | API/worker 8bd52be deployed; notification polls and periodic reminders read back in production-operations; real AI trace remains in main with 28 connected spans / two LLM calls; 2,104 tests / 962 subtests passed, 38 skips |
 | 13 | Ideal interview generation through the web proxy | Complete, bounded | API and web ba6a887 deployed; concurrent web-origin requests returned one complete 45-topic flow after 264.736s / 262.730s; first trace 68 model calls, retry zero; connected trees and UI readback passed; 2,106 backend tests / 962 subtests (38 skips), 753 frontend tests, types/build and real 35s proxy regression passed |
 
-| 14 | Verified user identity in logs and traces | In progress | Concurrent HTTP/SSE, native graph, worker/thread/batch and disabled-exporter isolation passed; 2,109 tests / 962 subtests passed (38 skips); production deployment/readback pending |
+| 14 | Verified user identity in logs and traces | Complete | Four Python services at 0983a1c, health and voice controls passed; 23 chat LangSmith runs / 11 Tempo spans carry verified user_id; worker and all three voice roots/commands read back; Loki API/job identity and anonymous exclusions verified; 32 metric series have no identity labels; 2,109 tests / 962 subtests passed (38 skips) |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -381,16 +381,22 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Unit 14 implements verified `user_id` propagation in API/worker and all three
-voice services. Local targeted checks: 48 tests and 14 subtests passed. Full
-isolated backend validation passed: 2,109 tests and 962 subtests, 38 skips
-(119.92s). The expanded native LangChain identity check also passed separately
-in the 11-test operational suite. Next: commit/push the coherent change,
-deploy the four Python services from the clean release worktree, verify health
-and read back account IDs in hosted LangSmith/Loki/Tempo. Keep UUIDs as fields,
-not metric/stream labels. No frontend changes: PostHog already identifies the
-same auth UUID. Do not regenerate large ideal interviews for this acceptance.
-
+Unit 14 is complete. API/combined worker and all three voice services now run
+`0983a1c`; production health reports that revision. Verified `user_id` is present
+in 23 real chat LangSmith runs (two LLM calls), 11 connected Tempo spans, the
+successful two-topic card worker tree, and setup/control trees for all three
+voice services. Loki readback found 21 matching account records, including five
+job-correlated logs; health and invalid-token records have no user ID. A real
+Tempo account search returned 20 traces. All 32 queried operation metric series
+omit identity labels, and Loki stream labels also omit them. Full isolated
+backend validation: 2,109 tests / 962 subtests, 38 skips (119.92s); native
+LangChain coverage passed in the separate 11-test operational suite. PostHog
+already uses the same auth UUID; no frontend deployment was needed. Emails stay
+in the account registry. Old traces are not rewritten. Private proofs:
+`/tmp/study-production-verification/identity-*` and `user_identity_*.py`.
+Resume from the remaining device/quality items below; no identity rollout step
+remains pending. Voice acceptance here checked room admission and control RPCs,
+not a fresh microphone/audio quality test.
 
 Unit 13 is complete: API/combined worker and web now run `ba6a887`. Production
 web-origin acceptance returned the same fully cited, 45-topic ideal interview

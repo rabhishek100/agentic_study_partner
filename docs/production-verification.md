@@ -298,3 +298,45 @@ Private response and trace proofs remain in `/tmp/study-production-trace-diagnos
 and `/tmp/study-production-verification`, outside Git. This confirms delivery,
 coverage/citation contracts and duplicate prevention; no new quality-judge or
 human-calibration result is implied.
+
+
+## 3 October follow-up: verified account identity
+
+Code release `0983a1c` was pushed and deployed from the clean release worktree.
+Four Railway deployments are SUCCESS:
+
+| Service | Deployment |
+| --- | --- |
+| API / combined worker | `7194e5be-0ac5-4923-a7e4-f0e0f4ccbc34` |
+| Interview voice | `1d8332f7-9539-4a2d-b282-cd7fde80cd7b` |
+| Ideal interview voice | `812bc76f-e7eb-4cf7-bb62-69dd104d903a` |
+| Narration voice | `47112fff-f8ce-4a73-b228-9280333c2a29` |
+
+Web-origin health reports `0983a1c`; authenticated book listing returned 200,
+invalid-token listing returned 401, and a cited fixture-book chat returned 200
+in 10.954s. [The live chat tree](https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/46a8e1c0-2129-4a17-9784-8820723cc749/r/01a0fe9f-7306-7ce1-a5e7-25cecc8c0f9e?poll=true)
+contains 23 ended runs, including two LLM calls; every run carries the verified
+auth UUID as `user_id`. Tempo trace `685895f38699883fd71b06a77c872904`
+contains 11 spans with the same field. The separately queued card job succeeded
+with both topics complete; all nine worker runs carry the same identity.
+All three LiveKit workers reached ready and accepted their stop/control RPCs.
+Their three setup trees and three command trees each contain two ended,
+error-free runs with the correct identity. Voice audio generation was not
+repeated for this identity-specific check.
+
+Loki account filtering returned 21 records, including five job-correlated
+records. Health and invalid-token logs were read back separately and omit
+`user_id`; a spoofed `X-User-Id` did not override verified identity or assign an
+anonymous identity. Tempo account search returned 20 traces. Loki stream labels
+and all 32 queried production operation metric series omit account identifiers.
+Email remains in the account registry; PostHog already identifies the same UUID.
+Anonymous/system-wide telemetry remains unassigned and historical data is not
+backfilled. Filter examples are in [observability.md](observability.md).
+
+Local verification: 2,109 backend tests and 962 subtests passed, 38 skipped
+(119.92s). The expanded native LangChain inheritance assertion also passed in
+the 11-test operational suite. Private responses, trace/log readbacks and
+voice connection credentials remain outside Git in
+`/tmp/study-production-verification/identity-*`. This follow-up verifies
+identity delivery and isolation; it does not replace the earlier quality or
+device acceptance limits.
