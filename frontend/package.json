@@ -9,6 +9,7 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify:proxy": "node scripts/verify-api-proxy.mjs",
     "typecheck": "tsc --noEmit",
     "lint:tokens": "node scripts/check-design-tokens.mjs",
     "postinstall": "node scripts/copy-pdf-worker.mjs"

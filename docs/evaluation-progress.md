@@ -1,6 +1,6 @@
 # Evaluation and observability delivery tracker
 
-Updated: 2026-10-02. Branch: `codex/gpt-6-luna`.
+Updated: 2026-10-03. Branch: `codex/gpt-6-luna`.
 
 This is the resume point for the five-flow evaluation and repository-wide
 observability work. Complete and verify one dependency-coherent unit, update
@@ -31,6 +31,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 10 | Complete verification checklist | Complete | Ordered commands, every feature family, expected results, hosted checks and explicit coverage gaps |
 | 11 | Production deployment and acceptance | Complete, bounded | Five services at d58c608; every feature family exercised, four runtime defects fixed and rechecked, production dashboard filtered; explicit device/external/quality limits in production-verification.md |
 | 12 | LangSmith notification noise | Complete | API/worker 8bd52be deployed; notification polls and periodic reminders read back in production-operations; real AI trace remains in main with 28 connected spans / two LLM calls; 2,104 tests / 962 subtests passed, 38 skips |
+| 13 | Ideal interview generation through the web proxy | In verification | Confirmed 30s Next rewrite disconnect and overlapping retry unique-key failure; 10-minute proxy budget and transaction-scoped generation lock implemented; real Next 35s proxy regression and Postgres concurrency checks passed; 2,106 backend tests / 962 subtests passed (38 skips), 753 frontend tests plus types/build passed; deployment acceptance pending |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -377,6 +378,15 @@ from task commits. Local `.env` and `frontend/.env.local` contain credentials
 and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
+
+Resume unit 13: commit and push the verified fix, then deploy API and web from the clean release worktree, and exercise a fresh ideal
+chapter generation through the production **web** URL. Direct API acceptance
+does not validate the web proxy timeout. Verify concurrent retry shares the
+same saved flow and introduces no extra model calls; read back the LangSmith
+trees. The user's already completed Chapter 6 flow can be opened without
+regeneration at `/interviews/ideal/325f485a-2af5-4cf3-9dc8-dc6ce2f7d30a`.
+Private diagnosis and provider budgets remain outside Git. The previous
+acceptance below predates this newly reproduced failure.
 
 Production deployment and bounded acceptance are complete; resume from
 `docs/production-verification.md`. Original acceptance used `d58c608` on all five

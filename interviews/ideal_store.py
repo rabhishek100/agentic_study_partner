@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID
 
@@ -23,6 +24,29 @@ COLUMNS = """
     transcript_json, generation_model, prompt_version, total_cost_usd,
     voice_cost_usd, created_at, updated_at
 """
+
+
+def lock_generation(
+    connection: Connection,
+    *,
+    owner_id: str | UUID,
+    scope_key: str,
+    interview_format: str,
+    target_level: str,
+    generation_model: str,
+    prompt_version: str,
+) -> None:
+    """Serialize matching generations until the caller's transaction commits.
+
+    The key matches the saved-flow uniqueness contract. After waiting, a retry
+    reads the committed winner instead of making duplicate paid model calls.
+    Other owners, scopes and generation settings have independent locks.
+    """
+    key = json.dumps([
+        "ideal-interview", str(parse_owner_id(owner_id)), scope_key,
+        interview_format, target_level, generation_model, prompt_version,
+    ])
+    connection.execute("select pg_advisory_xact_lock(hashtextextended(%s, 0))", (key,))
 
 
 def _flow(row: dict[str, Any]) -> IdealInterviewFlow:

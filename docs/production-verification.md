@@ -238,3 +238,35 @@ Use [the full verification checklist](verification-checklist.md) for further che
    safe failures were tested live. The full gold suite, multi-turn interview quality,
    provider outages, worker-kill recovery and performance under concurrency need
    separately scoped checks; do not inject destructive faults into this production run.
+
+
+## 3 October follow-up: ideal interview generation
+
+The user reported repeated `Request failed (500)` when starting a complete
+chapter ideal interview. Production web logs confirmed that Next's external
+rewrite disconnected at its default 30-second proxy timeout. The API continued
+and saved the first result after 205 seconds; a second request generated the
+same chapter independently and failed the saved-flow unique constraint after
+202 seconds. The completed result was retained with all 39 topics covered.
+This exposed a gap in the earlier acceptance: long generation was tested via
+the API origin, while browser acceptance reopened an already saved flow.
+
+The fix sets the Next rewrite timeout to a finite 10 minutes and serializes
+matching ideal generations with a Postgres transaction advisory lock. The lock
+key includes owner, canonical scope, format, target level, model and prompt
+version, matching the saved-flow uniqueness contract. A waiting retry reads
+the committed result before making model calls. Failure rolls back and releases
+the lock; unrelated generation settings remain independent. No migration or
+source-content change is required. Generation remains synchronous: this fixes
+the observed failure, but does not make work durable across a process restart
+or provide a resumable job if a chapter takes longer than 10 minutes.
+
+Local regression: `cd frontend && npm run verify:proxy` runs the actual Next
+server against a local upstream that delays POST response headers by 35 seconds.
+It returned 201 with request body and authorization preserved. This explicit
+smoke check makes no paid calls and is separate from the fast Vitest suite.
+Real isolated-Postgres regressions cover concurrent identical requests, settings
+isolation, cache reuse and failed-generation retry. Twelve targeted tests passed.
+Full isolated suite: 2,106 tests and 962 subtests passed, 38 skipped (134.93s).
+Frontend: 753 tests passed (28.65s); TypeScript and production build passed.
+Deployment and production web-origin acceptance are pending.
