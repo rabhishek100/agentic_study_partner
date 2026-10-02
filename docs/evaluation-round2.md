@@ -11,9 +11,11 @@ Use separate immutable private run directories; publish only sanitized results.
 Human review remains optional. Model judgments are not independent human evidence.
 
 The production reranker endpoint remains unpriced by the evaluation budget
-guard. All three comparison variants therefore use **BM25**, current native
+guard. All three comparison variants therefore use **BM25 for books**, current native
 application workflows and real providers against the existing local source
 corpus. This is a quality comparison, not an exact production retrieval rerun.
+Lecture/course retrieval retains its native text/multimodal embedding calls,
+with the same source snapshots and model settings in each variant.
 Do not change deployed retrieval defaults or weaken the budget guard.
 Record unavailable course evidence separately; do not fabricate transcripts,
 publish unprocessed lectures or replace failed cases with easier questions.
@@ -24,9 +26,9 @@ labelled-general-knowledge policy is disclosed separately from grounded quality.
 
 | Unit | Change | State | Acceptance |
 | --- | --- | --- | --- |
-| 15 | Freeze comparison and fresh current-code baseline | In progress | All 54 attempted; explicit failures, receipts, trace metrics and per-flow findings |
-| 16 | Quality candidate | Prepared; live comparison pending | Address measured missing details, exact claim citations, summary/sheet completeness and justified interview feedback; meaningful regression tests; unchanged-case full rerun |
-| 17 | Speed candidate | Prepared; live comparison pending | Target measured repeated work; preserve dependencies, source isolation and bounded repairs; compare all 54 to quality winner |
+| 15 | Freeze comparison and fresh current-code baseline | Complete; corrected review running | All 54 generated/judged; $0.83691825; 54 trace latencies/token/cost measurements; no unknown receipts |
+| 16 | Quality candidate | Live comparison running at `f1e33f4` | Address measured missing details, exact claim citations, summary/sheet completeness and justified interview feedback; meaningful regression tests; unchanged-case full rerun |
+| 17 | Refined quality and speed candidate | Preparing full live comparison | Target measured repeated work and residual omissions; preserve dependencies, source isolation and bounded repairs; compare all 54 |
 | 18 | Selection and final verification | Pending | Per-flow before/after evidence; repeat material regressions or close results; full relevant contracts/journeys; commit/push retained changes |
 
 Quality comes before speed/cost. Confirmed new grounding, ownership or recovery
@@ -69,6 +71,32 @@ saved-review integrity, adapter and budget tests. Three new behavior regressions
 were verified to fail on the original code and pass on the candidate. Candidate
 is experimental until the complete live comparison and regression checks finish;
 no production deployment or quality improvement is claimed yet.
+
+The complete combined candidate passed 2,114 tests and 962 subtests (38 skipped).
+Baseline generation and judging remained frozen until all 54 cases completed;
+subsequent hosted trace refresh was read-only. Sanitized baseline evidence lives
+in `evaluation/round2_baseline_results.json`; original private artifacts remain
+immutable. Corrected review uses `round2-current-review-v3-20261003` for 53 outputs.
+`mt-002-t1` is a deterministic hierarchy-list response with no generation-request
+capture: preserve its deterministic checks, leave automated source support
+unverified and exclude it from model-grounding improvement claims.
+
+### Refined candidate hypotheses
+
+The first quality trial restored the complete model-card checklist (coverage
+1/4 to 4/4 on its initial comparison), but the broader audit remained incomplete.
+Handle explicit "what should ... cover" requests and use at most two strongest
+hits that actually have following chunks, within the unchanged item budget.
+Repeat important checklist comparisons before claiming a robust improvement.
+
+The paper sheet's production reviewer passed an artifact that the separate
+gold-based judge still found incomplete: training data and optimizer schedule
+were absent. Clarify the native inventory's distinction between optional
+implementation minutiae and essential experimental conditions needed to
+interpret/reproduce the paper's main results. Native rubric becomes
+`revision-review-v4`; external `artifact-review-v3` criteria/gold stay unchanged.
+This trial combines those quality refinements with the controlled browser reuse;
+do not attribute end-to-end differences solely to browser reuse.
 
 ### Speed candidate prepared
 

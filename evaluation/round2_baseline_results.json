@@ -1,0 +1,2056 @@
+{
+  "version": "round2-baseline-v1",
+  "commit": "d452eb7",
+  "experiment": "round2-current-bm25-20261003",
+  "experiment_fingerprint": "6d070b193bd766c3fd8985917b3439c93643b0ce6419796dff851ac51e66cbb1",
+  "implementation_sha256": "6eb70e1243d613bf40a91723f14d06be482ff12b6ca86f33c3a809fcdc1958ab",
+  "manifest_version": "five-flow-v1",
+  "budget": {
+    "cap_usd": "2",
+    "committed_usd": "0.836918250",
+    "reported_usd": "0.836918250",
+    "unknown_reservations": 0
+  },
+  "summary": {
+    "chat": {
+      "cases": 20,
+      "statuses": {
+        "completed": 20
+      },
+      "generated": 20,
+      "judged": 20,
+      "human_reviewed": 0
+    },
+    "summary": {
+      "cases": 7,
+      "statuses": {
+        "completed": 7
+      },
+      "generated": 7,
+      "judged": 7,
+      "human_reviewed": 0
+    },
+    "video_course": {
+      "cases": 13,
+      "statuses": {
+        "completed": 13
+      },
+      "generated": 13,
+      "judged": 13,
+      "human_reviewed": 0
+    },
+    "revision_sheet": {
+      "cases": 6,
+      "statuses": {
+        "completed": 6
+      },
+      "generated": 6,
+      "judged": 6,
+      "human_reviewed": 0
+    },
+    "interview": {
+      "cases": 8,
+      "statuses": {
+        "completed": 8
+      },
+      "generated": 8,
+      "judged": 8,
+      "human_reviewed": 0
+    }
+  },
+  "review_note": "Original v2 judgments retained for audit. Corrected v3 saved-output review is pending and will be used for comparison. mt-002-t1 lacks a generation capture; deterministic checks retained, automated source support unverified.",
+  "retrieval_note": "Book BM25; lecture/course native retrieval includes text and multimodal embedding calls. Not an exact production book reranker rerun.",
+  "cases": [
+    {
+      "id": "mt-001-t1",
+      "flow": "summary",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "0032203287f01a35d1b0b3f90a292589854bf6db24baea916536b15a6bbc90d3",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 18.148572,
+        "total_tokens": 21561,
+        "cost_usd": 0.00355155,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.5619806719999999,
+          "peak_rss_bytes": 401522688,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-001-t2",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "1e1119de1ae1d063b35aa0b2b02a3a34c1b38e7222a21c3b07c69ec130c30111",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 8.097753,
+        "total_tokens": 7845,
+        "cost_usd": 0.001101625,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.3034135039999998,
+          "peak_rss_bytes": 166739968,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-001-t3",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "f8ee309d38af59ad2cb48bf150e5270a93990af7e2e4bca170ff8689be46f07b",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.193562,
+        "total_tokens": 8236,
+        "cost_usd": 0.00114175,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.26233849600000025,
+          "peak_rss_bytes": 172408832,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-001-t4",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": true,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "02940d394c34c0a59a5cf4f7b84fe7633b62afa92bebb87602b9afc4f9a1b1fe",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 6.669674,
+        "total_tokens": 8475,
+        "cost_usd": 0.00112695,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2487608320000002,
+          "peak_rss_bytes": 172703744,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-002-t1",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": null,
+        "standalone_exact": false,
+        "evidence_recall": null
+      },
+      "output_hash": "6c9a539e6d3bc8f60a0630724714d1f4113eba91172f527a3e772cf58a3eab82",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "insufficient_evidence",
+        "correctness": 3,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 0.223389,
+        "total_tokens": 0,
+        "cost_usd": 0.0,
+        "physical_model_spans": 0,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.053115263999999884,
+          "peak_rss_bytes": 168902656,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-002-t2",
+      "flow": "summary",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "1973c3aa3be868a03c57236ab233cf93bc07c8f36c6400a0f9a1f1ad7c302c06",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 13.326029,
+        "total_tokens": 8468,
+        "cost_usd": 0.001599475,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2901754239999994,
+          "peak_rss_bytes": 174981120,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-003-t1",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "3bfcc41c268b3ac23808408d2e5b9917d798499418988479e81bfd558b94889b",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.426085,
+        "total_tokens": 6000,
+        "cost_usd": 0.000928725,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2500424320000003,
+          "peak_rss_bytes": 166363136,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-003-t2",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "8ed4042b0622bfdd138c1e6ae9729378cfe962b203c3f92b846b3b9afe55720b",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 9.032755,
+        "total_tokens": 7932,
+        "cost_usd": 0.00123285,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2557799679999997,
+          "peak_rss_bytes": 169345024,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-003-t3",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "0afdbf8799527b564951bf8c20a3a3b35ad4fc8c25ff5cf6486c60d0e4c9609d",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 8.888893,
+        "total_tokens": 8593,
+        "cost_usd": 0.001294475,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2634926079999995,
+          "peak_rss_bytes": 166248448,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-003-t4",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "a8819b18b4216e6b4b33e7abbb29407e5e6a89cfad066d0f57da18931b39af08",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 9.04054,
+        "total_tokens": 9350,
+        "cost_usd": 0.001397725,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.3183925759999995,
+          "peak_rss_bytes": 166559744,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-004-t1",
+      "flow": "summary",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "c8cb00d00583b18bb1ab6036a4c7ce2ba0d84024164d56aafc6d7d02b16714c0",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 12.609644,
+        "total_tokens": 7572,
+        "cost_usd": 0.0014166,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.28046080000000106,
+          "peak_rss_bytes": 166625280,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-005-t1",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "71872a86447fd84c8a6772d24a17a0d10542af716ad90ec0768faf69b8aab759",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 3,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.649733,
+        "total_tokens": 6987,
+        "cost_usd": 0.0009239,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2546700800000008,
+          "peak_rss_bytes": 173867008,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-005-t2",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "9deb3fc0361aca4a1c1577fb7d707eb276d3d6f400cf80ab4936526d3def3861",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 10.562891,
+        "total_tokens": 7836,
+        "cost_usd": 0.001201725,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.3186933759999997,
+          "peak_rss_bytes": 167395328,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-005-t3",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "f06bb7a53645e839a64098d027ef06eebfb6bb21ce667ed4e4e6cb62335bd2a1",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 8.787649,
+        "total_tokens": 8600,
+        "cost_usd": 0.001275475,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.28684531199999874,
+          "peak_rss_bytes": 166690816,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-005-t4",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "769407e664b24a62fc775711bbae95abff300571994a269907f8655fc48aa224",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 6.500519,
+        "total_tokens": 9461,
+        "cost_usd": 0.00131785,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2655430399999996,
+          "peak_rss_bytes": 170328064,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-006-t1",
+      "flow": "summary",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "34f1a581423a489db7df1a9b06ea0e4aba751199961eff83d98fd4b506dd5c28",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 24.203788,
+        "total_tokens": 15713,
+        "cost_usd": 0.00285535,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.3329224960000017,
+          "peak_rss_bytes": 163545088,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-008-t1",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "4250a4344cca1704186593a3309e3d96f870b9117a8a0e50d64ab65cbd325f68",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "insufficient_evidence",
+        "correctness": 2,
+        "coverage": 1,
+        "usefulness": 2,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.58767,
+        "total_tokens": 7283,
+        "cost_usd": 0.001087975,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.20166195199999826,
+          "peak_rss_bytes": 167755776,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-008-t2",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "e38392c4da3cdd903c4d79e41b3c5fcd0e75a2a17c2c8bc08ab8392eae5bc309",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "insufficient_evidence",
+        "correctness": 3,
+        "coverage": 1,
+        "usefulness": 2,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 6.690696,
+        "total_tokens": 7675,
+        "cost_usd": 0.001115225,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.1603212799999998,
+          "peak_rss_bytes": 165199872,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-008-t3",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "eb61adb2b77fe19971735e7e45e8a00c96324aac599fefeeb8083cde1c504b7d",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 6.549622,
+        "total_tokens": 8075,
+        "cost_usd": 0.00114235,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2406594559999995,
+          "peak_rss_bytes": 167575552,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-008-t4",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": true,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "87afe4c5ab15a8a4e8b5457a1e5b4c16acce96e5f5e6e9aaceaacb8896f585df",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 3.231054,
+        "total_tokens": 3747,
+        "cost_usd": 0.000488625,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.09041036800000102,
+          "peak_rss_bytes": 164921344,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-009-t1",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": null,
+        "standalone_exact": true
+      },
+      "output_hash": "0d18f09635e0da4be94085516451117d19931b4acbb90858a3e13fad3d689ef3",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 2.033846,
+        "total_tokens": 850,
+        "cost_usd": 0.0001186,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.07155481599999947,
+          "peak_rss_bytes": 152584192,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-009-t2",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "e26967375d8a6b65a2c09f4d6bf07aaf8329a607ee4373713eee1d71623cbc8b",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 8.334656,
+        "total_tokens": 6774,
+        "cost_usd": 0.001073325,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.15528780799999975,
+          "peak_rss_bytes": 170278912,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-010-t1",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": false,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": false,
+        "citations_valid": null,
+        "standalone_exact": false
+      },
+      "output_hash": "e656248d75b6171079f22662ba00a92e97142704b53555c6e384d54d286522b4",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "unsupported",
+        "correctness": 1,
+        "coverage": 1,
+        "usefulness": 2,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 18.642354,
+        "total_tokens": 8688,
+        "cost_usd": 0.0015808,
+        "physical_model_spans": 4,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.3162329600000007,
+          "peak_rss_bytes": 171032576,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-011-t1",
+      "flow": "summary",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "d0e8d2c14e673fc47f041ad9cd70fdc04e031eaf114a8927f7812d8c157a47e1",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 20.729968,
+        "total_tokens": 17273,
+        "cost_usd": 0.0030883,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2870609920000011,
+          "peak_rss_bytes": 168411136,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "mt-011-t2",
+      "flow": "summary",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": false,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "8664f8ea461979452f7b12ccad9c2033d9d8ee3052b34ca694b33e50bc78b7f1",
+      "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 26.205357,
+        "total_tokens": 29806,
+        "cost_usd": 0.00474475,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.429017344,
+          "peak_rss_bytes": 165363712,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "paper-scaled-attention",
+      "flow": "chat",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": null,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "a562cfc92a1bca08cee03dffeca1a986902e3c987b3d3985613a6b0c0cd8a83c",
+      "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.062276,
+        "total_tokens": 5430,
+        "cost_usd": 0.000890475,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.20023833600000174,
+          "peak_rss_bytes": 159973376,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "paper-complete-summary",
+      "flow": "summary",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": null,
+        "evidence_recall": 1.0
+      },
+      "output_hash": "8c2368483269923efc936ae29cd3d3d90f2c7da2d8c6659813c5ca6d467cba65",
+      "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 24.094658,
+        "total_tokens": 28918,
+        "cost_usd": 0.0047516,
+        "physical_model_spans": 2,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.37210188799999866,
+          "peak_rss_bytes": 166608896,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "sheet-attention-paper",
+      "flow": "revision_sheet",
+      "status": "completed",
+      "checks": {
+        "production_findings_clear": false,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "output_hash": "4eac6426decba76462db79539e852953348af832c7b79098469644432e4ece9b",
+      "source_fingerprint": "5029870b7ae7de30f37da9d38e4b2f710dfc4f897b556e70724ede3907337c4f",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "readable"
+      },
+      "metrics": {
+        "latency_seconds": 176.378252,
+        "total_tokens": 182055,
+        "cost_usd": 0.025823375,
+        "physical_model_spans": 9,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 4.527745024,
+          "peak_rss_bytes": 358514688,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-002-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": true,
+        "evidence_recall": 1.0,
+        "cited_evidence_recall": 1.0
+      },
+      "output_hash": "7ee8322ea6697b9d4b1204d52ccd9953686b4e087ff64c34e87a27557c2fc4b3",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.635279,
+        "total_tokens": 3700,
+        "cost_usd": 0.0004821,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.40931225600000065,
+          "peak_rss_bytes": 272318464,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-003-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": true,
+        "evidence_recall": 1.0,
+        "cited_evidence_recall": 1.0
+      },
+      "output_hash": "a8e5d5923bf016016271c202d12df1219aa93b0420953f34149797f6d6dfc698",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.813473,
+        "total_tokens": 3754,
+        "cost_usd": 0.00050052,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2952568320000002,
+          "peak_rss_bytes": 226246656,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-004-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": true,
+        "evidence_recall": 1.0,
+        "cited_evidence_recall": 1.0
+      },
+      "output_hash": "e656b253d92aaf8f09c0d00ecbfee8ddb4b340d166d38714ae5bc54cc4dabe83",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 6.771354,
+        "total_tokens": 3620,
+        "cost_usd": 0.00046425,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.27694540799999956,
+          "peak_rss_bytes": 228835328,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-005-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": true,
+        "evidence_recall": 1.0,
+        "cited_evidence_recall": 1.0,
+        "visual_evidence_present": true
+      },
+      "output_hash": "8ed84153a307eea080f5a276409e2a1363992cf655967b267345de811af0a2dc",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.901536,
+        "total_tokens": 3621,
+        "cost_usd": 0.000475035,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.41443276800000284,
+          "peak_rss_bytes": 369901568,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-006-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": null,
+        "near_miss_share": 0.125
+      },
+      "output_hash": "5251a0054ddc002f4bf389cacd5187a7fdcbfe6a9d15554a61f2b66f8cfae125",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.037006,
+        "total_tokens": 3552,
+        "cost_usd": 0.00045575,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2868336640000022,
+          "peak_rss_bytes": 361398272,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-007-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": true,
+        "evidence_recall": 1.0,
+        "cited_evidence_recall": 1.0
+      },
+      "output_hash": "2554c9606deef6753a3d8aac3300b758888d5d1c2f8b1e72347c5eb2985baa06",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.690967,
+        "total_tokens": 3636,
+        "cost_usd": 0.00046593,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.29981414399999906,
+          "peak_rss_bytes": 202555392,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-011-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": true,
+        "evidence_recall": 1.0,
+        "cited_evidence_recall": 1.0
+      },
+      "output_hash": "9229c012ff6c80e02bf386386a366416f7a424dbbfbf47842e44c766ff7aa3c3",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.51835,
+        "total_tokens": 2464,
+        "cost_usd": 0.0004598,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.12268902399999959,
+          "peak_rss_bytes": 201572352,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "vc-012-t1",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": true,
+        "evidence_recall": 0.0,
+        "cited_evidence_recall": 0.0
+      },
+      "output_hash": "669ec81368d55d9a695761d41012b64fdad8f09fb4bfd8875b49c7ba39bbc240",
+      "source_fingerprint": "1a287b29eef6dc1f3979be99d2734f094d9f3a02f5275a7050c7d7436cb5c2aa",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 2,
+        "coverage": 2,
+        "usefulness": 2,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.760786,
+        "total_tokens": 3669,
+        "cost_usd": 0.00047217,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2904519679999984,
+          "peak_rss_bytes": 199016448,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "course-synthesis",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "outcome": true,
+        "selected_sources_only": true,
+        "claim_support": null,
+        "citations_valid": true
+      },
+      "output_hash": "43185013bc3c579ec3d7c5cb5c928dc03e5098d76b48894d26967f6e9ce1ebe1",
+      "source_fingerprint": "f93395894612d39ba6c053137b6769bead6e801c1fc8a3b6821b7e9cb817d968",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 1,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.043464,
+        "total_tokens": 1106,
+        "cost_usd": 0.00014449,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.2818744319999986,
+          "peak_rss_bytes": 200114176,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "course-exclusion",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "outcome": false,
+        "selected_sources_only": true,
+        "claim_support": null,
+        "citations_valid": false
+      },
+      "output_hash": "3b1b786017fe49efce67e2806e721439781082a91cce4edcedb280845c232997",
+      "source_fingerprint": "f93395894612d39ba6c053137b6769bead6e801c1fc8a3b6821b7e9cb817d968",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "insufficient_evidence",
+        "correctness": 1,
+        "coverage": 1,
+        "usefulness": 1,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 3.295309,
+        "total_tokens": 66,
+        "cost_usd": 1.138e-05,
+        "physical_model_spans": 4,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.24939110399999986,
+          "peak_rss_bytes": 195428352,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "course-unanswerable",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "outcome": true,
+        "selected_sources_only": true,
+        "claim_support": null,
+        "citations_valid": null
+      },
+      "output_hash": "2fe5779f93a0f7048438c1318b7c8cc8e882195315849584344be381f4d12f9f",
+      "source_fingerprint": "f93395894612d39ba6c053137b6769bead6e801c1fc8a3b6821b7e9cb817d968",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 4.346319,
+        "total_tokens": 945,
+        "cost_usd": 0.00010676,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.25161420800000034,
+          "peak_rss_bytes": 193200128,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "course-followup",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "outcome": false,
+        "selected_sources_only": true,
+        "claim_support": null,
+        "citations_valid": true
+      },
+      "output_hash": "0ca2063786e1f3c01185ae6632853a0c193a76b3e4e9a10657b5cfa9f865fc30",
+      "source_fingerprint": "f93395894612d39ba6c053137b6769bead6e801c1fc8a3b6821b7e9cb817d968",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 7.120695,
+        "total_tokens": 2643,
+        "cost_usd": 0.000431005,
+        "physical_model_spans": 4,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.34639718399999886,
+          "peak_rss_bytes": 187990016,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "course-spanner-indexed",
+      "flow": "video_course",
+      "status": "completed",
+      "checks": {
+        "outcome": true,
+        "selected_sources_only": true,
+        "claim_support": null,
+        "citations_valid": true
+      },
+      "output_hash": "d18dbc675f00057801846205bd85251ae3d9a532b725f6d3d8db394115b9b897",
+      "source_fingerprint": "f93395894612d39ba6c053137b6769bead6e801c1fc8a3b6821b7e9cb817d968",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 1,
+        "usefulness": 1,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 4.246911,
+        "total_tokens": 1080,
+        "cost_usd": 0.00013183,
+        "physical_model_spans": 3,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.24812236800000065,
+          "peak_rss_bytes": 189267968,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "sheet-chapter-1",
+      "flow": "revision_sheet",
+      "status": "completed",
+      "checks": {
+        "production_findings_clear": true,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "output_hash": "8db18bf8ee9f742acbdb584ae08a5318d661f106ae820b0755763d4a2ec359f5",
+      "source_fingerprint": "539eed62881ceeb35077d681377e5c056d6d141889425af55ac7c8ae1ac0ece2",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "readable"
+      },
+      "metrics": {
+        "latency_seconds": 162.712272,
+        "total_tokens": 225420,
+        "cost_usd": 0.02998166,
+        "physical_model_spans": 9,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 3.8307763200000027,
+          "peak_rss_bytes": 265420800,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "sheet-chapter-3",
+      "flow": "revision_sheet",
+      "status": "completed",
+      "checks": {
+        "production_findings_clear": true,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "output_hash": "a6c41b52baf5d87c075ab384804722f9861dd689e6c926831e5ed338bea32f69",
+      "source_fingerprint": "e148893f89df5dcc25ffb2496f088463cf00cbabe0c1385885ec5067d18af988",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "readable"
+      },
+      "metrics": {
+        "latency_seconds": 221.942474,
+        "total_tokens": 289246,
+        "cost_usd": 0.042043785,
+        "physical_model_spans": 10,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 5.2769582079999955,
+          "peak_rss_bytes": 374112256,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "sheet-chapter-6",
+      "flow": "revision_sheet",
+      "status": "completed",
+      "checks": {
+        "production_findings_clear": true,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "output_hash": "66553fb7d8532357e72ce41fc836c4b035855ba474d3c56baba00376dd21b960",
+      "source_fingerprint": "0d779ab3d3be6da247074c3b890da6e559df86bba40a19e77c6b25e599327081",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "readable"
+      },
+      "metrics": {
+        "latency_seconds": 234.021072,
+        "total_tokens": 316838,
+        "cost_usd": 0.046617245,
+        "physical_model_spans": 9,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 5.201462784000004,
+          "peak_rss_bytes": 351698944,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "sheet-chapter-8",
+      "flow": "revision_sheet",
+      "status": "completed",
+      "checks": {
+        "production_findings_clear": false,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "output_hash": "03199f5d649fd410801ae09f901cc4840f86fa3ceec30ffa5f34c7ad389a0647",
+      "source_fingerprint": "ed91937c788dbcb0a970036157fcaadcb78ff593c8a3e5e116653efc0b9bfb1a",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "readable"
+      },
+      "metrics": {
+        "latency_seconds": 254.682197,
+        "total_tokens": 355247,
+        "cost_usd": 0.049243435,
+        "physical_model_spans": 9,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 5.673346560000004,
+          "peak_rss_bytes": 286818304,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "sheet-chapter-10",
+      "flow": "revision_sheet",
+      "status": "completed",
+      "checks": {
+        "production_findings_clear": false,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "output_hash": "cbcf502ab3b92d5cfd12c14cca1e50528d657f7fdbfc64f2b495800764ac1945",
+      "source_fingerprint": "170c1395e26137557c1fcd07584085afa8f0c3a61e72dd9eeb17151105c99c92",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 2,
+        "coverage": 2,
+        "usefulness": 2,
+        "layout": "needs_fix"
+      },
+      "metrics": {
+        "latency_seconds": 294.56657,
+        "total_tokens": 392041,
+        "cost_usd": 0.05317513,
+        "physical_model_spans": 11,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 5.8710497280000045,
+          "peak_rss_bytes": 416038912,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "proximity-weak",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "score_in_predeclared_band": true,
+        "question_completion_matches": true,
+        "route_allowed": true,
+        "citations_resolve": true
+      },
+      "output_hash": "5182b15abb9cc731d0e9b1653db25324e66e1ab669b70e41d76e225c23ec842c",
+      "source_fingerprint": "758c539f3068df6e0e7df2d8aa112b139cda3cca0f3a5e68833065b83e91aa3f",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.785381,
+        "total_tokens": 2228,
+        "cost_usd": 0.0004408,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.14636953600000524,
+          "peak_rss_bytes": 249135104,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "proximity-mixed",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "score_in_predeclared_band": true,
+        "question_completion_matches": true,
+        "route_allowed": true,
+        "citations_resolve": true
+      },
+      "output_hash": "e3eb5d49d867b4240b9982869bffa67f95dc414052ded5f9779f3b35a7287dc0",
+      "source_fingerprint": "758c539f3068df6e0e7df2d8aa112b139cda3cca0f3a5e68833065b83e91aa3f",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 2,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 6.767756,
+        "total_tokens": 2446,
+        "cost_usd": 0.000535175,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.10701926400000339,
+          "peak_rss_bytes": 157188096,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "proximity-strong",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "score_in_predeclared_band": true,
+        "question_completion_matches": true,
+        "route_allowed": true,
+        "citations_resolve": true
+      },
+      "output_hash": "fb565a3d2111c6062e78f5fb074228568dbf6527929855941fc50b7cefd59186",
+      "source_fingerprint": "758c539f3068df6e0e7df2d8aa112b139cda3cca0f3a5e68833065b83e91aa3f",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.605397,
+        "total_tokens": 2358,
+        "cost_usd": 0.000473925,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.0961249279999965,
+          "peak_rss_bytes": 131497984,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "rag-weak",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "score_in_predeclared_band": true,
+        "question_completion_matches": true,
+        "route_allowed": true,
+        "citations_resolve": true
+      },
+      "output_hash": "37d7b624ba1b062d9f1d08c644ffaaffb439a9ad4adc7350ebbfef5ca9ed93f6",
+      "source_fingerprint": "c451b465780cf736a567b0d9bdb5aa0fe204a4c34c29156121c120b2d9a25d5e",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.519941,
+        "total_tokens": 2287,
+        "cost_usd": 0.00047705,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.09905356799999865,
+          "peak_rss_bytes": 129073152,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "rag-mixed",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "score_in_predeclared_band": true,
+        "question_completion_matches": true,
+        "route_allowed": true,
+        "citations_resolve": true
+      },
+      "output_hash": "b9dfd28f3d44c69dbbb7eb03aea3c555d32af3f2fe9853d29b8851bf46e9bc23",
+      "source_fingerprint": "c451b465780cf736a567b0d9bdb5aa0fe204a4c34c29156121c120b2d9a25d5e",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 8.606854,
+        "total_tokens": 2590,
+        "cost_usd": 0.00061205,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.12412723200000286,
+          "peak_rss_bytes": 127418368,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "rag-strong",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "score_in_predeclared_band": true,
+        "question_completion_matches": true,
+        "route_allowed": true,
+        "citations_resolve": true
+      },
+      "output_hash": "ceb64e18cb1498a1ee3002f5565f880d5792e1381517a25293558160077d5898",
+      "source_fingerprint": "c451b465780cf736a567b0d9bdb5aa0fe204a4c34c29156121c120b2d9a25d5e",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 5.799563,
+        "total_tokens": 2422,
+        "cost_usd": 0.000519425,
+        "physical_model_spans": 1,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.10231705599999863,
+          "peak_rss_bytes": 127631360,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "ideal-notification-system",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "exact_topic_coverage": true,
+        "citation_presence": true,
+        "citation_marker_coverage": true,
+        "citation_locator_validity": true,
+        "spoken_text_has_no_markers": true,
+        "questions_are_interview_shaped": true,
+        "answers_are_speakable": true,
+        "human_reasoning_signals": true,
+        "system_design_progression": true,
+        "human_interview_usefulness": null
+      },
+      "output_hash": "d8188c8a6ba1e5e7493c059aa52459b49a8ec0e03851a82de537d5209e523c6e",
+      "source_fingerprint": "3465a546fa7ea5114efafb0fbda083ee2c9318cc31ab2969bc93f44f103b0b74",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 23.821254,
+        "total_tokens": 5664,
+        "cost_usd": 0.0012124,
+        "physical_model_spans": 5,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.46649344000000603,
+          "peak_rss_bytes": 138379264,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    },
+    {
+      "id": "ideal-rag-platform",
+      "flow": "interview",
+      "status": "completed",
+      "checks": {
+        "exact_topic_coverage": true,
+        "citation_presence": true,
+        "citation_marker_coverage": true,
+        "citation_locator_validity": true,
+        "spoken_text_has_no_markers": true,
+        "questions_are_interview_shaped": true,
+        "answers_are_speakable": true,
+        "human_reasoning_signals": false,
+        "system_design_progression": true,
+        "human_interview_usefulness": null
+      },
+      "output_hash": "621b0a7d7a0c08466952e3240d7547be8a0bf2c1f18681b290106e32fc4ee6f7",
+      "source_fingerprint": "f2065fd704f34dff53583a469afac3bd40f1b567164a29379038333e4120b9f5",
+      "original_judgment": {
+        "review_version": "artifact-review-v2",
+        "grounding_status": "insufficient_evidence",
+        "correctness": 3,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable"
+      },
+      "metrics": {
+        "latency_seconds": 21.638034,
+        "total_tokens": 4563,
+        "cost_usd": 0.0010167,
+        "physical_model_spans": 4,
+        "unknown_token_spans": 0,
+        "unknown_cost_spans": 0,
+        "resources": {
+          "cpu_seconds": 0.35869798400000263,
+          "peak_rss_bytes": 131497984,
+          "sample_interval_seconds": 0.1,
+          "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+        }
+      }
+    }
+  ]
+}
