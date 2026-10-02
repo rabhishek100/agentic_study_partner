@@ -20,6 +20,15 @@ helper respects an inherited LangSmith project, client, tags and evaluation
 metadata; it does not force experiment runs into the application's project.
 Set `LANGSMITH_TRACING=false` to disable these boundaries and provider captures.
 
+Routine `GET /api/notifications` polling and the periodic reminder reconciliation
+worker use a separate `<LANGSMITH_PROJECT>-operations` project. In production this
+is `agentic-study-partner-production-operations`, keeping idle checks from filling
+the main AI trace list and its frequent-name shortcuts. Complete traces, errors
+and HTTP correlation headers remain available there; Grafana exports are unchanged.
+Override the destination with `LANGSMITH_OPERATIONS_PROJECT` if needed. Notification
+read/dismiss actions remain in the main project. Existing parent traces and marked
+evaluation contexts retain their project and hierarchy instead of being split.
+
 Filter runs by `flow`, `thread_id`, `conversation_id`, `session_id`, `job_id`,
 `attempt_count`, `stage`, source IDs or `flow:*` tags. Names identify the real
 Python operation, such as `video.pipeline._run_transcript`. HTTP root names use

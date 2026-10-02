@@ -30,6 +30,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 9b | Ten saved-output LLM reviews | Complete | Two per flow; source/PDF hashes verified; no regeneration; $0.136506925 under $1 cap; hosted trace readback |
 | 10 | Complete verification checklist | Complete | Ordered commands, every feature family, expected results, hosted checks and explicit coverage gaps |
 | 11 | Production deployment and acceptance | Complete, bounded | Five services at d58c608; every feature family exercised, four runtime defects fixed and rechecked, production dashboard filtered; explicit device/external/quality limits in production-verification.md |
+| 12 | LangSmith notification noise | In progress | Routing implemented; 38 targeted tests and full isolated suite (2,104 tests / 962 subtests, 38 skips) pass; API deployment and hosted readback pending |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in

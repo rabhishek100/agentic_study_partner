@@ -25,7 +25,7 @@ from . import store
 logger = logging.getLogger("study_partner.notifications.reminders")
 
 
-@traced("notifications.reminders.reconcile_due_review_reminders", flow="reminders")
+@traced("notifications.reminders.reconcile_due_review_reminders", flow="reminders", operational=True)
 def reconcile_due_review_reminders(
     connection: Connection,
     *,

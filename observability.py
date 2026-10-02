@@ -10,6 +10,7 @@ from __future__ import annotations
 import atexit
 import inspect
 import logging
+import os
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar, copy_context
@@ -99,13 +100,22 @@ def _langsmith_span(name: str, *, inputs=None, metadata=None, run_type="chain", 
     run_metadata = {**inherited, **(metadata or {})}
     run_tags = list(dict.fromkeys([*(context.get("tags") or []), *(tags or [])]))
     parent = get_current_run_tree()
+    # Polling has full traces in a separate project. Existing ancestry and
+    # evaluation context always win: never split an in-flight trace tree.
+    operational_root = bool((metadata or {}).get("operational")) and parent is None
+    evaluation = inherited.get("experiment_id") or "evaluation" in run_tags
+    project = context.get("project_name")
+    if operational_root and not evaluation:
+        base = project or os.getenv("LANGSMITH_PROJECT") or os.getenv("LANGCHAIN_PROJECT") or "default"
+        project = os.getenv("LANGSMITH_OPERATIONS_PROJECT") or f"{base}-operations"
+        run_tags = list(dict.fromkeys([*run_tags, "telemetry:operations"]))
     def create():
         kwargs = dict(name=name, run_type=run_type, inputs=safe_value(inputs or {}),
                       extra={"metadata": safe_value(run_metadata)}, tags=run_tags)
         if parent:
             return parent.create_child(**kwargs)
-        if context.get("project_name"):
-            kwargs["project_name"] = context["project_name"]
+        if project:
+            kwargs["project_name"] = project
         return RunTree(**kwargs, client=context.get("client") or get_cached_client(anonymizer=safe_value))
     run = _telemetry(create)
     if run is None:
@@ -114,7 +124,8 @@ def _langsmith_span(name: str, *, inputs=None, metadata=None, run_type="chain", 
     if enabled is True:
         _telemetry(run.post)
     token = _OPERATIONS.set((*_OPERATIONS.get(), run))
-    with tracing_context(parent=run, metadata=run_metadata, tags=run_tags, enabled=enabled):
+    with tracing_context(parent=run, project_name=run.session_name,
+                         metadata=run_metadata, tags=run_tags, enabled=enabled):
         try:
             yield run
         except BaseException as error:
@@ -216,13 +227,15 @@ def _correlation(arguments):
     return metadata
 
 
-def traced(name: str, *, flow: str, run_type="chain"):
+def traced(name: str, *, flow: str, run_type="chain", operational=False):
     """Trace real Python operations without serializing dependency objects."""
     def decorate(function):
         signature = inspect.signature(function)
         def operation(args, kwargs):
             arguments = signature.bind_partial(*args, **kwargs).arguments
             metadata = {"flow": flow, "operation": name, **_correlation(arguments)}
+            if operational:
+                metadata["operational"] = True
             inputs = {k: v for k, v in arguments.items() if k not in _OMIT}
             return span(name, inputs=inputs, metadata=metadata, run_type=run_type,
                         tags=[f"flow:{flow}"]), metadata
@@ -370,7 +383,10 @@ class LangSmithMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         method = scope["method"]
-        with span(f"http.{method}", metadata={"transport": "http", "method": method}, tags=["http"]) as run:
+        metadata = {"transport": "http", "method": method}
+        if method == "GET" and scope.get("path", "").rstrip("/") == "/api/notifications":
+            metadata["operational"] = True
+        with span(f"http.{method}", metadata=metadata, tags=["http"]) as run:
             status_code = 500
             async def traced_send(message):
                 nonlocal status_code
@@ -393,7 +409,8 @@ class LangSmithMiddleware:
                         if not run.metadata.get("flow"):
                             # Route templates organize endpoints with no deeper AI operation.
                             resource = route.removeprefix("/api/").split("/")[0]
-                            run.add_metadata({"flow": resource, "operational": resource in {"health", "queue-health"}})
+                            run.add_metadata({"flow": resource, "operational": bool(metadata.get("operational"))
+                                              or resource in {"health", "queue-health"}})
                             run.add_tags([f"flow:{resource}"])
                         run.outputs = {"status_code": code}
                         if code >= 400:

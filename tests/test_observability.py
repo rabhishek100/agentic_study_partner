@@ -41,6 +41,39 @@ class RecordingClient:
 
 
 class ObservabilityTests(unittest.TestCase):
+    def test_operational_worker_project_preserves_children_and_evaluation_context(self):
+        client = RecordingClient()
+        @traced("reminder.check", flow="reminders", operational=True)
+        def check():
+            with span("reminder.owner"):
+                return 0
+        with patch.dict(os.environ, {"LANGSMITH_OPERATIONS_PROJECT": ""}), \
+                tracing_context(enabled=True, client=client, project_name="app-production"):
+            check()
+            with span("normal.request") as main:
+                check()  # A nested operation must never detach from its parent.
+        created = client.created
+        self.assertEqual(created[0]["session_name"], "app-production-operations")
+        self.assertEqual(created[1]["session_name"], "app-production-operations")
+        self.assertEqual(created[1]["parent_run_id"], created[0]["id"])
+        self.assertEqual(created[2]["session_name"], "app-production")
+        self.assertEqual(created[3]["parent_run_id"], main.id)
+        self.assertEqual(created[3]["session_name"], "app-production")
+        with tracing_context(enabled=True, client=client, project_name="evaluation-project",
+                             metadata={"experiment_id": "baseline"}, tags=["evaluation"]):
+            check()
+        self.assertEqual(client.created[-2]["session_name"], "evaluation-project")
+        with patch.dict(os.environ, {"LANGSMITH_PROJECT": "env-project",
+                                     "LANGSMITH_OPERATIONS_PROJECT": "custom-operations"}), \
+                tracing_context(enabled=True, client=client):
+            check()
+        self.assertEqual(client.created[-2]["session_name"], "custom-operations")
+        with patch.dict(os.environ, {"LANGSMITH_PROJECT": "env-project",
+                                     "LANGSMITH_OPERATIONS_PROJECT": ""}), \
+                tracing_context(enabled=True, client=client):
+            check()
+        self.assertEqual(client.created[-2]["session_name"], "env-project-operations")
+
     def test_graph_and_provider_nest_under_python_operation(self):
         client = RecordingClient()
         class State(TypedDict):
@@ -296,6 +329,41 @@ class HttpObservabilityTests(unittest.IsolatedAsyncioTestCase):
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as http:
                 self.assertEqual((await http.get("/missing")).status_code, 404)
         self.assertEqual(client.updated[-1]["error"], "HTTP 404")
+
+    async def test_notification_polls_use_operations_project_without_losing_errors(self):
+        app = FastAPI()
+        app.add_middleware(LangSmithMiddleware)
+        @app.get("/api/notifications")
+        async def notifications():
+            with span("notifications.load"):
+                from fastapi import HTTPException
+                raise HTTPException(401, "not authenticated")
+        @app.post("/api/chat/stream")
+        async def chat():
+            with span("chat.execute"):
+                return {"answer": "test"}
+        @app.post("/api/notifications/read-all")
+        async def mark_read():
+            return {}
+        client = RecordingClient()
+        with patch.dict(os.environ, {"LANGSMITH_OPERATIONS_PROJECT": ""}), \
+                tracing_context(enabled=True, client=client, project_name="app-production"):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as http:
+                poll = await http.get("/api/notifications")
+                self.assertEqual((await http.post("/api/chat/stream")).status_code, 200)
+                self.assertEqual((await http.post("/api/notifications/read-all")).status_code, 200)
+        poll_root = next(r for r in client.updated if r["name"] == "http.GET /api/notifications")
+        self.assertEqual(poll.status_code, 401)
+        self.assertEqual(poll_root["error"], "HTTP 401")
+        self.assertEqual(poll_root["session_name"], "app-production-operations")
+        self.assertTrue(poll_root["extra"]["metadata"]["operational"])
+        self.assertEqual(poll.headers["x-langsmith-trace-id"], str(poll_root["trace_id"]))
+        child = next(r for r in client.created if r["name"] == "notifications.load")
+        self.assertEqual(child["session_name"], "app-production-operations")
+        self.assertEqual(child["parent_run_id"], poll_root["run_id"])
+        for r in client.updated:
+            if r["name"] in {"http.POST /api/chat/stream", "http.POST /api/notifications/read-all"}:
+                self.assertEqual(r["session_name"], "app-production")
 
 
 class ProviderCoverageTests(unittest.TestCase):
