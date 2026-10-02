@@ -29,6 +29,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 9a | Default automated artifact review | Complete | LLM scores visible by default; manual review optional; rendered PDF pages and immutable saved-output review |
 | 9b | Ten saved-output LLM reviews | Complete | Two per flow; source/PDF hashes verified; no regeneration; $0.136506925 under $1 cap; hosted trace readback |
 | 10 | Complete verification checklist | Complete | Ordered commands, every feature family, expected results, hosted checks and explicit coverage gaps |
+| 11 | Production deployment and acceptance | In progress | Five services at one revision; real hosted telemetry and all-feature smoke within $5; see production-verification.md |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
