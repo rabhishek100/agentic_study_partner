@@ -56,6 +56,13 @@ The fix acknowledges flush after bounded cancellation, retaining delivered text.
 Targeted voice/observability checks now pass 45 tests and six subtests. Redeploy
 and real transport recheck are required before closing this finding.
 
+The hosted video worker intentionally excludes external acquisition, but this
+also stranded completed file uploads at `acquire_source`. A regression reproduced
+the queued upload alongside an older YouTube job. Metadata-capable workers now
+also claim completed primary uploads, preserving external-download separation
+and the acquisition checkpoint. All 45 targeted video tests and three subtests
+passed against an isolated database. Production pipeline recheck is pending.
+
 ### Deployment evidence
 
 | Service | Deployment ID |

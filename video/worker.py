@@ -167,6 +167,7 @@ class VideoWorker:
                 worker_id=self.worker_id,
                 lease_seconds=self.lease_seconds,
                 supported_stages=self.supported_stages,
+                allow_uploaded_acquisition=Stage.MEDIA_METADATA in self.supported_stages,
             )
 
     def recover_abandoned_jobs(self) -> int:

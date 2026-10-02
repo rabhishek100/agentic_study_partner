@@ -170,6 +170,7 @@ def claim_next_job(
     worker_id: str,
     lease_seconds: int = DEFAULT_LEASE_SECONDS,
     supported_stages: Collection[Stage] | None = None,
+    allow_uploaded_acquisition: bool = False,
 ) -> VideoIngestionJob | None:
     if not worker_id.strip() or lease_seconds <= 0:
         raise ValueError("worker_id and a positive lease are required")
@@ -181,6 +182,23 @@ def claim_next_job(
     if stages == ():
         return None
     stage_filter = "" if stages is None else "and stage = any(%s)"
+    if stages is not None and allow_uploaded_acquisition:
+        # Hosted workers can acquire bytes already staged on their shared
+        # volume without taking external downloads assigned to another worker.
+        stage_filter = """and (
+            stage = any(%s) or (
+                stage = 'acquire_source'
+                and upload_completed_at is not null
+                and staging_storage_key is not null
+                and exists (
+                    select 1 from video.video_sources source
+                    where source.video_id = ingestion_jobs.video_id
+                      and source.owner_id = ingestion_jobs.owner_id
+                      and source.source_kind = 'upload'
+                      and source.is_primary
+                )
+            )
+        )"""
     parameters: tuple[Any, ...] = () if stages is None else (list(stages),)
     with connection.transaction():
         candidate = connection.execute(

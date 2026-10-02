@@ -23,7 +23,7 @@ from video.jobs import (
     retry_job,
 )
 from video.errors import VideoBudgetExceeded, VideoErrorCode
-from video.repository import create_youtube_video
+from video.repository import create_youtube_video, initialize_video_upload, complete_video_upload
 from video.states import Stage, Status
 
 
@@ -133,6 +133,30 @@ class VideoJobTests(unittest.TestCase):
 
         self.assertEqual(claimed.id, supported.job_id)
         self.assertIsNone(none_left)
+
+    def test_metadata_worker_claims_completed_upload_without_claiming_youtube(self):
+        from video.worker import VideoWorker
+        with connection(self.database_url) as database:
+            external = self.create(database)
+            uploaded = initialize_video_upload(
+                database, owner_id=self.owner, idempotency_key=uuid4(),
+                original_filename="lecture.mp4", media_type="video/mp4",
+                declared_size_bytes=1,
+            )
+            complete_video_upload(
+                database, uploaded.job_id, owner_id=self.owner,
+                storage_key=uploaded.upload_storage_key, content_hash="a" * 64,
+                size_bytes=1, media_type="video/mp4",
+            )
+        worker = VideoWorker(worker_id="hosted-metadata", database_url=self.database_url,
+                             supported_stages={Stage.MEDIA_METADATA})
+        claimed = worker.claim()
+        self.assertIsNotNone(claimed)
+        self.assertEqual(claimed.id, uploaded.job_id)
+        self.assertIsNone(worker.claim())
+        with connection(self.database_url) as database:
+            self.assertEqual(get_job(database, owner_id=self.owner,
+                                     job_id=external.job_id).status, Status.QUEUED)
 
     def test_cancellation_is_immediate_when_queued_and_cooperative_when_running(
         self,
