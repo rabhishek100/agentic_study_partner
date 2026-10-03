@@ -6,7 +6,7 @@ import os
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
-from model_routing import provider_options
+from model_routing import provider_options, structured_client
 
 from video.models import reported_cost_usd
 
@@ -66,11 +66,11 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
             },
         },
     )
-    return model.with_structured_output(
+    return structured_client(model.with_structured_output(
         schema,
         method="json_schema",
         include_raw=True,
-    )
+    ), model=model_name(schema))
 
 
 def invoke_structured(

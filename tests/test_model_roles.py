@@ -6,7 +6,7 @@ import pytest
 
 from interviews.contracts import AnswerEvaluation, InterviewQuestion
 from interviews.models import structured_model
-from model_routing import provider_options
+from model_routing import provider_options, structured_client
 from revision_sheets.generate import Draft, SheetPatch, config_key, revision_model
 from revision_sheets.review import FigureBatch, Inventory, Review
 from scripts.screen_model_candidates import candidate_environment, LUNA, QWEN
@@ -79,3 +79,35 @@ def test_candidate_environment_does_not_change_other_roles_or_review_model():
     grader = candidate_environment("06", base={})
     assert grader["OPENROUTER_INTERVIEW_GRADER_MODEL"] == QWEN
     assert grader["OPENROUTER_INTERVIEW_MODEL"] == LUNA
+
+
+def test_json_compatibility_hint_is_in_the_actual_structured_request(monkeypatch):
+    import httpx
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage
+    from pydantic import BaseModel
+    class Result(BaseModel):
+        answer: str
+    received = []
+    def respond(request):
+        body = json.loads(request.content)
+        received.append(body)
+        if not any("json" in str(m["content"]).lower() for m in body["messages"]):
+            return httpx.Response(400, json={"error": {"message": "JSON-mode requests must mention json"}})
+        return httpx.Response(200, json={"id": "fixture", "model": QWEN,
+            "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": '{"answer":"42"}'}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}})
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
+    monkeypatch.setenv("OPENROUTER_INTERVIEW_MODEL", QWEN)
+    with httpx.Client(transport=httpx.MockTransport(respond)) as transport, patch(
+            "langchain_openai.ChatOpenAI", side_effect=lambda **kwargs: ChatOpenAI(**kwargs, http_client=transport)):
+        result = structured_model(Result).invoke([HumanMessage(content="Compute six times seven.")])
+    assert result["parsed"].answer == "42"
+    assert len(received) == 1
+    assert received[0]["response_format"]["type"] == "json_schema"
+    assert received[0]["messages"][-1]["content"] == "Compute six times seven."
+
+
+def test_other_models_keep_their_existing_structured_client():
+    sentinel = object()
+    assert structured_client(sentinel, model=LUNA) is sentinel

@@ -1,0 +1,838 @@
+{
+  "version": "round3-model-screens-v1",
+  "status": "first screens complete; selection pending matched control and compatibility correction",
+  "provider_reported_usd": "0.135548114",
+  "unknown_reserved_usd": "0.0391330140",
+  "conservatively_committed_usd": "0.1746811280",
+  "hosted_trace_delivery": "unavailable: monthly unique trace quota",
+  "human_calibration": false,
+  "runs": [
+    {
+      "candidate": "01",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "deepseek/deepseek-v4-flash": [
+          "streamlake/fp8"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0.014865954",
+      "unknown_reserved_usd": "0",
+      "cases": [
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "406646c350a02c0535f0bed46ecb981764a9d896dc10fb2aa817559991586181",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 2,
+          "coverage": 2,
+          "usefulness": 2,
+          "unsupported_claim_count": 2,
+          "layout": "not_applicable",
+          "reported_usd": "0.002557534",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "paper-scaled-attention",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "c33c1bbe82203ea435abe54e37afdb20231e20063ad7e9ec42f175f5d3f98398",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "unsupported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 3,
+          "unsupported_claim_count": 4,
+          "layout": "not_applicable",
+          "reported_usd": "0.002201753",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "4edc6a3c5a454fdf85cc3c348f6b9a8972fa70192019ed16f9bf702ee047c21a",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 4,
+          "unsupported_claim_count": 0,
+          "layout": "not_applicable",
+          "reported_usd": "0.008742221",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "course-spanner-indexed",
+          "flow": "video_course",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "9291efcd9b2761c332b847bfb7733d391617d23e98fd56805786bf39dcd93bb4",
+          "checks": {
+            "outcome": true,
+            "selected_sources_only": true,
+            "claim_support": null,
+            "citations_valid": true
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 2,
+          "usefulness": 2,
+          "unsupported_claim_count": 0,
+          "layout": "not_applicable",
+          "reported_usd": "0.001364446",
+          "unknown_reserved_usd": "0"
+        }
+      ]
+    },
+    {
+      "candidate": "02",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "qwen/qwen3.5-flash-02-23",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "qwen/qwen3.5-flash-02-23",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "qwen/qwen3.5-flash-02-23": [
+          "alibaba"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0.018181750",
+      "unknown_reserved_usd": "0",
+      "cases": [
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "324b598e2ac2435ab9c60680bfe5ccd4a9310ebcf005660bc7d2cee0249c9618",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "insufficient_evidence",
+          "correctness": 2,
+          "coverage": 2,
+          "usefulness": 2,
+          "unsupported_claim_count": 4,
+          "layout": "not_applicable",
+          "reported_usd": "0.00301539",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "paper-scaled-attention",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "3659c2b58d0589cd72c275da04dd661602b4623d4b32670799f1429c746e3976",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "unsupported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 3,
+          "unsupported_claim_count": 6,
+          "layout": "not_applicable",
+          "reported_usd": "0.002568275",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "b1ff0d58646322538c9e815f276e6469fda196e7e594fa6ef8a84eceae69f30e",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 2,
+          "usefulness": 3,
+          "unsupported_claim_count": 1,
+          "layout": "not_applicable",
+          "reported_usd": "0.011007780",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "course-spanner-indexed",
+          "flow": "video_course",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "2d59b45efb1eb512ad1567ef20d71a85742591330a4d64586d0d566197f44ad1",
+          "checks": {
+            "outcome": true,
+            "selected_sources_only": true,
+            "claim_support": null,
+            "citations_valid": true
+          },
+          "grounding_status": "insufficient_evidence",
+          "correctness": 2,
+          "coverage": 2,
+          "usefulness": 2,
+          "unsupported_claim_count": 4,
+          "layout": "not_applicable",
+          "reported_usd": "0.001590305",
+          "unknown_reserved_usd": "0"
+        }
+      ]
+    },
+    {
+      "candidate": "03",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna-pro",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "openai/gpt-6-luna-pro": [
+          "openai"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0.020506485",
+      "unknown_reserved_usd": "0",
+      "cases": [
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "645db409c84aa92de8189517754845a3634f9133fc295ad87c6325fe5906486f",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "unsupported_claim_count": 0,
+          "layout": "not_applicable",
+          "reported_usd": "0.00411423",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "559774a5ac806be0e91617de657428104f920105b5e522b2edfcb0a206c41fbd",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "unsupported_claim_count": 0,
+          "layout": "not_applicable",
+          "reported_usd": "0.016392255",
+          "unknown_reserved_usd": "0"
+        }
+      ]
+    },
+    {
+      "candidate": "04",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "google/gemini-3.1-flash-lite",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "google/gemini-3.1-flash-lite",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "google/gemini-3.1-flash-lite": [
+          "google-ai-studio"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0.032077870",
+      "unknown_reserved_usd": "0",
+      "cases": [
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "39edae3bfbc57cdda344026a247446dbff6769771ce6081b1b63cb5315e2c32c",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "unsupported_claim_count": 2,
+          "layout": "not_applicable",
+          "reported_usd": "0.00524199",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "paper-scaled-attention",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "dedfcdf3d217737ed2e012f556e6050a4df02dc76bf10fce67cd80595a8f2ce0",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 3,
+          "unsupported_claim_count": 2,
+          "layout": "not_applicable",
+          "reported_usd": "0.00412770",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "2cf31a83c3b6b718dfc37ca856661d78aa02e3ba893e7582f1d92643912447d5",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 2,
+          "coverage": 2,
+          "usefulness": 2,
+          "unsupported_claim_count": 2,
+          "layout": "not_applicable",
+          "reported_usd": "0.020595925",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "course-spanner-indexed",
+          "flow": "video_course",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "9e4e89b53c8411c297ac3d311ed51177cdc4b29928cf65c3c3df173aefd192a0",
+          "checks": {
+            "outcome": true,
+            "selected_sources_only": true,
+            "claim_support": null,
+            "citations_valid": true
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 2,
+          "usefulness": 2,
+          "unsupported_claim_count": 2,
+          "layout": "not_applicable",
+          "reported_usd": "0.002112255",
+          "unknown_reserved_usd": "0"
+        }
+      ]
+    },
+    {
+      "candidate": "05",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_CONTROL_REASONING": "none",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "deepseek/deepseek-v4-flash": [
+          "streamlake/fp8"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0.009472155",
+      "unknown_reserved_usd": "0.0051698640",
+      "cases": [
+        {
+          "case_id": "mt-003-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "5f8dcea35a25a4ba727c8cee491b6722b07fa0cb35b2d440cd3f3781299083d3",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "unsupported_claim_count": 0,
+          "layout": "not_applicable",
+          "reported_usd": "0.002363242",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "mt-003-t2",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "1325d97f2048913c2d1acc2c0fa513b555fe7f8361ef893beeb08932b8114de2",
+          "checks": {
+            "route": true,
+            "history_dependency": false,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "unsupported_claim_count": 0,
+          "layout": "not_applicable",
+          "reported_usd": "0.003619131",
+          "unknown_reserved_usd": "0.0014348208"
+        },
+        {
+          "case_id": "mt-003-t3",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "70c64cec2abc9d9041e2f37353fc32d1eed915df3830493d88d016f3b09cdf7d",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "unsupported_claim_count": 0,
+          "layout": "not_applicable",
+          "reported_usd": "0.003313130",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "mt-003-t4",
+          "flow": "chat",
+          "status": "failed",
+          "error_kind": "ConversationDecisionError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0.000176652",
+          "unknown_reserved_usd": "0"
+        },
+        {
+          "case_id": "mt-009-t1",
+          "flow": "chat",
+          "status": "failed",
+          "error_kind": "ConversationDecisionError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0.0037350432"
+        },
+        {
+          "case_id": "mt-009-t2",
+          "flow": "chat",
+          "status": "dependency_unavailable",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0"
+        }
+      ]
+    },
+    {
+      "candidate": "06",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "qwen/qwen3.5-flash-02-23",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "qwen/qwen3.5-flash-02-23": [
+          "alibaba"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0",
+      "unknown_reserved_usd": "0.0131036100",
+      "cases": [
+        {
+          "case_id": "proximity-weak",
+          "flow": "interview",
+          "status": "failed",
+          "error_kind": "RuntimeError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0.0021715200"
+        },
+        {
+          "case_id": "proximity-mixed",
+          "flow": "interview",
+          "status": "failed",
+          "error_kind": "RuntimeError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0.0021897720"
+        },
+        {
+          "case_id": "proximity-strong",
+          "flow": "interview",
+          "status": "failed",
+          "error_kind": "RuntimeError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0.0022060740"
+        },
+        {
+          "case_id": "rag-weak",
+          "flow": "interview",
+          "status": "failed",
+          "error_kind": "RuntimeError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0.0021633300"
+        },
+        {
+          "case_id": "rag-mixed",
+          "flow": "interview",
+          "status": "failed",
+          "error_kind": "RuntimeError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0.0021806460"
+        },
+        {
+          "case_id": "rag-strong",
+          "flow": "interview",
+          "status": "failed",
+          "error_kind": "RuntimeError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0",
+          "unknown_reserved_usd": "0.0021922680"
+        }
+      ]
+    },
+    {
+      "candidate": "07",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "qwen/qwen3.5-flash-02-23",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "qwen/qwen3.5-flash-02-23": [
+          "alibaba"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0.010402950",
+      "unknown_reserved_usd": "0.0208595400",
+      "cases": [
+        {
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "status": "failed",
+          "error_kind": "BadRequestError",
+          "output_hash": null,
+          "checks": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "unsupported_claim_count": 0,
+          "layout": null,
+          "reported_usd": "0.010402950",
+          "unknown_reserved_usd": "0.0208595400"
+        }
+      ]
+    },
+    {
+      "candidate": "08",
+      "runtime_commit": "c2d0ee9",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "google/gemini-3.1-flash-lite",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "provider_routes": {
+        "google/gemini-3.1-flash-lite": [
+          "google-ai-studio"
+        ]
+      },
+      "review_version": "artifact-review-v3",
+      "reported_usd": "0.030040950",
+      "unknown_reserved_usd": "0",
+      "cases": [
+        {
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "b49a6ec8963782a525039d6aa6fa94a66ae8cc35766d1c36a39cbe65250d0837",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "unsupported_claim_count": 0,
+          "layout": "readable",
+          "reported_usd": "0.030040950",
+          "unknown_reserved_usd": "0"
+        }
+      ]
+    }
+  ]
+}

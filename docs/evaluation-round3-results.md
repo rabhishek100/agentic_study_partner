@@ -27,10 +27,37 @@ with substituted source labels remains separate and is not this evidence.
 
 ## Model screens and remaining work
 
-Eight model-role screens are running through the shared round coordinator.
-Wait for each child's final ledger before classifying unsettled reservations:
-a request in progress is not a concluded billing failure. Preserve every
-failed provider/schema/timeout attempt and dependent case that could not run.
+Eight initial model-role screens completed at `c2d0ee9`. Provider receipts total
+**$0.135548114**; unsuccessful requests retain **$0.039133014** in unresolved
+reservations. Conservative round commitment for these eight screens is
+**$0.174681128**. These amounts exclude the separate fresh control now running.
+Unresolved reservations are not zero charges or confirmed actual bills.
+
+| Candidate | Initial observation | Next decision |
+| --- | --- | --- |
+| 1: DeepSeek writer | Four outputs complete. Audit and course coverage remain weak; attention answer has a source-support failure; paper summary clears the score floor. | No default switch; cheap token prices do not compensate for these gaps. |
+| 2: Qwen writer | Four outputs complete. Audit/course answers lack enough evidence, paper coverage is incomplete and the attention answer has a support failure. | No default switch on this evidence. |
+| 3: Luna Pro writer | Two hard outputs complete; audit scores 4/3 and paper summary 3/3 for correctness/coverage. | Compare with matched Luna control and actual generation costs; no isolated gain established yet. |
+| 4: Gemini writer | Four outputs complete. Audit and attention clear the score floor; full paper and course coverage remain weak. | Only consider a narrowly scoped use after cost/repeat checks. |
+| 5: DeepSeek router | Three dependency-chain outputs complete; quantization fails schema validation, ambiguous-reference turn fails with upstream overload and its follow-up cannot run. | Reject this router trial; keep schema validation and original failures. |
+| 6: Qwen grader | All six initial structured requests fail; no quality score is inferred. | Test a necessary provider-format correction before judging model quality. |
+| 7: Qwen sheet author | Figure/source preparation runs; author request fails because upstream JSON mode requires the word JSON in messages. | Correct the format hint, then retest independently with original attempt preserved. |
+| 8: Gemini figure reader | Paper sheet completes and is supported, with correctness/coverage 4/4. | Compare full-flow cost and quality with the fresh Luna control; one passing sample is not a gain. |
+
+Public scalar evidence: [round3_model_screen_results.json](../evaluation/round3_model_screen_results.json).
+Actual prompts, outputs and provider error details remain private. A provider
+compatibility correction now adds a format-only JSON hint for Qwen structured
+clients while retaining the exact schema and native validators. It adds no
+model call; other models retain their existing client. A real SDK/mock transport
+test reproduces the missing-hint rejection and verifies successful parsing
+with the hint. Original failed paid attempts will not be overwritten.
+
+The fresh 54-case Luna control uses the frozen `c2d0ee9` attached checkout so
+later candidate code changes cannot alter its generation. All paid children
+share the same round ledger and run serially. Control timing cannot be read
+back from LangSmith while its quota is exhausted; do not substitute inferred
+hosted timings. If a conservative image reservation blocks the individual
+control ceiling, keep its completed outputs and record the incomplete state.
 
 Next: publish settled model findings; run independent retrieval/completeness/
 grading candidates; repeat promising settings; run a fresh control/finalist on

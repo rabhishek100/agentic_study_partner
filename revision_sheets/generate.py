@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.exceptions import OutputParserException
 from langchain_core.tracers.run_collector import RunCollectorCallbackHandler
 from pydantic import ValidationError
-from model_routing import provider_options
+from model_routing import provider_options, structured_client
 
 from observability import traced
 from storage.book_images import load_figure
@@ -181,11 +181,11 @@ def revision_model(schema=Draft, *, judge=False, allowed_figures=None):
             figures["items"]["enum"] = sorted(set(allowed_figures))
         else:
             figures["maxItems"] = 0
-    return ChatOpenAI(model=chosen, api_key=key, base_url="https://openrouter.ai/api/v1",
+    return structured_client(ChatOpenAI(model=chosen, api_key=key, base_url="https://openrouter.ai/api/v1",
                       temperature=0.2, max_tokens=16000, max_retries=2,
                       timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
                       extra_body={**provider_options(chosen), "usage": {"include": True}, "reasoning": {"effort": "low", "exclude": True}}
-                      ).with_structured_output(schema, method="json_schema")
+                      ).with_structured_output(schema, method="json_schema"), model=chosen)
 
 
 def _page_count(pdf: bytes) -> int:

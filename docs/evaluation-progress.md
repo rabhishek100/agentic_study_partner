@@ -38,6 +38,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 17 | Round-three shared budget and preflight | Budget guard verified; execution active | User approved the plan; parent reservations protect phase/round caps across interruptions; 51 targeted checks passed; new trace delivery rejected by monthly quota; $0 provider spend |
 | 18 | Independent model-stage configuration and screens | Plumbing verified; ready to run | Default models unchanged; provider pinning, sheet author/inventory/figure isolation, grader isolation and cache provenance; 144 checks / 48 subtests passed; eight independent screens defined |
 | 19 | Free rendering/cache screens | Complete; citation change shortlisted | Six sheets × control/balance/citation variants; candidate 16 no gain, candidate 17 measured 9→10pt with identical text/page counts; extra cache not justified; $0 provider spend |
+| 20 | Initial eight model screens and Qwen format correction | Initial results recorded; retest pending | $0.135548114 reported + $0.039133014 unresolved reserves; no automatic model switch; schema-preserving JSON hint for Qwen verified by SDK transport; 146 checks / 48 subtests passed |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -431,6 +432,21 @@ do not edit their imported runtime code until they finish. Saved stage plans,
 ledgers, requests, output hashes and private session state remain under
 `evaluation/runs/round3/`. Next checkpoint is settled model findings and the
 independent flow-change screens. Production remains at `0983a1c`.
+
+All eight initial model screens are now complete and published in
+[round3_model_screen_results.json](../evaluation/round3_model_screen_results.json).
+Their reported spend is $0.135548114, with $0.039133014 conservatively held for
+unsuccessful requests. Cheap writers do not consistently clear quality checks;
+DeepSeek routing has schema/overload failures. Qwen's structured stage failures
+include an explicit upstream requirement to mention JSON in messages. The
+format-only compatibility correction preserves schema/native validation and
+other models' clients. The same isolated target command passed 146 tests /
+48 subtests, nine deprecation warnings. Next: fresh combined control is active
+under the shared final allocation in the attached checkout at frozen `c2d0ee9`;
+root changes can now be prepared independently. Retest Qwen's corrected
+grader/author in new directories without replacing original failures, then
+screen remaining independent flow changes. Hosted trace delivery is pending
+monthly quota; actual production comparison and rollout remain undone.
 
 Round-two comparison and selection are complete; supporting evidence is in
 [evaluation-round2-results.md](evaluation-round2-results.md) and
