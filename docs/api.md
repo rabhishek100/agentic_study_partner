@@ -73,6 +73,24 @@ object with `code`/`message`. After an SSE response starts, failures arrive as
 byte ranges, `403` for an invalid signed link, or `416` for an invalid range.
 Canonical book figures can return an empty `304` when their ETag matches.
 
+### Telemetry and request correlation
+
+When tracing is configured, responses expose `X-Trace-Id` for Grafana Tempo and
+`X-LangSmith-Trace-Id` for the LangSmith root through CORS. Access logs record
+the route template, final status and correlation IDs without request bodies,
+query strings or authorization. Stream traces/logs finish after SSE delivery;
+HTTP 200 alone does not establish a successfully completed answer.
+
+Authenticated operations propagate the verified JWT subject as `user_id` to
+logs and spans. Caller-supplied identity headers do not override authentication;
+anonymous/invalid-auth requests have no user ID. Queued execution has a separate
+worker root correlated by `job_id`, rather than a span held open during queue
+wait. [Trace organization and identity](observability.md),
+[operational queries](operational-observability.md).
+
+Code: [HTTP middleware and trace context](../observability.py),
+[structured logging and operational spans](../operations_telemetry.py).
+
 ### Grounded chat
 
 Use a ready book ID from `GET /api/books` and set your access token in a local

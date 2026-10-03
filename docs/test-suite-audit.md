@@ -4,23 +4,6 @@ Keep most behavioral tests. Reduce duplication and brittle implementation
 checks, and close discovery/flow gaps before adding more small assertions.
 A large passing count is not evidence of answer quality or browser integration.
 
-## Latest verification
-
-The selected runtime at `d8c9dda` passed **2,181 tests + 973 subtests**, with
-38 skips and no failures, against the isolated migrated test database. The
-unchanged frontend's last verification passed 753 tests, types and build.
-These supersede the older local checkpoints below, not their historical
-failure records, and do not establish a hosted CI run or exhaustive coverage.
-
-Later regressions cover verified identity isolation, notification project
-hierarchy, long web-proxy requests/concurrent ideal reuse, full-source summary
-repair, bounded section context, source-bound images, browser cleanup, paid
-budget interruption/resume, saved-output preservation and safe reporting when
-hosted trace lookup fails. [Delivery summary](evaluation-observability-delivery.md).
-Manual artifact review is optional; automated review is complete without human
-calibration. Remaining accessibility/device, load and quality gaps still need
-their own checks rather than deleting protective tests.
-
 ## Inventory and scope of this audit
 
 Before cleanup, pytest collected **2,037 backend cases** across 160 test files.
@@ -62,6 +45,11 @@ and should both stay.
 - The new LangSmith/OpenTelemetry/PostHog tests: real SDK nesting, streaming
   lifetime, redaction, trace IDs and local OTLP wire export protect behavior
   that a rendering test or mocked function-call assertion cannot establish.
+- Identity isolation, notification project hierarchy, concurrent ideal reuse,
+  long proxy responses, full-source summary repairs, source-bound images and
+  browser cleanup. These protect user scope, complete evidence and finished demos.
+- Paid budget interruption/resume, preserved outputs and safe reporting when
+  hosted trace lookup fails. Ordinary tests use fixture transports, not inference.
 - Narrow static guards with a demonstrated operational purpose: Docker import
   boundaries, model defaults/cost choices, provider tracing coverage and
   generated documentation drift. Static checks are not automatically waste.
@@ -140,6 +128,12 @@ the other.
   and credentials. Skipped/unknown cases must be visible in reports.
 
 ## Validation
+
+The selected runtime's isolated suite passes **2,181 tests + 973 subtests**,
+with 38 skips and no failures. The unchanged frontend's verification passes
+753 tests, types and build. These are local checks, not a hosted CI result or
+exhaustive coverage. [Quality results and limits](evaluation-round3-results.md)
+are measured separately from deterministic test contracts.
 
 The edited book-source, external-search and transcript suites passed **44 cases**.
 All **101 standalone pytest cases** passed, including the 89 previously absent

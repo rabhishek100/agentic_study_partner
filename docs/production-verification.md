@@ -1,33 +1,5 @@
 # Production verification — updated 3 October 2026
 
-## Latest release and evaluation follow-up
-
-API/combined worker **`d8c9dda`** deployed successfully as
-`2a7303a6-eff3-43b9-8f58-ee5c45347e00`. Health confirms canonical/retrieval
-databases; worker readback confirms Luna and `html-a4-flow-v5`. Web and voice
-were unchanged by this rollout. Earlier release tables below are historical.
-
-Same-account chat, full paper summary, cold regenerated sheet, video question,
-course question and saved ideal interview were verified through the production
-UI with matching source fingerprints. A complete synthetic adaptive session
-finished after 18 answers, created its report and recorded 44 exact provider
-receipts. Both capped comparison windows closed, and the normal production
-key was restored and read back. Combined window usage was $0.10556099, within
-the $0.75 cap.
-
-Timing was mixed; no general speedup is claimed. The regenerated sheet retains
-one native warning, the chat retains an unrelated image, and the ideal reopen
-is cached rather than a fresh-generation speed result. Latest isolated backend
-verification: 2,181 tests + 973 subtests passed, 38 skipped. LangSmith's monthly
-quota blocks new hosted trace readback in this last round; earlier successful
-delivery checks below remain historical evidence.
-
-See [the final comparison](evaluation-round3-results.md) for every pair, spend,
-remaining quality gaps and the conditional monthly forecast. The original
-feature-family acceptance and subsequent fixes follow below.
-
-## Original acceptance — 2 October 2026
-
 **Deployed and verified with real providers across every current feature family.**
 This is bounded production acceptance, not exhaustive endpoint, security, load or
 model-quality certification. Device audio, fresh external YouTube acquisition and
@@ -55,9 +27,9 @@ and frequent-name shortcuts; newly received polling no longer fills the main lis
 - [Production application](https://web-production-8529e.up.railway.app).
 - [API health](https://api-production-08e6b.up.railway.app/api/health).
 - Railway project `agentic-study-partner`, environment `production`.
-- **Application revision `d58c608` on all five services**, deployed from a clean
-  managed worktree. Runtime API/proxy health and voice-worker environment checks
-  agree with the release. Later dashboard/documentation commits need no app build.
+- API/combined worker runs **`d8c9dda`**, with Luna and `html-a4-flow-v5`.
+  Health confirms canonical/retrieval databases. Web and the three voice services
+  retain their accepted builds. Documentation-only updates require no app build.
 - PostgreSQL 18.6, 60 application tables, migration head `20260914120000` already
   matched the repository; no database migration was required.
 - Before release, a 432 MB custom-format backup passed SHA-256/archive checks
@@ -70,13 +42,13 @@ and frequent-name shortcuts; newly received polling no longer fills the main lis
   source hash and chunk IDs/content hashes; four chunks were re-embedded at
   dimension 3,072 and all four matched the BM25 precision/recall query.
 
-| Service | Successful final deployment |
-|---|---|
-| API / combined worker | `cd095a1c-91cf-4f23-a69c-a2f622a0e35f` |
-| Web | `b9f49ab6-48f8-4abd-9e8e-d6a86e201fb1` |
-| Adaptive voice | `a928e427-7cc3-48f4-a13d-5b38e96a0449` |
-| Ideal voice | `09ea5f7f-0e71-417c-9a80-c60bbe4965f2` |
-| Narration voice | `97accd4a-cfa4-47e8-8394-600a3d8b840f` |
+| Service | Accepted code revision | Successful deployment |
+| --- | --- | --- |
+| API / combined worker | `d8c9dda` | `2a7303a6-eff3-43b9-8f58-ee5c45347e00` |
+| Web | `ba6a887` | `4635f254-db6b-45e5-a9ec-24b75f1d934b` |
+| Adaptive voice | `0983a1c` | `1d8332f7-9539-4a2d-b282-cd7fde80cd7b` |
+| Ideal voice | `0983a1c` | `812bc76f-e7eb-4cf7-bb62-69dd104d903a` |
+| Narration voice | `0983a1c` | `47112fff-f8ce-4a73-b228-9280333c2a29` |
 
 ## Live acceptance
 
@@ -175,6 +147,17 @@ operation throughput, approximate histogram p95, failures, CPU and RSS. Five-min
 windows have few observations and deployment overlap; histogram buckets are coarse
 and long jobs exceed the highest finite bucket. Use LangSmith for exact run timing;
 no representative load-capacity or per-run peak-memory claim is made.
+
+The same-account six-scenario comparison uses matching source fingerprints.
+It includes cold sheet regeneration and cached ideal reuse; timings are mixed
+and do not establish a general speedup. The separate synthetic adaptive session
+finishes after 18 answers with a report and 44 exact receipts. Both capped
+windows are closed, their combined $0.10556099 usage is within $0.75, and the
+normal production key is restored/read back. See the
+[paired measurements](evaluation-round3-results.md#same-real-account-before-and-after-deployment).
+The regenerated sheet retains one warning and the chat an unrelated image;
+these are not hidden by successful HTTP completion. New LangSmith readback is
+quota-blocked; older delivered traces are separate evidence.
 
 ## Automated quality review
 

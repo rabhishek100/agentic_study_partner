@@ -1,14 +1,12 @@
 # Observability verification — updated 2026-10-03
 
-## Current scope and limits
-
-Initial plumbing checks below were followed by actual production API, worker
-and voice delivery. Verified auth identity, notification-project separation,
-Loki/Tempo correlation and production-filtered dashboards have live readback in
-[production verification](production-verification.md). The latest eval round
-hit LangSmith's monthly unique-trace quota; new hosted delivery is not verified
-by local SDK timings or saved outputs. Grafana/PostHog and AI quality evidence
-remain separate. [Delivery overview](evaluation-observability-delivery.md).
+This record separates synthetic transport checks, fixture-backed workflow
+checks and real-service acceptance. Setup and code behavior are documented in
+[AI tracing](observability.md) and
+[operational telemetry](operational-observability.md). The latest quota rejection
+means new LangSmith hosted delivery is unavailable; local timings are not a
+substitute. Real API/worker/voice, identity and dashboard acceptance is in
+[production verification](production-verification.md).
 
 ## Original infrastructure verification — 1 October 2026
 

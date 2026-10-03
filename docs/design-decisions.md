@@ -16,6 +16,10 @@ judgment. Decisions prioritize grounding, inspectability, and measured value.
 | Durable worker queues | Long work survives reloads and process failure | Leases, checkpoints, and idempotency are required |
 | Supabase Auth | Managed sessions, refresh, and token verification | Identity is separate from database/storage deployment |
 | Optional LiveKit | Streaming speech without replacing interview logic | Separate media workers and configuration |
+| LangSmith for AI traces, shared runner for quality evals | Inspect prompts/evidence and compare frozen outputs without another eval platform | Quotas and model-review bias remain explicit; no additional Opik service |
+| Direct OpenTelemetry export to Grafana Cloud | Logs, operational traces and process metrics without monitoring servers | Best-effort bounded queues can drop telemetry; no SQL/browser trace instrumentation |
+| PostHog with safe explicit UI events | Usage and event journeys without capturing study content | Replay disabled; generic actions do not prove feature completion |
+| Verified auth UUID across telemetry | Join logs, traces and product events without email | Anonymous/system work has no user; identity is not a metric/stream label |
 
 ## Model defaults
 
@@ -45,23 +49,6 @@ sheet and figure-reading roles; no alternative showed a reliable improvement
 worth promoting. Keep Luna, with larger citations and the earlier tested core
 fixes. Speech defaults were not compared in that round.
 [Selection evidence and limits](evaluation-round3-results.md).
-
-## Evaluation and monitoring decisions
-
-Use source-backed, immutable saved outputs and budgeted native requests to
-measure quality; use LLM review by default and keep human calibration optional.
-Preserve failed requests, reviewer disagreement and unknown receipt reservations.
-Matched repeats and an alternate blinded reviewer prevent an initial attractive
-score from becoming an unsupported model switch.
-
-LangSmith holds AI evidence/model trees; direct OpenTelemetry export to Grafana
-holds operational logs/traces/process metrics; PostHog holds safe UI events.
-This separation keeps tool purpose clear without adding monitoring servers.
-Notification polling has a separate LangSmith operations project. Verified auth
-UUIDs join investigations across tools; emails and identity metric labels are
-excluded. Browser session recording is disabled; event journeys remain available.
-Best-effort telemetry does not change application outcomes. See
-[delivered work and verification limits](evaluation-observability-delivery.md).
 
 On October 1, 2026, active Luna defaults moved from GPT-5.6 Luna to GPT-6 Luna
 after checking the [OpenRouter model catalog](https://openrouter.ai/api/v1/models)

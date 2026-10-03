@@ -5,24 +5,6 @@ quality evaluations. [observability.py](../observability.py) supplies SDK run
 boundaries for ordinary Python work, HTTP requests and direct provider calls.
 Existing LangGraph and LangChain tracing supplies graph nodes and model calls.
 
-## Current status — 3 October 2026
-
-Repository-wide tracing is deployed, including ordinary Python workflows,
-notification project isolation and verified `user_id` propagation. Earlier live
-readback confirmed complete HTTP/graph/model trees and worker/voice correlation.
-During the latest evaluation round, LangSmith rejected new delivery/readback at
-the monthly unique-trace quota. A local captured run or SDK timing alone does
-not prove hosted delivery. Check account usage, process exporter errors and the
-correct project before diagnosing absent traces as a missing instrumentation path.
-See [verification history](observability-verification.md) and the
-[completed delivery overview](evaluation-observability-delivery.md).
-
-To inspect one request, select the main production project, clear old run-name
-filters, choose **Traces**, open its HTTP root and expand the child tree. Use
-`X-LangSmith-Trace-Id` or metadata filters rather than relying on the sidebar's
-frequent-name shortcuts, which are not an exhaustive list of flows. The tree
-view still contains nested model calls, tools and LangGraph/Python stages.
-
 ## Setup and organization
 
 Set these variables in each API, queue worker and optional voice worker process:
@@ -52,6 +34,11 @@ Filter runs by `flow`, `thread_id`, `conversation_id`, `session_id`, `job_id`,
 Python operation, such as `video.pipeline._run_transcript`. HTTP root names use
 route templates, such as `http.POST /api/conversations/{conversation_id}/turns`.
 The response includes `X-LangSmith-Trace-Id`, exposed through CORS.
+
+To inspect a request, select `agentic-study-partner-production`, clear stale
+run-name filters, choose **Traces**, and open the HTTP root. Expand its children
+for nested model calls, tools and LangGraph/Python stages. Use the response ID
+or metadata filters; sidebar frequent-name shortcuts are not an inventory.
 
 An HTTP request encloses loading, execution and persistence. LangGraph nodes,
 model calls and raw provider attempts appear beneath that request. Plain Python
@@ -145,6 +132,14 @@ In Tempo search use `{ span.user_id = "<account-uuid>" }`. In LangSmith use
 root trace to inspect its children. Older telemetry is not rewritten.
 
 ## Verification
+
+Earlier production readback verified complete API/model trees, worker/voice
+correlation, notification-project isolation and authenticated identity. The
+latest evaluation round hit LangSmith's monthly unique-trace quota. Check
+account usage, exporter errors, project and time filters when traces are absent.
+Local captures and SDK timing do not establish hosted delivery. Validation
+history is in [observability verification](observability-verification.md);
+real-service acceptance is in [production verification](production-verification.md).
 
 No-network regression checks:
 

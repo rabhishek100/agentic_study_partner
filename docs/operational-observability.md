@@ -9,36 +9,6 @@ This setup adds no monitoring server or collector container. Python sends three
 signals through one OTLP/HTTP endpoint. JSON logs also work locally without a
 hosted account. Both hosted integrations are disabled until configured.
 
-## Current deployed status — 3 October 2026
-
-Both integrations are configured in production. Loki logs, Tempo operational
-traces, all five Grafana panels, real UI/API/stream events and verified account
-identity were read back. The historical local setup record below describes the
-initial activation, not unfinished deployment. See the
-[production acceptance record](production-verification.md) and
-[delivery overview](evaluation-observability-delivery.md).
-
-Open [Grafana operations](https://petitecicada3339.grafana.net/d/study-partner-operations),
-select **Environment: production**, and use a recent time range. For request
-logs choose **Explore → Loki**; for execution spans choose **Explore → Tempo**.
-Filter by the response `X-Trace-Id`, or by account UUID as documented under
-[user identity](observability.md#user-identity). Backend spans cover API, Python
-workflow/provider boundaries and worker attempts; SQL-level instrumentation and
-frontend/browser distributed tracing are not enabled.
-
-Open [PostHog usage](https://us.posthog.com/project/639444/dashboard/2157665) or
-**Activity → Events**, select `ui_action` or `api_action_response`, then use
-Person/route/action/time filters. **People and groups → person → activity**
-shows an account's event journey. Product paths/funnels show navigation and
-drop-off; **playable session recordings are disabled** in the application.
-If a custom Activity query fails, inspect its query debugger and return to the
-standard event view to distinguish a query failure from missing ingestion.
-
-The same opaque auth UUID joins PostHog identity with backend logs/traces.
-Emails and form/source text are omitted. User IDs are fields, not metric or
-stream labels. LangSmith's latest monthly quota rejection affects new AI trace
-readback; it does not establish that Grafana or PostHog delivery also failed.
-
 ## Free limits and the simplicity tradeoff
 
 Checked 2026-10-01 against official sources:
@@ -87,13 +57,26 @@ gets a distinct default service name. To rename a service, set it individually.
    in Grafana and select your Prometheus data source. Metric name translation
    follows the default OTLP-to-Prometheus convention; check Explore if your
    stack uses a different translation setting.
+
+The [saved operations dashboard](https://petitecicada3339.grafana.net/d/study-partner-operations)
+uses `grafanacloud-prom` in the **Study Partner** folder. Its Environment dropdown
+defaults to `production` and offers `local`; all five queries filter
+`deployment_environment_name`. Select the environment and a recent time range
+before comparing services. Reuse this dashboard rather than creating a duplicate.
+
 4. Use Explore's Tempo data source with the returned `X-Trace-Id`. Logs carry
    `trace_id`, `span_id` and, when enabled, `langsmith_trace_id`. Look up the AI
    ID in LangSmith. LogQL example:
 
 ```logql
-{service_name="study-partner-api"} | json | trace_id="<X-Trace-Id>"
+{deployment_environment_name="production",service_name="study-partner-api"} | json | trace_id="<X-Trace-Id>"
 ```
+
+Choose **Explore → Loki** for access/failure logs and **Explore → Tempo** for
+the trace tree. Authenticated logs and spans carry verified `user_id`; use the
+[account filters](observability.md#user-identity) to join an investigation with
+LangSmith and PostHog. Anonymous/system records have no account identity.
+User IDs are fields, never Loki stream labels or metric labels.
 
 ## What is measured
 
@@ -118,7 +101,7 @@ put source text or secrets in new log messages.
 Background jobs are separate traces joined by `job_id`, not one span held open
 across processes. LiveKit commands likewise have their own roots and session
 IDs. This does not instrument each SQL statement, external SDK internals,
-host/container metrics, continuous profiles, or the Next.js server. LangSmith
+host/container metrics, continuous profiles, browser spans, or the Next.js server. LangSmith
 provides LangGraph and LangChain model internals.
 
 Suggested investigations: a latency regression → find the slow operational
@@ -169,17 +152,29 @@ full feature conversion from these generic counts.
 
 DOM text capture and session replay are off. Events omit prompts, answers,
 source filenames, URLs/queries, form values, email, auth tokens, and automatic
-referrer/title/person fields. `before_send` enforces an event/property allowlist;
+referrer/title/person fields. `before_send` enforces an event/property allowlist,
+preserves the configured public ingestion token and removes SDK-added profile
+enrichment (`$set`, `$set_once`, `$unset`);
 geolocation enrichment is disabled. PostHog uses localStorage for anonymous
 identity, opaque authenticated IDs for retention, and respects Do Not Track.
 Ad blockers/DNT/missing keys can prevent collection, so analytics counts are
 not an authoritative audit or billing source.
 
-Create one small PostHog dashboard: active users and retention, page usage,
-API action failure rate, and a chat funnel (`api_action_started` filtered to
-`/api/chat/stream` → `study_answer_completed` filtered to `flow=chat`). For
-other actions, begin with API response status and investigate backend completion
-in Grafana. Refine events only when a product question needs them.
+The [saved usage dashboard](https://us.posthog.com/project/639444/dashboard/2157665)
+contains page visitors, retention, API outcomes, streamed study outcomes and a
+chat funnel (`api_action_started` filtered to `/api/chat/stream` →
+`study_answer_completed` filtered to `flow=chat`). Definitions are in
+[posthog-study-partner.json](posthog-study-partner.json). For other actions, begin
+with API response status and investigate backend completion in Grafana.
+
+In **Activity → Events**, select `ui_action` or `api_action_response` and filter
+by Person, route, action and time. **People and groups → person → activity**
+shows an account's event journey; product paths/funnels show navigation and
+drop-off. The person ID matches verified backend `user_id`. Playable session
+recordings are disabled in the application. If a custom Activity query fails,
+inspect its query debugger and compare the standard event view before treating
+it as an ingestion outage. Refine semantic events only for a concrete product
+question.
 
 ## Verification
 
@@ -196,66 +191,25 @@ npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
 
-## Historical local setup record (2026-10-01)
+## Hosted management
 
-Both official CLIs are authenticated locally: `gcx` uses the `study-partner`
-OAuth context, and `posthog-cli` can access project `639444`. Management login
-is separate from application ingestion credentials.
+Use `gcx` for the Grafana stack and `posthog-cli` for the PostHog project.
+The recorded Grafana context is `study-partner`; PostHog project ID is `639444`.
+Management authentication is separate from application ingestion credentials.
+The application Grafana policy permits only `metrics:write`, `logs:write` and
+`traces:write`; its recorded credential expires **2026-12-30**. Rotate it in
+backend secrets and restart exporters before expiry. Never use management
+credentials or encoded OTLP authorization in a browser build.
 
-- [PostHog usage dashboard](https://us.posthog.com/project/639444/dashboard/2157665)
-  is saved with five insights: daily visitors by page, weekly retention, API
-  response/transport outcomes, streamed study outcomes by flow, and the chat
-  request-to-answer funnel. Reusable definitions are in
-  [posthog-study-partner.json](posthog-study-partner.json). The existing starter
-  dashboard was preserved. Local root `.env` and `frontend/.env.local` contain
-  the public ingestion key and enable analytics. Real local browser page views and UI actions were read back from the hosted
-  events table. Their property keys match the allowlist plus PostHog’s own
-  `$sent_at`; no email, prompt, title, or referrer fields appeared. The visit
-  appears in the hosted visitor chart and retention cohort. Full authenticated
-  study-flow conversions have not been exercised in this setup check.
-- [Grafana operations dashboard](https://petitecicada3339.grafana.net/d/study-partner-operations)
-  defaults to the `production` environment. Its Environment dropdown also offers
-  `local`; all five panel queries filter `deployment_environment_name`, preventing
-  local test traffic from entering production charts. The source template matches
-  the hosted queries. On 2 October, server validation, stored-query readback,
-  all five production queries and a rendered dashboard inspection passed.
-  It is saved in the **Study Partner** folder using the stack's existing
-  `grafanacloud-prom` data source. Resource validation, server dry-run, push,
-  saved-object readback, and image rendering succeeded. After enabling export,
-  all five panel queries returned data from the temporary
-  `study-partner-api-verification` service. Hosted metric names and `job`,
-  `instance`, `flow`, and `outcome` labels match the portable template. Healthy
-  observed flows display zero failures even without a failed series.
-- With explicit user approval, created the `study-partner-telemetry` access
-  policy with exactly `metrics:write`, `logs:write`, and `traces:write`, and its
-  `study-partner-local-telemetry` token, expiring **2026-12-30**. Saved only its
-  encoded OTLP Authorization header in ignored local `.env` (mode `0600`),
-  enabled `OTEL_ENABLED`, and removed the temporary secret file. No read or
-  management permissions were granted to this application token.
-- Real application ASGI requests to `/openapi.json` (200) and `/api/books`
-  without authentication (401) exported successfully. Loki logs and Tempo
-  traces were read back with matching HTTP correlation IDs; Prometheus
-  received operation counters/duration histograms and CPU/RSS metrics across
-  multiple samples. This verifies delivery, not AI quality or representative
-  application performance. LangSmith was disabled for this isolated check.
-  Already-running API, worker and voice processes still need a restart to
-  load the new `.env`; they were not interrupted during this setup.
+Both integrations are configured in production. Real Loki/Tempo/metric exports
+and PostHog UI/API/stream events were read back; dashboard queries filter the
+production environment and identity filters use verified UUIDs. Exact checks,
+release history and scope limits are in
+[observability verification](observability-verification.md) and
+[production verification](production-verification.md). Local SDK timing or a
+configured exporter alone does not establish hosted delivery.
 
-Live setup caught and fixed a privacy-filter regression: PostHog requires its
-public project token in event properties. The filter now restores only the
-configured token, preserves opaque event identity, and removes SDK-added
-top-level `$set`, `$set_once`, and `$unset` profile enrichment. The existing
-analytics regression test covers this transport/privacy boundary. Six targeted
-analytics tests and TypeScript checks passed.
-
-These settings activate local development only. No hosted app deployment,
-payment method, billing upgrade, or real model inference was performed by this
-setup. Rebuild deployed frontend services with their analytics build variables
-when deploying separately.
-
-Local validation on 2026-10-01: production Next build and TypeScript checks
-passed; all 753 frontend tests passed (including six new analytics tests).
-With operational tracing enabled, 86 workflow tests passed and 164 spans
-exported; the cited-document-image test returned the known baseline 404
-(previously reproduced on unchanged code). Dedicated telemetry/setup/supervisor
-checks cover the three OTLP signals and both tracing systems together.
+Implementation: [OpenTelemetry and JSON logging](../operations_telemetry.py),
+[shared workflow boundaries](../observability.py),
+[analytics filtering/API outcomes](../frontend/lib/analytics.ts) and
+[root page/control observer](../frontend/components/analytics-observer.tsx).

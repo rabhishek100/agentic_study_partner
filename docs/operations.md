@@ -59,8 +59,11 @@ its recorded **2026-12-30** expiry. Never copy its encoded authorization into
 browser settings or committed files. PostHog settings are build-time variables;
 backend exporters require process restart after configuration changes.
 
-Current project split, request/account filters, deployment verification and
-known LangSmith quota limits: [delivery overview](evaluation-observability-delivery.md).
+Project organization and request/account filters: [LangSmith tracing](observability.md).
+Dashboard/log/trace queries and UI event coverage:
+[Grafana and PostHog](operational-observability.md).
+Actual hosted readback, releases and remaining checks:
+[production verification](production-verification.md).
 
 ## Processes
 

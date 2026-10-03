@@ -5,18 +5,12 @@ separates deterministic contracts, retrieved-source coverage, and generated
 quality. Synthetic/model-reviewed data is not treated as human-verified gold.
 Committed datasets and result artifacts are the evidence.
 
-The current five-flow delivery is in [round-three results](evaluation-round3-results.md):
-the twenty-candidate comparison, final 54-case run, comparable earliest/current
-outputs and same-account production pairs. Earlier implementation and results
-remain in [the initial report](evaluation-results.md) and
-[round-two results](evaluation-round2-results.md).
-LLM-as-judge review is complete and is the default; manual calibration is optional.
-Comparable shared cases clear 24/45 → 34/45 checks with a separately retained
-provider retry. This is not an exact pre-evaluation production reconstruction.
-The latest round retains larger citations and earlier tested core fixes, not a
-model switch. Costs, timing scope and unresolved quality failures are explicit.
-These results are separate from the historical
-datasets and scores below, which were not recomputed with `evidence-v2`.
+The shared runner evaluates chat, complete summaries, dedicated video/course
+study, revision sheets and interviews. LLM review is the default; human
+calibration is optional and has not been claimed. Quality, deterministic
+contracts, hosted delivery and browser acceptance are separate evidence layers.
+[Runner](evaluation-runner.md), [coverage criteria](evaluation-metrics-plan.md),
+[verification checklist](verification-checklist.md).
 
 ## Book retrieval
 
@@ -34,6 +28,75 @@ cases; expected nodes were checked against canonical pages.
 The reranker had 100% candidate Recall@20; multi-section Recall@5 rose from
 72.2% to 100%. This justified the default on this source, not every corpus.
 [Comparison artifact](../evaluation/retrieval_comparison_artifact.json).
+
+## Five-flow evaluation
+
+[The manifest](../evaluation/five_flow_manifest.json) contains 54 cases: 20 chat,
+seven summaries, 13 video/course, six sheets and eight interview cases. Native
+book tests use BM25; the paired production checks use `hybrid_rerank`. Freeze
+canonical sources, prompts/settings, output hashes and review version before
+comparing variants. A completed request is not a quality pass.
+
+Source-backed review checks correctness, coverage, support and usefulness;
+sheets also require readable rendered pages. Original figure pixels are source
+evidence, while generated previews are derived output. The reviewer sees all
+PDF pages. Failures, absent sources and uncertain judgments stay visible.
+Luna is the default judge; nine alternate-model blinded reviews preserve
+disagreement without claiming human calibration.
+
+An output is usable only with supported grounding, correctness/coverage/usefulness
+each at least 3/4, no failed required contract check, and acceptable sheet layout.
+Exact standalone rewrite equality is diagnostic. Missing support/scores or unknown
+sheet layout stay uncertain; they are not converted into successful cases.
+
+Code: [native flow adapters](../evals/adapters.py),
+[resumable suite](../evals/suite.py), [source-evidence judge](../evals/suite_judge.py),
+[saved-output review](../evals/automated_reviews.py) and
+[review viewer](../evals/review_server.py).
+
+| Flow | Earliest comparable saved run | Current, including separate retry |
+| --- | ---: | ---: |
+| Chat | 10/17 | 12/17 |
+| Summaries | 3/6 | 6/6 |
+| Video/course | 6/9 | 8/9 |
+| Revision sheets | 0/5 | 3/5 |
+| Interviews | 5/8 | 5/8 |
+| **Clearing every quality/contract check** | **24/45** | **34/45** |
+
+These fifty shared cases have identical input/source/expected fields. Five
+policy/source/capture exceptions are excluded explicitly; four later-added
+cases are not counted as historical cases. The final full manifest completed
+53/54 first attempts and cleared 35/49 eligible quality cases; one separate
+provider retry raises those to 54/54 and 36/49. Preserve the failed first attempt.
+This is the earliest saved evaluation, not a reconstruction of old production.
+
+| Retained change | Measurement and limit |
+| --- | --- |
+| Bounded neighboring section context | Definition coverage 2/4 → 4/4 and checklist 1/4 → 4/4 including repeats; broad audits remain unstable |
+| Full-source summary repair and large-sheet context/recovery | Combined shared summary/sheet results improve as above; individual causal contributions are not isolated |
+| Citation metadata and source-bound images | Regressions reject stale/foreign bindings; a valid locator does not prove claim support |
+| Browser reuse in layout search | Controlled rendering median 4.468 → 1.110 seconds, lower browser CPU, unchanged content/geometry; no whole-sheet production speedup |
+| Larger citations | Six paired identical-content renders, approximately 9 → 10 points, unchanged pages/figures, no additional inference |
+
+The latest twenty candidates covered alternative models, routing/grading,
+retrieval, summary allocation, figure reading, layouts/caching and interview
+instructions. Only larger citations were newly adopted. Other initial gains
+did not repeat or survive independent review. Keep Luna and the earlier core
+fixes; no broad quality gain over the start-of-round control is established.
+
+The new round reports $3.867140599 plus $0.099636114 reserved for unknown receipts,
+within $5. Failed calls, external review, repeats and production checks count.
+The previous round's $3.904616935 is separate. Same-account production timings
+are mixed; cached ideal reuse is not faster fresh generation. The forecast uses
+100 chats, five summaries, three sheets, two interviews and twenty video/course
+questions: $0.93/month with one search per chat, $1.25 with two, including 20%
+headroom. Voice and arbitrary larger chapters are separate; this is not a hard cap.
+
+Evidence: [initial report](evaluation-results.md),
+[round-two selection](evaluation-round2-results.md),
+[final decisions and production pairs](evaluation-round3-results.md),
+[comparable historical results](../evaluation/round3_historical_comparison.json),
+[monthly assumptions](../evaluation/round3_monthly_forecast.json).
 
 ## Other measured behavior
 
@@ -100,7 +163,11 @@ Valid citations do not guarantee that claims follow from evidence; the
 source-first evaluation exposed that gap. Other limits include narrow
 multi-source coverage, no labelled figure-relevance set, no learning-outcome
 study, and no representative latency/cost percentiles. LangSmith traces are
-the intended source for model latency, token use, and cost analysis.
+the intended source for model latency, token use, and cost analysis. The latest
+round's monthly quota rejection leaves new hosted metrics unavailable; labelled
+local SDK intervals and provider receipts are retained separately. Remaining
+five-flow failures include broad-answer support, unrelated figures, missing
+course evidence, sheet content warnings and interview reasoning consistency.
 
 ## Reproduce
 

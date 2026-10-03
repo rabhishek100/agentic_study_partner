@@ -4,7 +4,7 @@ Scope v7 · 2 October 2026 · execution status in [evaluation-progress.md](evalu
 
 Execution is complete as of 3 October. This file preserves the coverage design;
 [latest results](evaluation-round3-results.md) and
-[delivery overview](evaluation-observability-delivery.md) distinguish measured,
+[verification checklist](verification-checklist.md) distinguish measured,
 unknown and remaining checks. Manual calibration is optional; LLM review has
 replaced the required manual step without claiming human agreement.
 

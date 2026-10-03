@@ -12,7 +12,8 @@ is deployed; final comparison/forecast is pushed at `1207b7c`. LLM review is
 complete and manual calibration is optional. The new round committed
 $3.966776713 including unknown reservations, under $5. Remaining quality and
 LangSmith-quota issues are documented follow-ups, not active paid work.
-Start with [the delivery overview](evaluation-observability-delivery.md) and
+Read [evaluation](evaluation.md), [tracing](observability.md),
+[monitoring/analytics](operational-observability.md) and
 [final results](evaluation-round3-results.md), then use the historical log below.
 
 ## Execution order
@@ -51,7 +52,7 @@ Start with [the delivery overview](evaluation-observability-delivery.md) and
 | 33 | Selected citation change | Complete; deployed | d8c9dda; 2,181 backend tests / 973 subtests, 38 skips |
 | 34–35 | Final native and historical comparisons | Complete | 53/54 first completions plus separate successful retry; comparable historical quality 24/45 → 34/45 |
 | 36 | Production pairs, complete interview cost and closure | Complete | Six UI scenarios; 18-answer/44-receipt cost sample; both windows closed and normal key restored; final report 1207b7c |
-| 37 | Consolidated documentation | Complete | Overview, current setup/status, navigation, architecture and verification references reconciled with implementation/artifacts |
+| 37 | Reference documentation | Complete | Existing architecture, API, flows, interface, operations, evaluation and observability guides describe current code, configuration, measurements and limits |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -816,15 +817,3 @@ private source artifacts. No required human review remains. LangSmith hosted
 acceptance still requires an account-quota reset/readback; course sources,
 sheet warnings, unrelated chat figures and interview reasoning remain
 documented follow-ups, without starting an unapproved twenty-first candidate.
-
-### Unit 37 — consolidated delivery documentation
-
-Added one overview connecting evaluations, retained/rejected changes, LangSmith,
-Grafana, PostHog, identity, production fixes, spend and test cleanup. Updated
-README navigation, current setup/verification status, architecture/tool boundaries,
-the runner's 54-case manifest and default automated viewer, and the tracker table.
-Earlier setup/evaluation checkpoints remain explicitly historical. New hosted
-trace delivery remains quota-limited; session replay stays disabled. Documentation
-validation checks local links, documented runner flags, manifest counts and patch
-whitespace. Generated API catalog and all five graph checks pass; documentation
-regressions pass 15 tests and 331 subtests. No paid inference or runtime change.

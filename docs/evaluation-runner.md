@@ -1,10 +1,34 @@
 # Shared evaluation execution
 
-The shared five-flow runner, budget guard, native adapters, source capture,
-review UI and connected fixture journeys are implemented and verified.
-LLM review is complete; manual calibration is optional. The final native and
-production results are in [round-three results](evaluation-round3-results.md),
-with checkpoints in [evaluation-progress.md](evaluation-progress.md).
+The shared runner calls native chat, summary, video/course, sheet and interview
+code against frozen source bindings. It captures outputs and evidence, runs
+source-backed LLM review, and publishes checks, measurements and unknowns.
+Generation, review and retries share a durable inference budget. Manual labels
+are optional and are never substituted for model judgments.
+
+```mermaid
+flowchart TD
+    M[Manifest and case dependencies] --> B[Bind and fingerprint sources/settings]
+    B --> G[Reserve budget and generate]
+    G --> S[Save output and evidence]
+    S --> J[Reserve budget and review]
+    J --> R[Save judgment and report]
+    G --> F[Preserve failure and reservation]
+    J --> U[Preserve output if review fails]
+```
+
+| Component | Responsibility |
+| --- | --- |
+| [suite.py](../evals/suite.py) | Dependencies, phase persistence, integrity checks, locks and resume |
+| [adapters.py](../evals/adapters.py) | Canonical bindings and native feature execution without replacing user artifacts |
+| [suite_judge.py](../evals/suite_judge.py) | Source-backed artifact review and rendered-sheet criteria |
+| [budget.py](../evals/budget.py) | Physical-request reservations, pricing, receipts and immutable child ceilings |
+| [round_budget.py](../evals/round_budget.py) | Shared phase/round headroom, registered children and audited transfers |
+| [automated_reviews.py](../evals/automated_reviews.py) | Review immutable saved outputs without regenerating them |
+| [review_server.py](../evals/review_server.py) | Loopback evidence/artifact viewer and optional hash-bound manual labels |
+
+Results and scope limits: [evaluation](evaluation.md) and
+[native/production comparison](evaluation-round3-results.md).
 
 ## Manifest and resume
 
