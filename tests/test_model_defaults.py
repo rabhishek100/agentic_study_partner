@@ -42,6 +42,15 @@ APPROVED = {
     "anthropic/claude-3.5-sonnet",
 }
 
+# These choices are authorized for bounded experiments only. This exact script
+# is not copied into the image; none becomes a permitted application fallback.
+EVALUATION_ONLY = {
+    "scripts/screen_model_candidates.py": {
+        "deepseek/deepseek-v4-flash", "qwen/qwen3.5-flash-02-23",
+        "openai/gpt-6-luna-pro", "google/gemini-3.1-flash-lite",
+    }
+}
+
 # Anything matching this is a model identifier rather than an incidental
 # "namespace/thing" string, which keeps the scan from flagging file paths.
 MODEL_VENDORS = (
@@ -67,6 +76,8 @@ class ModelDefaultTests(unittest.TestCase):
                 if not model.startswith(MODEL_VENDORS):
                     continue
                 if model in APPROVED:
+                    continue
+                if model in EVALUATION_ONLY.get(str(path.relative_to(REPOSITORY_ROOT)), set()):
                     continue
                 unapproved.setdefault(model, []).append(
                     str(path.relative_to(REPOSITORY_ROOT))

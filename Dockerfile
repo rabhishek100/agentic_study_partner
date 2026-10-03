@@ -27,7 +27,7 @@ RUN apt-get update \
 RUN /app/.venv/bin/playwright install --with-deps chromium
 
 COPY api ./api
-COPY observability.py operations_telemetry.py ./
+COPY observability.py operations_telemetry.py model_routing.py ./
 COPY decks ./decks
 COPY ingestion ./ingestion
 COPY interviews ./interviews

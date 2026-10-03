@@ -562,3 +562,13 @@ status / hashes without transport headers for future diagnosis. Validation: 72
 budget, model-role and candidate checks passed; SDK transport confirms the exact
 schema reaches the message. Prior paid failures remain immutable. Next: a new
 schema-hint retest, then independent flow screens and the frozen control tail.
+
+### Unit 24 — deployment packaging and first flow observations
+
+The full isolated backend run passed 2,168 tests / 972 subtests with 38 skips,
+but found a missing Docker copy for model routing and an experiment/default
+classification failure. Include the module in the image and permit candidate
+model literals only in the non-shipped screening script; keep production model
+defaults constrained. Targeted failed checks are reverified before deployment.
+Text screens do not justify new retrieval defaults; summary allocation requires
+repeat evidence. Grading/ideal candidates are not selected on partial results.

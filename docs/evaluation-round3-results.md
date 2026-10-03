@@ -120,3 +120,28 @@ is inferred from it. A new immutable attempt will test the complete schema hint.
 Budgeted calls now preserve private response bodies and hashes without headers.
 Missing usage still holds its original reservation. This permits diagnosis of
 future rejected or malformed responses without paying to reconstruct them.
+
+## Text-flow screening checkpoint
+
+Candidates 9–12 did not repair the broad audit in their first native slices.
+The exact-title boost also reduced quantization-definition coverage from 4 to
+2 and the audit from 2 to 1. These are rejection signals, not reasons to add
+another search layer. Candidate 13 retains the timestamp/source controls but
+Spanner coverage remains 2/4; an improved score on the source-incomplete course
+case is not counted as a comparable gain. Candidate 14 raises paper correctness
+and usefulness to 4/4, with coverage still 3/4; the chapter control stays 4/4.
+A repeat and cost check are required before retaining it.
+
+Candidate 19 passes all three proximity cases, has uncertain source judgments
+on two RAG cases and rejects a strong-answer response whose quotations are not
+literal candidate text. Candidate 20 has supported, well-covered answers but
+fails the existing interview-reasoning signal check in both cases. Neither is
+selected on this evidence. Complete matched control grading/ideal results are
+still pending in the control continuation. Preserve strict validators and both
+uncertain judgments.
+
+The isolated full backend run found two checks to resolve: the image omitted
+`model_routing.py`, and the default-model scan treated the explicitly approved
+experiment script as production defaults. The Docker import is included now;
+only that non-shipped experiment script receives the exploratory model allowlist.
+The application default allowlist remains unchanged.
