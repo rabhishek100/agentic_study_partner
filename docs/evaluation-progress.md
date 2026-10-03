@@ -35,6 +35,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 14 | Verified user identity in logs and traces | Complete | Four Python services at 0983a1c, health and voice controls passed; 23 chat LangSmith runs / 11 Tempo spans carry verified user_id; worker and all three voice roots/commands read back; Loki API/job identity and anonymous exclusions verified; 32 metric series have no identity labels; 2,109 tests / 962 subtests passed (38 skips) |
 | 15 | Round-two comparison and selected components | Complete locally | Five 54-case versions, nine repeats and six grader-rollback checks; $3.904616935 settled; selected code aefe246 passed 2,118 tests / 972 subtests, 38 skips; production unchanged |
 | 16 | Twenty-candidate model/change experiment design | Ready for review | New $5 includes production comparisons; confirmed monthly usage; individual changes and cost gates specified; no new paid inference or rollout |
+| 17 | Round-three shared budget and preflight | Budget guard verified; execution active | User approved the plan; parent reservations protect phase/round caps across interruptions; 51 targeted checks passed; new trace delivery rejected by monthly quota; $0 provider spend |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -391,15 +392,24 @@ snapshotted under ignored `evaluation/runs/round3-design/`; no credentials or
 private source content were published. New design-stage provider spend: $0.
 Backend tests were not rerun for this documentation-only unit.
 
-Review [the twenty-candidate plan](evaluation-round3-plan.md) before runtime
-implementation or paid trials. The new round has a separate $5 ceiling,
+The user approved [the twenty-candidate plan](evaluation-round3-plan.md).
+Execution is active. The new round has a separate $5 ceiling,
 including production comparisons. Monthly sizing is 100 chats, 5 summaries,
 3 sheets, 2 complete interviews and 20 video/course questions; voice is separate.
-No candidate has been run. Production health readback on 2026-10-03 is healthy
-at API `0983a1c`; selected local code remains `aefe246`. After go-ahead, add the
-round-wide ledger and complete free pricing/source/telemetry preflight, then
-screen one change at a time. The trace-quota, receipt discrepancy and unpriced
-production reranker prerequisites remain explicit in the plan.
+No candidate has been run yet. Production health readback on 2026-10-03 is healthy
+at API `0983a1c`; selected runtime code remains `aefe246`. The shared parent
+ledger and serial CLI coordinator are implemented. Targeted verification:
+`uv run --frozen python -m pytest tests/test_round_budget.py tests/test_eval_budget.py tests/test_eval_suite.py -q`
+passed 51 checks; `git diff --check` and coordinator CLI help passed.
+Crash/unknown spend, phase reservations, process locking, resume, price
+violations and child argument overrides are covered. Public model endpoint
+metadata/prices and a zero-inference LangSmith smoke are saved in ignored
+`evaluation/runs/round3/preflight/`. The smoke still returned the monthly
+unique-trace quota error. Reranker public pricing is $0.0025/search, while
+endpoint metadata reports only zero token prices; a separately verified search
+charge is required. Next: free retrieval/render screens and model-stage
+injection, then paid screens under the coordinator. The trace-quota and old
+receipt discrepancies remain explicit; production has not changed.
 
 Round-two comparison and selection are complete; supporting evidence is in
 [evaluation-round2-results.md](evaluation-round2-results.md) and

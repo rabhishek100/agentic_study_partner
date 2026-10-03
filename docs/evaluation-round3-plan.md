@@ -1,7 +1,7 @@
 # Twenty-candidate evaluation plan
 
-Status: designed, not executed. Updated 2026-10-03. No paid requests, runtime
-changes or deployment were made for this design. The previous round's
+Status: approved; execution started 2026-10-03. Shared budget/preflight are
+verified; no candidate has run and production is unchanged. The previous round's
 $3.904616935 is separate from the **new $5 ceiling**, which includes the final
 production comparison. Automated LLM review replaces required human review.
 
@@ -168,12 +168,13 @@ candidate or incomplete comparison is recorded explicitly; do not exceed $5
 to obtain a complete-looking table. Keep each individual eval run within the
 existing $1–$2 ceiling and the smaller available round allocation.
 
-Build a small serial parent ledger around the existing per-run budget guard.
+The serial parent ledger now wraps the existing per-run budget guard.
 Reserve child-run allocations before launching; reconcile every request and
 return only settled unused capacity. An interruption or unknown receipt holds
 its reservation on resume. Include all paid requests in production as well as
 local generation, reviews, embeddings and repairs. This parent ledger is not
-implemented yet. Do not run independent child budgets that can sum beyond $5.
+implemented in `evals/round_budget.py` and `scripts/run_round_experiment.py`.
+Do not run independent child budgets that can sum beyond $5.
 Image calls reserve a conservative upper bound that can exceed their actual
 bill; phase-sized child budgets must permit that reservation rather than
 assigning an unrealistic $0.05 ceiling to each figure experiment.
@@ -285,10 +286,23 @@ render-only speed gains must not become whole-flow speed claims.
 
 ## Resume and approval boundary
 
-Next action is plan review. After go-ahead: preflight/ledger → independent
+The user gave go-ahead. Execute: preflight/ledger → independent
 screens → repeat/select → combined suite → bounded old-production measurement
 → deploy → matched production recheck → final report. Runtime implementation,
-paid trials and deployment have not started for this round.
+paid candidate trials and deployment have not started for this round.
+
+Use the coordinator for every paid local run, for example:
+
+```sh
+uv run --frozen --extra voice python -m scripts.run_round_experiment \
+  --round evaluation/runs/round3 --phase screening \
+  --output evaluation/runs/round3/example-screen --max-usd 1.25 \
+  -- --live --case rag-weak --retrieval-mode bm25
+```
+
+Choose the child ceiling from the phase's remaining allocation. Previous run
+charges remain counted; resumed child ceilings cannot be changed. A child
+without a ledger keeps its full reservation until safe resume establishes one.
 
 Each checkpoint records commit, candidate ID, changed stage, source/manifest/
 prompt/model/provider/reviewer versions, private bundle location, actual spend,
