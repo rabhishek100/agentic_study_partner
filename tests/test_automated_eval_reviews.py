@@ -200,3 +200,38 @@ def test_sheet_review_never_promotes_generated_draft_pixels_to_source(tmp_path):
     assert payload['omitted_non_source_images'] == 2
     assert 'RENDERED CONTENT' in payload['exact_generation_contexts'][1]['messages'][0]['content'][0]['text']
     assert all(part.get('type') != 'image_url' for context in payload['exact_generation_contexts'] for message in context['messages'] if isinstance(message['content'], list) for part in message['content'])
+
+
+def test_trace_link_failure_preserves_paid_judgment():
+    from types import SimpleNamespace
+    from scripts.judge_saved_evaluations import attach_trace_link
+    def unavailable():
+        raise RuntimeError('Quota prevents hosted project lookup')
+    review = {'coverage': 4}
+    assert attach_trace_link(review,SimpleNamespace(get_url=unavailable)) == {
+        'coverage': 4,'trace_url':None,'trace_link_error_kind':'RuntimeError'}
+
+
+def test_recover_trace_link_failure_from_exact_captured_response(tmp_path):
+    from scripts.recover_saved_judgments import recover
+    chosen = selection(tmp_path)
+    config={'judge_model':'fixture','review_version':'fixture-v1','writer_model_labels_hidden':True}
+    def fail(*_):
+        from langsmith.utils import LangSmithNotFoundError
+        raise LangSmithNotFoundError('Project missing')
+    directory=tmp_path/'review'
+    result=run_saved_reviews(chosen,directory,runs_root=tmp_path,judge=fail,config=config)
+    response={'choices':[{'finish_reason':'stop','message':{'content':json.dumps({
+        'grounding_status':'supported','correctness':4,'coverage':4,'usefulness':4,
+        'criteria':[],'unsupported_claims':[],'limitations':[],'explanation':'Fixture','layout':'readable'})}}]}
+    atomic_json(directory/'responses/one.json',response)
+    digest=sha256((directory/'responses/one.json').read_bytes()).hexdigest()
+    atomic_json(directory/'budget.json',{'calls':[{'case_id':'sheet','phase':'judging','status':'settled',
+        'response_capture':'responses/one.json','response_sha256':digest}]})
+    original=(directory/'automated_reviews.json').read_bytes()
+    assert recover(directory,chosen,tmp_path)==1
+    assert (directory/'automated_reviews.before-link-recovery.json').read_bytes()==original
+    recovered=json.loads((directory/'automated_reviews.json').read_text())['cases'][0]
+    assert recovered['status']=='completed' and recovered['judgment']['coverage']==4
+    assert recovered['verdict']=='needs_work'  # Failed native check remains.
+    with pytest.raises(ValueError):recover(directory,chosen,tmp_path)

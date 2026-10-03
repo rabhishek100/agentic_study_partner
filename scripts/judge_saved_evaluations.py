@@ -7,6 +7,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
+def attach_trace_link(review, run):
+    review['trace_url'] = None
+    if run:
+        try:
+            review['trace_url'] = run.get_url()
+        except Exception as error:
+            # Export/quota/link lookup cannot invalidate a paid judgment.
+            review['trace_link_error_kind'] = type(error).__name__
+    return review
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
     load_dotenv(root / '.env')
@@ -44,7 +55,7 @@ def main():
             with span('evaluation.case.review', metadata={'case_id': case.id, 'flow': case.flow,
                        'output_hash': row['output_hash'], 'experiment_id': output.name}) as run:
                 review = native(case, row, source)
-                review['trace_url'] = run.get_url() if run else None
+                attach_trace_link(review, run)
                 return review
     with budget.guard():
         result = run_saved_reviews(selection, output, runs_root=runs, judge=judge, config=config,

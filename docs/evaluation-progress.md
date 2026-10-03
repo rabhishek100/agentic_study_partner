@@ -682,3 +682,25 @@ Writer repeats are complete: Luna Pro improves the audit in both repetitions;
 summary allocation does not retain its initial paper gain. Corrected v4 saved
 sheet reviews are running under an audited $0.25 screening-to-repeat transfer.
 Production rollout, full finalist coverage and monthly affordability remain open.
+
+### Unit 32 — preserve paid reviews during hosted quota failure
+
+Seven corrected sheet judgments were returned and captured, but the review
+command discarded them when the subsequent LangSmith project-link lookup raised
+`LangSmithNotFoundError`. They are recovered without inference from their exact
+hashed, settled response bodies. Original failed review JSON remains intact beside
+a recovery journal. Recovery requires one complete structured response per failed
+entry, exact immutable artifact binding and the specific trace-link failure;
+native checks remain unchanged. Hosted link failure now records an unavailable
+link and preserves the returned judgment. Nineteen saved-review tests pass,
+including frozen response recovery and failed native checks remaining failures.
+
+A blinded, counterbalanced nine-output Gemini review is complete ($0.07749300).
+It rates both matched Luna controls and the two Luna Pro repeats as supported
+with coverage 4. The initial Luna judge favoured Pro on the audit, but that gain
+is not corroborated by the alternate reviewer. Pro also costs more and generally
+runs more slowly in the matched samples. No writer switch is selected. Summary
+allocation did not replicate its initial gain; Gemini figure reading has a native
+chapter-8 regression and no stable paper-cost saving. Reject these defaults.
+Retain candidate 17 for combined verification: larger citations, unchanged text,
+original figures and page counts, and no additional provider call.
