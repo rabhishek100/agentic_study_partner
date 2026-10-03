@@ -33,7 +33,8 @@ Configuration: [.env.example](../.env.example).
 | Text embeddings | `openai/text-embedding-3-large` | Shared text model; evaluated as part of hybrid retrieval |
 | Reranking | `cohere/rerank-4-pro` | Measured Recall@5 gain; hybrid fallback on failure |
 | Scanned-page OCR | `qwen/qwen3-vl-32b-instruct` | Measured prose quality/cost |
-| OCR evaluation fallback / general evaluation judge | `google/gemini-3-flash-preview` | Difficult-page fallback in the transcription evaluation script; separate quality judging |
+| OCR evaluation fallback / per-feature evaluation judges | `google/gemini-3-flash-preview` | Difficult-page fallback in the transcription evaluation script; judge from a different family for the older retrieval/video/interview evaluations |
+| Five-flow evaluation judge | `openai/gpt-6-luna` | Source-evidence review of chat, summaries, video/course, sheets and interviews; blinded alternate-model reviews check it |
 | Figure captions / spoken figure descriptions | `google/gemini-2.5-flash-lite` | Bounded vision descriptions |
 | Video frame analysis | `openai/gpt-6-luna` | Shared vision default; timed observations |
 | Video region embeddings | `google/gemini-embedding-2` | Question/diagram similarity in a separate space |
@@ -84,18 +85,28 @@ Next.js displays the results and does not host or invoke these models directly.
 | Lecture audio transcription | [video/audio.py](../video/audio.py) | `OPENROUTER_AUDIO_MODEL` |
 | Composer dictation | [study/dictation.py](../study/dictation.py) | `OPENROUTER_AUDIO_MODEL` |
 | Flashcard generation and extraction | [decks/generate.py](../decks/generate.py), `card_model`; [decks/extraction.py](../decks/extraction.py) | `OPENROUTER_DECK_MODEL` → `OPENROUTER_GENERATION_MODEL` |
-| Revision composition and review | [revision_sheets/generate.py](../revision_sheets/generate.py), `revision_model` | `OPENROUTER_REVISION_MODEL`; review uses `OPENROUTER_REVISION_JUDGE_MODEL` → composition model |
-| Adaptive and ideal interview generation | [interviews/models.py](../interviews/models.py), `structured_model` | `OPENROUTER_INTERVIEW_MODEL` → `OPENROUTER_GENERATION_MODEL` |
+| Revision composition and review | [revision_sheets/generate.py](../revision_sheets/generate.py), `revision_model` | `OPENROUTER_REVISION_MODEL`; review uses `OPENROUTER_REVISION_JUDGE_MODEL` → composition model; optional per-stage `OPENROUTER_REVISION_AUTHOR_MODEL`, `OPENROUTER_REVISION_INVENTORY_MODEL`, `OPENROUTER_REVISION_FIGURE_MODEL` → composition model |
+| Adaptive and ideal interview generation | [interviews/models.py](../interviews/models.py), `structured_model` | `OPENROUTER_INTERVIEW_MODEL` → `OPENROUTER_GENERATION_MODEL`; answer grading can use `OPENROUTER_INTERVIEW_GRADER_MODEL` |
 | HTTP interview transcription | [api/interviews.py](../api/interviews.py) selects the model; [study/dictation.py](../study/dictation.py) calls it | `OPENROUTER_INTERVIEW_STT_MODEL` |
 | HTTP interview and reading speech | [narration/synthesis.py](../narration/synthesis.py), `configured_model`, `synthesize_speech` | `OPENROUTER_TTS_MODEL`; reading uses `OPENROUTER_READING_TTS_MODEL` → shared TTS model |
 | Spoken figure descriptions | [narration/figures.py](../narration/figures.py) | `OPENROUTER_NARRATION_FIGURE_MODEL` → `OPENROUTER_CAPTION_MODEL` |
 | LiveKit interview speech | [interviews/voice_worker.py](../interviews/voice_worker.py) | `LIVEKIT_INTERVIEW_STT_MODEL`, `LIVEKIT_INTERVIEW_TTS_MODEL` |
 | LiveKit narration speech | [narration/voice_worker.py](../narration/voice_worker.py) | `LIVEKIT_NARRATION_STT_MODEL`, `LIVEKIT_NARRATION_TTS_MODEL` (inherit interview settings when absent) |
 | LiveKit ideal interview playback | [interviews/ideal_voice_worker.py](../interviews/ideal_voice_worker.py) | `LIVEKIT_IDEAL_TTS_MODEL` |
-| Evaluation judges | [evals/judge.py](../evals/judge.py); [evals/ideal_interview.py](../evals/ideal_interview.py) | `OPENROUTER_JUDGE_MODEL` |
+| Per-feature evaluation judges | [evals/judge.py](../evals/judge.py); [evals/ideal_interview.py](../evals/ideal_interview.py) | `OPENROUTER_JUDGE_MODEL` |
+| Five-flow evaluation judge | [evals/suite_judge.py](../evals/suite_judge.py), `SuiteJudge` | Constructor argument; no environment override |
 
 An arrow in the override column means the first setting falls back to the
-second before using the module's default. Revision composition is independent
+second before using the module's default. The per-stage sheet and grader
+overrides exist for model experiments and are unset by default.
+
+`OPENROUTER_PROVIDER_ROUTES` optionally pins a model to specific OpenRouter
+providers, as JSON mapping a model ID to a provider list (for example
+`{"<model-id>": ["<provider-slug>"]}`). A pinned model disables provider
+fallback and requires parameter support; unlisted models keep OpenRouter's
+default routing. Qwen structured-output clients also get a JSON-format system
+hint that its endpoint requires ([model_routing.py](../model_routing.py)).
+Revision-sheet reuse keys include any stage overrides and provider routes. Revision composition is independent
 of `OPENROUTER_GENERATION_MODEL`. Video text embeddings also have their own
 setting rather than inheriting the book embedding setting.
 

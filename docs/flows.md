@@ -30,6 +30,20 @@ a previous answer without new facts, or answer externally. History resolves
 follow-ups. Quick QA uses 5 chunks; deeper/interview answers use 8. Citations
 resolve to source sections/pages, not generated prose.
 
+After ranking, the strongest hit is completed with its nearest chunks from the
+same section and source build (up to five, leaving at least two slots for
+other ranked sections), so a definition or checklist split across chunks
+arrives whole. This adds no model call and is skipped for side chats with
+pinned evidence and for system-design answers. Answers must cover every
+explicitly requested part or name the specific part the evidence lacks.
+
+When the planner chooses a complete scope, execution uses its owner-checked
+canonical book/node IDs rather than re-parsing the display title. Requests to
+"summarize the whole/entire/complete paper", optionally followed by
+"including …" instructions, take the complete-summary route. A prior-answer
+transform keeps only the citation records whose markers remain in the
+rewritten text.
+
 Code: [study graph](../study/graph.py), [turn execution](../study/conversation.py),
 [QA](../study/query.py). Search mechanics: [architecture](architecture.md#retrieval).
 
@@ -77,7 +91,8 @@ flowchart TD
 
 Visual questions require visual or supporting-page evidence. Lecture retrieval
 widens from 8 to 16 items and a 60- to 180-second window. Course QA searches
-published lectures with per-lecture caps: 12/4 initially, 20/6 on retry. Excluded
+published lectures with per-lecture caps: 12/4 initially, 20/6 on retry. Course
+answers receive each selected passage in full, not a shortened preview. Excluded
 lectures and source versions are recorded. Prior-answer transforms and
 clarification avoid unnecessary retrieval.
 
@@ -143,6 +158,8 @@ prove coverage. Book/paper summaries allow up to two repairs for citation or
 coverage defects. Coverage checks measure referenced source units, not
 claim-level truth. A citation-safe draft can retain coverage warnings after
 repairs; unsafe citations fail. Over-budget scopes are not silently truncated.
+The prompt asks for each required section's mechanisms, qualifications,
+stated limitations and future directions, not a title with a token citation.
 Coverage repairs receive the full canonical scope and preserve the original
 answer; oversized repair inputs fail before another model request. Measured
 coverage gains and remaining gaps: [evaluation](evaluation.md#changes-kept).
@@ -273,9 +290,20 @@ flowchart TD
     J --> P[Publish with findings]
 ```
 
-No source sampling or top-k retrieval is used. Context overflow, invalid
-content, and unrecoverable layout failures fail the job. Unresolved quality
-findings after the repair budget remain visible in provenance. Repairs preserve
+No source sampling or top-k retrieval is used. The complete source, figure
+estimates and repair context share a 128k-token budget
+(`REVISION_CONTEXT_WINDOW_TOKENS`); an over-budget scope fails before any model
+call rather than being truncated. Figures are read in small batches; a batch
+that omits, duplicates or adds a figure ID gets one retry with the same
+images, then fails. The composer may select only figures actually inspected
+for this source. Sheet length follows the source's essential concepts (up to
+24 notes) within the page ceiling, and every note must be a complete thought.
+
+When independent review finds an essential concept missing, the sheet is
+recomposed, because a patch to existing notes cannot add one; narrower
+explanation gaps get targeted note edits. Context overflow, invalid content,
+and unrecoverable layout failures fail the job. Unresolved quality findings
+after the repair budget remain visible in provenance. Repairs preserve
 existing item identities; saved artifacts include PDF/HTML, inventory, figure
 inspection, and review history. Follow-up QA reloads the original complete
 chapter/paper and validates its citations.
@@ -351,6 +379,9 @@ flowchart TD
 
 This is a listen-only study artifact, without candidate grading. Each assigned
 topic appears once; failed exchanges allow at most two generation attempts.
+An exchange whose citation markers do not match its topic's sources is
+regenerated once with the missing/unexpected markers named; citations are
+never filled in after the fact.
 Reuse is keyed by scope, format, level, model, and prompt version.
 Matching concurrent generations serialize on an owner/scope/settings
 Postgres advisory lock; the waiting request reuses the saved result without

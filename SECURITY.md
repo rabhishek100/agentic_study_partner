@@ -24,6 +24,11 @@ supported version lines yet.
 - Model output is treated as data. The application never executes unrestricted
   model-generated SQL or shell commands.
 - Raw interview audio and screen checkpoints are not stored.
+- Telemetry redacts credentials and signed URL queries; the OTLP write token
+  stays server-side. Browser analytics send only allowlisted events with an
+  opaque user ID, without prompts, answers, form values or email, and session
+  recording is disabled. LangSmith traces do contain prompts and bounded source
+  evidence, so restrict project access accordingly.
 
 Security controls in this repository have automated coverage, but the project
 has not had an independent security audit or penetration test.

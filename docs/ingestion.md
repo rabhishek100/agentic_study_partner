@@ -66,7 +66,11 @@ checkpoints avoid repeating completed transcription. Optional Tesseract
 comparison adds warnings; it neither replaces vision text nor blocks ingestion.
 Printed contents/page mapping are preferred over detected headings. An unusable
 proposal fails. Confirmed sections are built from saved text without rerunning
-layout parsing; the source hash and page mapping remain in provenance.
+layout parsing; the source hash and page mapping remain in provenance. Heading
+matching ignores leading section numbers. If a reviewed heading cannot be
+located on its confirmed page (renamed by the reviewer or missed by OCR), the
+section opens at that reviewed page boundary instead of waiting for a later
+match.
 
 Code: [OCR stage](../ingestion/ocr_stage.py), [transcription](../ingestion/ocr.py),
 [outline review](../ingestion/outlines.py). Model rationale: [decisions](design-decisions.md#model-defaults).
@@ -140,6 +144,11 @@ flowchart TD
     C -->|no permitted fallback| X[Fail transcript stage]
     T --> E[Build evidence]
 ```
+
+`VIDEO_WORKER_STAGES` can restrict a worker to some pipeline stages. A worker
+that handles media metadata also acquires completed primary uploads already
+staged for it, while external YouTube downloads stay with a worker configured
+for acquisition.
 
 Captions are preferred to paid transcription. Uploaded/acquired VTT candidates
 need at least 90% usable coverage; fallback requires permission in request/course

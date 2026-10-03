@@ -58,6 +58,9 @@ and applies an external rewrite configured in
 [next.config.mjs](../frontend/next.config.mjs). A rewrite proxies the request
 while keeping its frontend URL, as described in the
 [Next.js rewrite reference](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites).
+The proxy timeout is raised to ten minutes because complete ideal-interview
+generation is a long synchronous request; Next's 30-second default
+disconnected the browser while the API kept generating.
 
 For example, the library page calls `apiFetch("/books")`:
 

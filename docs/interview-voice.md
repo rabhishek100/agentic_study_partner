@@ -48,7 +48,10 @@ and fallback defaults are centralized in [design decisions](design-decisions.md#
 ## Commands and recovery
 
 `interview.voice` supports `listen`, `stop_listening`, `flush`, `speak`, and
-`stop_speaking`. Flush closes STT input for a final segment. Capture epoch,
+`stop_speaking`. Flush closes STT input for a final segment and waits up to
+five seconds for it; if the provider keeps its stream open after the final
+text, the capture is cancelled and flush still succeeds with the text already
+delivered. The narration worker behaves the same way. Capture epoch,
 sequence, and speech request IDs reject stale events. The frontend serializes
 commands and separates answer/clarification drafts.
 
@@ -65,8 +68,11 @@ participants are rejected. Raw interview audio and screen images are processed
 ephemerally, not persisted. Saved records contain edited text, evaluations,
 citations, checkpoints, requested screen observations, and aggregate cost.
 
-LangSmith traces cover graph/model calls when configured. Voice usage logs and
-session voice-cost estimates cover the separate STT/TTS transport.
+Each voice worker exports its own LangSmith and Grafana service, initialized
+before any session starts. Command traces are correlated by session,
+conversation or ideal-flow ID and carry the verified owner as `user_id`. STT/TTS
+usage events and configured-rate voice-cost estimates are recorded as
+estimates, separate from provider receipts. See [observability](observability.md).
 
 ## Local worker
 
