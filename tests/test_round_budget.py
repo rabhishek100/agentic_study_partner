@@ -186,3 +186,16 @@ def test_transfer_cannot_run_while_child_is_active(tmp_path):
     with round.lease(tmp_path / "child", phase="final", cap=".5"):
         with pytest.raises(BudgetStop, match="still running"):
             round.transfer("contingency", "final", ".5", reason="must wait")
+
+
+def test_repeat_remaining_reconciles_stale_lease_without_refunding_unknown(tmp_path):
+    from scripts.repeat_round_candidates import remaining
+    parent = RoundBudget(tmp_path)
+    spend(parent, 'repeat', phase='repeat', cap='1', amount='0.10')
+    data = ledger(parent)
+    data['runs']['repeat'].update(status='leased', committed_usd='1')
+    parent.path.write_text(json.dumps(data))
+    assert remaining(parent) == Decimal('0.90')
+    child = Budget(tmp_path / 'repeat', cap='1')
+    child.reserve('0.20', model='fixture/model')
+    assert remaining(parent) == Decimal('0.70')

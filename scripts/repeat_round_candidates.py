@@ -29,6 +29,10 @@ TRIALS = {
 
 def remaining(round):
     ledger = round._load()
+    # A terminated coordinator can leave a stale leased ceiling. Calculate
+    # from durable child receipts; lease() checks and saves under its lock.
+    for entry in ledger["runs"].values():
+        round._reconcile(entry)
     used = sum((Decimal(v["committed_usd"]) for v in ledger["runs"].values()
                 if v["phase"] == "repeat"), Decimal(0))
     return min(Decimal("2"), round.phase_limits(ledger)["repeat"] - used)
