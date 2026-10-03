@@ -17,6 +17,7 @@ import os
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
+from observability import traced
 from .contracts import DeckCard, DeckMetrics, GeneratedCard, TopicCards
 from .prompts import build_card_messages, prompt_version
 from .topics import GENERATION_BATCH_TOKENS, ScopeInventory, Topic, generation_batches
@@ -30,7 +31,7 @@ from .validate import (
 
 logger = logging.getLogger("study_partner.decks")
 
-DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_GENERATION_MODEL = "openai/gpt-6-luna"
 # One card for a thin section, four for a dense one. Above four the model
 # starts splitting one idea across cards, which reads as coverage and reviews
 # as repetition.
@@ -146,6 +147,7 @@ def attribute_topic(
     return declared if not markers else None
 
 
+@traced("decks.generate.generate_deck", flow="cards")
 def generate_deck(
     inventory: ScopeInventory,
     *,
@@ -283,6 +285,7 @@ def _curated(
     return selected
 
 
+@traced("decks.generate._run_batch", flow="cards")
 def _run_batch(
     client: CardModel,
     inventory: ScopeInventory,

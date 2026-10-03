@@ -146,7 +146,8 @@ class VideoTranscriptStoreTests(unittest.TestCase):
             with self.assertRaises(TranscriptSourceNotFoundError):
                 self.persist(database, created, video_id=another.video_id)
             count = database.execute(
-                "select count(*) as count from video.transcript_sources"
+                "select count(*) as count from video.transcript_sources where owner_id = any(%s)",
+                ([self.owner, self.other_owner],),
             ).fetchone()["count"]
 
         self.assertEqual(count, 0)
@@ -161,7 +162,8 @@ class VideoTranscriptStoreTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.persist(database, created, cues=duplicate_cues)
             count = database.execute(
-                "select count(*) as count from video.transcript_sources"
+                "select count(*) as count from video.transcript_sources where owner_id = any(%s)",
+                ([self.owner, self.other_owner],),
             ).fetchone()["count"]
 
         self.assertEqual(count, 0)
@@ -179,7 +181,8 @@ class VideoTranscriptStoreTests(unittest.TestCase):
             with self.assertRaises(NumericValueOutOfRange):
                 self.persist(database, created, cues=[overflowing_cue])
             count = database.execute(
-                "select count(*) as count from video.transcript_sources"
+                "select count(*) as count from video.transcript_sources where owner_id = any(%s)",
+                ([self.owner, self.other_owner],),
             ).fetchone()["count"]
 
         self.assertEqual(count, 0)
@@ -219,7 +222,8 @@ class VideoTranscriptStoreTests(unittest.TestCase):
             with self.assertRaises(TranscriptSourceConflictError):
                 self.persist(database, created)
             count = database.execute(
-                "select count(*) as count from video.transcript_sources"
+                "select count(*) as count from video.transcript_sources where owner_id = any(%s)",
+                ([self.owner, self.other_owner],),
             ).fetchone()["count"]
 
         self.assertEqual(count, 0)

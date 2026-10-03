@@ -13,6 +13,7 @@ it is the measurement that says whether "highlight a sentence and ask about it"
 works at all.
 """
 
+
 import argparse
 import json
 from datetime import datetime, timezone
@@ -21,6 +22,7 @@ from uuid import UUID
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.source_first import evaluate_source_first
 from storage.database import connection as database_connection
 from storage.database import environment_owner_id, parse_owner_id
@@ -142,6 +144,7 @@ def _runner(owner_id: UUID, library_book_ids):
     return run
 
 
+@traced("scripts.evaluate_source_first.main", flow="evaluation")
 def main() -> None:
     load_dotenv()
     args = _arguments()
@@ -221,4 +224,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

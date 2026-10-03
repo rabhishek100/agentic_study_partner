@@ -1,5 +1,6 @@
 """Tests for out-of-domain external QA and web search fallback."""
 
+import httpx
 import pytest
 from unittest.mock import MagicMock
 
@@ -12,15 +13,29 @@ from study.contracts import ConversationMessage, ConversationState, WebSourceRef
 from study.external_qa import EXPLICIT_WEB_REQUEST, execute_external_qa
 
 
-def test_search_duckduckgo_basic():
-    """Verify DuckDuckGo search returns structured WebSourceRef results."""
-    results = search_duckduckgo("python programming language", max_results=3)
-    assert isinstance(results, list)
-    if results:
-        first = results[0]
-        assert first.url.startswith("http")
-        assert first.title
-        assert first.rank == 1
+def test_search_duckduckgo_parses_redirects_and_limits_results(monkeypatch):
+    """Exercise the real parser with deterministic HTML, without live search."""
+    html = """
+    <a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fdocs.python.org%2F3%2F"> Python Docs </a>
+    <a class="result__snippet"> Python reference </a>
+    <a class="result__a" href="https://example.com/second">Second result</a>
+    <a class="result__snippet">Second snippet</a>
+    """
+    real_client = httpx.Client
+    requests = []
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(200, text=html)
+    monkeypatch.setattr("retrieval.web_search.httpx.Client", lambda **kwargs:
+                        real_client(transport=httpx.MockTransport(respond), **kwargs))
+    results = search_duckduckgo("python reference", max_results=1)
+    assert len(results) == 1
+    assert results[0].url == "https://docs.python.org/3/"
+    assert results[0].domain == "docs.python.org"
+    assert results[0].title == "Python Docs"
+    assert results[0].snippet == "Python reference"
+    assert results[0].rank == 1
+    assert b"q=python+reference" in requests[0].content
 
 
 def test_assess_model_knowledge_sufficiency_true():

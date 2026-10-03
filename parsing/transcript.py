@@ -68,6 +68,7 @@ _TABLE = re.compile(r"<table\b.*?</table>", re.DOTALL | re.IGNORECASE)
 _HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<title>\S.*?)\s*$")
 _LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
 _WORD = re.compile(r"[^\W_]+", re.UNICODE)
+_HEADING_NUMBER = re.compile(r"^\s*\d+(?:\.\d+)*[.)]?\s+")
 
 _ARABIC_PAGE = re.compile(r"\b(\d{1,4})\b")
 _ROMAN_PAGE = re.compile(r"\b([ivxlcdm]{1,7})\b", re.IGNORECASE)
@@ -216,7 +217,8 @@ def _heading_matches(heading: str, title: str) -> bool:
     section a page belongs to.
     """
 
-    left, right = _comparable(heading), _comparable(title)
+    left = _comparable(_HEADING_NUMBER.sub("", heading))
+    right = _comparable(_HEADING_NUMBER.sub("", title))
     if not left or not right:
         return False
     return left == right or left.startswith(right) or right.startswith(left)
@@ -292,6 +294,7 @@ def build_transcribed_book(
             if page < first_page or page > total:
                 continue
             markup = parse_page_markup(text)
+            pieces = _split_body(markup.body)
 
             # Sections whose entry points at this page, in outline order. The
             # first is claimed by its heading if that heading appears; until
@@ -303,6 +306,19 @@ def build_transcribed_book(
             ]
             if pending and page == first_page:
                 current = pending.pop(0)
+            elif pending and not any(
+                piece.kind == "heading"
+                and _heading_matches(piece.text, sections[pending[0]].title)
+                for piece in pieces
+            ):
+                # A reviewer may rename a heading, or OCR may miss it. The
+                # confirmed page remains authoritative when there is no
+                # located boundary; do not delay opening it until next page.
+                current = pending.pop(0)
+                logger.warning(
+                    "unlocated transcribed heading on page %s; using reviewed page boundary",
+                    page,
+                )
 
             _append_margin(
                 sections[current],
@@ -311,7 +327,7 @@ def build_transcribed_book(
                 category=DETECTED_HEADER_CATEGORY,
             )
 
-            for piece in _split_body(markup.body):
+            for piece in pieces:
                 if piece.kind == "heading" and pending:
                     if _heading_matches(piece.text, sections[pending[0]].title):
                         current = pending.pop(0)

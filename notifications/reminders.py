@@ -8,6 +8,8 @@ from typing import Any, Mapping
 
 from psycopg import Connection
 
+from operations_telemetry import user_scope
+from observability import traced
 from decks import store as deck_store
 from decks.contracts import DeckPreferences
 from decks.review_time import (
@@ -24,6 +26,7 @@ from . import store
 logger = logging.getLogger("study_partner.notifications.reminders")
 
 
+@traced("notifications.reminders.reconcile_due_review_reminders", flow="reminders", operational=True)
 def reconcile_due_review_reminders(
     connection: Connection,
     *,
@@ -59,45 +62,46 @@ def reconcile_due_review_reminders(
 
         for row in rows:
             owner_id = row["owner_id"]
-            try:
-                # A nested transaction is a PostgreSQL savepoint. One corrupt
-                # preference or owner-specific query failure must not roll
-                # back successful reminders for every other due owner.
-                with connection.transaction():
-                    owner_created = _reconcile_owner(
-                        connection, row=row, moment=moment
-                    )
-                created += owner_created
-            except ValueError as error:
-                logger.warning(
-                    "invalid daily card reminder preference disabled",
-                    extra={
-                        "owner_id": str(owner_id),
-                        "error_detail": str(error),
-                    },
-                )
+            with user_scope(owner_id):
                 try:
+                    # A nested transaction is a PostgreSQL savepoint. One corrupt
+                    # preference or owner-specific query failure must not roll
+                    # back successful reminders for every other due owner.
                     with connection.transaction():
-                        connection.execute(
-                            """
-                            update public.deck_preferences
-                            set review_reminder_enabled = false,
-                                next_review_reminder_at = null,
-                                updated_at = now()
-                            where owner_id = %s
-                            """,
-                            (owner_id,),
+                        owner_created = _reconcile_owner(
+                            connection, row=row, moment=moment
+                        )
+                    created += owner_created
+                except ValueError as error:
+                    logger.warning(
+                        "invalid daily card reminder preference disabled",
+                        extra={
+                            "owner_id": str(owner_id),
+                            "error_detail": str(error),
+                        },
+                    )
+                    try:
+                        with connection.transaction():
+                            connection.execute(
+                                """
+                                update public.deck_preferences
+                                set review_reminder_enabled = false,
+                                    next_review_reminder_at = null,
+                                    updated_at = now()
+                                where owner_id = %s
+                                """,
+                                (owner_id,),
+                            )
+                    except Exception:
+                        logger.exception(
+                            "could not disable invalid daily card reminder preference",
+                            extra={"owner_id": str(owner_id)},
                         )
                 except Exception:
                     logger.exception(
-                        "could not disable invalid daily card reminder preference",
+                        "daily card reminder owner reconciliation failed",
                         extra={"owner_id": str(owner_id)},
                     )
-            except Exception:
-                logger.exception(
-                    "daily card reminder owner reconciliation failed",
-                    extra={"owner_id": str(owner_id)},
-                )
     return created
 
 

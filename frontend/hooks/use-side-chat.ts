@@ -1,5 +1,7 @@
 "use client";
 
+import { track, trackedFetch } from "@/lib/analytics";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { API_BASE, apiFetch } from "@/lib/api";
@@ -177,7 +179,7 @@ export function useSideChat<TResult>(
 
       try {
         const token = await accessToken();
-        const response = await fetch(
+        const response = await trackedFetch(
           `${API_BASE}${surface.stream(sideChatId)}`,
           {
             method: "POST",
@@ -230,6 +232,7 @@ export function useSideChat<TResult>(
                 turn_index: number;
               };
               settled = true;
+              track("study_answer_completed", { flow: "side_chat" });
               patchTurn(id, {
                 answer: data.result.answer,
                 result: data.result,
@@ -248,6 +251,7 @@ export function useSideChat<TResult>(
           throw new Error("The study API closed the stream unexpectedly.");
         }
       } catch (caught) {
+        track("study_answer_failed", { flow: "side_chat", outcome: stoppedByUserRef.current ? "cancelled" : "failed" });
         const error = caught as Error;
         if (stoppedByUserRef.current) {
           patchTurn(id, { answer: streamedText, status: "stopped" });

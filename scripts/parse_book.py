@@ -7,11 +7,13 @@ outline and extracted sections agree:
     uv run python -m scripts.parse_book path/to/book.pdf
 """
 
+
 import argparse
 from collections import defaultdict
 import tempfile
 from pathlib import Path
 
+from observability import traced
 from ingestion.config import load_limits
 from ingestion.outlines import normalize_title
 from ingestion.pipeline import evaluate_extraction
@@ -24,6 +26,7 @@ from parsing.models import NON_CONTENT_CATEGORIES
 from parsing.parser import parse_book
 
 
+@traced("scripts.parse_book.main", flow="cli")
 def main() -> int:
     arguments = argparse.ArgumentParser(description=__doc__)
     arguments.add_argument("source", type=Path)

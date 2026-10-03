@@ -7,6 +7,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 from video.course_contracts import CourseEvidenceRef
 from video.course_repository import CourseNotFoundError
@@ -59,6 +60,7 @@ class CourseRetrieval:
     excluded_video_ids: tuple[UUID, ...]
 
 
+@traced("video.course_retrieval.retrieve_course_evidence", flow="retrieval")
 def retrieve_course_evidence(
     connection: Connection,
     *,
@@ -158,7 +160,9 @@ def retrieve_course_evidence(
             rank=rank,
             evidence_id=item.id,
             modality=item.modality,
-            excerpt=item.text[:700],
+            # Retrieval already bounds windows and item count. A display
+            # preview here cut off mechanisms while keeping full timestamps.
+            excerpt=item.text,
             retrieval_method=item.retrieval_method,
             score=round(float(item.score), 6),
             start_ms=item.start_ms,

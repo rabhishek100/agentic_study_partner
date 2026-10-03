@@ -12,6 +12,7 @@ handing them to a human. The proposal is evidence; only confirmation makes it
 eligible for parsing.
 """
 
+
 import logging
 import re
 import threading
@@ -25,6 +26,7 @@ from uuid import UUID
 
 import fitz
 
+from observability import traced, in_current_context
 from parsing.markup import parse_page_markup
 
 from .config import IngestionLimits
@@ -100,6 +102,7 @@ class TranscriptionOutcome:
         }
 
 
+@traced("ingestion.ocr_stage.transcribe_book", flow="ingestion")
 def transcribe_book(
     source: Path,
     *,
@@ -188,7 +191,7 @@ def transcribe_book(
             return transcription, assessment
 
         with ThreadPoolExecutor(max_workers=limits.ocr_concurrency) as pool:
-            futures = {pool.submit(read, page): page for page in pending}
+            futures = {pool.submit(in_current_context(read), page): page for page in pending}
             try:
                 for future in as_completed(futures):
                     page = futures[future]
@@ -368,6 +371,7 @@ class OutlineProposal:
     provenance_json: dict[str, object] = field(default_factory=dict)
 
 
+@traced("ingestion.ocr_stage.propose_outline", flow="ingestion")
 def propose_outline(
     pages: list[tuple[int, str]], *, page_count: int | None = None
 ) -> OutlineProposal:

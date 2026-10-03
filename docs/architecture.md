@@ -19,7 +19,14 @@ flowchart TD
     G --> M[OpenRouter models]
     W --> M
     G -. traces .-> L[LangSmith]
+    API -. traces .-> L
+    W -. traces .-> L
     UI <--> V[Optional LiveKit voice workers]
+    V -. traces .-> L
+    API -. OTLP .-> O[Grafana logs traces metrics]
+    W -. OTLP .-> O
+    V -. OTLP .-> O
+    UI -. safe events .-> P[PostHog]
 ```
 
 | Layer | Technology | Responsibility |
@@ -32,8 +39,10 @@ flowchart TD
 | Data | Postgres, Psycopg, pgvector | Source hierarchy, search, jobs, conversations, study artifacts |
 | Files and identity | Supabase Auth; Supabase Storage, filesystem, or S3-compatible R2 | Verified identity and private source/media bytes |
 | Models and traces | OpenRouter, LangSmith | Hosted inference; graph/model traces when configured |
+| Operational observability | OpenTelemetry, Grafana Cloud | Structured Loki logs, Tempo boundaries, operation/process metrics |
+| Product analytics | PostHog Cloud | Safe UI/API events and opaque authenticated identity; replay disabled |
 | Optional voice | LiveKit Inference and workers | Streaming speech recognition and playback |
-| Verification | Python unittest, Vitest, Docker, GitHub Actions | Contracts, frontend behavior, integration and image checks |
+| Verification | Pytest including unittest cases, Vitest, Docker, GitHub Actions | Contracts, frontend behavior, integration and image checks; paid quality evals separate |
 
 The Next.js interface prerenders its initial UI, then hydrates Client Components
 and loads authenticated study data in the browser. See
@@ -370,7 +379,13 @@ system without adding a separate queue broker.
 - Network/model calls stay outside long database transactions. Cleanup has
   grace periods and orphan-fraction guards.
 - LangSmith records graph/model decisions when enabled; structured logs and
-  saved job/session state support recovery. Voice-provider usage is separate.
+  saved job/session state support recovery. HTTP, ordinary Python, worker and
+  voice boundaries retain context and verified user identity. Notifications
+  use a separate operations project; queued attempts correlate by job ID.
+- Grafana exports operation outcomes/durations and process CPU/RSS, plus logs
+  and operational traces. PostHog records safe browser events; playback recording
+  is disabled. Telemetry failures preserve application outcomes. Setup and
+  limits: [operational observability](operational-observability.md).
 - Models never execute unrestricted SQL or shell commands.
 
 Selection rationale and model defaults: [design decisions](design-decisions.md).

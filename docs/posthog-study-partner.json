@@ -1,0 +1,218 @@
+{
+  "name": "Study Partner \u2014 Usage (wizard)",
+  "description": "Privacy-filtered usage and delivery outcomes; quality and AI cost remain in LangSmith.",
+  "insights": [
+    {
+      "name": "Daily visitors by page (wizard)",
+      "description": "Unique visitors per sanitized route per day. Visitors can appear on several routes; do not sum routes to get unique visitors. Anonymous local verification visits are included.",
+      "tags": [
+        "study-partner",
+        "wizard"
+      ],
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "TrendsQuery",
+          "series": [
+            {
+              "kind": "EventsNode",
+              "event": "$pageview",
+              "math": "dau"
+            }
+          ],
+          "interval": "day",
+          "dateRange": {
+            "date_from": "-30d"
+          },
+          "trendsFilter": {
+            "display": "ActionsLineGraph"
+          },
+          "breakdownFilter": {
+            "breakdowns": [
+              {
+                "type": "event",
+                "property": "route"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Weekly returning visitors (wizard)",
+      "description": "Page-visit cohorts returning in later weeks. Browser identity can change after resets or blocking; this is usage retention, not learning progress.",
+      "tags": [
+        "study-partner",
+        "wizard"
+      ],
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "RetentionQuery",
+          "dateRange": {
+            "date_from": "-30d"
+          },
+          "retentionFilter": {
+            "targetEntity": {
+              "id": "$pageview",
+              "type": "events"
+            },
+            "returningEntity": {
+              "id": "$pageview",
+              "type": "events"
+            },
+            "period": "Week",
+            "totalIntervals": 5,
+            "retentionType": "retention_first_time"
+          }
+        }
+      }
+    },
+    {
+      "name": "API response and transport outcomes (wizard)",
+      "description": "HTTP responses, HTTP errors (400+), and network/cancellation failures. HTTP 200/202 is not completed generation. Error responses are a subset of responses; these lines must not be summed.",
+      "tags": [
+        "study-partner",
+        "wizard"
+      ],
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "TrendsQuery",
+          "series": [
+            {
+              "kind": "EventsNode",
+              "event": "api_action_response",
+              "math": "total"
+            },
+            {
+              "kind": "EventsNode",
+              "event": "api_action_response",
+              "math": "total",
+              "properties": [
+                {
+                  "type": "event",
+                  "key": "status",
+                  "value": 399,
+                  "operator": "gt"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": "api_action_failed",
+              "math": "total"
+            }
+          ],
+          "interval": "day",
+          "dateRange": {
+            "date_from": "-30d"
+          },
+          "trendsFilter": {
+            "display": "ActionsLineGraph"
+          },
+          "breakdownFilter": {
+            "breakdowns": [
+              {
+                "type": "event",
+                "property": "route"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Streamed study outcomes by flow (wizard)",
+      "description": "Parsed final answer completions and failed/cancelled streams for chat, side chat, video and course study. Does not measure grounding or queued summaries/revision-sheet/interview completion.",
+      "tags": [
+        "study-partner",
+        "wizard"
+      ],
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "TrendsQuery",
+          "series": [
+            {
+              "kind": "EventsNode",
+              "event": "study_answer_completed",
+              "math": "total"
+            },
+            {
+              "kind": "EventsNode",
+              "event": "study_answer_failed",
+              "math": "total"
+            }
+          ],
+          "interval": "day",
+          "dateRange": {
+            "date_from": "-30d"
+          },
+          "trendsFilter": {
+            "display": "ActionsLineGraph"
+          },
+          "breakdownFilter": {
+            "breakdowns": [
+              {
+                "type": "event",
+                "property": "flow"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Chat request to completed answer (wizard)",
+      "description": "Users starting a chat request who receive a final streamed answer within 10 minutes. User-level funnel; concurrent requests can match different turns. This is not a per-request success rate.",
+      "tags": [
+        "study-partner",
+        "wizard"
+      ],
+      "query": {
+        "kind": "InsightVizNode",
+        "source": {
+          "kind": "FunnelsQuery",
+          "dateRange": {
+            "date_from": "-30d"
+          },
+          "series": [
+            {
+              "kind": "EventsNode",
+              "event": "api_action_started",
+              "math": "total",
+              "properties": [
+                {
+                  "type": "event",
+                  "key": "route",
+                  "value": "/api/chat/stream",
+                  "operator": "exact"
+                }
+              ]
+            },
+            {
+              "kind": "EventsNode",
+              "event": "study_answer_completed",
+              "math": "total",
+              "properties": [
+                {
+                  "type": "event",
+                  "key": "flow",
+                  "value": "chat",
+                  "operator": "exact"
+                }
+              ]
+            }
+          ],
+          "funnelsFilter": {
+            "funnelVizType": "steps",
+            "funnelOrderType": "ordered",
+            "funnelWindowInterval": 10,
+            "funnelWindowIntervalUnit": "minute"
+          }
+        }
+      }
+    }
+  ]
+}

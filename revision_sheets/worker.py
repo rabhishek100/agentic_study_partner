@@ -1,8 +1,10 @@
 """Revision jobs share the existing worker; model calls hold no DB connection."""
 
+
 import logging
 import threading
 
+from observability import in_current_context, traced, record_error
 from storage.database import connection
 from . import store
 from .contracts import RevisionError
@@ -25,6 +27,7 @@ class RevisionWorker:
         with connection(self.database_url) as db:
             return store.recover(db)
 
+    @traced("revision_sheets.worker.RevisionWorker.process", flow="revision_sheet")
     def process(self, job, *, model=None, images=None):
         stop = threading.Event()
         lost = threading.Event()
@@ -45,7 +48,7 @@ class RevisionWorker:
                     lost.set()
                     return
 
-        thread = threading.Thread(target=renew, daemon=True, name=f"revision-{job['id']}")
+        thread = threading.Thread(target=in_current_context(renew), daemon=True, name=f"revision-{job['id']}")
         thread.start()
         try:
             progress("reading_source")
@@ -65,6 +68,7 @@ class RevisionWorker:
                 current = load_source(db, owner_id=job["owner_id"], request=request)
                 store.publish(db, job, self.worker_id, current, sheet, pdf, provenance)
         except Exception as error:
+            record_error(error, outcome="cancelled" if getattr(error, "code", None) == "cancelled" else "failed")
             refusal = None if isinstance(error, RevisionError) else spend_refusal(error)
             if isinstance(error, RevisionError):
                 code, detail = error.code, str(error)

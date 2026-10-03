@@ -8,6 +8,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from .reranker import Reranker, RerankerUnavailable, build_reranker, rerank
 from .postgres import SearchResult, search as bm25_search
 from .vector import (
@@ -73,6 +74,7 @@ def reciprocal_rank_fusion(
     return fused
 
 
+@traced("retrieval.search.hybrid_candidates", flow="retrieval")
 def hybrid_candidates(
     connection: Connection,
     query: str,
@@ -129,6 +131,7 @@ def _take_ranked(
     return results
 
 
+@traced("retrieval.search.retrieve", flow="retrieval")
 def retrieve(
     connection: Connection,
     query: str,

@@ -1,5 +1,7 @@
 "use client";
 
+import { track, trackedFetch } from "@/lib/analytics";
+
 import { useCallback, useRef, useState } from "react";
 
 import { API_BASE, apiFetch } from "@/lib/api";
@@ -92,7 +94,7 @@ export function useVideoChat(videoId: string) {
       try {
         const target = await ensureConversation(submitted);
         const token = await accessToken();
-        const response = await fetch(
+        const response = await trackedFetch(
           `${API_BASE}/video-conversations/${target}/turns/stream`,
           {
             method: "POST",
@@ -138,6 +140,7 @@ export function useVideoChat(videoId: string) {
             } else if (event === "final") {
               const data = JSON.parse(payload) as VideoAskResponse;
               settled = true;
+              track("study_answer_completed", { flow: "video_study" });
               setConversationId(data.conversation_id);
               patchTurn(id, {
                 answer: data.result.answer,
@@ -158,6 +161,7 @@ export function useVideoChat(videoId: string) {
           throw new Error("The video API closed the stream unexpectedly.");
         }
       } catch (caught) {
+        track("study_answer_failed", { flow: "video_study", outcome: stoppedByUserRef.current ? "cancelled" : "failed" });
         const error = caught as Error;
         if (stoppedByUserRef.current) {
           patchTurn(id, { answer: streamedText, status: "stopped" });

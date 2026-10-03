@@ -1,5 +1,6 @@
 """Run deterministic hierarchy requests and complete-scope summaries."""
 
+
 import argparse
 import os
 import sys
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from storage.database import (
     connection as database_connection,
 )
@@ -128,6 +130,7 @@ def _write(path: Path, value: str) -> None:
     path.write_text(value, encoding="utf-8")
 
 
+@traced("scripts.study.main", flow="cli")
 def main() -> None:
     load_dotenv()
     parser = build_argument_parser()
@@ -248,4 +251,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

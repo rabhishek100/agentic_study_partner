@@ -1,5 +1,6 @@
 """Choose one conversational route and, when needed, one search query."""
 
+
 import json
 import logging
 import os
@@ -12,6 +13,7 @@ from uuid import UUID
 from dotenv import load_dotenv
 from pydantic import Field, model_validator
 
+from observability import traced
 from storage.database import connection as database_connection
 from storage.database import parse_owner_id
 
@@ -438,7 +440,7 @@ figure, or which section is meant: the reader has already told you by being
 there, and asking hands back the one thing they did not have to say.
 """.strip()
 
-DEFAULT_CONTROL_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_CONTROL_MODEL = "openai/gpt-6-luna"
 
 
 def _openrouter_model() -> AnalysisModel:
@@ -451,13 +453,14 @@ def _openrouter_model() -> AnalysisModel:
         model=os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL,
         api_key=key,
         base_url="https://openrouter.ai/api/v1",
+        use_responses_api=False,
         max_retries=0,
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         temperature=0,
-        reasoning={
+        extra_body={"reasoning": {
             "effort": os.getenv("OPENROUTER_CONTROL_REASONING", "low"),
             "exclude": True,
-        },
+        }},
     )
     return model.with_structured_output(ModelDecision, method="json_schema")
 
@@ -821,6 +824,7 @@ def _clarification_fallback(
     return decision
 
 
+@traced("study.analyze.analyze_turn", flow="chat")
 def analyze_turn(
     question: str,
     state: ConversationState,

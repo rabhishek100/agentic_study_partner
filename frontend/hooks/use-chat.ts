@@ -1,5 +1,7 @@
 "use client";
 
+import { track, trackedFetch } from "@/lib/analytics";
+
 import { useCallback, useRef, useState } from "react";
 
 import { API_BASE } from "@/lib/api";
@@ -99,7 +101,7 @@ export function useChat() {
 
       try {
         const token = await accessToken();
-        const response = await fetch(`${API_BASE}/chat/stream`, {
+        const response = await trackedFetch(`${API_BASE}/chat/stream`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -155,6 +157,7 @@ export function useChat() {
               patchTurn(id, { answer: streamedText });
             } else if (event === "final") {
               const data = JSON.parse(payload) as ChatResponse;
+              track("study_answer_completed", { flow: "chat" });
               settled = true;
               setConversation(data.state);
               // The server may have started a new conversation — a changed
@@ -181,6 +184,7 @@ export function useChat() {
           throw new Error("The study API closed the stream unexpectedly.");
         }
       } catch (caught) {
+        track("study_answer_failed", { flow: "chat", outcome: stoppedByUserRef.current ? "cancelled" : "failed" });
         const error = caught as Error;
         if (stoppedByUserRef.current) {
           // A deliberate stop keeps whatever was generated. The server never

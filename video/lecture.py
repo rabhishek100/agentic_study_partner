@@ -20,6 +20,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 from study.streaming import TokenCallback, invoke_with_streaming
 from video.answers import (
@@ -160,6 +161,7 @@ def _published_version(
     return row["id"]
 
 
+@traced("video.lecture.load_lecture_scope", flow="summary")
 def load_lecture_scope(
     connection: Connection,
     *,
@@ -445,6 +447,7 @@ def coverage_units(
     )
 
 
+@traced("video.lecture.evaluate_coverage", flow="summary")
 def evaluate_coverage(
     text: str, units: tuple[CoverageUnit, ...]
 ) -> SummaryCoverage:
@@ -505,6 +508,7 @@ def _generate(
     return str(response.content).strip(), reported_cost_usd(response)
 
 
+@traced("video.lecture.summarize_lecture", flow="summary")
 def summarize_lecture(
     *,
     question: str,

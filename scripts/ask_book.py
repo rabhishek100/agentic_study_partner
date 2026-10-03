@@ -1,7 +1,9 @@
 """CLI adapter for the shared routed study query handler."""
 
+
 import argparse
 
+from observability import traced
 from storage.database import environment_owner_id, parse_owner_id
 from study.query import QueryExecutionError, answer_query
 from study.scope import ScopeResolutionError
@@ -14,6 +16,7 @@ def answer_question(*args, **kwargs) -> str:
     return answer_query(*args, **kwargs)
 
 
+@traced("scripts.ask_book.main", flow="cli")
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("question")

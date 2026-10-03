@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, errorDetail, uploadUrl } from "@/lib/api";
@@ -104,7 +106,7 @@ export function useInterviewerSpeech() {
       );
       try {
         const token = await accessToken();
-        const response = await fetch(uploadUrl(path), {
+        const response = await trackedFetch(uploadUrl(path), {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           signal: controller.signal,
         });

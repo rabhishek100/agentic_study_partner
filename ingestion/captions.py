@@ -31,6 +31,7 @@ from uuid import UUID
 import httpx
 from psycopg import Connection
 
+from observability import provider_post
 from storage.book_images import load_figure
 from storage.database import parse_owner_id
 from video.media_store import MediaStoreError
@@ -151,7 +152,7 @@ class OpenRouterCaptioner:
         last_error: Exception | None = None
         for attempt in range(1, self._max_attempts + 1):
             try:
-                response = self._client.post(OPENROUTER_CHAT_URL, json=request)
+                response = provider_post(self._client, OPENROUTER_CHAT_URL, json=request, trace_metadata={"provider_attempt": attempt})
                 response.raise_for_status()
                 choices = response.json().get("choices") or []
                 if not choices:

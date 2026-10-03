@@ -16,6 +16,7 @@ and the answer it produces is grounded and cited the same way.
 
 from __future__ import annotations
 
+
 import logging
 import os
 import re
@@ -23,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from observability import provider_post, traced
 
 
 OPENROUTER_TRANSCRIPTIONS_URL = "https://openrouter.ai/api/v1/audio/transcriptions"
@@ -128,6 +130,7 @@ def transcribe_spoken_question(
     ).text
 
 
+@traced("study.dictation.transcribe_spoken_question_result", flow="dictation")
 def transcribe_spoken_question_result(
     audio: bytes,
     *,
@@ -186,8 +189,10 @@ def _post_result(
 ) -> DictationResult:
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            response = client.post(
+            response = provider_post(
+                client,
                 OPENROUTER_TRANSCRIPTIONS_URL,
+                trace_metadata={"provider_attempt": attempt},
                 data=data,
                 files={"file": (filename, audio, "application/octet-stream")},
             )

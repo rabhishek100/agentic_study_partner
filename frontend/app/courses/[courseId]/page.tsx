@@ -1,5 +1,7 @@
 "use client";
 
+import { track, trackedFetch } from "@/lib/analytics";
+
 import {
   ArrowLeft,
   BookOpen,
@@ -199,7 +201,7 @@ export default function CoursePage() {
       const token = await accessToken();
       const controller = new AbortController();
       abortRef.current = controller;
-      const response = await fetch(
+      const response = await trackedFetch(
         `${API_BASE}/course-conversations/${id}/turns/stream`,
         {
           method: "POST",
@@ -232,6 +234,7 @@ export default function CoursePage() {
             );
           } else if (event.event === "final") {
             const payload = JSON.parse(event.data) as CourseAskResponse;
+            track("study_answer_completed", { flow: "course_study" });
             setTurns((current) =>
               current.map((turn) =>
                 turn.id === localId
@@ -253,6 +256,7 @@ export default function CoursePage() {
         if (done) break;
       }
     } catch (caught) {
+      track("study_answer_failed", { flow: "course_study", outcome: (caught as Error).name === "AbortError" ? "cancelled" : "failed" });
       const message =
         (caught as Error).name === "AbortError"
           ? "Stopped."

@@ -8,6 +8,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from observability import traced
 from decks.topics import ScopeInventory, Topic
 
 from .contracts import InterviewFormat, TargetLevel
@@ -139,6 +140,7 @@ def _clean_spoken(text: str) -> str:
     return " ".join(without_marker_spacing.split()).strip()
 
 
+@traced("interviews.ideal_generation.generate_ideal_exchange", flow="ideal_interview")
 def generate_ideal_exchange(
     *,
     inventory: ScopeInventory,
@@ -155,16 +157,18 @@ def generate_ideal_exchange(
         target_level=target_level,
         index=index,
     )
-    draft, cost = invoke_structured(
-        model or structured_model(IdealInterviewExchangeDraft, temperature=0.25),
-        build_exchange_messages(
+    client = model or structured_model(IdealInterviewExchangeDraft, temperature=0.25)
+    messages = build_exchange_messages(
             inventory=inventory,
             topic=topic,
             interview_format=interview_format,
             target_level=target_level,
             phase=phase,
             previous=previous,
-        ),
+        )
+    draft, cost = invoke_structured(
+        client,
+        messages,
         IdealInterviewExchangeDraft,
         config={
             "run_name": "ideal_interview_exchange",
@@ -177,6 +181,24 @@ def generate_ideal_exchange(
         },
     )
     markers = list(dict.fromkeys(draft.citation_markers))
+    if set(markers) != topic.allowed_markers:
+        # Regenerate against the same evidence once. Never manufacture the
+        # omitted citation metadata: the answer must cover those sources too.
+        messages.append(HumanMessage(content=(
+            "Your previous exchange failed its citation contract. Regenerate the entire exchange, "
+            "synthesizing every supplied source in the candidate answer. Return exactly these "
+            f"required citation_markers: {sorted(topic.allowed_markers)}. "
+            f"Missing: {sorted(topic.allowed_markers - set(markers))}. "
+            f"Unexpected: {sorted(set(markers) - topic.allowed_markers)}. "
+            "Keep markers out of spoken fields. Previous exchange:\n" + draft.model_dump_json()
+        )))
+        draft, repair_cost = invoke_structured(client, messages, IdealInterviewExchangeDraft,
+            config={"run_name": "ideal_interview_citation_repair",
+                    "tags": ["interview", "ideal-flow", "rag", "repair"],
+                    "metadata": {"scope_key": inventory.scope_key, "topic_key": topic.key,
+                                 "exchange_index": index, "repair_attempt": 1}})
+        cost += repair_cost
+        markers = list(dict.fromkeys(draft.citation_markers))
     if set(markers) != topic.allowed_markers:
         raise ValueError(
             "ideal interview answer must cite every marker in its assigned topic"

@@ -1,5 +1,6 @@
 """Parse a PDF into the TOC-aligned models defined in ``models.py``."""
 
+
 import logging
 import math
 import os
@@ -30,6 +31,7 @@ from unstructured.documents.elements import (
 from unstructured.partition.pdf import partition_pdf
 from unstructured.staging.base import elements_from_json, elements_to_json
 
+from observability import traced
 from .models import (
     DETECTED_FOOTER_CATEGORY,
     DETECTED_HEADER_CATEGORY,
@@ -486,6 +488,7 @@ def _partition_or_page_fallback(
         return elements, True
 
 
+@traced("parsing.parser.extract_batched", flow="parsing")
 def extract_batched(
     pdf_path: str | Path,
     *,
@@ -704,6 +707,7 @@ def extract_selective(pdf_path: str | Path):
     return elements
 
 
+@traced("parsing.parser.extract_elements", flow="parsing")
 def extract_elements(
     pdf_path: str | Path,
     cache_path: str | Path = ELEMENTS_CACHE,
@@ -1102,6 +1106,7 @@ def assign_elements(elements, sections: list[Section]) -> list[int]:
     return sorted(set(unsplit_pages))
 
 
+@traced("parsing.parser.parse_book", flow="parsing")
 def parse_book(
     pdf_path: str | Path,
     *,

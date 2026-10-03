@@ -118,10 +118,6 @@ class BookSourceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 401)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ViewerCopyPreferenceTests(unittest.IsolatedAsyncioTestCase):
     """Books too large to store their own bytes are read from a rendering."""
 
@@ -219,66 +215,6 @@ class SigningBackendTests(unittest.IsolatedAsyncioTestCase):
             await self.client.get("/api/books/7/source")
         self.assertEqual(sign.call_args.args[1], "owner/book-7/viewer.pdf")
         self.assertEqual(sign.call_args.kwargs["backend"], "r2")
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-class ViewerCopyPreferenceTests(unittest.IsolatedAsyncioTestCase):
-    """Books too large to store their own bytes are read from a rendering."""
-
-    async def asyncSetUp(self):
-        self.client = AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        )
-        app.dependency_overrides[current_owner] = lambda: OWNER_ID
-
-    async def asyncTearDown(self):
-        app.dependency_overrides.clear()
-        await self.client.aclose()
-
-    async def test_a_viewer_copy_is_served_instead_of_the_source(self):
-        with stored_book(
-            viewer_bucket="book-sources", viewer_path="owner/book-536/viewer.pdf"
-        ) as sign:
-            response = await self.client.get(
-                "/api/books/7/source"
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            sign.call_args.args, ("book-sources", "owner/book-536/viewer.pdf")
-        )
-
-    async def test_the_source_is_served_when_there_is_no_viewer_copy(self):
-        with stored_book() as sign:
-            response = await self.client.get(
-                "/api/books/7/source"
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            sign.call_args.args, ("book-sources", "owner/job/original.pdf")
-        )
-
-    async def test_a_viewer_copy_rescues_a_book_whose_source_was_never_stored(self):
-        """The operator ingest path uploads nothing, so this is its only source."""
-
-        with stored_book(
-            bucket=None,
-            path=None,
-            viewer_bucket="book-sources",
-            viewer_path="owner/book-536/viewer.pdf",
-        ) as sign:
-            response = await self.client.get(
-                "/api/books/7/source"
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            sign.call_args.args, ("book-sources", "owner/book-536/viewer.pdf")
-        )
 
 
 if __name__ == "__main__":

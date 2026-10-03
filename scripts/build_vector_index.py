@@ -1,9 +1,11 @@
 """Synchronize rebuildable pgvector rows from Postgres chunks."""
 
+
 import argparse
 
 from dotenv import load_dotenv
 
+from observability import traced
 from retrieval.vector import (
     DEFAULT_EMBEDDING_MODEL,
     build_embedder,
@@ -38,6 +40,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@traced("scripts.build_vector_index.main", flow="cli")
 def main() -> None:
     load_dotenv()
     args = build_argument_parser().parse_args()
@@ -63,4 +66,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

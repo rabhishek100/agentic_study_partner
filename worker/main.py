@@ -6,8 +6,8 @@ important on local disk: the source PDF and the job state both live in managed
 storage, so losing this container costs one attempt, never a book.
 """
 
+
 import argparse
-import json
 import logging
 import os
 import shutil
@@ -23,6 +23,7 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
+from observability import in_current_context, traced, record_error, flush_traces
 from api.version import build_revision, build_time
 from decks.source_preferences import (
     enqueue_initial_for_book,
@@ -64,50 +65,12 @@ CARDS_RECONCILE_INTERVAL_SECONDS = 30
 REVIEW_REMINDER_RECONCILE_INTERVAL_SECONDS = 60
 
 
-class JsonFormatter(logging.Formatter):
-    """Emit structured logs. Never include tokens, keys, URLs, or book text."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        payload = {
-            "timestamp": self.formatTime(record),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-        }
-        for field in (
-            "job_id",
-            "owner_id",
-            "book_id",
-            "video_id",
-            "stage",
-            "status",
-            "attempt",
-            "elapsed_seconds",
-            "error_code",
-            "error_detail",
-            "pages",
-            "chunks",
-        ):
-            value = getattr(record, field, None)
-            if value is not None:
-                payload[field] = value
-        if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
-        return json.dumps(payload)
+# Retain this public alias for existing log consumers/tests.
+from operations_telemetry import JsonFormatter, configure_logging as _configure_logging
 
 
 def configure_logging() -> None:
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
-    # A file copy of the structured stream, so a failed attempt's traceback
-    # survives the terminal scrollback and can be read by tooling.
-    log_file = os.getenv("WORKER_LOG_FILE", "").strip()
-    if log_file:
-        handlers.append(logging.FileHandler(log_file))
-    for handler in handlers:
-        handler.setFormatter(JsonFormatter())
-    root = logging.getLogger()
-    root.handlers = handlers
-    root.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
+    _configure_logging("study-partner-worker", log_file=os.getenv("WORKER_LOG_FILE", "").strip())
 
 
 @dataclass
@@ -124,7 +87,7 @@ class _LeaseRenewal:
     def __enter__(self) -> "_LeaseRenewal":
         self._stop = threading.Event()
         self._thread = threading.Thread(
-            target=self._renew, name=f"lease-{self.job_id}", daemon=True
+            target=in_current_context(self._renew), name=f"lease-{self.job_id}", daemon=True
         )
         self._thread.start()
         return self
@@ -232,6 +195,7 @@ class Worker:
             logger.exception("lease reclamation failed")
             return 0
 
+    @traced("worker.main.Worker.process", flow="ingestion")
     def process(self, job: IngestionJob) -> None:
         """Run one claimed job and record its outcome exactly once."""
 
@@ -258,12 +222,14 @@ class Worker:
                     database_url=self.database_url,
                     dependencies=self.dependencies,
                 )
-        except CancellationRequested:
+        except CancellationRequested as error:
+            record_error(error, outcome="cancelled")
             logger.info(
                 "job cancelled at a safe boundary",
                 extra={**context, "elapsed_seconds": round(time.monotonic() - started)},
             )
         except BaseException as error:  # noqa: BLE001 - every failure is recorded
+            record_error(error)
             self._record_failure(job, error, context, started)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
@@ -538,6 +504,7 @@ def main() -> None:
             worker.run()
     finally:
         close_pools()
+        flush_traces()
 
 
 if __name__ == "__main__":

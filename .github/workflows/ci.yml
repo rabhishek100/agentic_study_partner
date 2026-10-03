@@ -18,26 +18,27 @@ jobs:
           version: "0.11.16"
           enable-cache: true
       - name: Install Python dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --extra voice
       - name: Check generated LangGraph diagrams
-        run: uv run --frozen python -m scripts.export_langgraph_diagrams --check
+        run: uv run --frozen --extra voice python -m scripts.export_langgraph_diagrams --check
       - name: Check generated API endpoint catalog
-        run: uv run --frozen python -m scripts.export_api_reference --check
-      - name: Test optional LiveKit voice transport
-        run: uv run --frozen --extra voice python -m pytest tests/test_livekit_voice.py tests/test_livekit_worker.py -q
+        run: uv run --frozen --extra voice python -m scripts.export_api_reference --check
       - name: Install Chromium for PDF rendering tests
-        run: uv run --frozen python -m playwright install --with-deps chromium
+        run: uv run --frozen --extra voice python -m playwright install --with-deps chromium
       - name: Start migrated local Supabase
         run: npx --yes supabase@2.109.1 start
       - name: Run Python tests
         env:
+          # Unit/integration tests never export to hosted telemetry by default.
+          LANGSMITH_TRACING: "false"
+          OTEL_ENABLED: "false"
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
           DEFAULT_OWNER_ID: 00000000-0000-4000-8000-000000000001
           # Local Supabase CLI development credentials, not secrets. Without
           # these the Storage-backed ingestion tests skip instead of running.
           SUPABASE_URL: http://127.0.0.1:54321
           SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
-        run: uv run python -m unittest discover -s tests -v
+        run: uv run --frozen --extra voice python -m pytest tests -q
       - name: Stop local Supabase
         if: always()
         run: npx --yes supabase@2.109.1 stop --no-backup

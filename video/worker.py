@@ -10,6 +10,7 @@ import threading
 from collections.abc import Collection
 from pathlib import Path
 
+from observability import in_current_context, traced, record_error
 from decks.source_preferences import enqueue_initial_for_video
 from storage.database import connection as database_connection
 from video.acquisition import AcquisitionError, acquire_youtube
@@ -82,7 +83,7 @@ class _LeaseRenewal:
 
     def __enter__(self) -> "_LeaseRenewal":
         self._thread = threading.Thread(
-            target=self._renew,
+            target=in_current_context(self._renew),
             name=f"video-lease-{self.job.id}",
             daemon=True,
         )
@@ -166,6 +167,7 @@ class VideoWorker:
                 worker_id=self.worker_id,
                 lease_seconds=self.lease_seconds,
                 supported_stages=self.supported_stages,
+                allow_uploaded_acquisition=Stage.MEDIA_METADATA in self.supported_stages,
             )
 
     def recover_abandoned_jobs(self) -> int:
@@ -176,6 +178,7 @@ class VideoWorker:
             logger.exception("video lease reclamation failed")
             return 0
 
+    @traced("video.worker.VideoWorker.process", flow="video_ingestion")
     def process(self, job: VideoIngestionJob) -> None:
         work_dir = self.work_directory(job.id)
         preserve_work_dir = False
@@ -205,6 +208,7 @@ class VideoWorker:
                 if job.stage is Stage.PUBLISH:
                     self._enqueue_initial_cards(job)
         except BaseException as error:  # every attempt must converge
+            record_error(error)
             will_retry = self._record_failure(job, error, context)
             preserve_work_dir = will_retry and job.stage is Stage.ACQUIRE_SOURCE
             if isinstance(error, (KeyboardInterrupt, SystemExit)):

@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from observability import traced
 from storage.database import parse_owner_id
 from .config import IngestionLimits, load_limits
 from .errors import ErrorCode, IngestionError, classify_failure, safe_message
@@ -255,6 +256,7 @@ def list_events(
     ).fetchall()
 
 
+@traced("ingestion.jobs.enqueue", flow="ingestion")
 def create_job(
     connection: Connection,
     *,

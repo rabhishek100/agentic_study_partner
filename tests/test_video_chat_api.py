@@ -76,6 +76,19 @@ class VideoChatApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 201)
         return response.json()["conversation_id"]
 
+    async def test_starter_questions_use_real_chapter_schema_and_cache(self) -> None:
+        # Keep the SQL/cache boundary real: mocks previously hid a reference
+        # to a column that never existed in video.chapters.
+        path = f"/api/videos/{self.video.video_id}/suggested-questions"
+        with mock.patch("study.question_generator._call_llm_for_questions",return_value=[]):
+            first = await self.client.get(path)
+        self.assertEqual(first.status_code,200)
+        self.assertEqual(len(first.json()["questions"]),5)
+        with mock.patch("study.question_generator._call_llm_for_questions",side_effect=AssertionError("cache missed")):
+            second = await self.client.get(path)
+        self.assertEqual(second.status_code,200)
+        self.assertEqual(second.json()["questions"],first.json()["questions"])
+
     async def test_chat_routes_require_authentication(self) -> None:
         app.dependency_overrides.clear()
         identifier = uuid4()

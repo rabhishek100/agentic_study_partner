@@ -154,7 +154,7 @@ export function AuthGate() {
             </Alert>
           )}
 
-          <Button type="submit" size="lg" className="w-full" disabled={busy}>
+          <Button data-analytics-action="auth_submit" type="submit" size="lg" className="w-full" disabled={busy}>
             {pending === "credentials" && (
               <Loader2 className="animate-spin" aria-hidden />
             )}
@@ -180,6 +180,7 @@ export function AuthGate() {
               variant="outline"
               size="lg"
               className="w-full"
+              data-analytics-action="demo_open"
               onClick={openDemo}
               disabled={busy}
             >

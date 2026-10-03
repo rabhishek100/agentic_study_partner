@@ -4,6 +4,9 @@
 #
 #   scripts/deploy.sh api [environment]   API and worker, one container
 #   scripts/deploy.sh web [environment]
+#   scripts/deploy.sh voice [environment]
+#   scripts/deploy.sh ideal-interview-voice [environment]
+#   scripts/deploy.sh narration-voice [environment]
 #
 # The service is named `api` for historical reasons and runs both processes:
 # they have to share one media volume, and a Railway volume mounts to exactly
@@ -29,7 +32,7 @@ set -euo pipefail
 service="${1:-}"
 environment="${2:-}"
 if [[ -z "$service" ]]; then
-    echo "usage: scripts/deploy.sh <api|web> [environment]" >&2
+    echo "usage: scripts/deploy.sh <api|web|voice|ideal-interview-voice|narration-voice> [environment]" >&2
     exit 2
 fi
 
@@ -37,8 +40,8 @@ if [[ "$service" == "worker" ]]; then
     echo "worker is vestigial; deploy api, which runs the combined worker" >&2
     exit 2
 fi
-if [[ "$service" != "api" && "$service" != "web" ]]; then
-    echo "usage: scripts/deploy.sh <api|web> [environment]" >&2
+if [[ "$service" != "api" && "$service" != "web" && "$service" != "voice" && "$service" != "ideal-interview-voice" && "$service" != "narration-voice" ]]; then
+    echo "usage: scripts/deploy.sh <api|web|voice|ideal-interview-voice|narration-voice> [environment]" >&2
     exit 2
 fi
 

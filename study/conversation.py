@@ -1,11 +1,13 @@
 """Execute one conversational turn over summaries and book retrieval."""
 
+
 import re
 from collections.abc import Sequence
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
 
+from observability import traced
 from retrieval.search import RetrievalMode
 from storage.database import connection as database_connection
 from storage.postgres import list_books
@@ -180,14 +182,16 @@ def _transform(
         ),
         token_callback=token_callback,
     )
+    answer = str(response.content)
+    used_markers = set(re.findall(r"\[S\d+\]|\[N\d+:P\d+\]", answer))
     return TurnResult(
         question=question,
-        answer=str(response.content),
+        answer=answer,
         route="prior_answer_transform",
         history_dependency="dependent",
         resolved_scope=state.active_scope,
         evidence=list(state.previous_evidence),
-        citations=list(state.previous_citations),
+        citations=[citation for citation in state.previous_citations if citation.marker in used_markers],
         outcome="answer",
         answer_archetype="answer_transform",
         response_depth=response_depth,
@@ -196,6 +200,7 @@ def _transform(
     )
 
 
+@traced("study.conversation.execute_decision", flow="chat")
 def execute_decision(
     question: str,
     decision: TurnDecision,
@@ -279,11 +284,8 @@ def execute_decision(
         if is_hierarchy
         else decision.standalone_query or question
     )
-    # A hierarchy decision already names one book. `execute_query` re-derives
-    # the scope from the rendered sentence, and that sentence carries no book,
-    # so resolving it against the whole selection made "summarize chapter 1"
-    # ambiguous across every book the reader had open - after the analyser had
-    # already decided which one they meant.
+    # Execute the owner-checked canonical IDs selected by the planner. Display
+    # paths are for readers and cannot reliably be parsed back into a scope.
     execution_book_ids = (
         (decision.resolved_scope.book_id,)
         if is_hierarchy and decision.resolved_scope
@@ -298,6 +300,7 @@ def execute_decision(
         model=model,
         token_callback=token_callback,
         force_retrieval=decision.route == "retrieval_qa",
+        planned_scope=decision.resolved_scope if is_hierarchy else None,
         prompt_profile=profile,
         response_depth=resolved_depth,
         routing_reason=decision.reason,
@@ -335,6 +338,7 @@ def execute_decision(
     return result.model_copy(update=updates)
 
 
+@traced("study.conversation.record_turn", flow="chat")
 def record_turn(
     state: ConversationState,
     question: str,
@@ -372,6 +376,7 @@ def record_turn(
     return state
 
 
+@traced("study.conversation.execute_conversation_turn", flow="chat")
 def execute_conversation_turn(
     question: str,
     state: ConversationState | None = None,

@@ -9,6 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from langsmith import Client
 
+from observability import traced
 from decks.topics import ScopeInventory, Topic
 from evals.ideal_interview import langsmith_evaluators, semantic_quality_evaluator
 from interviews.ideal_generation import generate_ideal_exchange
@@ -84,6 +85,7 @@ def sync_dataset(client: Client, seed: dict, dataset_name: str) -> None:
     )
 
 
+@traced("scripts.evaluate_ideal_interview_flows.main", flow="evaluation")
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser()
@@ -111,4 +113,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

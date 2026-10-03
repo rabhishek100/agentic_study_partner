@@ -10,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from psycopg import Connection
 
+from observability import traced
 from study.streaming import TokenCallback
 from video.analyze import AnalysisModel, analyze_turn
 from video.answers import VideoAnswerDependencies
@@ -241,6 +242,7 @@ def new_course_conversation_state(
     )
 
 
+@traced("video.course_conversation.execute_course_turn", flow="course_study")
 def execute_course_turn(
     connection: Connection,
     question: str,

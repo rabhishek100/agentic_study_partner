@@ -359,6 +359,24 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertIn("evidence is insufficient", result.answer)
         self.assertNotIn("INSUFFICIENT_EVIDENCE", result.answer)
 
+    def test_contracted_refusal_is_not_published_as_an_answer(self):
+        document = SimpleNamespace(page_content="Low-rank factorization compresses tensors.",
+            metadata={"book_id": self.book_id, "node_id": 1, "path": "Core idea",
+                      "start_page": 2, "end_page": 2})
+        for text, outcome in (
+            ("There isn't enough evidence here to prescribe LoRA rank. [S1]", "abstain"),
+            ("There isn’t enough evidence here to choose target modules. [S1]", "abstain"),
+            ("There is not enough evidence for that recommendation. [S1]", "abstain"),
+            ("The evidence is sufficient to explain tensor factorization. [S1]", "answer"),
+        ):
+            with self.subTest(text=text), patch("study.query.BookRetriever") as retriever:
+                retriever.return_value.invoke.return_value = [document]
+                model = MagicMock()
+                model.invoke.return_value = SimpleNamespace(content=text)
+                result = execute_query("How should I choose LoRA rank?", database_url=self.database_url,
+                    book_id=self.book_id, owner_id=self.owner_id, model=model, allow_external_fallback=False)
+                self.assertEqual(result.outcome, outcome)
+
     def test_model_falls_back_to_external_qa_when_evidence_insufficient(self):
         document = SimpleNamespace(
             page_content="Low-rank factorization can compress model tensors.",
@@ -500,6 +518,64 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
 
             self.assertEqual(retriever.call_args.kwargs["k"], expected_k)
             self.assertTrue(retriever.call_args.kwargs["unique_nodes"])
+
+    def test_checklist_answer_receives_same_section_continuation(self):
+        from parsing.models import ParsedBook, Section, TextBlock
+        from retrieval.models import ChunkingConfig
+        from retrieval.postgres import rebuild
+        from uuid import uuid4
+        tail = "Training data, evaluation metrics, subgroup results and intended uses must be documented."
+        source = ParsedBook(source="fixture.pdf", toc=[(1, "Chapter 1. Reporting", 1)],
+            sections=[Section(path=["Chapter 1. Reporting"], level=1, start_page=1, end_page=1,
+                texts=[TextBlock(text="Model cards document requirements. " + "Introductory context. " * 10,
+                                 category="NarrativeText", page=1),
+                       TextBlock(text=tail, category="NarrativeText", page=1)])])
+        with database_connection(self.database_url) as db:
+            book_id = ingest_book(db, source, owner_id=self.owner_id, title="Reporting",
+                author="Fixture", file_hash=uuid4().hex * 2, page_count=1, parser_version="fixture")
+            rebuild(db, book_id, owner_id=self.owner_id,
+                config=ChunkingConfig(target_tokens=40, max_tokens=60, overlap_tokens=0))
+        for question in ("What should a model card document include?", "What should a model card document cover?"):
+            with self.subTest(question=question):
+                model = MagicMock()
+                model.invoke.return_value = SimpleNamespace(content="Include training data and evaluation metrics [S2].")
+                result = execute_query(question,
+                    database_url=self.database_url, book_id=book_id, owner_id=self.owner_id,
+                    model=model, force_retrieval=True, retrieval_mode="bm25")
+                self.assertIn(tail, model.invoke.call_args.args[0][-1][1])
+                self.assertEqual(len(result.evidence), 2)
+                self.assertEqual(result.evidence[1].retrieval_method, "hierarchy_expansion")
+                self.assertEqual(result.evidence[0].node_id, result.evidence[1].node_id)
+                self.assertEqual(result.citations[0].evidence_rank, 2)
+                self.assertEqual(result.citations[0].book_id, book_id)
+
+    def test_explanation_receives_definition_before_matching_middle_chunk(self):
+        from parsing.models import ParsedBook, Section, TextBlock
+        from retrieval.models import ChunkingConfig
+        from retrieval.postgres import rebuild
+        from uuid import uuid4
+        definition = 'A model uses 32-bit floating point parameters. Quantization can halve memory by using 16-bit representation. Post-training and quantization-aware training are distinct approaches.'
+        condition = 'Lower precision can reduce runtime and memory, with a possible accuracy tradeoff. Measure quality before deployment. This condition applies to the same compression mechanism described above.'
+        source = ParsedBook(source='fixture.pdf', toc=[(1, 'Chapter 1. Compression', 1)],
+            sections=[Section(path=['Chapter 1. Compression'], level=1, start_page=1, end_page=1,
+                texts=[TextBlock(text=text, category='NarrativeText', page=1)
+                       for text in (definition, 'Quantization example. ' * 12, condition)])])
+        with database_connection(self.database_url) as db:
+            book_id = ingest_book(db, source, owner_id=self.owner_id, title='Compression',
+                author='Fixture', file_hash=uuid4().hex * 2, page_count=1, parser_version='fixture')
+            rebuild(db, book_id, owner_id=self.owner_id,
+                    config=ChunkingConfig(target_tokens=40, max_tokens=60, overlap_tokens=0))
+        model = MagicMock()
+        model.invoke.return_value = SimpleNamespace(content='Use 16-bit parameters with measured accuracy tradeoffs [S2] [S3].')
+        result = execute_query('Explain quantization.', database_url=self.database_url,
+            book_id=book_id, owner_id=self.owner_id, model=model, force_retrieval=True, retrieval_mode='bm25')
+        request = model.invoke.call_args.args[0][-1][1]
+        self.assertIn(definition, request)
+        self.assertIn(condition, request)
+        self.assertEqual(result.evidence[0].chunk_index, 1)
+        self.assertEqual([item.chunk_index for item in result.evidence], [1, 0, 2])
+        self.assertLessEqual(len(result.evidence), 8)
+        self.assertTrue(all(item.book_id == book_id for item in result.evidence))
 
     def test_system_design_allows_several_chunks_from_one_scope_node(self):
         document = SimpleNamespace(

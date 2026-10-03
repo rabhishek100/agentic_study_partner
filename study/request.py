@@ -105,6 +105,7 @@ WHOLE_DOCUMENT_SUMMARY = re.compile(
     r"^(?:explain|summari[sz]e|review)\s+"
     r"(?:all\s+of\s+)?"
     rf"(?:{_DETERMINER}\s+)?"
+    r"(?:(?:whole|entire|complete)\s+)?"
     r"(?:"
     # The mention leads, and the noun after it is optional: "@[Title]",
     # "@[Title] paper", "the @[Title] paper".
@@ -114,7 +115,7 @@ WHOLE_DOCUMENT_SUMMARY = re.compile(
     # "this document", "the paper @[Title]".
     rf"{_DOCUMENT_NOUN}(?:\s+(?P<book_reference>{_MENTION}))?"
     r")"
-    r"\s*[?.]?$",
+    r"(?:\s*[,;:]\s*(?:including|covering|with)\b.+)?\s*[?.]?$",
     re.IGNORECASE,
 )
 SUMMARIZE_SECTION = re.compile(

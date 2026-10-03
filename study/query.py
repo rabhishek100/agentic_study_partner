@@ -1,13 +1,17 @@
 """Shared routing for hierarchy operations and ordinary retrieval questions."""
 
+
 import os
 import re
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Protocol
 from uuid import UUID
 
 from dotenv import load_dotenv
+from model_routing import provider_options
 
+from observability import traced
 from retrieval.langchain import BookRetriever, document_from_result
 from retrieval.models import book_scope
 from retrieval.postgres import chunks_by_id, search_result_from_row
@@ -50,6 +54,9 @@ from .request import (
 from .scope import (
     ResolvedScope,
     ScopeNotFoundError,
+    TOP_LEVEL_ROLES,
+    resolve_book,
+    resolve_node,
 )
 from .streaming import TokenCallback, invoke_with_streaming
 from .summarize import (
@@ -73,11 +80,12 @@ class QueryExecutionError(RuntimeError):
 
 
 SOURCE_CITATION = re.compile(r"\[S(\d+)]")
-DEFAULT_GENERATION_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_GENERATION_MODEL = "openai/gpt-6-luna"
 INSUFFICIENT_EVIDENCE_MARKER = "INSUFFICIENT_EVIDENCE:"
 INSUFFICIENT_EVIDENCE_LANGUAGE = re.compile(
     r"\b(?:the\s+)?evidence\s+is\s+insufficient\b|"
     r"\bnot\s+enough\s+evidence\b|"
+    r"\b(?:isn['’]t|is\s+not)\s+enough\s+evidence\b|"
     r"\bcannot\s+be\s+answered\s+from\s+(?:the|this)\s+evidence\b|"
     r"\bcannot\s+recommend\s+(?:a|an|the|any)\b",
     re.IGNORECASE,
@@ -93,6 +101,42 @@ def retrieval_limit(response_depth: ResponseDepth) -> int:
     """Return a small evaluated evidence budget for the requested answer depth."""
 
     return RETRIEVAL_LIMIT_BY_DEPTH[response_depth]
+
+
+@traced("study.query.expand_section_context", flow="chat")
+def _section_neighborhood(documents, *, database_url, owner, scope, limit):
+    """Complete a short strongest section, or keep its nearest bounded neighbors.
+
+    Keep at least two context slots for other ranked sections. Source ownership,
+    book, node and build are fixed by the seed; no model call is added.
+    """
+    if not documents or not documents[0].metadata.get("chunk_id"):
+        return documents
+    seed = documents[0]
+    pack_limit = min(5, max(1, limit - 2))
+    with database_connection(database_url, readonly=True) as source:
+        rows = source.execute(
+            """select neighbor.* from chunks as seed join chunks as neighbor
+            on neighbor.owner_id = seed.owner_id
+              and neighbor.source_book_id = seed.source_book_id
+              and neighbor.source_node_id = seed.source_node_id
+              and neighbor.build_id = seed.build_id
+            where seed.owner_id = %s and seed.id = %s
+              and (%s::bigint[] is null or seed.source_book_id = any(%s))
+            order by abs(neighbor.chunk_index - seed.chunk_index), neighbor.chunk_index
+            limit %s""", (owner, seed.metadata["chunk_id"], scope, scope, pack_limit),
+        ).fetchall()
+    neighbors = [document_from_result(search_result_from_row(row,
+        score=seed.metadata.get("score") or 0, retrieval_method="hierarchy_expansion"))
+        for row in rows if row["id"] != seed.metadata["chunk_id"]]
+    expanded, seen = [], set()
+    for item in [seed, *neighbors, *documents[1:]]:
+        key = item.metadata.get("chunk_id")
+        if key is not None and key in seen:
+            continue
+        seen.add(key)
+        expanded.append(item)
+    return expanded[:limit]
 
 
 def _summary_config() -> SummaryConfig:
@@ -128,7 +172,8 @@ def control_model() -> ChatModel:
         max_retries=1,
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         temperature=0,
-        extra_body={"reasoning": {"effort": "low", "exclude": True}},
+        extra_body={"reasoning": {"effort": os.getenv("OPENROUTER_CONTROL_REASONING", "low"), "exclude": True},
+                    **provider_options(os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL)},
     )
 
 
@@ -151,6 +196,7 @@ def openrouter_model(*, max_tokens: int | None = None) -> ChatModel:
         max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "2")),
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         extra_body={
+            **provider_options(os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL),
             "reasoning": {
                 "effort": reasoning_effort,
                 "exclude": True,
@@ -178,6 +224,7 @@ def _resolve_hierarchy_request(
     owner_id: str | UUID,
     book_id: int | None,
     book_ids: Sequence[int] | None = None,
+    planned_scope: ScopeRef | None = None,
 ) -> tuple[StudyRequest, ResolvedScope] | None:
     """Return a resolved study request, or None for ordinary retrieval."""
 
@@ -188,15 +235,36 @@ def _resolve_hierarchy_request(
 
     try:
         with database_connection(database_url, readonly=True) as source:
-            scope = resolve_study_request(
-                source,
-                request,
-                owner_id=owner_id,
-                book_id=book_id,
-                book_ids=book_ids,
-            )
+            if planned_scope is not None:
+                selected = book_scope(book_id, book_ids)
+                if selected is not None and planned_scope.book_id not in selected:
+                    raise QueryExecutionError("Planned scope is outside the selected books.")
+                if planned_scope.kind == "book" and planned_scope.node_id is None:
+                    scope = resolve_book(source, owner_id=owner_id, book_id=planned_scope.book_id)
+                elif planned_scope.kind != "book" and planned_scope.node_id is not None:
+                    scope = resolve_node(source, planned_scope.node_id, owner_id=owner_id)
+                else:
+                    raise QueryExecutionError("Planned scope has no valid canonical identity.")
+                # Title-based chapter requests also allow top-level prefaces,
+                # parts and appendices. Keep that resolver's semantic kind
+                # while retaining the exact owner-checked canonical subtree.
+                if planned_scope.kind == "chapter" and scope.kind == "section" and any(
+                    node.id == scope.root_node_id and node.parent_id is None
+                    and node.node_type in TOP_LEVEL_ROLES for node in scope.nodes
+                ):
+                    scope = replace(scope, kind="chapter")
+                if scope.book_id != planned_scope.book_id or scope.kind != planned_scope.kind:
+                    raise QueryExecutionError("Planned scope does not match its canonical source.")
+            else:
+                scope = resolve_study_request(
+                    source,
+                    request,
+                    owner_id=owner_id,
+                    book_id=book_id,
+                    book_ids=book_ids,
+                )
     except ScopeNotFoundError:
-        if request.scope_kind == "named":
+        if planned_scope is None and request.scope_kind == "named":
             return None
         raise
     return request, scope
@@ -263,6 +331,7 @@ def _read_scope_verbatim(
     )
 
 
+@traced("study.query._answer_hierarchy_request", flow="chat")
 def _answer_hierarchy_request(
     request: StudyRequest,
     scope: ResolvedScope,
@@ -480,6 +549,7 @@ def _pinned_documents(
     return documents
 
 
+@traced("study.query._answer_retrieval_question", flow="chat")
 def _answer_retrieval_question(
     question: str,
     *,
@@ -547,6 +617,12 @@ def _answer_retrieval_question(
         # discards most of that design while admitting unrelated chapters.
         unique_nodes=archetype != "system_design",
     ).invoke(question)
+    # Side chats already carry explicit pinned context; their ranking contract
+    # and system-design's multi-chunk retrieval remain unchanged in this trial.
+    if archetype != "system_design" and not pinned_chunk_ids:
+        retrieved = _section_neighborhood(retrieved,
+            database_url=database_url, owner=owner, scope=scope,
+            limit=retrieval_limit(response_depth))
     pinned = _pinned_documents(
         pinned_chunk_ids,
         database_url=database_url,
@@ -783,6 +859,7 @@ def _answer_retrieval_question(
     )
 
 
+@traced("study.query.execute_query", flow="chat")
 def execute_query(
     question: str,
     database_url: str | None = None,
@@ -806,6 +883,7 @@ def execute_query(
     # it; the retrieval path is self-contained by design.
     conversation: ConversationState | None = None,
     send_figures: bool = False,
+    planned_scope: ScopeRef | None = None,
 ) -> TurnResult:
     """Execute a single self-contained hierarchy or retrieval request."""
 
@@ -819,6 +897,7 @@ def execute_query(
             owner_id=owner_id,
             book_id=book_id,
             book_ids=book_ids,
+            planned_scope=planned_scope,
         )
     if hierarchy is not None:
         # A hierarchy answer loads its whole canonical scope, so pinning
@@ -861,6 +940,7 @@ def execute_query(
     )
 
 
+@traced("study.query.answer_query", flow="chat")
 def answer_query(
     question: str,
     database_url: str | None = None,

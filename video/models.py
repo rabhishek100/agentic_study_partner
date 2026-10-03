@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import os
 from typing import Any, Protocol
+from model_routing import provider_options
 
 
-DEFAULT_ANSWER_MODEL = "openai/gpt-5.6-luna"
-DEFAULT_CONTROL_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_ANSWER_MODEL = "openai/gpt-6-luna"
+DEFAULT_CONTROL_MODEL = "openai/gpt-6-luna"
 MAXIMUM_TURN_COST_USD = 0.05
 # A whole-lecture request reads the complete transcript instead of eight
 # passages, so it costs several times an ordinary turn by construction. One
@@ -53,9 +54,11 @@ def answer_model(*, max_tokens: int | None = None) -> ChatModel:
         or DEFAULT_ANSWER_MODEL,
         api_key=_api_key(),
         base_url="https://openrouter.ai/api/v1",
+        use_responses_api=False,
         max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "2")),
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         extra_body={
+            **provider_options(os.getenv("OPENROUTER_VIDEO_ANSWER_MODEL") or os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_ANSWER_MODEL),
             "usage": {"include": True},
             "reasoning": {
                 "effort": os.getenv("OPENROUTER_GENERATION_REASONING", "none"),
@@ -75,13 +78,14 @@ def control_model(schema):
         model=os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL,
         api_key=_api_key(),
         base_url="https://openrouter.ai/api/v1",
+        use_responses_api=False,
         max_retries=0,
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         temperature=0,
-        reasoning={
+        extra_body={**provider_options(os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL), "reasoning": {
             "effort": os.getenv("OPENROUTER_CONTROL_REASONING", "low"),
             "exclude": True,
-        },
+        }},
     )
     return model.with_structured_output(schema, method="json_schema")
 

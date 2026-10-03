@@ -1,5 +1,6 @@
 """Run the frozen conversations through the real application coordinator."""
 
+
 import argparse
 from datetime import datetime
 import json
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.judge import OpenRouterAnswerJudge
 from evals.multiturn import ProjectRunner, evaluate_conversations
 from evals.report import render_report
@@ -24,7 +26,7 @@ def _arguments():
     parser.add_argument("--gold", type=Path, default=DEFAULT_GOLD)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--book-id", type=int)
-    parser.add_argument("--retrieval-mode", default="hybrid")
+    parser.add_argument("--retrieval-mode", default="hybrid_rerank")
     parser.add_argument(
         "--owner-id",
         help="Owner UUID; defaults to DEFAULT_OWNER_ID",
@@ -50,6 +52,7 @@ def _select(dataset, args):
     return selected
 
 
+@traced("scripts.evaluate_multiturn.main", flow="evaluation")
 def main():
     load_dotenv()
     args = _arguments()
@@ -81,4 +84,5 @@ def main():
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

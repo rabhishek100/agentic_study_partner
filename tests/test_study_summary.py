@@ -410,6 +410,21 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(result.attempt_count, 1)
         self.assertEqual(len(model.messages), 1)
 
+    def test_coverage_repair_retains_full_source_and_existing_answer(self) -> None:
+        scope, context = self._chapter_context()
+        allowed = sorted(context.allowed_citations)
+        root = scope.root_node_id
+        initial = "Training details and results are already explained. " + " ".join(
+            f"[N{node}:P{page}]" for node, page in allowed if node != root)
+        marker = next(f"[N{node}:P{page}]" for node, page in allowed if node == root)
+        model = SequenceSummaryModel(initial, "Source overview with grounded context. " + marker)
+        result = summarize_scope_with_repair(model, scope=scope, context=context)
+        self.assertTrue(result.validation.valid)
+        self.assertEqual(len(model.messages), 2)
+        repair = model.messages[1][1][1]
+        self.assertIn(context.text, repair)
+        self.assertIn(initial, repair)
+
     def test_summary_repair_path_never_uses_truncation_prone_stream(self) -> None:
         scope, context = self._chapter_context()
         citations = " ".join(
@@ -574,8 +589,28 @@ class StudySummaryTests(PostgresOwnerMixin, unittest.TestCase):
             "Write only a concise Markdown coverage addendum", repair_system[1]
         )
         self.assertIn(f"Node {missing_id}", repair_human[1])
+        self.assertTrue(result.text.startswith(f"Initial safe summary. {initial_citations}"))
         for covered_id in ordered_ids[:-1]:
-            self.assertNotIn(f"## Node {covered_id}:", repair_human[1])
+            self.assertIn(f"## Node {covered_id}:", repair_human[1])
+
+    def test_full_source_repair_checks_context_budget_before_model_call(self) -> None:
+        scope, context = self._chapter_context()
+        missing = max(context.expected_node_ids)
+        initial = "Previously covered details. " * 1500 + " ".join(
+            f"[N{node}:P{page}]"
+            for node, page in sorted(context.allowed_citations)
+            if node != missing
+        )
+        model = SequenceSummaryModel(initial, "Must not be called.")
+        with self.assertRaises(ContextWindowExceededError):
+            summarize_scope_with_repair(
+                model, scope=scope, context=context,
+                config=SummaryConfig(
+                    context_window_tokens=12000, max_output_tokens=8000,
+                    safety_margin_tokens=1000,
+                ),
+            )
+        self.assertEqual(len(model.messages), 1)
 
     def test_returns_best_citation_safe_draft_when_coverage_repair_stalls(
         self,

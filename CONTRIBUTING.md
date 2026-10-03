@@ -29,6 +29,13 @@ private media, or generated run directories that contain user content.
 - Describe current repository behavior in neutral language; omit conversational
   references and personal plans. Reuse the existing guide for each flow, with
   short explanations, simple diagrams, and links to implementation.
+- Update the established architecture, API, flow, interface, operations and
+  evaluation guides in place. Describe code paths, configuration, evaluation
+  methods, measurements and limits; do not append revision-history sections.
+- Add a guide only for a distinct topic that existing guides cannot reasonably
+  cover. Follow their structure: purpose, behavior, code references, setup or
+  commands, verification and limits. Keep existing experiment/acceptance records
+  as supporting evidence rather than duplicating them in a new status overview.
 
 ## Pull requests
 

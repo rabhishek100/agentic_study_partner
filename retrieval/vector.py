@@ -11,6 +11,7 @@ from uuid import UUID
 import httpx
 from psycopg import Connection
 
+from observability import provider_post, traced, record_metadata
 from storage.database import parse_owner_id
 from .models import book_scope
 from .postgres import SearchResult, search_result_from_row
@@ -60,7 +61,8 @@ class OpenRouterEmbedder:
         self._query_cache: dict[str, list[float]] = {}
 
     def _embed(self, texts: Sequence[str]) -> list[list[float]]:
-        response = self._client.post(
+        response = provider_post(
+            self._client,
             OPENROUTER_EMBEDDINGS_URL,
             json={
                 "model": self.model_name,
@@ -102,7 +104,9 @@ class OpenRouterEmbedder:
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         return self._embed(texts) if texts else []
 
+    @traced("retrieval.vector.OpenRouterEmbedder.embed_query", flow="retrieval")
     def embed_query(self, text: str) -> list[float]:
+        record_metadata(cache_hit=text in self._query_cache)
         if text not in self._query_cache:
             self._query_cache[text] = self._embed([text])[0]
         return self._query_cache[text]

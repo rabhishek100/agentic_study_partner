@@ -13,6 +13,7 @@ from psycopg import Connection
 from psycopg.errors import UniqueViolation
 from psycopg.types.json import Jsonb
 
+from observability import traced
 from storage.database import parse_owner_id
 from video.resources import maximum_resource_bytes
 from video.sources import display_filename, parse_youtube_url, upload_extension
@@ -242,6 +243,7 @@ def _create_graph(
     )
 
 
+@traced("video.repository.create_youtube_video", flow="video_ingestion")
 def create_youtube_video(
     connection: Connection,
     *,
@@ -275,6 +277,7 @@ def create_youtube_video(
     )
 
 
+@traced("video.repository.initialize_video_upload", flow="video_ingestion")
 def initialize_video_upload(
     connection: Connection,
     *,
@@ -329,6 +332,7 @@ CARRIED_STAGES = (
 )
 
 
+@traced("video.repository.reingest_video", flow="video_ingestion")
 def reingest_video(
     connection: Connection,
     *,
@@ -1299,6 +1303,7 @@ def load_video_upload_target(
     )
 
 
+@traced("video.repository.complete_video_upload", flow="video_ingestion")
 def complete_video_upload(
     connection: Connection,
     job_id: str | UUID,

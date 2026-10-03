@@ -1,0 +1,432 @@
+{
+  "date": "2026-10-02",
+  "review_mode": "llm_as_judge",
+  "human_review_required": false,
+  "human_labels": 0,
+  "experiment_directory": "evaluation/runs/unit9-automated-reviews",
+  "experiment_fingerprint": "9de87096e4fa9ef24a49acdc281889a6613c24642f9db60afe8a8100c1f1f1fb",
+  "budget": {
+    "cap_usd": "1",
+    "committed_usd": "0.136506925",
+    "reported_usd": "0.136506925",
+    "unknown_reservations": 0
+  },
+  "verdict_policy": "Usable requires supported grounding, all three scores >=3, no false semantic contract, and readable layout for PDF sheets. Unknown PDF layout is ineligible only for PDF sheets. Strict rewrite matches are diagnostic.",
+  "limits": [
+    "Automated model judgments, not human calibration or measured judge accuracy.",
+    "Original artifacts, prompts and model judgments preserved; no generation calls made.",
+    "Original run verdicts retained; final classification fixes PDF-only applicability for text artifacts.",
+    "Selected balanced sample of ten saved outputs, not a representative pass rate or a full final 54-case rerun.",
+    "LangSmith estimated price differs from the provider receipt for the long-context sheet review; budget uses the receipt, not the estimate."
+  ],
+  "summary": {
+    "usable": 5,
+    "needs_work": 5
+  },
+  "cases": [
+    {
+      "case_id": "mt-003-t1",
+      "flow": "chat",
+      "source_run": "unit7b-bm25-corrected",
+      "output_hash": "197659d3f6d674882056399688a832da7759c086d96f22f52c062bc67940c471",
+      "status": "completed",
+      "automated_verdict": "usable",
+      "original_run_verdict": "usable",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fd-ab04-7641-a3dc-6f70df0aca67?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "met",
+        "met",
+        "partial"
+      ],
+      "review_usd": "0.001802425",
+      "review_tokens": 12173
+    },
+    {
+      "case_id": "mt-008-t2",
+      "flow": "chat",
+      "source_run": "unit7b-bm25-corrected",
+      "output_hash": "11c7efc41c5949494f67a21efce9cf6d5ea10510de9bfc6b85982bf58e453ae5",
+      "status": "completed",
+      "automated_verdict": "needs_work",
+      "original_run_verdict": "needs_work",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "insufficient_evidence",
+        "correctness": 2,
+        "coverage": 1,
+        "usefulness": 2,
+        "layout": "unknown",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fd-dd19-7893-a807-29d9b229d1bf?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "partial"
+      ],
+      "review_usd": "0.00230655",
+      "review_tokens": 16425
+    },
+    {
+      "case_id": "mt-002-t2",
+      "flow": "summary",
+      "source_run": "unit8-scope-corrected",
+      "output_hash": "229972b28afe927e0651829cc7e5b4eed3057146f1210d9d6927a3ce14329f5e",
+      "status": "completed",
+      "automated_verdict": "usable",
+      "original_run_verdict": "unsure",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": false,
+        "evidence_recall": 1.0
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "unknown",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fe-03ee-7381-b83e-23060fbe26ff?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "met",
+        "met"
+      ],
+      "review_usd": "0.0019203",
+      "review_tokens": 13647
+    },
+    {
+      "case_id": "paper-complete-summary",
+      "flow": "summary",
+      "source_run": "unit8-paper-repair-corrected",
+      "output_hash": "d6d223fa77e885a3c8becf002b29f1b48b7deb8c5668be0bc04d4b6913a6cefa",
+      "status": "completed",
+      "automated_verdict": "usable",
+      "original_run_verdict": "unsure",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "scope": true,
+        "outcome": true,
+        "citations_valid": true,
+        "standalone_exact": null,
+        "evidence_recall": 1.0
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 3,
+        "usefulness": 3,
+        "layout": "unknown",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fe-1f0f-7d61-b0b0-21eede532d35?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "met",
+        "met",
+        "met",
+        "met",
+        "met",
+        "partial"
+      ],
+      "review_usd": "0.00521355",
+      "review_tokens": 38529
+    },
+    {
+      "case_id": "vc-006-t1",
+      "flow": "video_course",
+      "source_run": "unit7b-bm25-corrected",
+      "output_hash": "abfe647a8249519da97efb085dbbd3dd7ed32ac07ad4511214856d156ed96eb0",
+      "status": "completed",
+      "automated_verdict": "usable",
+      "original_run_verdict": "usable",
+      "checks": {
+        "route": true,
+        "history_dependency": true,
+        "outcome": true,
+        "citations_valid": null,
+        "near_miss_share": 0.125
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 3,
+        "layout": "not_applicable",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fe-44b3-7972-b29a-1ac8857c3414?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "met",
+        "met",
+        "met",
+        "partial"
+      ],
+      "review_usd": "0.0015588",
+      "review_tokens": 10539
+    },
+    {
+      "case_id": "course-spanner-indexed",
+      "flow": "video_course",
+      "source_run": "unit8-source-and-repairs",
+      "output_hash": "fc18ddc7895f0c750f1fcb76e260a78d52d0442acf4ab2b8cbebd73fcd3e69d1",
+      "status": "completed",
+      "automated_verdict": "needs_work",
+      "original_run_verdict": "needs_work",
+      "checks": {
+        "outcome": true,
+        "selected_sources_only": true,
+        "claim_support": null,
+        "citations_valid": true
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 2,
+        "layout": "not_applicable",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fe-6f0f-7d63-b4df-399e93bae77f?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "missed",
+        "missed",
+        "met"
+      ],
+      "review_usd": "0.000971925",
+      "review_tokens": 6270
+    },
+    {
+      "case_id": "sheet-chapter-6",
+      "flow": "revision_sheet",
+      "source_run": "unit8-source-and-repairs",
+      "output_hash": "f57c282d864542c8fbb56a9d756526237874b1a4e7adf42579fef6c539f35e6b",
+      "status": "completed",
+      "automated_verdict": "needs_work",
+      "original_run_verdict": "needs_work",
+      "checks": {
+        "production_findings_clear": false,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 2,
+        "layout": "readable",
+        "layout_findings": [
+          "All three rendered PDF pages have legible text and clear headings; no visible clipping, overlap, or missing glyphs.",
+          "Page 1\u2019s learning-curve figure is legible and appropriately illustrates the note about learning curves.",
+          "The calibration plot on page 3 is small and its labels/details are harder to read than the page\u2019s body text.",
+          "Pages 2 and 3 have substantial unused lower-page space, weakening balance and information grouping.",
+          "Citation labels are small, though generally readable at the supplied page-image scale."
+        ],
+        "rendered_pdf_pages": 3,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fe-8ea8-7003-bb46-009a64967cd4?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "met",
+        "met",
+        "partial",
+        "missed",
+        "met",
+        "met",
+        "met"
+      ],
+      "review_usd": "0.1028056",
+      "review_tokens": 408297
+    },
+    {
+      "case_id": "sheet-attention-paper",
+      "flow": "revision_sheet",
+      "source_run": "unit8-source-and-repairs",
+      "output_hash": "d03b78b67f364e3751a81697e13d908a43d858932233012ccc1ca97289bf5c20",
+      "status": "completed",
+      "automated_verdict": "needs_work",
+      "original_run_verdict": "needs_work",
+      "checks": {
+        "production_findings_clear": true,
+        "independent_concept_coverage": null,
+        "human_layout_review": null
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 3,
+        "layout": "readable",
+        "layout_findings": [
+          "Both rendered PDF pages are legible and show no apparent clipping, overlap, or missing glyphs; the architecture figure is clear and uncropped.",
+          "Page 1 has substantial unused space below its content, while page 2 is denser. The imbalance is noticeable but does not obstruct reading.",
+          "Citation labels are small, particularly on page 2, but remain readable at the supplied page-image scale."
+        ],
+        "rendered_pdf_pages": 2,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8fe-fe76-7d50-91fe-017da78bb244?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "met",
+        "met",
+        "met",
+        "partial",
+        "met",
+        "partial"
+      ],
+      "review_usd": "0.01808655",
+      "review_tokens": 141312
+    },
+    {
+      "case_id": "proximity-weak",
+      "flow": "interview",
+      "source_run": "unit7b-bm25-corrected",
+      "output_hash": "f40f5b0723ca259da6f4517c5bab4b7e43caede11ad907f18ca7bba6ebf68bdc",
+      "status": "completed",
+      "automated_verdict": "needs_work",
+      "original_run_verdict": "needs_work",
+      "checks": {
+        "score_in_predeclared_band": true,
+        "question_completion_matches": true,
+        "route_allowed": true,
+        "citations_resolve": true
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 3,
+        "coverage": 2,
+        "usefulness": 3,
+        "layout": "not_applicable",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8ff-43fb-7fa2-a680-0a8271e2eae2?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "missed",
+        "partial",
+        "missed"
+      ],
+      "review_usd": "0.00069805",
+      "review_tokens": 3794
+    },
+    {
+      "case_id": "ideal-rag-platform",
+      "flow": "interview",
+      "source_run": "unit8-source-and-repairs",
+      "output_hash": "2624042bed6a7640bdccf17f837497c9fbc6420f0b7380e7ea1379bc196b2d7c",
+      "status": "completed",
+      "automated_verdict": "usable",
+      "original_run_verdict": "usable",
+      "checks": {
+        "exact_topic_coverage": true,
+        "citation_presence": true,
+        "citation_marker_coverage": true,
+        "citation_locator_validity": true,
+        "spoken_text_has_no_markers": true,
+        "questions_are_interview_shaped": true,
+        "answers_are_speakable": true,
+        "human_reasoning_signals": true,
+        "system_design_progression": true,
+        "human_interview_usefulness": null
+      },
+      "judge": {
+        "judge_model": "openai/gpt-6-luna",
+        "review_kind": "llm_judge",
+        "review_version": "artifact-review-v2",
+        "grounding_status": "supported",
+        "correctness": 4,
+        "coverage": 4,
+        "usefulness": 4,
+        "layout": "not_applicable",
+        "layout_findings": [],
+        "rendered_pdf_pages": 0,
+        "trace_url": "https://smith.langchain.com/o/6ca75113-2771-470e-9881-ee62b4c7d1ce/projects/p/8e3f2513-2966-4382-9d4b-5fe376164c82/r/01a0f8ff-5d42-74c2-9c42-041430187245?poll=true",
+        "independence": "same model family automated judgment; not human-calibrated"
+      },
+      "criterion_statuses": [
+        "met",
+        "met",
+        "met",
+        "met"
+      ],
+      "review_usd": "0.001143175",
+      "review_tokens": 7088
+    }
+  ],
+  "cost_source": "provider-reported receipts; LangSmith token/latency readback verified for all ten review roots"
+}

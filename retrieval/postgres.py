@@ -12,6 +12,7 @@ from uuid import UUID
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from observability import traced
 from storage.database import parse_owner_id
 from .chunking import CHUNKER_VERSION, build_book_chunks, config_hash, config_json
 from .models import ChunkingConfig, book_scope
@@ -48,6 +49,7 @@ class SearchResult:
     retrieval_method: str = "bm25"
 
 
+@traced("retrieval.postgres.rebuild", flow="retrieval")
 def rebuild(
     connection: Connection,
     book_id: int,
@@ -248,6 +250,7 @@ def _bm25_scores(
     return scores
 
 
+@traced("retrieval.postgres.search", flow="retrieval")
 def search(
     connection: Connection,
     query: str,

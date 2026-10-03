@@ -27,7 +27,7 @@ MODEL_LITERAL = re.compile(r'"(?P<model>[a-z0-9-]+/[a-zA-Z0-9.\-]+)"')
 # What production code is allowed to reach for without further discussion.
 # Generation is Luna; the rest are cheap specialists doing a narrow job.
 APPROVED = {
-    "openai/gpt-5.6-luna",
+    "openai/gpt-6-luna",  # Lower token rates than 5.6 Luna; see design-decisions.md.
     "openai/text-embedding-3-large",
     "openai/text-embedding-3-small",
     "openai/whisper-1",
@@ -40,6 +40,15 @@ APPROVED = {
     "cohere/rerank-4-pro",
     "mistralai/voxtral-mini-tts-2603",
     "anthropic/claude-3.5-sonnet",
+}
+
+# These choices are authorized for bounded experiments only. This exact script
+# is not copied into the image; none becomes a permitted application fallback.
+EVALUATION_ONLY = {
+    "scripts/screen_model_candidates.py": {
+        "deepseek/deepseek-v4-flash", "qwen/qwen3.5-flash-02-23",
+        "openai/gpt-6-luna-pro", "google/gemini-3.1-flash-lite",
+    }
 }
 
 # Anything matching this is a model identifier rather than an incidental
@@ -68,6 +77,8 @@ class ModelDefaultTests(unittest.TestCase):
                     continue
                 if model in APPROVED:
                     continue
+                if model in EVALUATION_ONLY.get(str(path.relative_to(REPOSITORY_ROOT)), set()):
+                    continue
                 unapproved.setdefault(model, []).append(
                     str(path.relative_to(REPOSITORY_ROOT))
                 )
@@ -85,7 +96,7 @@ class ModelDefaultTests(unittest.TestCase):
 
         from revision_sheets.generate import model_name
 
-        self.assertEqual(model_name(), "openai/gpt-5.6-luna")
+        self.assertEqual(model_name(), "openai/gpt-6-luna")
 
 
 if __name__ == "__main__":

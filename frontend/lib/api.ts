@@ -1,5 +1,7 @@
 "use client";
 
+import { trackedFetch } from "@/lib/analytics";
+
 import { accessToken } from "./supabase";
 
 export const API_BASE = "/api";
@@ -78,7 +80,7 @@ export async function apiFetch<T>(
   { headers, ...options }: RequestInit = {},
 ): Promise<T> {
   const token = await accessToken();
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await trackedFetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       ...(options.body ? { "Content-Type": "application/json" } : {}),

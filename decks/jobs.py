@@ -18,6 +18,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 
 DEFAULT_LEASE_SECONDS = 300
@@ -121,6 +122,7 @@ _SELECT = """
 """
 
 
+@traced("decks.jobs.enqueue", flow="cards")
 def enqueue(
     connection: Connection,
     *,

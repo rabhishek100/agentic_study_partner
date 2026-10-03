@@ -15,6 +15,10 @@ const nextConfig = {
   // token-by-token delivery on /api/chat/stream (see next.config rewrite
   // below) by holding the whole reply until the stream ends.
   compress: false,
+  // Complete chapter interviews generate one exchange per coverage unit and
+  // can take several minutes. Next's default 30s rewrite timeout disconnected
+  // the browser while the API kept generating (and charging for) the result.
+  experimental: { proxyTimeout: 10 * 60 * 1000 },
   ...(process.env.NEXT_OUTPUT === "standalone"
     ? { output: "standalone" }
     : {}),

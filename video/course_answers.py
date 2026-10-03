@@ -31,6 +31,10 @@ the application supplies.
   to another or imply that all lecturers/lectures made the same claim.
 - Compare or synthesize lectures only when the supplied evidence supports the
   relationship. Cite every side of a comparison.
+- Cover each explicitly requested mechanism and its supported consequence.
+  Explain why it matters, not only its name. Read passages through to the end
+  before deciding a requested detail is missing. Identify unsupported parts
+  separately rather than silently omitting them.
 - Transcript evidence is what was said. Frame and visual-change evidence is
   what appeared on screen. A linked document page is not automatically aligned
   with a timestamp.

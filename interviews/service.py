@@ -8,6 +8,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from .contracts import (
     FormatChoice,
     InterviewClarification,
@@ -55,6 +56,7 @@ class CreateInterview:
     coding_exercise_requested: bool = False
 
 
+@traced("interviews.service.inspect_source", flow="interview")
 def inspect_source(
     connection: Connection,
     *,
@@ -76,6 +78,7 @@ def inspect_source(
     )
 
 
+@traced("interviews.service.create_interview", flow="interview")
 def create_interview(
     connection: Connection,
     *,
@@ -142,6 +145,7 @@ def create_interview(
     )
 
 
+@traced("interviews.service.load_session_inventory", flow="interview")
 def load_session_inventory(
     connection: Connection,
     session: InterviewSession,
@@ -209,6 +213,7 @@ def _generate_question(
     )
 
 
+@traced("interviews.service.start_interview", flow="interview")
 def start_interview(
     connection: Connection,
     session_id: str | UUID,
@@ -262,6 +267,7 @@ def start_interview(
     return store.load_session(connection, session_id, owner_id=owner_id)
 
 
+@traced("interviews.service.answer_interview", flow="interview")
 def answer_interview(
     connection: Connection,
     session_id: str | UUID,
@@ -371,6 +377,7 @@ def answer_interview(
     return store.load_session(connection, session_id, owner_id=owner_id)
 
 
+@traced("interviews.service.reveal_coding_hint", flow="interview")
 def reveal_coding_hint(
     connection: Connection,
     session_id: str | UUID,
@@ -412,6 +419,7 @@ def reveal_coding_hint(
     return store.load_session(connection, session_id, owner_id=owner_id)
 
 
+@traced("interviews.service.clarify_interview_question", flow="interview")
 def clarify_interview_question(
     connection: Connection,
     session_id: str | UUID,
@@ -468,6 +476,7 @@ def clarify_interview_question(
     return store.load_session(connection, session_id, owner_id=owner_id)
 
 
+@traced("interviews.service.finish_interview", flow="interview")
 def finish_interview(
     connection: Connection,
     session_id: str | UUID,

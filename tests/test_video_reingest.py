@@ -107,6 +107,8 @@ class VideoReingestTests(unittest.TestCase):
                 text="Attention diagram", confidence=0.96, word_count=2
             ),
             visual_analyzer=refuse_analysis if refuse_paid_work else analyze_two_frames,
+            # Match the pinned mock provenance, independent of production defaults.
+            visual_model="openai/gpt-5.6-luna",
             text_embedder=FakeTextEmbedder(),
             image_embedder=FakeRegionEmbedder(),
             pdf_downloader=self._download,

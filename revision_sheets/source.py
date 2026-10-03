@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from hashlib import sha256
 import json
 
+from observability import traced
 from parsing.models import NON_CONTENT_CATEGORIES
 from storage.postgres import ready_book
 from study.content import load_scope_content
@@ -26,6 +27,7 @@ class Source:
     figures: list[dict]
 
 
+@traced("revision_sheets.source.load_source", flow="revision_sheet")
 def load_source(connection, *, owner_id, request: ScopeRequest) -> Source:
     book = ready_book(connection, request.book_id, owner_id=owner_id)
     if not book:

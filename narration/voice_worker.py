@@ -26,6 +26,8 @@ from livekit.agents import (
     stt,
 )
 
+from observability import authenticated_user, record_voice_metrics, traced, annotate, flush_traces
+from operations_telemetry import configure_voice_worker
 from narration.livekit_voice import (
     AGENT_NAME,
     EVENT_TOPIC,
@@ -47,6 +49,7 @@ server = AgentServer(
     port=int(os.getenv("PORT", "8081")),
     drain_timeout=30,
 )
+configure_voice_worker(server, "study-partner-narration-voice")
 
 
 class NarrationMedia:
@@ -88,14 +91,17 @@ class NarrationMedia:
         for provider in (self.stt, self.tts):
             provider.on("metrics_collected", self.record_metrics)
 
+    @traced("narration.voice_worker.NarrationMedia.record_metrics", flow="narration_voice", run_type="tool")
     def record_metrics(self, metrics):
+        payload = metrics.model_dump(mode="json")
+        record_voice_metrics(payload)
         logger.info(
             json.dumps(
                 {
                     "event": "narration_voice_usage",
                     "conversation_id": str(self.binding.conversation_id),
                     "room": self.binding.room_name,
-                    "metrics": metrics.model_dump(mode="json"),
+                    "metrics": payload,
                 }
             )
         )
@@ -164,6 +170,7 @@ class NarrationMedia:
         if self.speech_started:
             await self.speech.interrupt(force=True)
 
+    @traced("narration.voice_worker.NarrationMedia.transcribe", flow="narration_voice")
     async def transcribe(self, epoch: int):
         participant = self.ctx.room.remote_participants.get(
             self.binding.participant_identity
@@ -223,6 +230,7 @@ class NarrationMedia:
             self.stream = None
             self.feed = None
 
+    @traced("narration.voice_worker.NarrationMedia.speak", flow="narration_voice")
     async def speak(self, command: VoiceCommand):
         started: list[asyncio.Task] = []
 
@@ -262,6 +270,7 @@ class NarrationMedia:
             if started:
                 await asyncio.gather(*started, return_exceptions=True)
 
+    @traced("narration.voice_worker.NarrationMedia.command", flow="narration_voice")
     async def command(self, data: rtc.RpcInvocationData) -> str:
         if data.caller_identity != self.binding.participant_identity:
             raise rtc.RpcError(1403, "Voice participant does not match this conversation")
@@ -286,6 +295,11 @@ class NarrationMedia:
                             await asyncio.wait_for(
                                 asyncio.shield(self.capture), timeout=5
                             )
+                        except asyncio.TimeoutError:
+                            # A final transcript can arrive while the provider
+                            # keeps its stream open. End the bounded drain and
+                            # acknowledge flush after cancelling that capture.
+                            pass
                         finally:
                             await self.cancel_capture()
                 elif command.action == "speak":
@@ -305,32 +319,36 @@ class NarrationMedia:
         await self.speech.aclose()
         await self.stt.aclose()
         await self.tts.aclose()
+        await asyncio.to_thread(flush_traces)
 
 
 @server.rtc_session(agent_name=AGENT_NAME)
+@traced("narration.voice_worker.narration_voice", flow="narration_voice")
 async def narration_voice(ctx: JobContext):
     binding = VoiceBinding.model_validate_json(ctx.job.metadata)
+    annotate(conversation_id=str(binding.conversation_id), thread_id=str(binding.conversation_id))
     if ctx.room.name != binding.room_name:
         raise ValueError("voice dispatch room mismatch")
     media = NarrationMedia(ctx, binding)
     await asyncio.to_thread(media.require_conversation)
-    ctx.add_shutdown_callback(media.close)
-    await ctx.connect()
-    await media.speech.start(
-        agent=Agent(instructions="Speak only persisted, source-grounded answers."),
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            participant_identity=binding.participant_identity,
-            audio_input=False,
-            text_input=False,
-            video_input=False,
-            text_output=False,
-        ),
-        record=False,
-    )
-    media.speech_started = True
-    ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
-    await ctx.room.local_participant.set_attributes({"narration.voice.ready": "true"})
+    with authenticated_user(binding.owner_id):
+        ctx.add_shutdown_callback(media.close)
+        await ctx.connect()
+        await media.speech.start(
+            agent=Agent(instructions="Speak only persisted, source-grounded answers."),
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                participant_identity=binding.participant_identity,
+                audio_input=False,
+                text_input=False,
+                video_input=False,
+                text_output=False,
+            ),
+            record=False,
+        )
+        media.speech_started = True
+        ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
+        await ctx.room.local_participant.set_attributes({"narration.voice.ready": "true"})
 
 
 if __name__ == "__main__":

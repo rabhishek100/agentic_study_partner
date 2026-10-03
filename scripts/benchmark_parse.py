@@ -13,6 +13,7 @@ Without a local path it downloads the newest source object from the private
 bucket, so the deployed worker can benchmark a real book.
 """
 
+
 import argparse
 import os
 import sys
@@ -22,6 +23,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import fitz
+from observability import traced
 
 
 def _partition(path: str):
@@ -84,6 +86,7 @@ def cpu_allowance() -> str:
     return f"{visible} visible, quota {int(quota) / int(period):.2f} cores"
 
 
+@traced("scripts.benchmark_parse.main", flow="evaluation")
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, help="local PDF; defaults to Storage")

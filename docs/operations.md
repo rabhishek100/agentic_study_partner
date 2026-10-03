@@ -39,7 +39,9 @@ or Storage. Logs: `scripts/local.sh logs app` and `scripts/local.sh logs web`.
 |---|---|
 | `DATABASE_URL`, `AUTH_*` | Application database and Supabase token issuer |
 | `OPENROUTER_*`, `TAVILY_API_KEY` | Model roles and optional web-search provider |
-| `LANGSMITH_*` | Graph/model tracing and project |
+| `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_*` | Optional Grafana Cloud Free logs/traces/CPU/RSS; see [operational observability](operational-observability.md) |
+| `NEXT_PUBLIC_ANALYTICS_ENABLED`, `NEXT_PUBLIC_POSTHOG_*` | Optional PostHog browser events; web build-time variables |
+| `LANGSMITH_*` | Repository-wide HTTP/workflow/provider tracing and project; see [observability](observability.md) |
 | `SOURCE_*`, `BOOK_IMAGE_*`, `VIDEO_*` | Storage backends and ingestion settings |
 | `INGESTION_*` | Upload, page, lease, queue, and cleanup limits |
 | `SUMMARY_*`, `REVISION_*` | Context/output budgets |
@@ -48,6 +50,20 @@ or Storage. Logs: `scripts/local.sh logs app` and `scripts/local.sh logs web`.
 Database, service-role, provider, and LiveKit secrets must not use
 `NEXT_PUBLIC_*`. Browser demo credentials must identify a restricted disposable
 account. Model selection: [design decisions](design-decisions.md#model-defaults).
+
+Hosted monitoring and analytics are configured in production. Manage Grafana
+through the authenticated `gcx` context and PostHog through `posthog-cli`; these
+management logins are separate from the application's OTLP write-only token and
+public analytics key. Rotate/redeploy the Grafana ingestion credential before
+its recorded **2026-12-30** expiry. Never copy its encoded authorization into
+browser settings or committed files. PostHog settings are build-time variables;
+backend exporters require process restart after configuration changes.
+
+Project organization and request/account filters: [LangSmith tracing](observability.md).
+Dashboard/log/trace queries and UI event coverage:
+[Grafana and PostHog](operational-observability.md).
+Actual hosted readback, releases and remaining checks:
+[production verification](production-verification.md).
 
 ## Processes
 

@@ -18,6 +18,7 @@ that precision and recall are unmeasured until those labels exist.
     uv run python -m scripts.evaluate_figures --gold evaluation/figure_gold.json
 """
 
+
 import argparse
 from collections import Counter
 import json
@@ -28,6 +29,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from observability import traced
 from storage.database import connection as database_connection, parse_owner_id
 from study.figures import select_figures  # noqa: F401  (used in labelled mode)
 
@@ -178,6 +180,7 @@ def score_against_gold(connection, *, owner_id, gold: dict) -> dict:
     }
 
 
+@traced("scripts.evaluate_figures.main", flow="evaluation")
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -215,4 +218,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

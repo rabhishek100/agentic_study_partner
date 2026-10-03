@@ -7,6 +7,7 @@ from uuid import UUID
 
 from study.contracts import ConversationState, TurnResult
 from study.conversation import execute_conversation_turn, new_conversation_state
+from evals.scoring import BOOK_ANSWER_ROUTES, SCORING_VERSION, book_citations, mean, metric_counts
 
 
 class AnswerJudge(Protocol):
@@ -23,7 +24,7 @@ class TurnRunner(Protocol):
 class ProjectRunner:
     owner_id: str | UUID
     database_url: str | None = None
-    retrieval_mode: str = "hybrid"
+    retrieval_mode: str = "hybrid_rerank"
 
     def __call__(self, question, state):
         return execute_conversation_turn(
@@ -43,9 +44,7 @@ def _required_nodes(turn: dict) -> set[int]:
     }
 
 
-def _mean(rows: list[dict], field: str) -> float:
-    values = [row["checks"][field] for row in rows if field in row["checks"]]
-    return sum(values) / len(values) if values else 0.0
+_mean = mean
 
 
 def _score(turn: dict, result: TurnResult, state: ConversationState) -> dict:
@@ -58,12 +57,9 @@ def _score(turn: dict, result: TurnResult, state: ConversationState) -> dict:
 
     required = _required_nodes(turn)
     retrieved = {item.node_id for item in result.evidence}
-    recall = len(required & retrieved) / len(required) if required else 1.0
-
-    evidence_nodes = {item.node_id for item in result.evidence}
-    citations_valid = all(
-        citation.node_id in evidence_nodes for citation in result.citations
-    )
+    recall = len(required & retrieved) / len(required) if required else None
+    citations_valid = book_citations(result, required=turn.get("answerable", True)
+                                    and turn["expected_route"] in BOOK_ANSWER_ROUTES)
     expected_outcome = (
         "answer"
         if turn.get("answerable", True)
@@ -78,7 +74,7 @@ def _score(turn: dict, result: TurnResult, state: ConversationState) -> dict:
         "standalone_exact": (
             (result.standalone_query or "").strip().casefold()
             == (turn.get("expected_standalone_query") or "").strip().casefold()
-        ),
+        ) if "expected_standalone_query" in turn else None,
     }
     if turn.get("answerable", True):
         checks["evidence_recall"] = recall
@@ -97,6 +93,7 @@ def evaluate_conversations(
 
     rows = []
     errors = []
+    judge_errors = []
     for conversation in conversations:
         state = new_conversation_state(
             # The multi-turn gold set is defined against one book at a time.
@@ -108,18 +105,25 @@ def evaluate_conversations(
             if on_turn:
                 on_turn(turn_id)
             try:
+                previous_state = state.model_dump(mode="json")
                 result, state = runner(turn["user"], state)
                 checks = _score(turn, result, state)
                 judgment: dict[str, Any] | None = None
+                judge_error = None
                 if answer_judge is not None:
-                    judgment = answer_judge.evaluate(
-                        question=turn["user"],
-                        reference_answer=turn["reference_answer"],
-                        candidate_answer=result.answer,
-                        expected_route=turn["expected_route"],
-                        answerable=turn["answerable"],
-                        turn_id=turn_id,
-                    ).model_dump(mode="json")
+                    try:
+                        judgment = answer_judge.evaluate(
+                            question=turn["user"], reference_answer=turn["reference_answer"],
+                            candidate_answer=result.answer, expected_route=turn["expected_route"],
+                            answerable=turn.get("answerable", True), turn_id=turn_id,
+                            evidence=[item.model_dump(mode="json") for item in result.evidence],
+                            citations=[item.model_dump(mode="json") for item in result.citations],
+                            history=previous_state, expected_evidence=turn.get("expected_evidence", []),
+                            deterministic_citation_validity=checks["citations_valid"],
+                        ).model_dump(mode="json")
+                    except Exception as error:
+                        judge_error = str(error)
+                        judge_errors.append({"turn_id": turn_id, "error": judge_error})
                 rows.append(
                     {
                         "conversation_id": conversation["id"],
@@ -130,6 +134,7 @@ def evaluate_conversations(
                         "state": state.model_dump(mode="json"),
                         "checks": checks,
                         "answer_judgment": judgment,
+                        "judge_error": judge_error,
                     }
                 )
             except Exception as error:
@@ -139,11 +144,11 @@ def evaluate_conversations(
                     "history_dependency": False,
                     "scope": False,
                     "outcome": False,
-                    "citations_valid": False,
+                    "citations_valid": False if turn.get("answerable", True) and turn["expected_route"] in BOOK_ANSWER_ROUTES else None,
                     "standalone_exact": False,
                 }
                 if turn.get("answerable", True):
-                    checks["evidence_recall"] = 0.0
+                    checks["evidence_recall"] = 0.0 if _required_nodes(turn) else None
                 rows.append(
                     {
                         "conversation_id": conversation["id"],
@@ -159,6 +164,8 @@ def evaluate_conversations(
                 )
 
     return {
+        "scoring_version": SCORING_VERSION,
+        "metric_counts": metric_counts(rows),
         "summary": {
             "turns": len(rows),
             "route_accuracy": _mean(rows, "route"),
@@ -169,7 +176,11 @@ def evaluate_conversations(
             "citation_validity": _mean(rows, "citations_valid"),
             "standalone_exact_accuracy": _mean(rows, "standalone_exact"),
             "errors": len(errors),
+            "judge_errors": len(judge_errors),
+            "generated": sum(row["prediction"] is not None for row in rows),
+            "judged": sum(row["answer_judgment"] is not None for row in rows),
         },
         "turns": rows,
         "errors": errors,
+        "judge_errors": judge_errors,
     }

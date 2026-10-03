@@ -1,5 +1,6 @@
 """One-call grounded summarization for a complete resolved scope."""
 
+
 import logging
 import re
 from dataclasses import dataclass, replace
@@ -7,6 +8,7 @@ from typing import Protocol
 
 import tiktoken
 
+from observability import traced
 from .context import DEFAULT_ENCODING, ScopeContext
 from .contracts import PromptProfile, ResponseDepth
 from .prompts import (
@@ -38,10 +40,6 @@ OPTIONAL_RECAP_TITLES = frozenset({"summary", "conclusion"})
 OPTIONAL_INTERVIEW_SECTION = re.compile(
     r"^(?:\d+(?:\.\d+)*\s+)?(?:lab\b|exercises?\b)",
     re.IGNORECASE,
-)
-NODE_EVIDENCE_SECTION = re.compile(
-    r"^## Node (\d+):.*?(?=^## Node \d+:|\Z)",
-    re.MULTILINE | re.DOTALL,
 )
 logger = logging.getLogger("study_partner.summarize")
 
@@ -215,6 +213,11 @@ allowed list.
 Complete coverage is mandatory: cite every node in Required coverage at least
 once. Preserve the listed source order internally even when organizing the
 answer by interview usefulness. Do not infer omitted images.
+For each required section, explain its important ideas and qualifications,
+not merely its title or a token citation. Preserve distinct mechanisms,
+comparisons and experimental conditions. Include source-stated limitations
+and future directions when present; distinguish proposals from demonstrated
+results. Compress repeated examples and optional interview advice first.
 
 Required coverage:
 {required_sections}
@@ -277,6 +280,7 @@ def prompt_budget(
     )
 
 
+@traced("study.summarize.validate_summary", flow="summary")
 def validate_summary(
     text: str,
     *,
@@ -418,6 +422,7 @@ def _finish_reason(response) -> str | None:
     return str(reason) if reason is not None else None
 
 
+@traced("study.summarize.summarize_scope", flow="summary")
 def summarize_scope(
     model: SummaryModel,
     *,
@@ -457,6 +462,7 @@ def summarize_scope(
     )
 
 
+@traced("study.summarize.summarize_scope_with_repair", flow="summary")
 def summarize_scope_with_repair(
     model: SummaryModel,
     *,
@@ -563,17 +569,7 @@ def summarize_scope_with_repair(
     )
 
 
-def _missing_node_evidence(
-    context: ScopeContext,
-    node_ids: frozenset[int],
-) -> str:
-    return "\n\n".join(
-        match.group(0).strip()
-        for match in NODE_EVIDENCE_SECTION.finditer(context.text)
-        if int(match.group(1)) in node_ids
-    )
-
-
+@traced("study.summarize._repair_summary", flow="summary")
 def _repair_summary(
     model: SummaryModel,
     result: SummaryResult,
@@ -600,14 +596,17 @@ def _repair_summary(
         )
 
     coverage = _coverage_lines(scope, context, missing)
-    evidence = _missing_node_evidence(context, missing)
     messages = [
         (
             "system",
             LOCKED_GROUNDING_PROMPT
             + "\n\nWrite only a concise Markdown coverage addendum for the "
             "missing source sections. Do not rewrite the existing answer, "
-            "include a references section, or discuss validation.",
+            "include a references section, or discuss validation. Introductory "
+            "and heading-only nodes may have substantive descendant sections. "
+            "Check the complete source and existing answer before claiming "
+            "that details or results are absent; cite the descendant evidence "
+            "as well as the missing overview node for technical facts.",
         ),
         (
             "human",
@@ -616,11 +615,14 @@ def _repair_summary(
 The existing answer is citation-safe but needs coverage from:
 {coverage}
 
+Existing answer (for continuity, not evidence):
+{result.text}
+
 Return only additional interview-relevant points supported by the evidence
 below. Cite every paragraph or bullet, and use every listed node at least once.
 
-Missing-section evidence:
-{evidence}""".strip(),
+Complete canonical source, including descendant sections:
+{context.text}""".strip(),
         ),
     ]
     budget = prompt_budget(messages, config=config)

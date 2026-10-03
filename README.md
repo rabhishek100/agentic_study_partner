@@ -32,6 +32,12 @@ flowchart TD
     R --> D
     G --> M[Hosted models]
     G -. traces .-> L[LangSmith]
+    API -. traces .-> L
+    W -. traces .-> L
+    M -. traces .-> L
+    API -. OTLP .-> O[Grafana logs traces metrics]
+    W -. OTLP .-> O
+    UI -. safe events .-> P[PostHog]
 ```
 
 Ingestion uses deterministic Python. LangGraph coordinates study decisions
@@ -57,7 +63,7 @@ reference guides.
 | [Evaluation](docs/evaluation.md) | Measurements, datasets, failed experiments, limits |
 | [Interface](docs/interface.md) | Rendering and data fetching, screens, interaction rules, accessibility |
 | [Interview voice](docs/interview-voice.md) | LiveKit and HTTP speech transport, recovery, privacy |
-| [Operations](docs/operations.md) | Setup, configuration, workers, deployment, CI |
+| [Operations](docs/operations.md) | Setup, configuration, workers, deployment, monitoring, analytics, CI |
 
 [Contributing](CONTRIBUTING.md) covers change policy;
 [Security](SECURITY.md) covers security boundaries. The running API exposes
@@ -81,9 +87,25 @@ Web: `http://localhost:3000`; API health: `http://localhost:8000/api/health`.
 
 ## Verify changes
 
+Step-by-step checks for every feature, automated suite and hosted integration:
+[complete verification checklist](docs/verification-checklist.md).
+Deployed release, real-provider checks and remaining device/external checks:
+[production acceptance record](docs/production-verification.md).
+Five-flow baseline, measured improvements and quality limits:
+[latest evaluation and production comparison](docs/evaluation-round3-results.md).
+Resumable work units, verification and next steps:
+[delivery tracker](docs/evaluation-progress.md).
+Repository-wide LangSmith setup, trace organization and a no-spend hosted
+delivery check: [observability](docs/observability.md).
+Test-suite audit, cleanup and prioritized gaps: [test audit](docs/test-suite-audit.md).
+Free Grafana operational monitoring and PostHog UI analytics:
+[setup and coverage](docs/operational-observability.md).
+
 ```bash
 uv sync --frozen
-uv run python -m unittest discover -s tests -v
+# Use a migrated test database, separate from the application corpus/queues.
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/study_partner_eval_test \
+  uv run --frozen --extra voice python -m pytest tests -q
 cd frontend
 npm ci
 npm run typecheck
@@ -91,11 +113,21 @@ npm test
 npm run build
 ```
 
+Provision the test database once, then run
+`uv run --frozen --extra voice python -m scripts.bootstrap_postgres --url-env TEST_DATABASE_URL` to apply the schema.
+CI provides an empty migrated Supabase instance. Local Storage integration tests
+also need loopback `SUPABASE_URL` and its local development service-role key;
+missing Storage/corpus fixtures are reported as skips. Pytest keeps hosted media,
+provider keys and telemetry out of ordinary tests, and skips global queue tests
+when the selected database already has live jobs. See the
+[isolation verification](docs/test-suite-audit.md#test-isolation-and-baseline-triage).
+
 ## Code map
 
 | Path | Responsibility |
 |---|---|
 | `api/` | Authentication, HTTP contracts, streaming |
+| `observability.py` | Shared LangSmith HTTP/workflow/provider boundaries and context propagation |
 | `ingestion/`, `parsing/`, `storage/` | PDF parsing, canonical storage, durable jobs |
 | `retrieval/`, `study/` | Search, grounding, book/paper conversations |
 | `video/` | Lecture/course ingestion and multimodal study |

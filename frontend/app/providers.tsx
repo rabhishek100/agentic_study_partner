@@ -1,5 +1,7 @@
 "use client";
 
+import { AnalyticsObserver } from "@/components/analytics-observer";
+
 import { ThemeProvider } from "next-themes";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +16,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <TooltipProvider delayDuration={200}>
+        <AnalyticsObserver />
         {children}
         <NarrationPlayerBar />
       </TooltipProvider>

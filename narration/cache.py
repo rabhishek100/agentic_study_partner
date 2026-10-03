@@ -19,6 +19,7 @@ import os
 from uuid import UUID
 
 from psycopg import Connection
+from observability import traced
 
 
 DEFAULT_CACHE_BYTES = 128 * 1024 * 1024
@@ -55,6 +56,7 @@ def budget_bytes() -> int:
     return configured if configured > 0 else DEFAULT_CACHE_BYTES
 
 
+@traced("narration.cache.load", flow="narration")
 def load(
     connection: Connection, *, owner_id: UUID, content_hash: str
 ) -> CachedAudio | None:
@@ -74,6 +76,7 @@ def load(
     return CachedAudio(content=bytes(row["audio"]), media_type=row["media_type"])
 
 
+@traced("narration.cache.store", flow="narration")
 def store(
     connection: Connection,
     *,

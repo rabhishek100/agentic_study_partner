@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from psycopg.types.json import Jsonb
 
+from observability import traced
 from .contracts import RevisionError, ScopeRequest
 from .generate import config_key
 
@@ -31,6 +32,7 @@ def read_job(db, owner, job_id):
     return row
 
 
+@traced("revision_sheets.store.enqueue", flow="revision_sheet")
 def enqueue(db, owner, source, request_key, *, regenerate=False):
     # Serialize all create requests for one owner, including idempotency keys
     # reused across scopes. This lock is held only for a short SQL transaction.
@@ -118,6 +120,7 @@ def recover(db):
         where status='running' and lease_expires_at<now()""").rowcount
 
 
+@traced("revision_sheets.store.publish", flow="revision_sheet")
 def publish(db, job, worker_id, source, sheet, pdf, provenance):
     row = db.execute("select * from revision_sheet_jobs where id=%s for update", (job["id"],)).fetchone()
     if (not row or row["status"] != "running" or row["lease_owner"] != worker_id

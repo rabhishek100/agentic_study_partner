@@ -14,6 +14,7 @@ from uuid import UUID
 
 from psycopg import Connection
 
+from observability import traced
 from storage.database import parse_owner_id
 from storage.postgres import ready_book
 from study.content import load_scope_content
@@ -58,6 +59,7 @@ class DeckRun:
     generated: GeneratedDeck
 
 
+@traced("decks.pipeline.load_inventory", flow="cards")
 def load_inventory(
     connection: Connection,
     *,
@@ -149,6 +151,7 @@ def _video_title(
     return row["title"] or "Lecture"
 
 
+@traced("decks.pipeline.run_deck_job", flow="cards")
 def run_deck_job(
     connection: Connection,
     *,

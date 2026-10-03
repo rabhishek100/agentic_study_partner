@@ -195,8 +195,8 @@ class AnchorRecallTests(unittest.TestCase):
 
     def test_a_turn_with_no_required_anchors_is_fully_covered(self) -> None:
         # Whole-lecture routes and abstentions are judged on behaviour, and a
-        # zero here would silently drag the reported recall down.
-        self.assertEqual(anchor_recall([], []), 1.0)
+        # Missing gold is unknown and excluded from the scored denominator.
+        self.assertIsNone(anchor_recall([], []))
 
 
 class RewriteAblationTests(unittest.TestCase):

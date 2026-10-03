@@ -15,6 +15,7 @@ its chunks and embeddings rebuilt before the new text is searchable. `--rebuild`
 does that; without it the script says what is left to do.
 """
 
+
 import argparse
 import os
 
@@ -22,6 +23,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from observability import traced
 from ingestion.captions import OpenRouterCaptioner, caption_book_figures
 from retrieval.postgres import rebuild as rebuild_chunks
 from retrieval.vector import build_embedder, rebuild_vector_index
@@ -58,6 +60,7 @@ def _pending(connection, *, owner_id, book_id: int) -> int:
     ).fetchone()["pending"]
 
 
+@traced("scripts.caption_figures.main", flow="cli")
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
@@ -164,4 +167,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

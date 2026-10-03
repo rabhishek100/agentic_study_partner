@@ -1,0 +1,66 @@
+{
+  "version": "round3-monthly-cost-v1",
+  "currency": "USD",
+  "type": "forecast from observed request tokens and frozen uncached/cache-write rates, not measured monthly production billing",
+  "pricing_snapshot_fetched_at": "2026-10-03T13:33:49.705161+00:00",
+  "usage": {
+    "chat": 100,
+    "summary": 5,
+    "revision_sheet": 3,
+    "video_course": 20,
+    "complete_interview": 2
+  },
+  "voice": "separate",
+  "flow_unit_forecast_usd": {
+    "chat": "0.001458500",
+    "summary": "0.005234500",
+    "revision_sheet": "0.078109375",
+    "video_course": "0.000509720",
+    "complete_interview": "0.04421037"
+  },
+  "source_sizing": "maximum observed final-suite native per-flow generation cost; adaptive larger chapter has 102554 topic-evidence characters including overlap",
+  "adaptive": {
+    "observed_answers": 18,
+    "planned_areas": 9,
+    "source_topics": 39,
+    "reported_usd": "0.022431575",
+    "physical_requests": 44,
+    "cold_startup_usd": "0.001081875",
+    "max_observed_cold_turn_usd": "0.001723125",
+    "twenty_answer_forecast_usd": "0.035544375",
+    "synthetic_answers": true,
+    "reporting_requires_no_model_call": true
+  },
+  "complete_ideal_bound": {
+    "method": "whole before-window bill upper-bounds the selected cold chapter-one ideal; not a precise per-flow bill",
+    "reported_ideal_successful_generation_usd": "0.006628",
+    "window_aggregate_upper_bound_usd": "0.04421037",
+    "generalization": "does not bound an arbitrary larger ideal chapter"
+  },
+  "query_embedding_bound": {
+    "model": "openai/text-embedding-3-small",
+    "tokens_per_query_upper_bound": 8192,
+    "one_full_context_embedding_per_rerank": true
+  },
+  "scenarios": [
+    {
+      "reranks_per_chat": 1,
+      "monthly_generation_forecast_usd": "0.771349765",
+      "with_20_percent_headroom_usd": "0.9256197180",
+      "at_most_one_dollar": true
+    },
+    {
+      "reranks_per_chat": 2,
+      "monthly_generation_forecast_usd": "1.037733765",
+      "with_20_percent_headroom_usd": "1.2452805180",
+      "at_most_one_dollar": false
+    }
+  ],
+  "limitations": [
+    "One rerank search per chat is an explicit forecast assumption, not an application hard limit.",
+    "Two reranks per chat may exceed $1; voice and larger complete ideal chapters are outside the fixed profile.",
+    "External experiment judging is excluded from personal-usage cost but included in the round $5 ledger.",
+    "No historical pre-eval complete monthly production bill is available.",
+    "The retained citation change adds no provider call; aggregate fresh-generation cost differences are stochastic, not a causal font saving."
+  ]
+}

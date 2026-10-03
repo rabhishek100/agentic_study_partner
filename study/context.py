@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import tiktoken
 
+from observability import traced
 from parsing.models import NON_CONTENT_CATEGORIES
 from .content import EvidenceBundle
 
@@ -25,6 +26,7 @@ class ScopeContext:
     allowed_citations: frozenset[tuple[int, int]]
 
 
+@traced("study.context.build_scope_context", flow="retrieval")
 def build_scope_context(
     evidence: EvidenceBundle,
     *,

@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
+from observability import traced, in_current_context, record_error
 from api.auth import current_owner
 from api.documentation import SSE_RESPONSES
 from storage.database import connection as database_connection
@@ -283,6 +284,7 @@ async def remove_conversation(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@traced("api.course_chat._run_turn", flow="course_study")
 def _run_turn(
     owner_id: UUID,
     conversation_id: UUID,
@@ -378,16 +380,19 @@ def _stream(
         try:
             events.put(("final", execute(lambda kind, text: events.put((kind, text))).model_dump_json()))
         except HTTPException as error:
+            record_error(error, outcome="rejected")
             events.put(("error", json.dumps({"detail": error.detail})))
         except REJECTED_ERRORS as error:
+            record_error(error, outcome="rejected")
             events.put(("error", json.dumps({"detail": str(error)})))
-        except Exception:
+        except Exception as error:
+            record_error(error)
             logger.exception("Unhandled error in a course turn")
             events.put(("error", json.dumps({"detail": "internal error"})))
         finally:
             events.put(_STREAM_DONE)
 
-    threading.Thread(target=run, daemon=True).start()
+    threading.Thread(target=in_current_context(run), daemon=True).start()
 
     async def body():
         while True:

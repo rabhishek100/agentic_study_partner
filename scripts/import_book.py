@@ -1,11 +1,13 @@
 """Import cached parser output into canonical Postgres storage."""
 
+
 import argparse
 from hashlib import sha256
 from pathlib import Path
 
 import fitz
 
+from observability import traced
 from parsing.parser import PARSER_VERSION, load_parsed_book
 from storage.database import (
     connection as database_connection,
@@ -71,6 +73,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@traced("scripts.import_book.main", flow="cli")
 def main() -> None:
     args = build_argument_parser().parse_args()
     owner_id = (

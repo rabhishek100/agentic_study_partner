@@ -26,6 +26,7 @@ import sys
 
 from dotenv import load_dotenv
 
+from observability import traced
 from evals.embedding_encoding import (
     binary_rescore_recall,
     book_recall,
@@ -59,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+@traced("scripts.measure_embedding_encoding.main", flow="evaluation")
 def main() -> int:
     load_dotenv()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
@@ -96,4 +98,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     sys.exit(main())

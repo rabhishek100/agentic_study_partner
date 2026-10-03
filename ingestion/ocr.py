@@ -23,6 +23,7 @@ The gate flags and never blocks. Its thresholds are not a reason to halt a
 400-page book over one noisy diagram page; see docs/evaluation.md.
 """
 
+
 import logging
 import os
 import re
@@ -38,6 +39,7 @@ from typing import Protocol
 import fitz
 import httpx
 
+from observability import provider_post
 from parsing.markup import (
     BBOX_GRID,
     FigureRegion,
@@ -261,7 +263,10 @@ class OpenRouterOcrProvider:
         last_error: Exception | None = None
         for attempt in range(1, self._max_attempts + 1):
             try:
-                response = self._client.post(OPENROUTER_CHAT_URL, json=request)
+                response = provider_post(
+                    self._client, OPENROUTER_CHAT_URL, json=request,
+                    trace_metadata={"provider_attempt": attempt, "page_number": page, "provider_operation": "ocr"},
+                )
                 response.raise_for_status()
                 body = response.json()
                 choices = body.get("choices") or []

@@ -1,5 +1,6 @@
 """Compare lexical, semantic, fused, and reranked retrieval."""
 
+
 import argparse
 import json
 from pathlib import Path
@@ -7,6 +8,7 @@ from uuid import UUID
 
 from dotenv import load_dotenv
 
+from observability import traced
 from retrieval.reranker import DEFAULT_RERANKER_MODEL, build_reranker, rerank
 from retrieval.search import (
     RERANK_CANDIDATE_LIMIT,
@@ -336,6 +338,7 @@ def evaluate(
         }
 
 
+@traced("scripts.evaluate_retrieval.main", flow="evaluation")
 def main() -> None:
     load_dotenv()
     args = build_argument_parser().parse_args()
@@ -354,4 +357,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     main()

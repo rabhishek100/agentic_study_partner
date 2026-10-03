@@ -1,3 +1,4 @@
+import { trackedFetch } from "@/lib/analytics";
 /** The application's single, sentence-addressable narration player. */
 
 import { API_BASE, errorDetail } from "./api";
@@ -370,7 +371,7 @@ async function fetchDescriptions(
 ): Promise<Record<number, string>> {
   const figures = citedFigures(input);
   if (figures.length === 0) return {};
-  const response = await fetch(`${API_BASE}/narration/figures`, {
+  const response = await trackedFetch(`${API_BASE}/narration/figures`, {
     method: "POST",
     signal,
     headers: await authorizedHeaders(),
@@ -392,7 +393,7 @@ async function fetchItem(text: string, signal: AbortSignal): Promise<Blob> {
   let lastError = "the reading voice is unavailable";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const response = await fetch(`${API_BASE}/narration/speech`, {
+      const response = await trackedFetch(`${API_BASE}/narration/speech`, {
         method: "POST",
         signal,
         headers: await authorizedHeaders(),

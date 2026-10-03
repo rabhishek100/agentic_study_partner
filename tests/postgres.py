@@ -82,3 +82,12 @@ class PostgresOwnerMixin:
                 "delete from auth.users where id = %s",
                 (self.owner_id,),
             )
+
+
+def require_empty_video_queue(test: unittest.TestCase) -> None:
+    """Global video claiming/reclaiming must not touch a developer's live jobs."""
+    with connection(resolve_database_url(), readonly=True) as database:
+        row = database.execute("select count(*) as busy from video.ingestion_jobs "
+                               "where status in ('queued', 'retry_scheduled', 'running')").fetchone()
+    if row["busy"]:
+        test.skipTest(f"{row['busy']} live video job(s); use an isolated TEST_DATABASE_URL for queue tests.")

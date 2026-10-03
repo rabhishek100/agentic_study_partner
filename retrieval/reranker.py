@@ -7,6 +7,7 @@ from typing import Protocol
 
 import httpx
 
+from observability import provider_post, traced
 from .postgres import SearchResult
 
 
@@ -68,7 +69,8 @@ class OpenRouterReranker:
         if not documents:
             return []
         try:
-            response = self._client.post(
+            response = provider_post(
+                self._client,
                 OPENROUTER_RERANK_URL,
                 json={
                     "model": self.model_name,
@@ -120,6 +122,7 @@ def reranker_document(result: SearchResult) -> str:
     return f"Hierarchy: {result.path_text}\n\n{result.text}"
 
 
+@traced("retrieval.reranker.rerank", flow="retrieval")
 def rerank(
     query: str,
     candidates: list[SearchResult],

@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, TurnHandlingOptions, cli, inference, room_io
 
+from observability import authenticated_user, record_voice_metrics, traced, annotate, flush_traces, record_estimate
+from operations_telemetry import configure_voice_worker
 from interviews import ideal_store
 from interviews.ideal_livekit import (
     AGENT_NAME,
@@ -35,6 +37,7 @@ server = AgentServer(
     port=int(os.getenv("PORT", "8082")),
     drain_timeout=30,
 )
+configure_voice_worker(server, "study-partner-ideal-interview-voice")
 
 
 def spoken_sentences(text: str) -> list[str]:
@@ -76,8 +79,10 @@ class IdealInterviewMedia:
                 connection, self.binding.flow_id, owner_id=self.binding.owner_id
             )
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.record_metrics", flow="ideal_interview_voice", run_type="tool")
     def record_metrics(self, metrics):
         payload = metrics.model_dump(mode="json")
+        record_voice_metrics(payload)
         logger.info(json.dumps({
             "event": "ideal_interview_voice_usage",
             "flow_id": str(self.binding.flow_id),
@@ -85,6 +90,7 @@ class IdealInterviewMedia:
             "metrics": payload,
         }))
         cost = voice_metric_cost_usd(payload)
+        record_estimate(cost)
         if cost:
             try:
                 with database_connection() as connection:
@@ -123,6 +129,7 @@ class IdealInterviewMedia:
         )
         return self.interviewer_voice if selected == "voice_one" else self.candidate_voice
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.say", flow="ideal_interview_voice")
     async def say(
         self,
         *,
@@ -159,6 +166,7 @@ class IdealInterviewMedia:
             raise RuntimeError("ideal interview speech generation failed")
         await self.emit("speaker_done", speaker=speaker, exchange_index=exchange_index)
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.play", flow="ideal_interview_voice")
     async def play(self, command: IdealVoiceCommand):
         try:
             flow = await asyncio.to_thread(self.load_flow)
@@ -199,6 +207,7 @@ class IdealInterviewMedia:
                 message="Playback stopped. Try again from the current exchange.",
             )
 
+    @traced("interviews.ideal_voice_worker.IdealInterviewMedia.command", flow="ideal_interview_voice")
     async def command(self, data: rtc.RpcInvocationData) -> str:
         if data.caller_identity != self.binding.participant_identity:
             raise rtc.RpcError(1403, "Voice participant does not match this flow")
@@ -216,31 +225,35 @@ class IdealInterviewMedia:
         await self.stop()
         await self.speech.aclose()
         await self.tts.aclose()
+        await asyncio.to_thread(flush_traces)
 
 
 @server.rtc_session(agent_name=AGENT_NAME)
+@traced("interviews.ideal_voice_worker.ideal_interview_voice", flow="ideal_interview_voice")
 async def ideal_interview_voice(ctx: JobContext):
     binding = IdealVoiceBinding.model_validate_json(ctx.job.metadata)
+    annotate(flow_id=str(binding.flow_id), thread_id=str(binding.flow_id))
     if ctx.room.name != binding.room_name:
         raise ValueError("ideal interview voice dispatch room mismatch")
     media = IdealInterviewMedia(ctx, binding)
     await asyncio.to_thread(media.load_flow)
-    ctx.add_shutdown_callback(media.close)
-    await ctx.connect()
-    await media.speech.start(
-        agent=Agent(instructions="Speak only the persisted ideal interview transcript."),
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            participant_identity=binding.participant_identity,
-            audio_input=False,
-            text_input=False,
-            video_input=False,
-            text_output=False,
-        ),
-        record=False,
-    )
-    ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
-    await ctx.room.local_participant.set_attributes({"ideal.interview.voice.ready": "true"})
+    with authenticated_user(binding.owner_id):
+        ctx.add_shutdown_callback(media.close)
+        await ctx.connect()
+        await media.speech.start(
+            agent=Agent(instructions="Speak only the persisted ideal interview transcript."),
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                participant_identity=binding.participant_identity,
+                audio_input=False,
+                text_input=False,
+                video_input=False,
+                text_output=False,
+            ),
+            record=False,
+        )
+        ctx.room.local_participant.register_rpc_method(RPC_METHOD, media.command)
+        await ctx.room.local_participant.set_attributes({"ideal.interview.voice.ready": "true"})
 
 
 if __name__ == "__main__":

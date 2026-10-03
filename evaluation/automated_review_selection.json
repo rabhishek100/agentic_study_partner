@@ -1,0 +1,16 @@
+{
+  "version": "automated-review-selection-v1",
+  "purpose": "Two saved outputs per flow, including boundary and incomplete artifacts; automated review, not human calibration.",
+  "cases": [
+    {"run": "unit7b-bm25-corrected", "case_id": "mt-003-t1"},
+    {"run": "unit7b-bm25-corrected", "case_id": "mt-008-t2"},
+    {"run": "unit8-scope-corrected", "case_id": "mt-002-t2"},
+    {"run": "unit8-paper-repair-corrected", "case_id": "paper-complete-summary"},
+    {"run": "unit7b-bm25-corrected", "case_id": "vc-006-t1"},
+    {"run": "unit8-source-and-repairs", "case_id": "course-spanner-indexed"},
+    {"run": "unit8-source-and-repairs", "case_id": "sheet-chapter-6"},
+    {"run": "unit8-source-and-repairs", "case_id": "sheet-attention-paper"},
+    {"run": "unit7b-bm25-corrected", "case_id": "proximity-weak"},
+    {"run": "unit8-source-and-repairs", "case_id": "ideal-rag-platform"}
+  ]
+}

@@ -79,3 +79,27 @@ npm run build
 
 Browser checks cover keyboard order, narrow layouts, citation navigation,
 interrupted streams, media failures, and reduced motion.
+
+## Usage analytics
+
+The root `AnalyticsObserver` observes route visits and control activations
+across the application. Static action/type labels describe buttons, links,
+tabs and menus without reading their visible text or form values. The
+`trackedFetch` helper records mutating API request starts, responses and network
+failures while preserving the original response body and error behavior.
+Chat, side-chat, video and course consumers separately record final streamed
+study outcomes; an HTTP response or queued-job acceptance is not completion.
+
+PostHog identifies signed-in users with their opaque auth UUID and resets
+identity on sign-out. Routes replace dynamic IDs with placeholders. An
+event/property allowlist omits prompts, answers, source names, emails and
+credentials; automatic DOM capture and session recording are disabled.
+Collection respects Do Not Track, and failures do not interrupt the interface.
+Event journeys are available; playable recordings and semantic events for
+every slider/media update are not.
+
+Configuration, event catalog, dashboard and filters:
+[operational observability](operational-observability.md#activate-posthog).
+Code: [root observer](../frontend/components/analytics-observer.tsx),
+[analytics client and API measurement](../frontend/lib/analytics.ts),
+[API helper](../frontend/lib/api.ts), [root layout](../frontend/app/layout.tsx).
