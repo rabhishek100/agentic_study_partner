@@ -9,6 +9,36 @@ This setup adds no monitoring server or collector container. Python sends three
 signals through one OTLP/HTTP endpoint. JSON logs also work locally without a
 hosted account. Both hosted integrations are disabled until configured.
 
+## Current deployed status — 3 October 2026
+
+Both integrations are configured in production. Loki logs, Tempo operational
+traces, all five Grafana panels, real UI/API/stream events and verified account
+identity were read back. The historical local setup record below describes the
+initial activation, not unfinished deployment. See the
+[production acceptance record](production-verification.md) and
+[delivery overview](evaluation-observability-delivery.md).
+
+Open [Grafana operations](https://petitecicada3339.grafana.net/d/study-partner-operations),
+select **Environment: production**, and use a recent time range. For request
+logs choose **Explore → Loki**; for execution spans choose **Explore → Tempo**.
+Filter by the response `X-Trace-Id`, or by account UUID as documented under
+[user identity](observability.md#user-identity). Backend spans cover API, Python
+workflow/provider boundaries and worker attempts; SQL-level instrumentation and
+frontend/browser distributed tracing are not enabled.
+
+Open [PostHog usage](https://us.posthog.com/project/639444/dashboard/2157665) or
+**Activity → Events**, select `ui_action` or `api_action_response`, then use
+Person/route/action/time filters. **People and groups → person → activity**
+shows an account's event journey. Product paths/funnels show navigation and
+drop-off; **playable session recordings are disabled** in the application.
+If a custom Activity query fails, inspect its query debugger and return to the
+standard event view to distinguish a query failure from missing ingestion.
+
+The same opaque auth UUID joins PostHog identity with backend logs/traces.
+Emails and form/source text are omitted. User IDs are fields, not metric or
+stream labels. LangSmith's latest monthly quota rejection affects new AI trace
+readback; it does not establish that Grafana or PostHog delivery also failed.
+
 ## Free limits and the simplicity tradeoff
 
 Checked 2026-10-01 against official sources:
@@ -166,7 +196,7 @@ npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
 
-## Hosted setup status (2026-10-01)
+## Historical local setup record (2026-10-01)
 
 Both official CLIs are authenticated locally: `gcx` uses the `study-partner`
 OAuth context, and `posthog-cli` can access project `639444`. Management login

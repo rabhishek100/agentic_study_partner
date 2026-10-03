@@ -7,6 +7,14 @@ observability work. Complete and verify one dependency-coherent unit, update
 this file in its commit, and push that commit before starting the next unit.
 Never equate fixture tests, hosted telemetry delivery, and live output quality.
 
+**Current state:** approved execution is complete. API/combined worker `d8c9dda`
+is deployed; final comparison/forecast is pushed at `1207b7c`. LLM review is
+complete and manual calibration is optional. The new round committed
+$3.966776713 including unknown reservations, under $5. Remaining quality and
+LangSmith-quota issues are documented follow-ups, not active paid work.
+Start with [the delivery overview](evaluation-observability-delivery.md) and
+[final results](evaluation-round3-results.md), then use the historical log below.
+
 ## Execution order
 
 | Unit | Deliverable | State | Acceptance |
@@ -33,12 +41,17 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 12 | LangSmith notification noise | Complete | API/worker 8bd52be deployed; notification polls and periodic reminders read back in production-operations; real AI trace remains in main with 28 connected spans / two LLM calls; 2,104 tests / 962 subtests passed, 38 skips |
 | 13 | Ideal interview generation through the web proxy | Complete, bounded | API and web ba6a887 deployed; concurrent web-origin requests returned one complete 45-topic flow after 264.736s / 262.730s; first trace 68 model calls, retry zero; connected trees and UI readback passed; 2,106 backend tests / 962 subtests (38 skips), 753 frontend tests, types/build and real 35s proxy regression passed |
 | 14 | Verified user identity in logs and traces | Complete | Four Python services at 0983a1c, health and voice controls passed; 23 chat LangSmith runs / 11 Tempo spans carry verified user_id; worker and all three voice roots/commands read back; Loki API/job identity and anonymous exclusions verified; 32 metric series have no identity labels; 2,109 tests / 962 subtests passed (38 skips) |
-| 15 | Round-two comparison and selected components | Complete locally | Five 54-case versions, nine repeats and six grader-rollback checks; $3.904616935 settled; selected code aefe246 passed 2,118 tests / 972 subtests, 38 skips; production unchanged |
-| 16 | Twenty-candidate model/change experiment design | Approved | New $5 includes production comparisons; confirmed monthly usage; individual changes and cost gates specified |
-| 17 | Round-three shared budget and preflight | Budget guard verified; execution active | User approved the plan; parent reservations protect phase/round caps across interruptions; 51 targeted checks passed; new trace delivery rejected by monthly quota; $0 provider spend |
-| 18 | Independent model-stage configuration and screens | Plumbing verified; ready to run | Default models unchanged; provider pinning, sheet author/inventory/figure isolation, grader isolation and cache provenance; 144 checks / 48 subtests passed; eight independent screens defined |
-| 19 | Free rendering/cache screens | Complete; citation change shortlisted | Six sheets × control/balance/citation variants; candidate 16 no gain, candidate 17 measured 9→10pt with identical text/page counts; extra cache not justified; $0 provider spend |
-| 20 | Initial eight model screens and Qwen format correction | Initial results recorded; retest pending | $0.135548114 reported + $0.039133014 unresolved reserves; no automatic model switch; schema-preserving JSON hint for Qwen verified by SDK transport; 146 checks / 48 subtests passed |
+| 15 | Round-two comparison and selected components | Complete; later deployed | Five 54-case versions, nine repeats and six grader-rollback checks; $3.904616935 settled; selected core included in d8c9dda |
+| 16 | Twenty-candidate model/change experiment design | Complete | Approved new $5 includes production comparisons, fixed monthly profile and cost gates |
+| 17 | Round-three shared budget and preflight | Complete | Durable parent reservations/transfers; final conservative commitment $3.966776713; LangSmith quota limit retained |
+| 18 | Independent model-stage configuration and screens | Complete | Provider/stage isolation, strict schemas and cache provenance; default models unchanged |
+| 19 | Free rendering/cache screens | Complete; citations retained | Six sheets × paired variants; 9→10pt with identical content/page counts; $0 provider spend |
+| 20 | Model screens and Qwen protocol checks | Complete | Original failures and three grading protocol attempts retained; no schema weakening or model switch |
+| 21–32 | Controls, repeats, blinded reviews and selection | Complete | Immutable evidence, original caps, nine alternate-model reviews and mixed findings preserved; see detailed units below |
+| 33 | Selected citation change | Complete; deployed | d8c9dda; 2,181 backend tests / 973 subtests, 38 skips |
+| 34–35 | Final native and historical comparisons | Complete | 53/54 first completions plus separate successful retry; comparable historical quality 24/45 → 34/45 |
+| 36 | Production pairs, complete interview cost and closure | Complete | Six UI scenarios; 18-answer/44-receipt cost sample; both windows closed and normal key restored; final report 1207b7c |
+| 37 | Consolidated documentation | Complete | Overview, current setup/status, navigation, architecture and verification references reconciled with implementation/artifacts |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -49,7 +62,9 @@ repository-wide and independent of this five-flow selection.
 
 1. Read this file, root `AGENTS.md`, relevant directory instructions, and
    `git status`. Use `git log --oneline -12` to locate the committed checkpoints.
-2. Continue the first unfinished unit. Do not rerun paid work merely to recover
+2. Check the current state above before continuing a historical log entry. All
+   approved units are complete; use the final report's follow-ups to scope new
+   work. Do not rerun paid work merely to recover
    context: use saved bundles, source/configuration/output fingerprints and
    the recorded experiment budget. Unknown costs and unavailable sources are
    explicit incomplete results, never zero-cost successes.
@@ -801,3 +816,15 @@ private source artifacts. No required human review remains. LangSmith hosted
 acceptance still requires an account-quota reset/readback; course sources,
 sheet warnings, unrelated chat figures and interview reasoning remain
 documented follow-ups, without starting an unapproved twenty-first candidate.
+
+### Unit 37 — consolidated delivery documentation
+
+Added one overview connecting evaluations, retained/rejected changes, LangSmith,
+Grafana, PostHog, identity, production fixes, spend and test cleanup. Updated
+README navigation, current setup/verification status, architecture/tool boundaries,
+the runner's 54-case manifest and default automated viewer, and the tracker table.
+Earlier setup/evaluation checkpoints remain explicitly historical. New hosted
+trace delivery remains quota-limited; session replay stays disabled. Documentation
+validation checks local links, documented runner flags, manifest counts and patch
+whitespace. Generated API catalog and all five graph checks pass; documentation
+regressions pass 15 tests and 331 subtests. No paid inference or runtime change.

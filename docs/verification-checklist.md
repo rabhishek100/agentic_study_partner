@@ -222,6 +222,12 @@ acceptance remain distinct from the passing fixture checks.
 
 ## 7. Verify LangSmith for every flow
 
+Current caveat: the latest evaluation round encountered the monthly unique-trace
+quota. Check account usage/exporter errors before repeating the smoke. An absent
+hosted trace is not verified by local SDK timing; record quota-blocked readback
+as unavailable. Earlier successful live trees remain documented in
+[production verification](production-verification.md).
+
 First prove hosted delivery with zero paid inference:
 
 ```bash
@@ -232,6 +238,9 @@ Expected: hosted smoke link and five correctly nested/correlated synthetic spans
 Then, for **each real feature row in step 5**, open its trace in the configured
 application project. Use `X-LangSmith-Trace-Id` from the HTTP response, or filter
 by `flow`, conversation/session ID or `job_id`.
+Clear stale name filters and open the root under **Traces** to expand its tree;
+sidebar names are only shortcuts. Routine notification polls/reminder checks
+belong to `<LANGSMITH_PROJECT>-operations`.
 
 Check:
 
@@ -257,6 +266,8 @@ See [coverage and trace organization](observability.md).
 Open [operations dashboard](https://petitecicada3339.grafana.net/d/study-partner-operations).
 Set a recent time range and select the **real application service**, not only
 historical `study-partner-api-verification` smoke data.
+Keep the dashboard **Environment** set to `production` for hosted checks, or
+`local` for the loopback commands below.
 
 Generate a no-model request and an intentional unauthenticated denial:
 
@@ -281,6 +292,10 @@ In Explore → Loki, filter the correct service and `trace_id`. Expect structure
 route/status/outcome records without prompts, request bodies or credentials.
 In Explore → Tempo, find the same `X-Trace-Id` and confirm finished HTTP/Python
 spans. Logs' `langsmith_trace_id`, when present, links to the AI investigation.
+For authenticated work, confirm `user_id` equals verified auth identity in logs,
+spans and LangSmith metadata; anonymous/invalid-auth/system work must omit it.
+Use the [account filters](observability.md#user-identity). Confirm user IDs are
+not Loki stream labels or metric labels. Emails remain outside telemetry.
 Repeat a worker operation and voice operation to check their separate services.
 AI tokens/cost belong to LangSmith/provider receipts, not these five panels.
 
@@ -309,6 +324,11 @@ analytics disabled/DNT behavior; blockers/DNT can suppress collection. For an
 opted-in collection check, use a browser profile that permits collection.
 A queued job's HTTP 202 is acceptance, not completion: use its backend trace.
 Current analytics does not assign semantic events to every slider/media update.
+The opaque PostHog person ID should match backend `user_id`. Inspect the person's
+activity and paths/funnels for journeys; session recordings are disabled, so
+there is no playable replay to accept. A failed custom query should be examined
+in the query debugger and compared with the standard event view before treating
+it as an ingestion outage.
 The usage/failure/funnel dashboard should reflect real events after ingestion;
 retention needs real return visits and is not an instant correctness test.
 

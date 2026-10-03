@@ -5,6 +5,24 @@ quality evaluations. [observability.py](../observability.py) supplies SDK run
 boundaries for ordinary Python work, HTTP requests and direct provider calls.
 Existing LangGraph and LangChain tracing supplies graph nodes and model calls.
 
+## Current status — 3 October 2026
+
+Repository-wide tracing is deployed, including ordinary Python workflows,
+notification project isolation and verified `user_id` propagation. Earlier live
+readback confirmed complete HTTP/graph/model trees and worker/voice correlation.
+During the latest evaluation round, LangSmith rejected new delivery/readback at
+the monthly unique-trace quota. A local captured run or SDK timing alone does
+not prove hosted delivery. Check account usage, process exporter errors and the
+correct project before diagnosing absent traces as a missing instrumentation path.
+See [verification history](observability-verification.md) and the
+[completed delivery overview](evaluation-observability-delivery.md).
+
+To inspect one request, select the main production project, clear old run-name
+filters, choose **Traces**, open its HTTP root and expand the child tree. Use
+`X-LangSmith-Trace-Id` or metadata filters rather than relying on the sidebar's
+frequent-name shortcuts, which are not an exhaustive list of flows. The tree
+view still contains nested model calls, tools and LangGraph/Python stages.
+
 ## Setup and organization
 
 Set these variables in each API, queue worker and optional voice worker process:

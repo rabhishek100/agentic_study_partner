@@ -1,4 +1,16 @@
-# Observability verification — 2026-10-01
+# Observability verification — updated 2026-10-03
+
+## Current scope and limits
+
+Initial plumbing checks below were followed by actual production API, worker
+and voice delivery. Verified auth identity, notification-project separation,
+Loki/Tempo correlation and production-filtered dashboards have live readback in
+[production verification](production-verification.md). The latest eval round
+hit LangSmith's monthly unique-trace quota; new hosted delivery is not verified
+by local SDK timings or saved outputs. Grafana/PostHog and AI quality evidence
+remain separate. [Delivery overview](evaluation-observability-delivery.md).
+
+## Original infrastructure verification — 1 October 2026
 
 This validates tracing infrastructure and preserves the distinction between
 synthetic plumbing, fixture-backed workflow tests and live application quality.

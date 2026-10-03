@@ -51,6 +51,17 @@ Database, service-role, provider, and LiveKit secrets must not use
 `NEXT_PUBLIC_*`. Browser demo credentials must identify a restricted disposable
 account. Model selection: [design decisions](design-decisions.md#model-defaults).
 
+Hosted monitoring and analytics are configured in production. Manage Grafana
+through the authenticated `gcx` context and PostHog through `posthog-cli`; these
+management logins are separate from the application's OTLP write-only token and
+public analytics key. Rotate/redeploy the Grafana ingestion credential before
+its recorded **2026-12-30** expiry. Never copy its encoded authorization into
+browser settings or committed files. PostHog settings are build-time variables;
+backend exporters require process restart after configuration changes.
+
+Current project split, request/account filters, deployment verification and
+known LangSmith quota limits: [delivery overview](evaluation-observability-delivery.md).
+
 ## Processes
 
 ```bash

@@ -5,10 +5,17 @@ separates deterministic contracts, retrieved-source coverage, and generated
 quality. Synthetic/model-reviewed data is not treated as human-verified gold.
 Committed datasets and result artifacts are the evidence.
 
-The current five-flow delivery is in [evaluation-results.md](evaluation-results.md):
-a 54-case manifest, preserved 50-case native baseline, selected measured
-improvements, shared budget, source/image capture and local review UI.
-LLM-as-judge review is the default; manual calibration is optional. These results are separate from the historical
+The current five-flow delivery is in [round-three results](evaluation-round3-results.md):
+the twenty-candidate comparison, final 54-case run, comparable earliest/current
+outputs and same-account production pairs. Earlier implementation and results
+remain in [the initial report](evaluation-results.md) and
+[round-two results](evaluation-round2-results.md).
+LLM-as-judge review is complete and is the default; manual calibration is optional.
+Comparable shared cases clear 24/45 → 34/45 checks with a separately retained
+provider retry. This is not an exact pre-evaluation production reconstruction.
+The latest round retains larger citations and earlier tested core fixes, not a
+model switch. Costs, timing scope and unresolved quality failures are explicit.
+These results are separate from the historical
 datasets and scores below, which were not recomputed with `evidence-v2`.
 
 ## Book retrieval

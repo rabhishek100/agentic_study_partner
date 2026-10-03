@@ -1,5 +1,11 @@
 # Round-two evaluation results
 
+Historical comparison: the selected core was subsequently included in the
+`d8c9dda` production rollout. The later full combined check, corrected sheet
+evidence, repeats and production pairs are in
+[round-three results](evaluation-round3-results.md). Counts below retain their
+original rubric/version and must not be mixed with the later v4 comparison.
+
 Selection: retain the tested core changes from `754681b` and restore the original `adaptive-interview-v13` grading prompt. The added grading instruction did not show a reliable benefit, so it is rejected. Keep the corrected external LLM judge (`artifact-review-v3`). This is a per-component selection, not a universal quality win or a production rollout.
 
 Five versions each attempted the same 54 cases, followed by nine fresh repeat cases and six native grading checks after restoring the original prompt. Total reported provider spend: **$3.904616935**, including original generation, repairs, judging, corrected baseline review and repeats. Each full experiment stayed under its $2 ceiling; the repeat, corrected review and selected grading validation each stayed under $1. No unsettled receipts remain.

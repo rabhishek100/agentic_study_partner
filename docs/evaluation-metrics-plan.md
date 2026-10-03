@@ -2,11 +2,16 @@
 
 Scope v7 · 2 October 2026 · execution status in [evaluation-progress.md](evaluation-progress.md).
 
+Execution is complete as of 3 October. This file preserves the coverage design;
+[latest results](evaluation-round3-results.md) and
+[delivery overview](evaluation-observability-delivery.md) distinguish measured,
+unknown and remaining checks. Manual calibration is optional; LLM review has
+replaced the required manual step without claiming human agreement.
+
 The goal is thorough coverage of the five most important product flows with a
-small shared evaluation system. Target implementation today and $1–$2 per paid
-experiment. LLM-as-judge is the default review path; the user has no bandwidth
-for manual review now. The UI shows automated scores and makes manual labels
-optional. The five-flow selection below is confirmed by the user.
+small shared evaluation system. Paid child experiments have $1–$2 ceilings.
+LLM-as-judge is the default review path. The UI shows automated scores and makes
+manual labels optional. The five-flow selection below is the approved scope.
 
 ## Scope and meaning of coverage
 

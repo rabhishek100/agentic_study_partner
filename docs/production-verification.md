@@ -1,4 +1,32 @@
-# Production verification — 2 October 2026
+# Production verification — updated 3 October 2026
+
+## Latest release and evaluation follow-up
+
+API/combined worker **`d8c9dda`** deployed successfully as
+`2a7303a6-eff3-43b9-8f58-ee5c45347e00`. Health confirms canonical/retrieval
+databases; worker readback confirms Luna and `html-a4-flow-v5`. Web and voice
+were unchanged by this rollout. Earlier release tables below are historical.
+
+Same-account chat, full paper summary, cold regenerated sheet, video question,
+course question and saved ideal interview were verified through the production
+UI with matching source fingerprints. A complete synthetic adaptive session
+finished after 18 answers, created its report and recorded 44 exact provider
+receipts. Both capped comparison windows closed, and the normal production
+key was restored and read back. Combined window usage was $0.10556099, within
+the $0.75 cap.
+
+Timing was mixed; no general speedup is claimed. The regenerated sheet retains
+one native warning, the chat retains an unrelated image, and the ideal reopen
+is cached rather than a fresh-generation speed result. Latest isolated backend
+verification: 2,181 tests + 973 subtests passed, 38 skipped. LangSmith's monthly
+quota blocks new hosted trace readback in this last round; earlier successful
+delivery checks below remain historical evidence.
+
+See [the final comparison](evaluation-round3-results.md) for every pair, spend,
+remaining quality gaps and the conditional monthly forecast. The original
+feature-family acceptance and subsequent fixes follow below.
+
+## Original acceptance — 2 October 2026
 
 **Deployed and verified with real providers across every current feature family.**
 This is bounded production acceptance, not exhaustive endpoint, security, load or

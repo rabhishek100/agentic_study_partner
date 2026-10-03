@@ -1,19 +1,21 @@
 # Shared evaluation execution
 
-The shared five-flow runner is being delivered in the units tracked in
-[evaluation-progress.md](evaluation-progress.md). The budget guard, manifest and
-resumable orchestration and native production adapters are implemented. The
-review UI and connected journeys are separate units.
+The shared five-flow runner, budget guard, native adapters, source capture,
+review UI and connected fixture journeys are implemented and verified.
+LLM review is complete; manual calibration is optional. The final native and
+production results are in [round-three results](evaluation-round3-results.md),
+with checkpoints in [evaluation-progress.md](evaluation-progress.md).
 
 ## Manifest and resume
 
-[five_flow_manifest.json](../evaluation/five_flow_manifest.json) contains 50
-case units: 19 chat (including one context prerequisite), six complete summaries,
-eight lecture and four course cases, five sheets, six candidate assessments and
+[five_flow_manifest.json](../evaluation/five_flow_manifest.json) contains 54
+case units: 20 chat (including one context prerequisite), seven complete summaries,
+13 lecture/course cases, six sheets, six candidate assessments and
 two ideal dialogues. Existing frozen book/video/candidate/ideal datasets are
-reused. Course expectations are author-labelled and await human review. Sheet
+reused. Course expectations are author-labelled, not human-calibrated. Sheet
 criteria contain 38 independently authored source-backed concepts across five
-chapters; their importance and PDF layout still await human calibration.
+chapters in the initial set; later additions extend the manifest. Their
+importance is not human-calibrated. Automated PDF review includes every page.
 Cases are not provider-call counts. A dependency graph retains conversational
 context and lets subsequent cases reuse the preceding saved state.
 
@@ -25,7 +27,7 @@ requires explicit retry and retains all previous budget reservations. An
 exclusive run lock prevents two processes from racing the same experiment.
 
 Coverage includes case targets, existing contract-test links, separate journey
-status and pending human review. Missing mappings stay incomplete. A completed
+status and optional human calibration. Missing mappings stay incomplete. A completed
 generation is not a quality pass; fixture execution is not a live baseline.
 
 Regenerate/check the manifest without inference:
@@ -74,6 +76,17 @@ Current OpenRouter contracts were checked on 2026-10-01:
 and [credit limits](https://openrouter.ai/docs/api_reference/limits).
 Metadata is fetched and frozen per experiment; prices are not hardcoded.
 
+The twenty-candidate round also uses [evals/round_budget.py](../evals/round_budget.py)
+to register child caps, reserve phase/round headroom, serialize leases and audit
+transfers without changing original child limits. Saved reviews count against
+the same parent. [scripts/production_eval_window.py](../scripts/production_eval_window.py)
+guards the two authorized production windows with a separate provider-side
+capped temporary key, verifies the deployed key and restores the normal key.
+Native/local guards do not automatically govern Railway production calls.
+Private ledgers and captures remain in ignored `evaluation/runs/round3/`;
+[public scalar results](../evaluation/round3_screen_results.json) expose settled
+spend and conservative unknown reservations without raw provider/source content.
+
 ## Native generation and reports
 
 ```bash
@@ -88,15 +101,16 @@ uv run --frozen --extra voice python -m scripts.run_evaluations --live \
   --case proximity-strong --output evaluation/runs/baseline --max-usd 2
 ```
 
-Remove `--case` to target all 50 cases; `--flow` selects one flow and its state
+Remove `--case` to target all 54 cases; `--flow` selects one flow and its state
 prerequisites. The runner calls production book/video/course conversations,
 sheet generation, candidate grading and ideal dialogue generation. It does not
 persist new user conversations or enqueue/replace user artifacts. Exact generation
 requests, sheet PDFs/provenance, partial failed dialogue drafts, expected values,
 checks, diagnostic judgments and LangSmith links are inspectable in the private
 bundle. The judge receives complete captured contexts and original supplied
-images; PDF layout and unreviewed concept importance remain unknown.
-Luna judging is a diagnostic from the same model family, pending human calibration.
+images and all rendered PDF pages. Luna judging is a diagnostic from the same
+model family, without human calibration; alternate blinded reviews preserve
+disagreement. An absent source/criterion stays unknown rather than passing.
 
 Book binding requires the original file hash and unique owned canonical TOC.
 Gold node ordinals are rebound to current IDs with page/citation validation.
@@ -123,7 +137,13 @@ isolated Python process, including background telemetry and excluding remote
 models and child browsers. First-content latency is unmeasured in these
 non-streaming native evaluations. `report.md` keeps failures and unknowns visible.
 
-## Local human review
+When LangSmith hosted lookup fails, saved outputs and judgments are preserved.
+The latest quota-limited round reports local SDK intervals explicitly as local,
+keeps hosted metrics unavailable, and uses provider receipts for budget totals.
+Missing receipt reservations remain held. Neither fallback timing nor a guessed
+trace link proves hosted delivery.
+
+## Local review viewer and optional human labels
 
 ```bash
 uv run --frozen --extra voice python -m scripts.review_evaluations \
@@ -134,8 +154,9 @@ Open the local session link printed by the command. The server binds only to
 loopback and requires a per-launch session token for source/artifact access.
 The page shows planned/generated counts, a flow filter, saved outputs, original
 source text/images and sheet PDFs. Grading feedback and ideal dialogues are
-readable without opening raw JSON. Diagnostic model scores are initially hidden.
-Choose supported/unsupported/unknown, 0–4 scores or unknown, optional concept
+readable without opening raw JSON. Automated scores are shown by default; the
+manual-label form is collapsed and optional. The model review is not a human label.
+In the optional form, choose supported/unsupported/unknown, 0–4 scores or unknown, optional concept
 labels and layout findings. **Save & next** moves to the next unreviewed generated
 case; **Save** keeps the current case. Source tabs retain unsaved drafts.
 

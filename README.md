@@ -35,6 +35,9 @@ flowchart TD
     API -. traces .-> L
     W -. traces .-> L
     M -. traces .-> L
+    API -. OTLP .-> O[Grafana logs traces metrics]
+    W -. OTLP .-> O
+    UI -. safe events .-> P[PostHog]
 ```
 
 Ingestion uses deterministic Python. LangGraph coordinates study decisions
@@ -58,6 +61,9 @@ reference guides.
 | [Study flows](docs/flows.md) | Questions, reading, generated artifacts, interviews, audio |
 | [Design decisions](docs/design-decisions.md) | Model defaults, selection rationale, tradeoffs |
 | [Evaluation](docs/evaluation.md) | Measurements, datasets, failed experiments, limits |
+| [Evaluation and observability delivery](docs/evaluation-observability-delivery.md) | Completed work, retained improvements, production status and remaining gaps |
+| [LangSmith tracing](docs/observability.md) | Repository-wide trees, project organization and verified user identity |
+| [Grafana and PostHog](docs/operational-observability.md) | Logs, operational traces, metrics, UI events and hosted setup |
 | [Interface](docs/interface.md) | Rendering and data fetching, screens, interaction rules, accessibility |
 | [Interview voice](docs/interview-voice.md) | LiveKit and HTTP speech transport, recovery, privacy |
 | [Operations](docs/operations.md) | Setup, configuration, workers, deployment, CI |
@@ -89,7 +95,13 @@ Step-by-step checks for every feature, automated suite and hosted integration:
 Deployed release, real-provider checks and remaining device/external checks:
 [production acceptance record](docs/production-verification.md).
 Five-flow baseline, measured improvements and quality limits:
-[evaluation results](docs/evaluation-results.md).
+[latest evaluation and production comparison](docs/evaluation-round3-results.md).
+The twenty-candidate round retained larger citations and the earlier verified
+core fixes, keeping Luna. Comparable saved cases cleared 24/45 → 34/45 checks
+with one separate retry; these are automated reviews, not human-calibrated scores.
+Confirmed new-round spend was $3.87, plus $0.10 reserved for unknown receipts.
+See the [delivery overview](docs/evaluation-observability-delivery.md) for scope,
+tool navigation and limits, including the current LangSmith quota rejection.
 Resumable work units, verification and next steps:
 [delivery tracker](docs/evaluation-progress.md).
 Repository-wide LangSmith setup, trace organization and a no-spend hosted

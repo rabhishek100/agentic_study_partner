@@ -1,8 +1,25 @@
-# Test suite audit — updated 2026-10-02
+# Test suite audit — updated 2026-10-03
 
 Keep most behavioral tests. Reduce duplication and brittle implementation
 checks, and close discovery/flow gaps before adding more small assertions.
 A large passing count is not evidence of answer quality or browser integration.
+
+## Latest verification
+
+The selected runtime at `d8c9dda` passed **2,181 tests + 973 subtests**, with
+38 skips and no failures, against the isolated migrated test database. The
+unchanged frontend's last verification passed 753 tests, types and build.
+These supersede the older local checkpoints below, not their historical
+failure records, and do not establish a hosted CI run or exhaustive coverage.
+
+Later regressions cover verified identity isolation, notification project
+hierarchy, long web-proxy requests/concurrent ideal reuse, full-source summary
+repair, bounded section context, source-bound images, browser cleanup, paid
+budget interruption/resume, saved-output preservation and safe reporting when
+hosted trace lookup fails. [Delivery summary](evaluation-observability-delivery.md).
+Manual artifact review is optional; automated review is complete without human
+calibration. Remaining accessibility/device, load and quality gaps still need
+their own checks rather than deleting protective tests.
 
 ## Inventory and scope of this audit
 

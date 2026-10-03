@@ -1,5 +1,11 @@
 # Five-flow evaluation: results and improvements
 
+This is the **initial 2 October checkpoint**. Deployment/restart and voice
+limitations in its status table describe that time. Current deployed status,
+combined final checks, twenty-candidate experiments and production pairs are in
+[round-three results](evaluation-round3-results.md) and
+[the delivery overview](evaluation-observability-delivery.md).
+
 2 October 2026. Implementation, commits and resume instructions are tracked in
 [evaluation-progress.md](evaluation-progress.md). LLM-as-judge is the default
 review path, including rendered PDF pages. Manual review is optional and does
