@@ -159,3 +159,30 @@ def test_forwarded_options_cannot_override_budget_with_argparse_abbreviations(op
 
 def test_normal_child_arguments_are_preserved():
     assert bounded_arguments(["--", "--live", "--case", "rag-weak"]) == ["--live", "--case", "rag-weak"]
+
+
+def test_audited_transfer_preserves_total_and_unknown_reserves(tmp_path):
+    from evals.round_budget import RoundBudget
+    from evals.budget import BudgetStop
+    import pytest, json
+    round = RoundBudget(tmp_path)
+    limits = round.transfer("contingency", "final", ".50", reason="image reservation headroom")
+    assert limits["final"] == "2.00" and limits["production"] == "0.75"
+    assert sum(map(Decimal, limits.values())) == 5
+    with pytest.raises(BudgetStop):
+        round.transfer("contingency", "final", ".01", reason="cannot overspend")
+    with round.lease(tmp_path / "paid", phase="screening", cap=".50"):
+        pass  # no child receipt: the entire reservation remains committed
+    with pytest.raises(BudgetStop, match="spent or unresolved"):
+        round.transfer("screening", "final", "1", reason="cannot free unknown charges")
+    assert len(json.loads(round.path.read_text())["transfers"]) == 1
+
+
+def test_transfer_cannot_run_while_child_is_active(tmp_path):
+    from evals.round_budget import RoundBudget
+    from evals.budget import BudgetStop
+    import pytest
+    round = RoundBudget(tmp_path)
+    with round.lease(tmp_path / "child", phase="final", cap=".5"):
+        with pytest.raises(BudgetStop, match="still running"):
+            round.transfer("contingency", "final", ".5", reason="must wait")

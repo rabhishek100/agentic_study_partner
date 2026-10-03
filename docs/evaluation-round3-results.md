@@ -89,3 +89,19 @@ returning the original public grading contract. It does not credit private
 expected points that were never asked. The sheet-inventory experiment requires
 an explicit source-supported qualification, allowing an empty value when the
 source states none. These are hypotheses awaiting paid results, not improvements.
+
+### Budget checkpoint: full control continuation
+
+The first control child completed 43 cases and stopped before an image request
+at its original $0.75 ceiling. Settled receipts: $0.429622960, zero unresolved
+request reservations. The blocked sheet has no final artifact; its partial
+preparation charges remain in the ledger. The eleven unfinished cases will run
+in a separate, registered continuation from the same frozen code and sources;
+completed outputs will not be regenerated or overwritten.
+
+Before continuation, the approved $0.50 contingency moves to final evaluations.
+Effective allocations are screening $1.25, repeats $1.00, final $2.00 and
+production $0.75. The total remains $5 and every child remains at most $2.
+The parent ledger preserves the original allocations and an explicit transfer
+history; transfers cannot consume active leases or unresolved charges. The
+separate continuation is disclosed rather than presented as one uninterrupted run.

@@ -1,6 +1,7 @@
 """Serial parent reservations for a round of individually guarded experiments."""
 from contextlib import contextmanager
 from decimal import Decimal
+from datetime import UTC, datetime
 import fcntl
 import json
 from pathlib import Path
@@ -30,6 +31,51 @@ class RoundBudget:
             return data
         return {"version": 1, "cap_usd": str(self.cap), "allocations": self.allocations,
                 "runs": {}}
+
+    def phase_limits(self, data):
+        """Immutable base allocations plus explicit, audited transfers."""
+        limits = {key: money(value) for key, value in self.allocations.items()}
+        for item in data.get("transfers", []):
+            source, destination = item["from"], item["to"]
+            amount = money(item["usd"])
+            if (source not in limits or destination not in limits or source == destination
+                    or amount <= 0 or amount > limits[source] or not item.get("reason")):
+                raise BudgetStop("Invalid recorded phase transfer")
+            limits[source] -= amount
+            limits[destination] += amount
+        return limits
+
+    def transfer(self, source, destination, amount, *, reason):
+        """Reallocate unused capacity, with no change to the round ceiling.
+
+        Active child leases hold this same lock, so no running experiment can
+        lose its reserved capacity. Unknown request reservations remain spent.
+        """
+        self.directory.mkdir(parents=True, exist_ok=True)
+        with (self.directory / ".round.lock").open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise BudgetStop("Another round experiment is still running") from error
+            try:
+                data = self._load()
+                if data.get("blocked"):
+                    raise BudgetStop(data["blocked"])
+                for entry in data["runs"].values():
+                    self._reconcile(entry)
+                item = {"from": source, "to": destination, "usd": str(money(amount)),
+                        "reason": reason, "at": datetime.now(UTC).isoformat()}
+                proposed = {**data, "transfers": [*data.get("transfers", []), item]}
+                limits = self.phase_limits(proposed)
+                for phase, ceiling in limits.items():
+                    used = sum((money(v["committed_usd"]) for v in data["runs"].values()
+                                if v["phase"] == phase), Decimal(0))
+                    if used > ceiling:
+                        raise BudgetStop("Transfer would consume spent or unresolved capacity")
+                atomic_json(self.path, proposed)
+                return {key: str(value) for key, value in limits.items()}
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def _reconcile(self, entry):
         path = self.directory / entry["directory"] / "budget.json"
@@ -90,7 +136,7 @@ class RoundBudget:
                 others = [v for k, v in data["runs"].items() if k != key]
                 total = sum((money(v["committed_usd"]) for v in others), Decimal(0))
                 phase_total = sum((money(v["committed_usd"]) for v in others if v["phase"] == phase), Decimal(0))
-                if total + requested > self.cap or phase_total + requested > money(self.allocations[phase]):
+                if total + requested > self.cap or phase_total + requested > self.phase_limits(data)[phase]:
                     atomic_json(self.path, data)
                     raise BudgetStop("Next child ceiling would exceed round or phase allocation")
                 entry = {"directory": key, "phase": phase, "cap_usd": str(requested),

@@ -543,3 +543,12 @@ build boundaries, literal grading evidence and loading every candidate. Paid
 screens follow completion of the frozen control under the shared ledger.
 
 Validation: 158 targeted tests and 48 subtests passed in the isolated test database.
+
+### Unit 22 — audited phase reallocation and control continuation
+
+Added transfers of unused phase capacity, preserving the immutable base limits,
+$5 round ceiling and held unknown receipts. A running child prevents transfers.
+Added complete ideal-interview phase coverage, including source-only estimation.
+Validation: 38 budget / flow-candidate checks passed. Move contingency $0.50 to
+final evaluation before the new control-tail child; preserve all 43 completed
+outputs and the partial failed preparation bill in the original child.

@@ -92,6 +92,7 @@ def two_section_context(documents, *, database_url, owner, scope, limit):
 PHASE_GUIDANCE = {
     "opening": "Explain the source's mental model and why its main mechanism is needed.",
     "requirements": "Connect source-stated constraints to the requirements they imply.",
+    "estimation": "Explain only source-stated estimates and their assumptions; if no numbers are supplied, discuss the qualitative constraint without inventing a value.",
     "architecture": "Explain a source-supported component choice and its consequence; compare an alternative only if the source supplies it.",
     "deep_dive": "Explain cause, mechanism and consequence, preserving the source's conditions.",
     "tradeoffs": "Connect a source-stated benefit to its cost or limitation and the condition under which the choice works.",

@@ -112,3 +112,10 @@ def test_assessment_quotes_must_come_from_candidate_and_keep_grader_role(monkeyp
         grader.invoke(messages)
     with pytest.raises(ValueError, match="required"):
         grader.invoke([HumanMessage(content="Private expected points only")])
+
+
+def test_ideal_guidance_covers_all_contract_phases():
+    from typing import get_args
+    from interviews.ideal_contracts import IdealPhase
+    from evals.flow_candidates import PHASE_GUIDANCE
+    assert set(get_args(IdealPhase)) == set(PHASE_GUIDANCE)
