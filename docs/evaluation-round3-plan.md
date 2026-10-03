@@ -1,7 +1,8 @@
 # Twenty-candidate evaluation plan
 
 Status: approved; execution started 2026-10-03. Shared budget/preflight are
-verified; no candidate has run and production is unchanged. The previous round's
+verified; all twenty initial hypotheses are screened and production is unchanged.
+Shortlist/repeat evidence is tracked in `evaluation-round3-results.md`. The previous round's
 $3.904616935 is separate from the **new $5 ceiling**, which includes the final
 production comparison. Automated LLM review replaces required human review.
 

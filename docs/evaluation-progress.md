@@ -572,3 +572,19 @@ model literals only in the non-shipped screening script; keep production model
 defaults constrained. Targeted failed checks are reverified before deployment.
 Text screens do not justify new retrieval defaults; summary allocation requires
 repeat evidence. Grading/ideal candidates are not selected on partial results.
+
+Full recheck after the packaging/allowlist fixes: **2,169 tests and 973 subtests
+passed, 38 skipped** (93.06 seconds), using the isolated test database. Original
+failed full-run output remains private beside the successful recheck log.
+
+### Unit 25 — all initial screens, shortlist and local SDK timing evidence
+
+Published sanitized per-case initial results, preserving unsuccessful attempts
+and unknown receipts. All twenty hypotheses are screened (17 paid native
+candidates; three free checks). Shortlist figure reading, summary allocation and
+larger citations; no new application default chosen. Control tail runs from
+frozen `c2d0ee9` under its own registered $1 child ceiling; the initial 43 outputs
+stay untouched. Preserve SDK-produced root timestamps locally, explicitly apart
+from hosted metrics. Validation: 59 suite, integrity, budget and saved-review
+checks passed. Production uses a different authenticated account from the native
+fixture owner; the demo preflight is not the user's production comparison.

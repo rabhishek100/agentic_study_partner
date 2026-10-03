@@ -100,3 +100,19 @@ def test_committed_manifest_has_five_flows_valid_dependencies_and_real_test_link
     assert 40 <= len(m.cases) <= 60
     assert all(Path(path.split("::")[0]).exists() for requirement in m.requirements.values()
                for path in requirement.get("contract_tests", []))
+
+
+def test_sdk_root_interval_is_recorded_without_claiming_hosted_delivery():
+    from datetime import datetime, UTC, timedelta
+    from langsmith.run_trees import RunTree
+    from evals.reporting import sdk_span_metrics
+    start = datetime(2026, 10, 3, tzinfo=UTC)
+    run = RunTree(name="fixture generation", run_type="chain", start_time=start)
+    assert sdk_span_metrics(run)["latency_seconds"] is None
+    run.end(end_time=start + timedelta(seconds=3))
+    metrics = sdk_span_metrics(run)
+    assert metrics["latency_seconds"] == 3
+    assert metrics["source"] == "local_langsmith_sdk_run_tree"
+    assert metrics["hosted_delivery_verified"] is False
+    assert "cost_usd" not in metrics and "total_tokens" not in metrics
+    assert sdk_span_metrics(None) is None

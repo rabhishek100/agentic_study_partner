@@ -145,3 +145,36 @@ The isolated full backend run found two checks to resolve: the image omitted
 experiment script as production defaults. The Docker import is included now;
 only that non-shipped experiment script receives the exploratory model allowlist.
 The application default allowlist remains unchanged.
+
+## Completed initial screens and shortlist
+
+All twenty approved hypotheses have an initial result: seventeen native paid
+candidate screens, plus the three free rendering/cache checks. Separate Qwen
+protocol attempts are retained under the original hypotheses, not new candidates.
+Initial screens alone are not the final comparison or a production rollout.
+Scalar case checks, judgments, output/source hashes and generation/review receipts
+are in [round3_screen_results.json](../evaluation/round3_screen_results.json).
+That file is a checkpoint and clearly identifies the incomplete control.
+
+The strongest new candidate is **8, Gemini for original figure reading**. The
+paper sheet passes its native findings check and external 4/4 review; the Luna
+control has lingering native findings despite an external 4/4 review. This
+single native run uses five generation requests costing $0.016925400 versus
+ten costing $0.036443445 in control. Fewer downstream repairs may explain the
+saving; stochastic composition also varies, so this is not an isolated causal
+estimate or evidence for every sheet. Test all six sheets and repeat the paper /
+large chapter before choosing it.
+
+Carry forward **14, summary budget allocation**, for matched summary repeats,
+and **17, larger citations**, for combined PDF validation. Keep **3, Luna Pro
+writer**, conditional until its targeted gain is replicated and whole-flow /
+monthly cost is bounded. No default model switch is selected. Qwen's sheet
+draft can be structured, but its repair calls return invalid structures and
+the native flow fails. Reject that author trial; do not disable repair checks.
+
+New evaluations also save the root interval already produced by the LangSmith
+SDK, separately labelled `local_langsmith_sdk_run_tree`. This permits future
+matched local timing observations during the hosted quota outage. It is not
+hosted trace delivery, first-token timing or billing, and it does not recover
+timings for earlier runs. Hosted metrics remain unavailable until actual
+readback succeeds. No speed improvement is claimed from these initial screens.

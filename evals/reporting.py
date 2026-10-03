@@ -41,6 +41,22 @@ def trace_metrics(root, runs):
             "first_content_seconds": None, "note": "Non-streaming generation; first content latency is unmeasured."}
 
 
+def sdk_span_metrics(run):
+    """Persist the SDK's own root interval even when hosted export is rejected.
+
+    This is a local LangSmith RunTree observation, not hosted readback, a model
+    billing estimate, first-token timing or proof of a successfully uploaded tree.
+    """
+    if run is None:
+        return None
+    start, end = run.start_time, run.end_time
+    return {"source": "local_langsmith_sdk_run_tree", "trace_id": str(run.id),
+            "start_time": start.isoformat() if start else None,
+            "end_time": end.isoformat() if end else None,
+            "latency_seconds": (end - start).total_seconds() if start and end else None,
+            "hosted_delivery_verified": False}
+
+
 def read_trace(client, trace_id):
     root = client.read_run(trace_id)
     runs = list(client.list_runs(trace_id=trace_id))
@@ -94,7 +110,8 @@ def traced_adapters(adapters, *, budget, project, experiment_id, client):
                 finally:
                     captures = [call["capture"] for call in budget.data["calls"] if call.get("case_id") == case.id
                                 and call["phase"] == "generation" and call.get("capture")]
-                    trace = {"trace_id": str(run.id) if run else None, "trace_url": None, "request_capture": captures}
+                    trace = {"trace_id": str(run.id) if run else None, "trace_url": None, "request_capture": captures,
+                             "local_sdk_span": sdk_span_metrics(run)}
                     if run:
                         try:
                             trace["trace_url"] = run.get_url()
@@ -102,7 +119,8 @@ def traced_adapters(adapters, *, budget, project, experiment_id, client):
                             pass
                     atomic_json(Path(directory) / "artifacts" / case.id / "trace.json", trace)
             flush_traces()
-            metrics = {"source": "langsmith_readback", "status": "unavailable", "resources": resources}
+            metrics = {"source": "langsmith_readback", "status": "unavailable", "resources": resources,
+                       "local_sdk_span": trace.get("local_sdk_span")}
             if run:
                 try:
                     metrics.update(read_trace(client, str(run.id)), status="available")
@@ -123,7 +141,8 @@ def refresh_metrics(bundle, directory, client):
         if row.get("trace_id"):
             try:
                 resources = row.get("metrics", {}).get("resources", {})
-                row["metrics"] = {**read_trace(client, row["trace_id"]), "status": "available", "resources": resources}
+                local_sdk = row.get("metrics", {}).get("local_sdk_span")
+                row["metrics"] = {**read_trace(client, row["trace_id"]), "status": "available", "resources": resources, "local_sdk_span": local_sdk}
             except Exception as error:
                 row.setdefault("metrics", {})["readback_error_kind"] = type(error).__name__
     atomic_json(Path(directory) / "bundle.json", bundle)
