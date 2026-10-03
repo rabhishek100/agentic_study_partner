@@ -66,8 +66,12 @@ graph TD;
 `plan_turn` produces a `TurnDecision` using the question and conversation
 history. The route selects library listing, complete hierarchy operations
 (summary/list/verbatim), retrieval QA, prior-answer transformation, external
-QA, or clarification. `update_state` records the turn in conversation state;
-API persistence happens outside the graph.
+QA, or clarification. Complete-scope routes execute the planner's
+owner-checked canonical book/node IDs rather than re-parsing a title.
+Retrieval QA ranks evidence, then completes the strongest section with its
+nearest chunks inside the same node (see [study flows](flows.md#books-and-papers)).
+`update_state` records the turn in conversation state; API persistence happens
+outside the graph.
 
 State: `StudyGraphState` carries the question, conversation, decision, result,
 and optional grounding rung/widenings. `StudyGraphContext` supplies owner,
@@ -267,11 +271,14 @@ graph TD;
 ```
 <!-- END GENERATED: revision-sheet -->
 
-`inventory` inspects source figures and inventories the complete source.
-`compose` writes the sheet; `validate` checks content/citations; `render` checks
-page fit; `judge` independently reviews quality. Schema/content errors retry
-composition within the shared content-repair budget; rendering permits one
-fit repair; judging permits two quality repairs. Exceptions stop the job for
+`inventory` inspects source figures (one retry per batch whose figure IDs do
+not match) and inventories the complete source. `compose` writes the sheet,
+selecting only inspected figures; `validate` checks content/citations;
+`render` checks page fit; `judge` independently reviews quality.
+Schema/content errors retry composition within the shared content-repair
+budget; rendering permits one fit repair; judging permits two quality repairs.
+A quality repair returns to `compose` either as a full recomposition, when an
+essential concept is missing, or as a targeted patch to existing notes. Exceptions stop the job for
 unsafe content, unavailable evidence, or unrecoverable layout. A sheet that
 reaches the quality-repair limit can finish with recorded outstanding findings.
 Exceptions are not graph edges. Publishing and job persistence happen in the
