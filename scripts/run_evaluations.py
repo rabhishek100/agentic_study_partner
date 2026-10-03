@@ -64,6 +64,7 @@ def main():
         config["model_environment"] = {key: value for key, value in os.environ.items() if key.startswith("OPENROUTER_")
             and any(part in key for part in ("MODEL", "REASONING", "MAX_TOKENS", "TIMEOUT", "MAX_RETRIES"))
             and not key.endswith(("_KEY", "_TOKEN", "_SECRET"))}
+        config["provider_routes"] = json.loads(os.getenv("OPENROUTER_PROVIDER_ROUTES", "{}"))
         config["revision_environment"] = {key: value for key,value in os.environ.items() if key in {
             "REVISION_CONTEXT_WINDOW_TOKENS", "REVISION_MAX_PAGES", "REVISION_MAX_REPAIRS"}}
         config["summary_environment"] = {key: value for key,value in os.environ.items() if key in {

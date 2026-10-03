@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from typing import Any, Protocol
+from model_routing import provider_options
 
 
 DEFAULT_ANSWER_MODEL = "openai/gpt-6-luna"
@@ -57,6 +58,7 @@ def answer_model(*, max_tokens: int | None = None) -> ChatModel:
         max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "2")),
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         extra_body={
+            **provider_options(os.getenv("OPENROUTER_VIDEO_ANSWER_MODEL") or os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_ANSWER_MODEL),
             "usage": {"include": True},
             "reasoning": {
                 "effort": os.getenv("OPENROUTER_GENERATION_REASONING", "none"),
@@ -80,7 +82,7 @@ def control_model(schema):
         max_retries=0,
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         temperature=0,
-        extra_body={"reasoning": {
+        extra_body={**provider_options(os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL), "reasoning": {
             "effort": os.getenv("OPENROUTER_CONTROL_REASONING", "low"),
             "exclude": True,
         }},

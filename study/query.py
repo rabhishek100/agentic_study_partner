@@ -9,6 +9,7 @@ from typing import Protocol
 from uuid import UUID
 
 from dotenv import load_dotenv
+from model_routing import provider_options
 
 from observability import traced
 from retrieval.langchain import BookRetriever, document_from_result
@@ -171,7 +172,8 @@ def control_model() -> ChatModel:
         max_retries=1,
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         temperature=0,
-        extra_body={"reasoning": {"effort": "low", "exclude": True}},
+        extra_body={"reasoning": {"effort": os.getenv("OPENROUTER_CONTROL_REASONING", "low"), "exclude": True},
+                    **provider_options(os.getenv("OPENROUTER_CONTROL_MODEL") or DEFAULT_CONTROL_MODEL)},
     )
 
 
@@ -194,6 +196,7 @@ def openrouter_model(*, max_tokens: int | None = None) -> ChatModel:
         max_retries=int(os.getenv("OPENROUTER_GENERATION_MAX_RETRIES", "2")),
         timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
         extra_body={
+            **provider_options(os.getenv("OPENROUTER_GENERATION_MODEL") or DEFAULT_GENERATION_MODEL),
             "reasoning": {
                 "effort": reasoning_effort,
                 "exclude": True,

@@ -172,7 +172,7 @@ The serial parent ledger now wraps the existing per-run budget guard.
 Reserve child-run allocations before launching; reconcile every request and
 return only settled unused capacity. An interruption or unknown receipt holds
 its reservation on resume. Include all paid requests in production as well as
-local generation, reviews, embeddings and repairs. This parent ledger is not
+local generation, reviews, embeddings and repairs. This parent ledger is now
 implemented in `evals/round_budget.py` and `scripts/run_round_experiment.py`.
 Do not run independent child budgets that can sum beyond $5.
 Image calls reserve a conservative upper bound that can exceed their actual

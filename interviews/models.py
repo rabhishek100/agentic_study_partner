@@ -6,6 +6,7 @@ import os
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
+from model_routing import provider_options
 
 from video.models import reported_cost_usd
 
@@ -24,7 +25,10 @@ class InterviewProviderError(InterviewModelError):
 Schema = TypeVar("Schema", bound=BaseModel)
 
 
-def model_name() -> str:
+def model_name(schema=None) -> str:
+    from .contracts import AnswerEvaluation
+    if schema is AnswerEvaluation and os.getenv("OPENROUTER_INTERVIEW_GRADER_MODEL"):
+        return os.environ["OPENROUTER_INTERVIEW_GRADER_MODEL"]
     return (
         os.getenv("OPENROUTER_INTERVIEW_MODEL")
         or os.getenv("OPENROUTER_GENERATION_MODEL")
@@ -40,7 +44,7 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
     from langchain_openai import ChatOpenAI
 
     model = ChatOpenAI(
-        model=model_name(),
+        model=model_name(schema),
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
         # Candidate-facing structured turns are intentionally compact. A
@@ -54,6 +58,7 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
         timeout=float(os.getenv("OPENROUTER_INTERVIEW_TIMEOUT_SECONDS", "15")),
         temperature=temperature,
         extra_body={
+            **provider_options(model_name(schema)),
             "usage": {"include": True},
             "reasoning": {
                 "effort": os.getenv("OPENROUTER_INTERVIEW_REASONING", "low"),

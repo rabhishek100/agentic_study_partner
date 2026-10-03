@@ -12,6 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.exceptions import OutputParserException
 from langchain_core.tracers.run_collector import RunCollectorCallbackHandler
 from pydantic import ValidationError
+from model_routing import provider_options
 
 from observability import traced
 from storage.book_images import load_figure
@@ -147,11 +148,21 @@ def model_name() -> str:
 
 
 def config_key() -> str:
-    return ":".join((SCHEMA_VERSION, PROMPT_VERSION, LAYOUT_VERSION, RUBRIC_VERSION, model_name(), judge_model_name()))
+    key = ":".join((SCHEMA_VERSION, PROMPT_VERSION, LAYOUT_VERSION, RUBRIC_VERSION, model_name(), judge_model_name()))
+    overrides = [f"{stage}={os.environ[variable]}" for stage, variable in STAGE_MODELS.items() if os.getenv(variable)]
+    routes = os.getenv("OPENROUTER_PROVIDER_ROUTES")
+    if routes:
+        overrides.append("providers=" + json.dumps(json.loads(routes), sort_keys=True, separators=(",", ":")))
+    return key + (":" + ":".join(overrides) if overrides else "")
 
 
 def judge_model_name():
     return os.getenv("OPENROUTER_REVISION_JUDGE_MODEL") or model_name()
+
+
+STAGE_MODELS = {"author": "OPENROUTER_REVISION_AUTHOR_MODEL",
+                "inventory": "OPENROUTER_REVISION_INVENTORY_MODEL",
+                "figure": "OPENROUTER_REVISION_FIGURE_MODEL"}
 
 
 def revision_model(schema=Draft, *, judge=False, allowed_figures=None):
@@ -159,6 +170,8 @@ def revision_model(schema=Draft, *, judge=False, allowed_figures=None):
     key = os.getenv("OPENROUTER_API_KEY")
     if not key:
         raise RevisionError("model_unconfigured", "Configure OPENROUTER_API_KEY to generate revision sheets.")
+    stage = "figure" if schema is FigureBatch else "inventory" if schema is Inventory else "author"
+    chosen = judge_model_name() if judge else os.getenv(STAGE_MODELS[stage]) or model_name()
     if allowed_figures is not None:
         # Offer only canonical images inspected for this exact source scope.
         # The application validator remains authoritative after decoding.
@@ -168,10 +181,10 @@ def revision_model(schema=Draft, *, judge=False, allowed_figures=None):
             figures["items"]["enum"] = sorted(set(allowed_figures))
         else:
             figures["maxItems"] = 0
-    return ChatOpenAI(model=judge_model_name() if judge else model_name(), api_key=key, base_url="https://openrouter.ai/api/v1",
+    return ChatOpenAI(model=chosen, api_key=key, base_url="https://openrouter.ai/api/v1",
                       temperature=0.2, max_tokens=16000, max_retries=2,
                       timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
-                      extra_body={"usage": {"include": True}, "reasoning": {"effort": "low", "exclude": True}}
+                      extra_body={**provider_options(chosen), "usage": {"include": True}, "reasoning": {"effort": "low", "exclude": True}}
                       ).with_structured_output(schema, method="json_schema")
 
 

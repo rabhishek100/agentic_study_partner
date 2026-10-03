@@ -34,8 +34,9 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 13 | Ideal interview generation through the web proxy | Complete, bounded | API and web ba6a887 deployed; concurrent web-origin requests returned one complete 45-topic flow after 264.736s / 262.730s; first trace 68 model calls, retry zero; connected trees and UI readback passed; 2,106 backend tests / 962 subtests (38 skips), 753 frontend tests, types/build and real 35s proxy regression passed |
 | 14 | Verified user identity in logs and traces | Complete | Four Python services at 0983a1c, health and voice controls passed; 23 chat LangSmith runs / 11 Tempo spans carry verified user_id; worker and all three voice roots/commands read back; Loki API/job identity and anonymous exclusions verified; 32 metric series have no identity labels; 2,109 tests / 962 subtests passed (38 skips) |
 | 15 | Round-two comparison and selected components | Complete locally | Five 54-case versions, nine repeats and six grader-rollback checks; $3.904616935 settled; selected code aefe246 passed 2,118 tests / 972 subtests, 38 skips; production unchanged |
-| 16 | Twenty-candidate model/change experiment design | Ready for review | New $5 includes production comparisons; confirmed monthly usage; individual changes and cost gates specified; no new paid inference or rollout |
+| 16 | Twenty-candidate model/change experiment design | Approved | New $5 includes production comparisons; confirmed monthly usage; individual changes and cost gates specified |
 | 17 | Round-three shared budget and preflight | Budget guard verified; execution active | User approved the plan; parent reservations protect phase/round caps across interruptions; 51 targeted checks passed; new trace delivery rejected by monthly quota; $0 provider spend |
+| 18 | Independent model-stage configuration and screens | Plumbing verified; ready to run | Default models unchanged; provider pinning, sheet author/inventory/figure isolation, grader isolation and cache provenance; 144 checks / 48 subtests passed; eight independent screens defined |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -407,9 +408,18 @@ metadata/prices and a zero-inference LangSmith smoke are saved in ignored
 `evaluation/runs/round3/preflight/`. The smoke still returned the monthly
 unique-trace quota error. Reranker public pricing is $0.0025/search, while
 endpoint metadata reports only zero token prices; a separately verified search
-charge is required. Next: free retrieval/render screens and model-stage
-injection, then paid screens under the coordinator. The trace-quota and old
-receipt discrepancies remain explicit; production has not changed.
+charge is required. The trace-quota and old receipt discrepancies remain
+explicit; production has not changed.
+
+Model-stage injection is now verified: author/inventory/figure sheet overrides
+are independent, the interview grader override preserves the interviewer,
+provider pins prohibit fallback, and changed sheet roles/routes change its
+derived-cache key. Defaults are unchanged. Eight model screens are defined in
+`scripts/screen_model_candidates.py`; dry planning passed. Isolated tests:
+`TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/study_partner_eval_test uv run --frozen --extra voice python -m pytest tests/test_model_roles.py tests/test_openrouter_transport.py tests/test_revision_review.py tests/test_interviews.py tests/test_video_evaluation.py tests/test_round_budget.py -q --disable-warnings`
+passed 144 checks / 48 subtests, with nine deprecation warnings.
+Next: execute model screens under the coordinator, save scalar findings and
+screen deterministic retrieval/render changes independently.
 
 Round-two comparison and selection are complete; supporting evidence is in
 [evaluation-round2-results.md](evaluation-round2-results.md) and
