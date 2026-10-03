@@ -53,8 +53,8 @@ Evaluation drives the design:
   evidence. Measured fixes raised usable outputs from 24/45 to 34/45 on the same
   cases.
 - **Rejected changes.** Of twenty further single-change candidates, including
-  cheaper models and retrieval tweaks, only larger sheet citations survived
-  repeats and blinded review.
+  cheaper models and retrieval tweaks, only larger sheet citations was kept;
+  other initial gains did not survive repeats or independent review.
 - **Cost.** A light month of use is forecast at about $1.
 
 These are small, source-specific results with an uncalibrated LLM judge; see

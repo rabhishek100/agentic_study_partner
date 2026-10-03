@@ -119,8 +119,9 @@ uv run --frozen --extra voice python -m pytest tests -q -ra
 ```
 
 [tests/conftest.py](../tests/conftest.py) points `DATABASE_URL` at
-`TEST_DATABASE_URL`, forces filesystem media backends, clears inference keys,
-disables hosted telemetry and rejects hosted Storage endpoints before
+`TEST_DATABASE_URL`, forces filesystem media backends, blanks
+`OPENROUTER_API_KEY`, disables hosted telemetry and rejects non-loopback
+Supabase endpoints before
 application imports load `.env`. Queue tests skip, rather than claim foreign
 work, when the database already holds live jobs. Storage integration tests
 also need a loopback `SUPABASE_URL` and its local development service-role key;
@@ -166,8 +167,9 @@ services. The standalone Railway worker definition is vestigial.
 `BUILD_REVISION`/`BUILD_TIME` on one Railway service and uploads it with
 `railway up`; merging to `main` deploys nothing. A release runs: back up
 database/object ledgers → apply migrations → deploy `api` → deploy `web` at
-the same revision → deploy changed voice services → check `/api/health`,
-`/api/health/queue`, an authenticated read and a queued job.
+the same revision → check `/api/health`, `/api/health/queue`, an authenticated
+read and a queued job. Voice services are deployed with the same script when
+their code or configuration changes.
 Provider-account provisioning is outside the repository.
 
 [CI](../.github/workflows/ci.yml) runs on pushes to `main` and on pull

@@ -54,7 +54,7 @@ $0.50 output per million tokens). It is not a measured quality improvement;
 saved artifacts keep their original model provenance. DeepSeek, Qwen, Luna Pro
 and Gemini were then screened as answer writers, router, grader, sheet author
 and figure reader; none showed a reliable improvement, so Luna stays the
-default for every generation role. Speech models were not compared.
+default for those roles. Speech models were not compared.
 [Model experiments](evaluation.md#experiments-rejected).
 
 ### Where models are configured and called
@@ -94,7 +94,7 @@ Next.js displays the results and does not host or invoke these models directly.
 | LiveKit narration speech | [narration/voice_worker.py](../narration/voice_worker.py) | `LIVEKIT_NARRATION_STT_MODEL`, `LIVEKIT_NARRATION_TTS_MODEL` (inherit interview settings when absent) |
 | LiveKit ideal interview playback | [interviews/ideal_voice_worker.py](../interviews/ideal_voice_worker.py) | `LIVEKIT_IDEAL_TTS_MODEL` |
 | Per-feature evaluation judges | [evals/judge.py](../evals/judge.py); [evals/ideal_interview.py](../evals/ideal_interview.py) | `OPENROUTER_JUDGE_MODEL` |
-| Five-flow evaluation judge | [evals/suite_judge.py](../evals/suite_judge.py), `SuiteJudge` | Constructor argument; no environment override |
+| Five-flow evaluation judge | [evals/suite_judge.py](../evals/suite_judge.py), `SuiteJudge` | No environment override; `--judge-model` on `scripts.judge_saved_evaluations` |
 
 An arrow in the override column means the first setting falls back to the
 second before using the module's default. The per-stage sheet and grader

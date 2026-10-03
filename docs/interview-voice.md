@@ -68,8 +68,8 @@ participants are rejected. Raw interview audio and screen images are processed
 ephemerally, not persisted. Saved records contain edited text, evaluations,
 citations, checkpoints, requested screen observations, and aggregate cost.
 
-Each voice worker exports its own LangSmith and Grafana service, initialized
-before any session starts. Command traces are correlated by session,
+Each voice worker initializes telemetry when the worker starts and in each
+job process, under its own service name. Command traces are correlated by session,
 conversation or ideal-flow ID and carry the verified owner as `user_id`. STT/TTS
 usage events and configured-rate voice-cost estimates are recorded as
 estimates, separate from provider receipts. See [observability](observability.md).

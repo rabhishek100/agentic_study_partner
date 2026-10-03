@@ -390,8 +390,8 @@ system without adding a separate queue broker.
 - Source hashes, build/dependency hashes, and idempotency keys prevent duplicate
   work and unsafe reuse. Partial ingestion is not published.
 - Network/model calls stay outside long database transactions. Cleanup has
-  grace periods and orphan-fraction guards. The exception is synchronous ideal
-  interview generation, which holds a transaction-scoped Postgres advisory lock
+  grace periods and orphan-fraction guards. Synchronous ideal interview
+  generation is a deliberate exception: it holds a transaction-scoped Postgres advisory lock
   keyed by owner, scope and settings so a concurrent identical request waits
   and reuses the saved result instead of paying twice.
 - LangSmith records graph, model and retrieval decisions across HTTP,

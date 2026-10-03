@@ -39,8 +39,9 @@ explicitly requested part or name the specific part the evidence lacks.
 
 When the planner chooses a complete scope, execution uses its owner-checked
 canonical book/node IDs rather than re-parsing the display title. Requests to
-"summarize the whole/entire/complete paper", optionally followed by
-"including …" instructions, take the complete-summary route. A prior-answer
+explain, summarize or review "the whole/entire/complete" paper, document, PDF
+or book, optionally followed by ", including/covering/with …" instructions,
+take the complete-summary route. A prior-answer
 transform keeps only the citation records whose markers remain in the
 rewritten text.
 
