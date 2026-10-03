@@ -137,6 +137,7 @@ def test_judge_receives_distinct_source_and_rendered_pdf_images(tmp_path, monkey
         'coverage':3,'usefulness':3,'layout':'readable'})
     judge = object.__new__(SuiteJudge)
     judge.model_name, judge.project, judge.client, judge.experiment_id = 'fixture', None, None, 'fixture'
+    judge.blind = True
     judge.model = SimpleNamespace(invoke=lambda messages, **kwargs: (recorded.append(messages) or judgment))
     monkeypatch.setattr('langsmith.tracing_context',lambda **kwargs:nullcontext())
     result = judge(Case.model_validate(bundle['manifest']['cases'][0]),row,tmp_path)
@@ -144,6 +145,10 @@ def test_judge_receives_distinct_source_and_rendered_pdf_images(tmp_path, monkey
     assert len([part for part in parts if part['type']=='image_url']) == 4  # Three source inputs plus one output page.
     assert parts[-2]['text'] == 'DERIVED OUTPUT PDF PAGES (not source evidence):'
     assert result['rendered_pdf_pages'] == 1 and result['human_review_status'] == 'optional'
+    payload = json.loads(parts[0]['text'])
+    assert all('model' not in context for context in payload['exact_generation_contexts'])
+    assert result['writer_model_labels_hidden'] is True
+    assert json.loads((tmp_path / row['request_capture'][0]).read_text())['model'] == 'fixture'
 
 
 def test_interview_review_keeps_candidate_input_separate_from_feedback_artifact(tmp_path):

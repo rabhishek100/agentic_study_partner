@@ -85,21 +85,27 @@ def judge_payload(case, row, directory):
 
 
 class SuiteJudge:
-    def __init__(self, *, model="openai/gpt-6-luna", project=None, client=None, experiment_id=None):
+    def __init__(self, *, model="openai/gpt-6-luna", project=None, client=None, experiment_id=None, blind=False):
         from langchain_openai import ChatOpenAI
         key = os.getenv("OPENROUTER_API_KEY")
         if not key:
             raise ValueError("OPENROUTER_API_KEY is required for live judging")
         self.model_name, self.project, self.client, self.experiment_id = model, project, client, experiment_id
+        self.blind = blind
+        from model_routing import provider_options
         self.model = ChatOpenAI(model=model, api_key=key, base_url="https://openrouter.ai/api/v1",
             max_tokens=4096, max_retries=0, timeout=120, use_responses_api=False,
-            extra_body={"usage": {"include": True}, "reasoning": {"effort": "low", "exclude": True}}
+            extra_body={"usage": {"include": True}, "reasoning": {"effort": "low", "exclude": True}, **provider_options(model)}
             ).with_structured_output(SuiteJudgment, method="json_schema")
 
     def __call__(self, case, row, directory):
         from langchain_core.messages import SystemMessage, HumanMessage
         from langsmith import tracing_context
         payload, images = judge_payload(case, row, directory)
+        if self.blind:
+            # In-memory presentation only: frozen requests and receipts stay intact.
+            for capture in payload["exact_generation_contexts"]:
+                capture.pop("model", None)
         pages = pdf_pages(row, directory)
         payload["rendered_pdf_pages"] = len(pages)
         payload["artifact_layout"] = ("All rendered output PDF pages follow the original source images; "
@@ -139,4 +145,5 @@ class SuiteJudge:
         return {**judgment.model_dump(mode="json"), "judge_model": self.model_name,
                 "review_kind": "llm_judge", "review_version": REVIEW_VERSION,
                 "rendered_pdf_pages": len(pages), "human_review_status": "optional",
-                "independence": "same model family automated judgment; not human-calibrated"}
+                "writer_model_labels_hidden": self.blind,
+                "independence": "automated judgment; not human-calibrated"}

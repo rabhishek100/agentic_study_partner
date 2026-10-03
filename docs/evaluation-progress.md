@@ -618,3 +618,13 @@ an explicit suffix, and a failed matched control now stops the repeat batch.
 Validation: 48 targeted suite, round-budget and flow-candidate tests passed.
 Next: judge recovered outputs, complete the two Gemini sheets, repeat summaries
 and the conditional writer, then select settings only from matched evidence.
+
+### Unit 28 — reviewer presentation and resumable capacity
+
+A repeat planner now reconciles durable child receipts before calculating unused
+capacity after an interrupted coordinator; unresolved receipts remain held.
+Validation: 26 budget checks passed, including a stale leased entry plus an
+unknown receipt. Added optional writer-label blinding for saved-output reviews,
+without changing the fixed rubric or frozen provider captures, and provider
+routing for the second reviewer. Validation: 37 saved-review / adapter / suite
+checks passed. Publish scalar checkpoints with the committed report script.

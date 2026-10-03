@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--max-usd', default='1')
     parser.add_argument('--judge-model', default='openai/gpt-6-luna')
     parser.add_argument('--retry-failed', action='store_true')
+    parser.add_argument('--blind', action='store_true', help='Hide writer model labels from reviewer input')
     args = parser.parse_args()
     output = args.output.resolve()
     runs = root / 'evaluation/runs'
@@ -30,11 +31,12 @@ def main():
     project = f'study-partner-evals-{output.name}'
     config = {'judge_model': args.judge_model, 'review_version': REVIEW_VERSION,
               'project': project, 'review_kind': 'llm_judge', 'human_calibration': False,
+              'writer_model_labels_hidden': args.blind,
               'implementation': {name: sha256((root / name).read_bytes()).hexdigest() for name in
                                  ['evals/automated_reviews.py', 'evals/suite_judge.py']}}
     budget = Budget(output, cap=args.max_usd, prices=None if (output / 'budget.json').exists() else pricing_snapshot())
     client = Client(anonymizer=safe_value)
-    native = SuiteJudge(model=args.judge_model, project=project, client=client, experiment_id=output.name)
+    native = SuiteJudge(model=args.judge_model, project=project, client=client, experiment_id=output.name, blind=args.blind)
     def judge(case, row, source):
         print(f'Reviewing {case.id} ({case.flow}), saved output only', flush=True)
         with tracing_context(project_name=project, client=client, enabled=True,
