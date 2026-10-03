@@ -704,3 +704,15 @@ allocation did not replicate its initial gain; Gemini figure reading has a nativ
 chapter-8 regression and no stable paper-cost saving. Reject these defaults.
 Retain candidate 17 for combined verification: larger citations, unchanged text,
 original figures and page counts, and no additional provider call.
+
+### Unit 33 — selected citation change verified
+
+Candidate 17 is promoted in the HTML/A4 sheet renderer: citations increase from
+9 to 10 points; layout provenance advances from `html-a4-flow-v4` to v5, so new
+requests do not reuse old cached layouts. The free six-sheet comparison preserved
+content, original figures, clipping checks and 3/4-page counts. No model settings
+or other candidate defaults are promoted. Full isolated verification passes:
+**2181 tests + 973 subtests, 38 skips, 105.20 seconds**. The capped production
+before window is active on unchanged `0983a1c`; chat and whole-paper summary have
+completed in the user's actual account. Runtime production retrieval is
+`hybrid_rerank`, while local native gold comparisons use BM25; report separately.
