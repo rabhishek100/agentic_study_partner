@@ -103,32 +103,44 @@ def retrieval_limit(response_depth: ResponseDepth) -> int:
     return RETRIEVAL_LIMIT_BY_DEPTH[response_depth]
 
 
+def _nearest_chunks(source, seed, *, owner, scope, cap, radius=None):
+    """Chunks of the seed's own section and build, nearest first, excluding the seed."""
+    rows = source.execute(
+        """select neighbor.* from chunks as seed join chunks as neighbor
+        on neighbor.owner_id = seed.owner_id
+          and neighbor.source_book_id = seed.source_book_id
+          and neighbor.source_node_id = seed.source_node_id
+          and neighbor.build_id = seed.build_id
+        where seed.owner_id = %s and seed.id = %s
+          and (%s::bigint[] is null or seed.source_book_id = any(%s))
+          and (%s::int is null or abs(neighbor.chunk_index - seed.chunk_index) <= %s)
+        order by abs(neighbor.chunk_index - seed.chunk_index), neighbor.chunk_index
+        limit %s""", (owner, seed.metadata["chunk_id"], scope, scope, radius, radius, cap),
+    ).fetchall()
+    return [document_from_result(search_result_from_row(row,
+        score=seed.metadata.get("score") or 0, retrieval_method="hierarchy_expansion"))
+        for row in rows if row["id"] != seed.metadata["chunk_id"]]
+
+
 @traced("study.query.expand_section_context", flow="chat")
 def _section_neighborhood(documents, *, database_url, owner, scope, limit):
     """Complete a short strongest section, or keep its nearest bounded neighbors.
 
-    Keep at least two context slots for other ranked sections. Source ownership,
-    book, node and build are fixed by the seed; no model call is added.
+    The strongest section keeps up to five nearest chunks while two slots stay
+    free. With the eight-item interview/deep budget, those slots go first to
+    the second-strongest section's hit and its adjacent chunks, so a question
+    spanning two sections keeps both. Source ownership, book, node and build
+    are fixed by each seed; no model call is added.
     """
     if not documents or not documents[0].metadata.get("chunk_id"):
         return documents
     seed = documents[0]
-    pack_limit = min(5, max(1, limit - 2))
+    second = next((item for item in documents[1:] if item.metadata.get("chunk_id")
+                   and item.metadata.get("node_id") != seed.metadata.get("node_id")), None)
     with database_connection(database_url, readonly=True) as source:
-        rows = source.execute(
-            """select neighbor.* from chunks as seed join chunks as neighbor
-            on neighbor.owner_id = seed.owner_id
-              and neighbor.source_book_id = seed.source_book_id
-              and neighbor.source_node_id = seed.source_node_id
-              and neighbor.build_id = seed.build_id
-            where seed.owner_id = %s and seed.id = %s
-              and (%s::bigint[] is null or seed.source_book_id = any(%s))
-            order by abs(neighbor.chunk_index - seed.chunk_index), neighbor.chunk_index
-            limit %s""", (owner, seed.metadata["chunk_id"], scope, scope, pack_limit),
-        ).fetchall()
-    neighbors = [document_from_result(search_result_from_row(row,
-        score=seed.metadata.get("score") or 0, retrieval_method="hierarchy_expansion"))
-        for row in rows if row["id"] != seed.metadata["chunk_id"]]
+        neighbors = _nearest_chunks(source, seed, owner=owner, scope=scope, cap=min(5, max(1, limit - 2)))
+        if second is not None and limit >= 8:
+            neighbors += [second, *_nearest_chunks(source, second, owner=owner, scope=scope, cap=3, radius=1)]
     expanded, seen = [], set()
     for item in [seed, *neighbors, *documents[1:]]:
         key = item.metadata.get("chunk_id")

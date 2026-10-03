@@ -281,5 +281,22 @@ class VideoEvidenceStoreTests(unittest.TestCase):
         )
 
 
+class TimelineExpansionOrderTests(unittest.TestCase):
+    def test_each_anchor_gets_a_turn_before_the_top_anchor_gets_more(self):
+        from video.retrieval import _round_robin_by_anchor
+
+        def row(identifier, position, distance):
+            return {"id": identifier, "position": position, "distance_ms": distance, "start_ms": distance}
+
+        rows = [row("near-top-1", 1, 100), row("near-top-2", 1, 200), row("near-top-3", 1, 300),
+                row("near-second", 2, 5_000), row("near-weak-but-close", 3, 10),
+                # One cue can sit near several anchors; it is used once.
+                row("near-top-1", 3, 50)]
+        chosen = [item["id"] for item in _round_robin_by_anchor(rows, limit=4)]
+        self.assertEqual(chosen, ["near-top-1", "near-second", "near-weak-but-close", "near-top-2"])
+        self.assertEqual(len(_round_robin_by_anchor(rows, limit=10)), 5)
+        self.assertEqual(_round_robin_by_anchor([], limit=4), [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -151,3 +151,45 @@ def test_private_response_capture_preserves_receipt_and_omits_headers(tmp_path):
     assert row["response_sha256"] == sha256(path.read_bytes()).hexdigest()
     assert "private-header" not in path.read_text()
     assert row["status"] == "reserved" and budget.committed == Decimal(".1")
+
+
+RERANK_PRICES = {**PRICES, "rerank_search_unit_usd": {"fixture/rerank": "0.0025"}}
+
+
+def test_rerank_reserves_search_units_and_settles_receipt(tmp_path):
+    budget = Budget(tmp_path, prices=RERANK_PRICES)
+    received = []
+    def respond(request):
+        received.append(request)
+        return httpx.Response(200, json={"results": [], "usage": {"search_units": 1, "cost": 0.0025}})
+    body = {"model": "fixture/rerank", "query": "quantization", "documents": ["short"] * 20, "top_n": 20}
+    with budget.guard(), httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        client.post("https://openrouter.ai/api/v1/rerank", json=body)
+    call = budget.data["calls"][0]
+    assert len(received) == 1 and Decimal(call["reserved_usd"]) == Decimal("0.0030")
+    assert call["cost_kind"] == "provider_reported" and budget.committed == Decimal("0.0025")
+    assert call["usage"]["search_units"] == 1
+
+
+def test_rerank_bound_grows_with_long_documents_and_unknown_models_are_refused(tmp_path):
+    from evals.budget import rerank_reservation
+    short = rerank_reservation({"query": "q", "documents": ["x"] * 100}, "0.0025")
+    long = rerank_reservation({"query": "q", "documents": ["x" * 2000] * 100}, "0.0025")
+    assert short == Decimal("0.0030") and long > short
+    budget = Budget(tmp_path, prices=RERANK_PRICES)
+    received = []
+    with budget.guard(), httpx.Client(transport=httpx.MockTransport(lambda r: received.append(r))) as client:
+        with pytest.raises(BudgetStop):
+            client.post("https://openrouter.ai/api/v1/rerank",
+                        json={"model": "unknown/rerank", "query": "q", "documents": ["x"]})
+    assert not received and not budget.data["calls"]
+
+
+def test_rerank_receipt_above_reservation_blocks_the_experiment(tmp_path):
+    budget = Budget(tmp_path, prices=RERANK_PRICES)
+    respond = lambda request: httpx.Response(200, json={"results": [], "usage": {"search_units": 9, "cost": 0.0225}})
+    body = {"model": "fixture/rerank", "query": "q", "documents": ["short"]}
+    with budget.guard(), httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        with pytest.raises(BudgetStop):
+            client.post("https://openrouter.ai/api/v1/rerank", json=body)
+    assert budget.data["blocked"]

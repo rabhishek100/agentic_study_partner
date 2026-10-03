@@ -193,8 +193,10 @@ Lecture search combines transcript, frame OCR, visual observations, and
 supporting-PDF pages. Course search limits results per lecture. Complete
 summaries load the entire selected canonical scope instead of top-k matches.
 After ranking, book QA completes the strongest section with its nearest chunks
-from the same node and source build, bounded so other ranked sections keep at
-least two slots. Course answers receive each selected passage in full.
+from the same node and source build, keeping at least two slots free; 8-item
+answers spend them on the second-strongest section's hit and its neighbours.
+Lecture search borrows a missing modality from around the ranked items in rank
+order. Course answers receive each selected passage in full.
 
 Code: [retrieval](../retrieval/search.py), [section expansion](../study/query.py), [lecture retrieval](../video/retrieval.py),
 [course retrieval](../video/course_retrieval.py).

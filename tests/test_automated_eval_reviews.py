@@ -118,6 +118,20 @@ def test_unknown_visual_review_and_failed_contract_cannot_be_usable():
     judgment['layout'] = 'not_applicable'
     assert review_verdict(judgment, {'citations_valid':False}) == 'needs_work'
     assert review_verdict(judgment, {'standalone_exact':False}) == 'usable'
+    # Internal planner labels are diagnostic; route, scope and outcome still gate.
+    assert review_verdict(judgment, {'history_dependency':False}) == 'usable'
+    assert review_verdict(judgment, {'history_dependency':False, 'scope':False}) == 'needs_work'
+
+
+def test_reasoning_signal_check_accepts_typographic_apostrophes():
+    from evals.ideal_interview import score_ideal_flow
+    exchange = {'topic_key': 'requirements', 'phase': 'requirements', 'citations': [],
+                'interviewer_text': 'How would you scope the notification system for launch?',
+                'candidate_text': 'I\u2019d pin down delivery targets with stakeholders. ' + 'Clarify scope. ' * 25}
+    scores = score_ideal_flow({'exchanges': [exchange]}, {'topic_keys': ['requirements']})
+    assert scores['human_reasoning_signals'] == 1.0
+    exchange['candidate_text'] = 'Delivery targets come from stakeholders. ' + 'Scope notes. ' * 25
+    assert score_ideal_flow({'exchanges': [exchange]}, {'topic_keys': ['requirements']})['human_reasoning_signals'] == 0.0
 
 
 def test_judge_receives_distinct_source_and_rendered_pdf_images(tmp_path, monkeypatch):

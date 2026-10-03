@@ -181,9 +181,21 @@ class NativeAdapters:
         if result.outcome == "error":
             raise RuntimeError("Production book turn returned an error outcome")
         gold = remap_gold(case.expected, book)
+        evidence = {"references": [item.model_dump(mode="json") for item in result.evidence], "prior_state": previous,
+                    "bound_expected": gold}
+        if result.route == "prior_answer_transform":
+            # A transform's own request carries only the earlier answer, and the
+            # references above are short previews. Give the judge the complete
+            # canonical passages so carried-over claims can be verified.
+            from retrieval.postgres import chunks_by_id
+            ids = [item.chunk_id for item in result.evidence if getattr(item, "chunk_id", None)]
+            with connection(self.database_url, readonly=True) as current:
+                rows = chunks_by_id(current, ids, owner_id=self.owner)
+            evidence["source_passages"] = [{"chunk_id": key, "pages": [rows[key]["start_page"], rows[key]["end_page"]],
+                                            "path": rows[key]["path_text"], "text": rows[key]["text"]}
+                                           for key in ids if key in rows]
         return {"output": result.model_dump(mode="json"), "state": state.model_dump(mode="json"),
-                "evidence": {"references": [item.model_dump(mode="json") for item in result.evidence], "prior_state": previous,
-                             "bound_expected": gold}, "checks": _score(gold, result, state), "source_fingerprint": book["fingerprint"]}
+                "evidence": evidence, "checks": _score(gold, result, state), "source_fingerprint": book["fingerprint"]}
 
     def video(self, case, parents, directory):
         from api.video_chat import _answer_dependencies
