@@ -185,7 +185,7 @@ def revision_model(schema=Draft, *, judge=False, allowed_figures=None):
                       temperature=0.2, max_tokens=16000, max_retries=2,
                       timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
                       extra_body={**provider_options(chosen), "usage": {"include": True}, "reasoning": {"effort": "low", "exclude": True}}
-                      ).with_structured_output(schema, method="json_schema"), model=chosen)
+                      ).with_structured_output(schema, method="json_schema"), model=chosen, schema=schema)
 
 
 def _page_count(pdf: bytes) -> int:

@@ -70,7 +70,7 @@ def structured_model(schema: type[Schema], *, temperature: float = 0.1):
         schema,
         method="json_schema",
         include_raw=True,
-    ), model=model_name(schema))
+    ), model=model_name(schema), schema=schema)
 
 
 def invoke_structured(

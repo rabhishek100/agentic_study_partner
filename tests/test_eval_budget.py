@@ -136,3 +136,18 @@ def test_exclusive_run_lock_and_receipt_violation(tmp_path):
 def test_invalid_experiment_ceiling_is_rejected(tmp_path, value):
     with pytest.raises(BudgetStop):
         Budget(tmp_path, cap=value, prices=PRICES)
+
+
+def test_private_response_capture_preserves_receipt_and_omits_headers(tmp_path):
+    from hashlib import sha256
+    budget = Budget(tmp_path, cap="1", prices=PRICES)
+    call = budget.reserve(".1", model="fixture/model")
+    response = httpx.Response(400, json={"error": {"message": "fixture rejection"}},
+                             headers={"Authorization": "private-header"})
+    budget.record_response(call, response)
+    row = budget.data["calls"][0]
+    path = tmp_path / row["response_capture"]
+    assert row["response_status"] == 400
+    assert row["response_sha256"] == sha256(path.read_bytes()).hexdigest()
+    assert "private-header" not in path.read_text()
+    assert row["status"] == "reserved" and budget.committed == Decimal(".1")

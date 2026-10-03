@@ -122,6 +122,25 @@ class Budget:
                     raise BudgetStop("Provider receipt exceeded its reservation; stop and investigate pricing")
             # Missing receipt, timeout or interruption keeps the entire reserve.
 
+    def record_response(self, call_id, response):
+        """Keep private provider bodies for debugging without paying to replay.
+
+        Never store transport headers or credentials. Failed calls without a
+        usage receipt still retain their conservative reservation.
+        """
+        from hashlib import sha256
+        with self.lock:
+            call = next(call for call in self.data["calls"] if call["id"] == call_id)
+            relative = f"responses/{call_id}.json"
+            try:
+                payload = response.json()
+            except ValueError:
+                payload = {"unparsed_body": response.text}
+            atomic_json(self.directory / relative, payload)
+            call.update(response_capture=relative, response_status=response.status_code,
+                        response_sha256=sha256((self.directory / relative).read_bytes()).hexdigest())
+            atomic_json(self.path, self.data)
+
     def prepare(self, request):
         if request.url.host != "openrouter.ai" or request.url.path not in {"/api/v1/chat/completions", "/api/v1/embeddings"}:
             raise BudgetStop("Unpriced inference endpoint")
@@ -202,6 +221,7 @@ class Budget:
                 usage = response.json().get("usage")
             except ValueError:
                 usage = None
+            self.record_response(call_id, response)
             self.settle(call_id, usage)
             return response
         async def asend(client, request, **kwargs):
@@ -218,6 +238,7 @@ class Budget:
                 usage = response.json().get("usage")
             except ValueError:
                 usage = None
+            self.record_response(call_id, response)
             self.settle(call_id, usage)
             return response
         with patch.object(httpx.Client, "send", send), patch.object(httpx.AsyncClient, "send", asend):

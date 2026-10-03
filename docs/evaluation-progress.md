@@ -552,3 +552,13 @@ Added complete ideal-interview phase coverage, including source-only estimation.
 Validation: 38 budget / flow-candidate checks passed. Move contingency $0.50 to
 final evaluation before the new control-tail child; preserve all 43 completed
 outputs and the partial failed preparation bill in the original child.
+
+### Unit 23 — complete Qwen format contract and private diagnostics
+
+The JSON-word retest returned six billable but invalid grading structures.
+Include the exact schema in Qwen's format hint, retaining all schema validators,
+stage selection and original deadlines. Preserve private HTTP response bodies /
+status / hashes without transport headers for future diagnosis. Validation: 72
+budget, model-role and candidate checks passed; SDK transport confirms the exact
+schema reaches the message. Prior paid failures remain immutable. Next: a new
+schema-hint retest, then independent flow screens and the frozen control tail.

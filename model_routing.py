@@ -15,7 +15,7 @@ def provider_options(model):
     return {"provider": {"only": only, "allow_fallbacks": False, "require_parameters": True}}
 
 
-def structured_client(client, *, model):
+def structured_client(client, *, model, schema=None):
     """Supply the JSON-mode hint required by Qwen's upstream endpoint.
 
     The provider translates structured output into JSON mode and rejects a
@@ -24,9 +24,13 @@ def structured_client(client, *, model):
     """
     if not model.startswith("qwen/"):
         return client
+    schema_json = schema.model_json_schema() if hasattr(schema, "model_json_schema") else schema
+    instruction = "Return JSON conforming to the supplied response schema."
+    if schema_json is not None:
+        instruction += " The exact JSON Schema is: " + json.dumps(schema_json, ensure_ascii=False, sort_keys=True)
     from langchain_core.messages import SystemMessage
     from langchain_core.runnables import RunnableLambda
     def hint(messages):
         values = messages.to_messages() if hasattr(messages, "to_messages") else list(messages)
-        return [SystemMessage(content="Return JSON conforming to the supplied response schema."), *values]
+        return [SystemMessage(content=instruction), *values]
     return RunnableLambda(hint, name="provider_json_format") | client

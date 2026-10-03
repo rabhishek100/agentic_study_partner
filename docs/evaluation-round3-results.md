@@ -105,3 +105,18 @@ production $0.75. The total remains $5 and every child remains at most $2.
 The parent ledger preserves the original allocations and an explicit transfer
 history; transfers cannot consume active leases or unresolved charges. The
 separate continuation is disclosed rather than presented as one uninterrupted run.
+
+### Qwen grader protocol retest
+
+The first JSON-hint retest received six billable responses, but all six failed
+the unchanged grading structure. Therefore it is not a successful grader trial.
+Qwen structured clients now also include the exact Pydantic/figure-constrained
+JSON schema in the format instruction, so translation into upstream JSON mode
+cannot leave the model without its required contract. This adds input tokens,
+which must be included in affordability checks. The prior six responses were
+not captured and their exact malformed structure is unknown; no quality verdict
+is inferred from it. A new immutable attempt will test the complete schema hint.
+
+Budgeted calls now preserve private response bodies and hashes without headers.
+Missing usage still holds its original reservation. This permits diagnosis of
+future rejected or malformed responses without paying to reconstruct them.

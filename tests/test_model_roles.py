@@ -103,6 +103,7 @@ def test_json_compatibility_hint_is_in_the_actual_structured_request(monkeypatch
             "langchain_openai.ChatOpenAI", side_effect=lambda **kwargs: ChatOpenAI(**kwargs, http_client=transport)):
         result = structured_model(Result).invoke([HumanMessage(content="Compute six times seven.")])
     assert result["parsed"].answer == "42"
+    assert json.dumps(Result.model_json_schema(), ensure_ascii=False, sort_keys=True) in received[0]["messages"][0]["content"]
     assert len(received) == 1
     assert received[0]["response_format"]["type"] == "json_schema"
     assert received[0]["messages"][-1]["content"] == "Compute six times seven."
