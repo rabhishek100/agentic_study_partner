@@ -20,7 +20,7 @@ health was read back on 2026-10-03: API `0983a1c`, healthy canonical and retriev
 databases. Production has not received the round-two changes.
 
 Freeze the [54-case manifest](../evaluation/five_flow_manifest.json), canonical
-source/build bindings and external `artifact-review-v3` reviewer. Give changed
+source/build bindings and the fixed external review rubric. Protocol v4 corrects source-image provenance; preserve v3 judgments and rejudge saved sheets before comparing them. Give changed
 prompts, schemas, models and derived caches their own provenance versions.
 Preserve original outputs, unsuccessful attempts and unknown judgments.
 Keep the labelled general-knowledge fallback authorized for chat. A fallback

@@ -230,3 +230,15 @@ all original captures. Both judgments and factual disagreements remain visible;
 this does not constitute human calibration. The temporary production key form is
 approved, but OpenRouter requires the user's email verification before issuing
 it. Production settings and code are still unchanged at this checkpoint.
+
+### Measurement correction before selection
+
+Review protocol v4 distinguishes original source figure pixels from generated
+PDF pages in native review captures. Previously, detached images of earlier
+sheet drafts entered the external source-image collection. Text prompts labelled
+those drafts as rendered content, but their detached pixels were ambiguous.
+Require the original-figure label plus a bound source marker; keep the final PDF
+pages explicitly labelled as output. Every original capture and v3 judgment is
+preserved. The sheet counts above and historical sheet comparisons remain
+provisional until saved outputs are reviewed with v4. This does not show that
+the generator improved; it improves the validity of the measurement.

@@ -142,7 +142,7 @@ def test_judge_receives_distinct_source_and_rendered_pdf_images(tmp_path, monkey
     monkeypatch.setattr('langsmith.tracing_context',lambda **kwargs:nullcontext())
     result = judge(Case.model_validate(bundle['manifest']['cases'][0]),row,tmp_path)
     parts = recorded[0][1].content
-    assert len([part for part in parts if part['type']=='image_url']) == 4  # Three source inputs plus one output page.
+    assert len([part for part in parts if part['type']=='image_url']) == 1  # Unclassified inputs are not source evidence; final PDF is output.
     assert parts[-2]['text'] == 'DERIVED OUTPUT PDF PAGES (not source evidence):'
     assert result['rendered_pdf_pages'] == 1 and result['human_review_status'] == 'optional'
     payload = json.loads(parts[0]['text'])
@@ -174,3 +174,29 @@ def test_interview_review_keeps_candidate_input_separate_from_feedback_artifact(
     assert not images
     case.adapter = 'ideal_interview'
     assert judge_payload(case, row, tmp_path)[0]['review_target'] == 'study_artifact'
+
+
+def test_sheet_review_never_promotes_generated_draft_pixels_to_source(tmp_path):
+    from evals.suite import Case
+    from evals.suite_judge import judge_payload
+    original = {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,original'}}
+    derived = {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,generated'}}
+    unknown = {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,unbound'}}
+    captures = [
+        {'model': 'figure-reader', 'messages': [{'role': 'user', 'content': [
+            {'type': 'text', 'text': 'Figure 7 [N12:P3]'}, original,
+            {'type': 'text', 'text': 'Figure 8 [N99:P9]'}, unknown]}]},
+        {'model': 'native-reviewer', 'messages': [{'role': 'user', 'content': [
+            {'type': 'text', 'text': 'CANONICAL SOURCE\ntext\nRENDERED CONTENT\ngenerated sheet'}, derived]}]},
+    ]
+    row = {'output': {}, 'evidence': {'references': {'[N12:P3]': {'page': 3}}}, 'request_capture': []}
+    for index, capture in enumerate(captures):
+        relative = f'requests/{index}.json'
+        atomic_json(tmp_path / relative, capture)
+        row['request_capture'].append(relative)
+    case = Case(id='sheet', flow='revision_sheet', adapter='sheet', title='Sheet', tier='fixture', inputs={}, source={}, expected={})
+    payload, images = judge_payload(case, row, tmp_path)
+    assert images == [original]
+    assert payload['omitted_non_source_images'] == 2
+    assert 'RENDERED CONTENT' in payload['exact_generation_contexts'][1]['messages'][0]['content'][0]['text']
+    assert all(part.get('type') != 'image_url' for context in payload['exact_generation_contexts'] for message in context['messages'] if isinstance(message['content'], list) for part in message['content'])

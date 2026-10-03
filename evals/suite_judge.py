@@ -3,12 +3,13 @@ import base64
 from hashlib import sha256
 import json
 import os
+import re
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-REVIEW_VERSION = "artifact-review-v3"
+REVIEW_VERSION = "artifact-review-v4"
 
 
 class Criterion(BaseModel):
@@ -56,6 +57,7 @@ def pdf_pages(row, directory):
 def judge_payload(case, row, directory):
     captures = []
     images = []
+    omitted_images = 0
     for relative in row.get("request_capture", []):
         path = (Path(directory) / relative).resolve()
         if not path.is_relative_to(Path(directory).resolve() / "requests"):
@@ -70,8 +72,17 @@ def judge_payload(case, row, directory):
             content = message.get("content")
             if isinstance(content, list):
                 content = [item for item in content if item.get("type") != "image_url"]
-                for item in message["content"]:
+                for index, item in enumerate(message["content"]):
                     if item.get("type") == "image_url":
+                        if case.flow == "revision_sheet":
+                            previous = message["content"][index - 1] if index else {}
+                            label = re.fullmatch(r"(?:Figure|Source figure) \d+ (\[N\d+:P\d+\])", previous.get("text", ""))
+                            references = row.get("evidence", {}).get("references", {})
+                            if not label or not isinstance(references, dict) or label[1] not in references:
+                                # Native visual reviews contain generated draft
+                                # PDFs. Those pixels are never original evidence.
+                                omitted_images += 1
+                                continue
                         images.append(item)
             messages.append({"role": message.get("role"), "content": content})
         captures.append({"model": payload["model"], "messages": messages})
@@ -81,6 +92,7 @@ def judge_payload(case, row, directory):
             "expected": row.get("evidence", {}).get("bound_expected", case.expected),
             "output": row["output"], "evidence": row.get("evidence"), "checks": row.get("checks"),
             "exact_generation_contexts": captures, "image_count": len(images),
+            "omitted_non_source_images": omitted_images,
             "artifact_layout": "Not assessed without rendered artifact pages."}, images
 
 

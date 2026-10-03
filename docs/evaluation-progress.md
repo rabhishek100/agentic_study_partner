@@ -638,3 +638,23 @@ paper can pass more cheaply than Gemini, and Gemini regresses the native finding
 check on chapter 8. Do not select a model from the initial favorable paper alone.
 Production key creation is approved but awaits OpenRouter email verification;
 no production key replacement, code deployment or paid API comparison yet.
+
+### Unit 30 — separate original evidence from generated sheet pixels
+
+Inspection found the external sheet reviewer collected images from native
+quality-review calls as though they were original source. Those calls contain
+old generated draft PDF pages. Review protocol v4 accepts sheet source images
+only with the application's original-figure label and a source-bound citation;
+it reviews the final immutable PDF separately. Preserve original text/captures
+and all prior judgments. Existing sheet comparison counts are provisional
+until saved artifacts are rejudged under v4; this is a measurement repair, not
+a new candidate or a generation improvement.
+
+Validation: 38 suite / adapter / saved-review checks passed, including an
+original image beside generated and unbound images. Actual saved control
+chapters retain all 12/8/10 original figures and exclude 12/8/10 generated
+page images respectively. No source images or PDFs are regenerated.
+
+The approved temporary production key is now saved in ignored local .env.
+Authenticated readback confirms $0.75, no reset, zero usage and expiry
+2026-10-04 12:22:59.998 UTC. No Railway key replacement yet.
