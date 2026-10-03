@@ -3,6 +3,7 @@ import argparse
 from decimal import Decimal
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -34,6 +35,19 @@ MODEL_SCREENS = {
 }
 
 
+FLOW_SCREENS = {
+    "09": ["mt-008-t1", "mt-008-t2", "mt-005-t2"],
+    "10": ["mt-008-t1", "mt-003-t4", "mt-005-t1"],
+    "11": ["mt-008-t1", "mt-008-t2", "mt-003-t4"],
+    "12": ["mt-005-t2", "mt-008-t1", "paper-scaled-attention"],
+    "13": ["course-spanner-indexed", "course-followup", "vc-011-t1"],
+    "14": ["paper-complete-summary", "mt-006-t1"],
+    "15": ["sheet-chapter-6"],
+    "19": ["proximity-weak", "proximity-mixed", "proximity-strong", "rag-weak", "rag-mixed", "rag-strong"],
+    "20": ["ideal-notification-system", "ideal-rag-platform"],
+}
+
+
 def candidate_environment(candidate, base=None):
     env = dict(os.environ if base is None else base)
     # Named stages remain fixed across candidates, irrespective of legacy .env.
@@ -44,7 +58,7 @@ def candidate_environment(candidate, base=None):
                 "OPENROUTER_REVISION_AUTHOR_MODEL": LUNA, "OPENROUTER_REVISION_INVENTORY_MODEL": LUNA,
                 "OPENROUTER_REVISION_FIGURE_MODEL": LUNA, "OPENROUTER_REVISION_JUDGE_MODEL": LUNA,
                 "OPENROUTER_PROVIDER_ROUTES": "{}"})
-    changes, routes, cases = MODEL_SCREENS[candidate]
+    changes, routes, cases = MODEL_SCREENS.get(candidate, ({}, {}, []))
     env.update(changes)
     env["OPENROUTER_PROVIDER_ROUTES"] = json.dumps(routes, sort_keys=True)
     return env
@@ -53,15 +67,19 @@ def candidate_environment(candidate, base=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--round", type=Path, default=Path("evaluation/runs/round3"))
-    parser.add_argument("--candidate", choices=MODEL_SCREENS, action="append")
+    parser.add_argument("--candidate", choices=[*MODEL_SCREENS, *FLOW_SCREENS], action="append")
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--tag", default="", help="New immutable attempt suffix, e.g. json-fix")
     args = parser.parse_args()
+    if args.tag and not re.fullmatch(r"[a-z][a-z0-9-]{0,39}", args.tag):
+        parser.error("Tag must be a short lowercase attempt name")
     root = Path(__file__).resolve().parents[1]
     if not args.round.resolve().is_relative_to((root / "evaluation/runs").resolve()):
         parser.error("Round directory must remain inside ignored evaluation/runs/")
     for candidate in args.candidate or MODEL_SCREENS:
-        output = args.round.resolve() / f"model-{candidate}"
-        changes, routes, cases = MODEL_SCREENS[candidate]
+        kind = "model" if candidate in MODEL_SCREENS else "flow"
+        output = args.round.resolve() / (f"{kind}-{candidate}" + (f"-{args.tag}" if args.tag else ""))
+        changes, routes, cases = MODEL_SCREENS.get(candidate, ({}, {}, FLOW_SCREENS.get(candidate)))
         if not args.execute:
             print(json.dumps({"candidate": candidate, "changes": changes, "routes": routes, "cases": cases}))
             continue
@@ -83,10 +101,12 @@ def main():
                                     "changes": changes, "routes": routes, "cases": cases})
         command = [sys.executable, "-m", "scripts.run_round_experiment", "--round", str(args.round.resolve()),
                    "--phase", "screening", "--output", str(output), "--max-usd", cap,
-                   "--", "--live", "--retrieval-mode", "bm25", "--judge-model", LUNA]
+                   "--", "--live", "--retrieval-mode", "hybrid" if candidate == "12" else "bm25", "--judge-model", LUNA]
+        if candidate in FLOW_SCREENS and candidate != "12":
+            command.extend(["--candidate", candidate])
         for case in cases:
             command.extend(["--case", case])
-        print(f"Screening model candidate {candidate}; guarded child ceiling ${cap}", flush=True)
+        print(f"Screening {kind} candidate {candidate}; guarded child ceiling ${cap}", flush=True)
         result = subprocess.run(command, env=candidate_environment(candidate), cwd=root)
         print(f"Candidate {candidate} command exit {result.returncode}; saved failures remain visible", flush=True)
         ledger_path = args.round.resolve() / "round-budget.json"

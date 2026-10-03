@@ -73,3 +73,19 @@ discrepancies remain preserved. Reranker pricing is published at
 [$0.0025/search](https://openrouter.ai/cohere/rerank-4-pro), while its endpoint
 metadata reports zero token prices; token metadata cannot be used as a zero
 search charge.
+
+## Isolated flow experiments
+
+Candidates 9–11, 13–15 and 19–20 now have opt-in evaluation implementations;
+12 uses the existing hybrid retrieval mode. They are not application defaults.
+Each process can enable only one candidate, and its identity plus implementation
+hash is recorded with the immutable run. Native ownership/build checks and the
+fixed external reviewer remain in place. The screen runner now supports distinct
+attempt suffixes so protocol corrections/repeats cannot overwrite prior results.
+
+The grader experiment adds an internal account of requested points and literal
+candidate quotes in the existing call. A fabricated quotation is rejected before
+returning the original public grading contract. It does not credit private
+expected points that were never asked. The sheet-inventory experiment requires
+an explicit source-supported qualification, allowing an empty value when the
+source states none. These are hypotheses awaiting paid results, not improvements.

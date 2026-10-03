@@ -531,3 +531,15 @@ resume only with matching reviewer code/configuration and output hashes.
 The next quality priorities are sheet semantic/concept coverage, exact chat
 citation alignment and summary completeness, then measured generation-latency
 improvements. Preserve immutable runs, receipt budgets and optional manual labels.
+
+### Unit 21 — isolated round-three flow candidates
+
+Added evaluation-only switches for the approved retrieval, course-continuation,
+summary-allocation, sheet-qualification, grading-assessment and ideal-dialogue
+experiments. Defaults are unchanged; immutable run identity records the candidate.
+Screen attempts can use a new suffix without overwriting failed provider trials.
+Checks cover canonical-term protection, title ranking, two-section ownership /
+build boundaries, literal grading evidence and loading every candidate. Paid
+screens follow completion of the frozen control under the shared ledger.
+
+Validation: 158 targeted tests and 48 subtests passed in the isolated test database.

@@ -25,7 +25,10 @@ def main():
     parser.add_argument("--no-judge", action="store_true")
     parser.add_argument("--retrieval-mode", choices=["bm25", "hybrid", "hybrid_rerank"], default="bm25")
     parser.add_argument("--project")
+    from evals.flow_candidates import CHOICES, VERSION, apply
+    parser.add_argument("--candidate", choices=CHOICES)
     args = parser.parse_args()
+    apply(args.candidate)
     from evals.suite import load_manifest, coverage, run_suite
     manifest = load_manifest(args.manifest)
     if args.plan:
@@ -42,6 +45,8 @@ def main():
     config = {"execution_layer": "fixture" if args.fixture else "live", "retrieval_mode": args.retrieval_mode,
               "judge_model": None if args.no_judge else args.judge_model,
               "bounded_output_tokens": 16000, "provider_streaming": False}
+    if args.candidate:
+        config["candidate"] = {"id": args.candidate, "version": VERSION}
     if args.fixture:
         def fixture(case, parents, directory):
             return {"output": {"answer": f"Fixture plumbing only: {case.id}"}, "evidence": [],
