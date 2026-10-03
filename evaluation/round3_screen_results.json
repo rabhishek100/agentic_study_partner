@@ -8550,6 +8550,138 @@
       ]
     },
     {
+      "run": "repeat-figures-b-reporter-fixed",
+      "experiment_fingerprint": "ce795e649fcf6fe6155e7613ff60a4a1c6fb2ad8077f76b4a24832eacb793023",
+      "implementation_sha256": "eb007c0e192be9b58b7a744285bf7b329d0617c069202a66d418722f19b2f261",
+      "retrieval_mode": "bm25",
+      "candidate": null,
+      "review_version": "artifact-review-v3",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "google/gemini-3.1-flash-lite",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.152089550",
+      "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
+      "cases": [
+        {
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "0092e6af8136e3f31500116d39b40107b399d7b15738dc66a6c836f278374f60",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "readable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.017321275",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 5,
+              "reported_tokens": 83435
+            },
+            "judging": {
+              "reported_usd": "0.013357925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 103528
+            }
+          },
+          "source_fingerprint": "5029870b7ae7de30f37da9d38e4b2f710dfc4f897b556e70724ede3907337c4f",
+          "generation_capture_hashes": [
+            "76a5dac379796b171c44b50f220ac918092e7845c0a9ddb2552a650fb6d41ab9",
+            "c5089248017f9d890f466a80c06ddc8b3846e5b14a930b9f4ac2a0b9f00e2e71",
+            "9c1f583f978174064607f14f4a063ffe3607d91a9acdad18dbe2e88b7bbe7674",
+            "28cefdb73df25134aaa69e572b41ae8db1f7e5ab97b3fb77476c96186eb7ac15",
+            "bee39d1cee8ceb4783b12444a326cd4dc0da175e80e0573d705d1173173a1f12"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 98.817187,
+          "resources": {
+            "cpu_seconds": 2.711446079999999,
+            "peak_rss_bytes": 434651136,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "3930695813bf03f2804dd95ed494d1247b5afaf105ccd28a31a3ace5db6983b2",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "layout": "readable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.042761500",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 8,
+              "reported_tokens": 263298
+            },
+            "judging": {
+              "reported_usd": "0.07864885",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 312844
+            }
+          },
+          "source_fingerprint": "0d779ab3d3be6da247074c3b890da6e559df86bba40a19e77c6b25e599327081",
+          "generation_capture_hashes": [
+            "a223e13a3b99fa5628aec568c2d7207c11e307a7d88f08fefcadfa240f146d06",
+            "b13be33b113e61bd8d8a521a3c51b1f07ba9f9061d8c573e97d8b4d450e44bdf",
+            "a84426c2edaaeb382ab2723e49da1eb9fd1574858e9563ad6956444902b88619",
+            "1533381bf1e364f93a381a41463f152c0810186ee64edfe533aacbbf78c0576b",
+            "1bce51d22af182e66d4554d2fcf23747dfc6cfa5e1855eb1908f81d1f239b14a",
+            "4740a007407252bd7cfc8cc0b25bc6b9c5cfca751be9efc1f09f0b1ed6fa1bdd",
+            "18449fdb6878d99906e9444ded46865973adea98fb6a194664a7b5c68a801808",
+            "a6055b4ddad90ff7609921b73567fd7320022c20eaca5b45b32a0d127e7a7e0f"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 150.713408,
+          "resources": {
+            "cpu_seconds": 4.842447232,
+            "peak_rss_bytes": 280313856,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        }
+      ]
+    },
+    {
       "run": "repeat-figures-tail-reporter-fixed",
       "experiment_fingerprint": "2f227899a9256117014e4ac5c44e4284f6e94478df0a5f7d28155ccfb5ba9b92",
       "implementation_sha256": "010facf4b730cf824659fbffd65f3633ab9ef1de8769742c86e5434221dd1bb3",
@@ -8687,6 +8819,868 @@
       ]
     },
     {
+      "run": "repeat-pro-hard-a-reporter-fixed",
+      "experiment_fingerprint": "ce4803d855532eace70bf7c3b67d1b7b42f173e5de220e73aac14d9875a3ee50",
+      "implementation_sha256": "f79e4078b2785f466ee03da6fa6067705052cc4e850027f4e16a52218977b5bf",
+      "retrieval_mode": "bm25",
+      "candidate": null,
+      "review_version": "artifact-review-v4",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna-pro",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.044417340",
+      "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
+      "cases": [
+        {
+          "case_id": "mt-003-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "067dc0fba74a7e7444886a985027e5c73e25604d123aae382020d93975f9601c",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00149810",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 17789
+            },
+            "judging": {
+              "reported_usd": "0.001774425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 12099
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "5c7c880892bee7d3ed6216f018afb13ab88ca500e83fb839e015d0ca22067403",
+            "73774eb43977410a492c48c14a9916f4c8307353e52df122639a0a2ed5c41339"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 9.778268,
+          "resources": {
+            "cpu_seconds": 0.9492010880000005,
+            "peak_rss_bytes": 329908224,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t2",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "55078f6bb5708843887cb4134f7ac89e23773d3baa6ab2328b29932a491186dd",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002414420",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 22455
+            },
+            "judging": {
+              "reported_usd": "0.002362175",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 17248
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "33a25ed616c0d09aed040bb8a08adc27681ecd3e120f70c2e4e9f68b38fec740",
+            "531eb2aad38b5ddeaaba6182dbc9dc14ce78d526e6d8b0bde57e9f291468c578"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 9.931631,
+          "resources": {
+            "cpu_seconds": 0.3481772799999996,
+            "peak_rss_bytes": 163102720,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t3",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "5dbb5955318cbfb6d817a6a8670ed9f0d7151c4076aea52e033c461cf6f67810",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 1,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002163075",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 22289
+            },
+            "judging": {
+              "reported_usd": "0.002452675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 18176
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "2ff9dba8129e279e497a61f2899e7d706b48fe95b0ff5cc56a3e854c1590816f",
+            "5995f020f2866076a6fd321ac28acc506149316f603f4142a58766b09457022d"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 8.662424,
+          "resources": {
+            "cpu_seconds": 0.32542092799999955,
+            "peak_rss_bytes": 161120256,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t4",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "463ebdd463d519ce57b7c770e29061855a4b4f0ffd29ff2403d529db062e40c9",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002542240",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 25586
+            },
+            "judging": {
+              "reported_usd": "0.002755925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 20098
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "0eb978d70b2171a2c5161e56fc901b6f66d08528cb3edfed75386d9e60c155b0",
+            "416d45fb210abf39f43227913b4e08cd6b217fdd48fb6e8ce69582aea83973c9"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 8.673288,
+          "resources": {
+            "cpu_seconds": 0.3112825600000002,
+            "peak_rss_bytes": 165527552,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-005-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "b53124a9929a3dcc93ac71d1e7b24e05663e646cf3022658090ad727b3ca31d5",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00120044",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 21442
+            },
+            "judging": {
+              "reported_usd": "0.0018688",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13157
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "3be712687883f54d88d01c9bebbb712154ca8af6e4c2c03f174b3b6ee22be5b2",
+            "9aca18039fa37952ad3cdfb2a3540fbfaf5b3683c8c1f4c775fbddb6818762dd"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 6.705758,
+          "resources": {
+            "cpu_seconds": 0.2506462719999998,
+            "peak_rss_bytes": 163184640,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-005-t2",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "c65250aa4f613316db031e818a1f245ac5563534bcf21075715f87088b0ab366",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00194908",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 25472
+            },
+            "judging": {
+              "reported_usd": "0.002734175",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 18931
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "3c899f9f2c8663f125451c6f74b630d45198d5ae54f4861ec6a7598942d5e508",
+            "c678f67a9420523ca3edc6850c54f9b3774cf676641eea8d0f62942c239802c2"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 10.685437,
+          "resources": {
+            "cpu_seconds": 0.2677386239999999,
+            "peak_rss_bytes": 162562048,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "1fd9472b03fc7853eb69c6b44f98bc9bf45486f00431edf98d570b7176527280",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002056495",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 22702
+            },
+            "judging": {
+              "reported_usd": "0.002065925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 14494
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "0cd29ee52b6784fb9497bfa99fdcf512c906b05e2c45ad15e3530241d2a77ec8",
+            "a192c5554801cf4b91439be3b409f60a022c0b52edf3aa39136f9159deeb5b5f"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 9.200318,
+          "resources": {
+            "cpu_seconds": 0.31600204799999965,
+            "peak_rss_bytes": 160006144,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "f0b4235044e3e2fdb4d6900f2070332f9cdaf5ef597fa5ff4a0f4975d97cd1fe",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 1,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00924409",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 97649
+            },
+            "judging": {
+              "reported_usd": "0.0053353",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 39467
+            }
+          },
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_capture_hashes": [
+            "92d963202853e3547a2f60bbcba90cb0352f1b0a24e5375bc5fb671bc3a131fd",
+            "9bf55cfb913efd9eac138398eff5cf5880198cb9f1bdcd8928efb06a736484cd"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 30.013063,
+          "resources": {
+            "cpu_seconds": 0.4948433919999997,
+            "peak_rss_bytes": 204193792,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        }
+      ]
+    },
+    {
+      "run": "repeat-pro-hard-b-reporter-fixed",
+      "experiment_fingerprint": "d6ac5ea9298c12e99f1ee3516c122c5452a9d6382398781abe1cb3b622362b6b",
+      "implementation_sha256": "f79e4078b2785f466ee03da6fa6067705052cc4e850027f4e16a52218977b5bf",
+      "retrieval_mode": "bm25",
+      "candidate": null,
+      "review_version": "artifact-review-v4",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna-pro",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.045141380",
+      "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
+      "cases": [
+        {
+          "case_id": "mt-003-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "3766b0dc8a9aee0eef7e165b6ecb505710d9d97eac1d5e23957e3c945f8bacb0",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00185968",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 20510
+            },
+            "judging": {
+              "reported_usd": "0.001940675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13213
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "5c7c880892bee7d3ed6216f018afb13ab88ca500e83fb839e015d0ca22067403",
+            "f366212e4fa7bb6f3859ec7e7ba406d4939ef329eeb31747bbcb06a06e7c1e9c"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 10.055762,
+          "resources": {
+            "cpu_seconds": 0.5468581440000002,
+            "peak_rss_bytes": 347340800,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t2",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "eb4270a303b3dcdedc44dab45399ca2af03e0449c908a2d598441c1140af8ce8",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002236130",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 20865
+            },
+            "judging": {
+              "reported_usd": "0.002345925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 16878
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "1db52215274cce2ba3d8d3ae10ce97ca67d7f1cf544112a432dd744054b018fc",
+            "f37db9461622b91c99027fba54600a03721e4c907d441306ad8c7f8989697920"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 10.381734,
+          "resources": {
+            "cpu_seconds": 0.32053420799999965,
+            "peak_rss_bytes": 165117952,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t3",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "857ef53d5e3e711008af293db1fe8b2b9dc6c0609b79445cc707429306daeb88",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 1,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00221919",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 22055
+            },
+            "judging": {
+              "reported_usd": "0.002584175",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 18376
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "9a029d377aee6334d6ff6f694b3e250d678e5782f387c3dceac5bd03b9d4e78e",
+            "af1708fe7c8279c977dc1a3fda2b4c83187f115470ac6b9519a048492f41b961"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 8.933641,
+          "resources": {
+            "cpu_seconds": 0.27471859199999993,
+            "peak_rss_bytes": 166330368,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t4",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "03dd9c1c60e2047cce3b6a64f93d883b81d1304ae8458e752dec24ad681ac576",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00239849",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 25142
+            },
+            "judging": {
+              "reported_usd": "0.00271905",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 20073
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "a7790ca46e8629b5668ef9ec904563388e22f902e84c909b6bf43d822c783bde",
+            "fc1e225bc45832c3ed50e5bbd718ddab1412b0db341d4e775a64c7baae5b1c4c"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 8.223808,
+          "resources": {
+            "cpu_seconds": 0.30945497599999994,
+            "peak_rss_bytes": 167198720,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-005-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "cfe393781073b82b4cd11449e7141dfb87dca33d954be8061fb2950337867309",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 1,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00114634",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 21301
+            },
+            "judging": {
+              "reported_usd": "0.001904175",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13224
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "3be712687883f54d88d01c9bebbb712154ca8af6e4c2c03f174b3b6ee22be5b2",
+            "9aca18039fa37952ad3cdfb2a3540fbfaf5b3683c8c1f4c775fbddb6818762dd"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 5.796539,
+          "resources": {
+            "cpu_seconds": 0.293836800000001,
+            "peak_rss_bytes": 162250752,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-005-t2",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "cf77322dc2efd600673b1546d92b1fcd5224422837c19f8b71d968b4faeab17b",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00191498",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 25376
+            },
+            "judging": {
+              "reported_usd": "0.002644925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 18691
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "6e2a762a564a91bae938bd2d35ce4f61b8350c7a3e5c3f8d71aff27a51d8ce1d",
+            "c678f67a9420523ca3edc6850c54f9b3774cf676641eea8d0f62942c239802c2"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 10.135765,
+          "resources": {
+            "cpu_seconds": 0.31953209599999965,
+            "peak_rss_bytes": 165117952,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "5a086d9de88a598e81a7f914d81a79d95a225bbe8b434071b082c8b8e9fd3991",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00229705",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 23646
+            },
+            "judging": {
+              "reported_usd": "0.0020983",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 14792
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "0cd29ee52b6784fb9497bfa99fdcf512c906b05e2c45ad15e3530241d2a77ec8",
+            "1d371a76c206d10445a0f0096d911e4223eedbb0c4f66da940385e9f4ca6e743"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 10.421884,
+          "resources": {
+            "cpu_seconds": 0.3320887040000007,
+            "peak_rss_bytes": 165625856,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "d8d9509895defb207b536a64132f31bdccb159178dbc6e5e5e56501030ddb0af",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.009431995",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 98343
+            },
+            "judging": {
+              "reported_usd": "0.0054003",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 40092
+            }
+          },
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_capture_hashes": [
+            "92d963202853e3547a2f60bbcba90cb0352f1b0a24e5375bc5fb671bc3a131fd",
+            "0c1e84a1f2579e12703aaea8c9816f7feba36193c2a0963fcfb873943ac64f1f"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 31.701932,
+          "resources": {
+            "cpu_seconds": 0.49888038399999957,
+            "peak_rss_bytes": 207323136,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        }
+      ]
+    },
+    {
       "run": "repeat-summary-a-reporter-fixed",
       "experiment_fingerprint": "146497ddb6941a33c6130eaaae578cf49cf251da92d20c59bee6dd4801f1eebe",
       "implementation_sha256": "eb007c0e192be9b58b7a744285bf7b329d0617c069202a66d418722f19b2f261",
@@ -8714,8 +9708,8 @@
         "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
         "OPENROUTER_JUDGE_REASONING": "high"
       },
-      "reported_usd": "0.010189620",
-      "unknown_reserved_usd": "0.015538500",
+      "reported_usd": "0.039986050",
+      "unknown_reserved_usd": "0",
       "artifact_recovery": false,
       "cases": [
         {
@@ -8867,36 +9861,680 @@
         {
           "case_id": "mt-004-t1",
           "flow": "summary",
-          "status": "generating",
+          "status": "completed",
           "error_kind": null,
-          "output_hash": null,
-          "checks": null,
-          "verdict": "unavailable",
-          "grounding_status": null,
-          "correctness": null,
-          "coverage": null,
-          "usefulness": null,
-          "layout": null,
+          "output_hash": "eb5db31babd72664a49b060390d9d8f0db116e3a6b469985c51c9b0dab8aa437",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
           "unsupported_claim_count": 0,
           "costs": {
             "generation": {
-              "reported_usd": "0.00005572",
-              "unknown_reserved_usd": "0.015538500",
+              "reported_usd": "0.000824095",
+              "unknown_reserved_usd": "0",
               "physical_requests": 2,
-              "reported_tokens": null
+              "reported_tokens": 8074
             },
             "judging": {
+              "reported_usd": "0.0019243",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13064
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "c45a53292b7668acac5dcc0259e609ab04365e1ed205710b9af1df4bdff2982c",
+            "76dd59911b55fd9aadf9f24d0622994da138230f7495c6af1e93dd106fd4f73e"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 14.515208,
+          "resources": {
+            "cpu_seconds": 0.2787139839999999,
+            "peak_rss_bytes": 161824768,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-006-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "863ffe9d6c8aee30711abf30a94634a5da104ff2edf1e879a4234b074f1bec2e",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001448775",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 16201
+            },
+            "judging": {
+              "reported_usd": "0.003199425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 22791
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "689058584e85848c8bda8459fd9ccab3e9e33ac60471885f6501a9d4d8a9bc57",
+            "6dfa212b2d8bb2dc8454dec43aafc5a601c59cbb3c9f009060294b1c5f2e0ec6"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 21.015669,
+          "resources": {
+            "cpu_seconds": 0.32498195200000013,
+            "peak_rss_bytes": 162545664,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-011-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "afedd73925b2d4aa8ed8e70a7b95ae4ee4040af8a04ba39e24a2b2d40af08d85",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001260595",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 17255
+            },
+            "judging": {
+              "reported_usd": "0.00353755",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 24638
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "14dd01f55d0c3661c484e37fb6c10fcc832b5b395cb0d5b9d28616d79f2056f0"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 18.346443,
+          "resources": {
+            "cpu_seconds": 0.24736524799999948,
+            "peak_rss_bytes": 162693120,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-011-t2",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "2f7afc00672feada86c912ee727b8c7ff099e9ee93c08a31541006087170b220",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002635145",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 31394
+            },
+            "judging": {
+              "reported_usd": "0.0061863",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 46950
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "51539fc7661dbcda9bcceee7403433aa9adc6f1e546ae512389f89191a0e51f2",
+            "96e4f5d60d9f4a4fefd86dbec7e155b5c3b82d5c636a87af9101efd299926f20"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 29.09431,
+          "resources": {
+            "cpu_seconds": 0.4326771199999997,
+            "peak_rss_bytes": 164937728,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "4f330e2eb708ae439f16571f57141aefeb5e226735eb88f0421c5e53854efd44",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.003514915",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 29839
+            },
+            "judging": {
+              "reported_usd": "0.00532105",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 39341
+            }
+          },
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_capture_hashes": [
+            "61d2e097f1b78971a9e5b5af06f06d2b13478240ecccda642881e04fe77353cb",
+            "8650556f623bc98e88ba3269844fe2d5014629b8ef5acbfb1055d9c063dd9973"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 24.855303,
+          "resources": {
+            "cpu_seconds": 0.3771175680000005,
+            "peak_rss_bytes": 165724160,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        }
+      ]
+    },
+    {
+      "run": "repeat-summary-b-reporter-fixed",
+      "experiment_fingerprint": "029bd6809499ff7e1ef22c98f8985e082a9e72b2dd70191c5dd73cd879f54b37",
+      "implementation_sha256": "eb007c0e192be9b58b7a744285bf7b329d0617c069202a66d418722f19b2f261",
+      "retrieval_mode": "bm25",
+      "candidate": {
+        "id": "14",
+        "version": "flow-candidates-v1"
+      },
+      "review_version": "artifact-review-v3",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.040426125",
+      "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
+      "cases": [
+        {
+          "case_id": "mt-001-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "dd21c166d0d1605ad59c1ff961a94d7838be9d2248001b4d22e06745314449d4",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00198814",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 23122
+            },
+            "judging": {
+              "reported_usd": "0.0044823",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 32916
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "8d1d65f9d568768e25d15b67228dcb06f8ead486904e4472e36b96f2661a3c9f"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 28.863014,
+          "resources": {
+            "cpu_seconds": 0.4902200959999998,
+            "peak_rss_bytes": 389496832,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-002-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "a5e06fc001cdea9471f79a1e67c3dc5d0316740ed1f778307c506e7e1e2d0453",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": null,
+            "standalone_exact": false,
+            "evidence_recall": null
+          },
+          "verdict": "unsure",
+          "grounding_status": "insufficient_evidence",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
               "reported_usd": "0",
               "unknown_reserved_usd": "0",
               "physical_requests": 0,
               "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0.00049088",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 3148
             }
           },
-          "source_fingerprint": null,
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
           "generation_capture_hashes": [],
           "latency_seconds": null,
-          "local_sdk_latency_seconds": null,
-          "resources": null
+          "local_sdk_latency_seconds": 0.297032,
+          "resources": {
+            "cpu_seconds": 0.053474368000000494,
+            "peak_rss_bytes": 163495936,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-002-t2",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "31572a8eb6c101a86c8544710ff41f1e108bc63a78711685c98bb569b746c53d",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001210605",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 9021
+            },
+            "judging": {
+              "reported_usd": "0.0021368",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 14677
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "1dca88dcf8faa3987ed2d26fe0d28874179042b51a9d33563e8a428283131abb",
+            "bdf385ce1d48827eb6a8b374657f645dd346fdde6d4684aa372574d80bf61f74"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 15.516647,
+          "resources": {
+            "cpu_seconds": 0.3049516160000004,
+            "peak_rss_bytes": 162758656,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-004-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "ececb5880b1617ef49ca0d69c75cbed207460983b2ca884b0c459be900d12e47",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00093182",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 8309
+            },
+            "judging": {
+              "reported_usd": "0.0019703",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13369
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "c45a53292b7668acac5dcc0259e609ab04365e1ed205710b9af1df4bdff2982c",
+            "76dd59911b55fd9aadf9f24d0622994da138230f7495c6af1e93dd106fd4f73e"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 15.97053,
+          "resources": {
+            "cpu_seconds": 0.29591097599999994,
+            "peak_rss_bytes": 160071680,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-006-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "dd70b2340017435b3db88c514b8be4aad94a1b8cfd60f17d56241ca5ee5bfe77",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00184650",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 17016
+            },
+            "judging": {
+              "reported_usd": "0.003230675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 23275
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "689058584e85848c8bda8459fd9ccab3e9e33ac60471885f6501a9d4d8a9bc57",
+            "6dfa212b2d8bb2dc8454dec43aafc5a601c59cbb3c9f009060294b1c5f2e0ec6"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 28.793056,
+          "resources": {
+            "cpu_seconds": 0.3845164160000003,
+            "peak_rss_bytes": 161611776,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-011-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "5e1d83d290e105b6fc9924746844eb704118086442f3e28169579f7e1a23fe68",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00124432",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 17242
+            },
+            "judging": {
+              "reported_usd": "0.003387675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 24321
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "14dd01f55d0c3661c484e37fb6c10fcc832b5b395cb0d5b9d28616d79f2056f0"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 17.253331,
+          "resources": {
+            "cpu_seconds": 0.2584250880000005,
+            "peak_rss_bytes": 162529280,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-011-t2",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "c4120dc406a956cc9906bc78d82a2efb157baa08d96223d6a73d00b1a1a55914",
+          "checks": {
+            "route": true,
+            "history_dependency": false,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "needs_work",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002487245",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 31129
+            },
+            "judging": {
+              "reported_usd": "0.006199925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 46711
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "b629a7cbe386929caca17923fd474a8c7deb2b56f31b15def923408f1d181cb0",
+            "96e4f5d60d9f4a4fefd86dbec7e155b5c3b82d5c636a87af9101efd299926f20"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 30.330893,
+          "resources": {
+            "cpu_seconds": 0.44380851199999993,
+            "peak_rss_bytes": 159989760,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "937dae6228cf351088d4f0cdeeb049c63d1364a01c325cf793a12740491dd8c2",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00355764",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 29827
+            },
+            "judging": {
+              "reported_usd": "0.0052613",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 39148
+            }
+          },
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_capture_hashes": [
+            "61d2e097f1b78971a9e5b5af06f06d2b13478240ecccda642881e04fe77353cb",
+            "81e9ed964eeb8915f7e4b1b20854ecb77e50d9a1625bf2f454c1b500861d093b"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 29.262395,
+          "resources": {
+            "cpu_seconds": 0.39663321599999923,
+            "peak_rss_bytes": 162103296,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
         }
       ]
     }
@@ -8922,9 +10560,445 @@
       "usd": "0.50",
       "reason": "All twenty initial hypotheses are screened; fund matched controls, six-sheet figure-reader coverage and targeted repeats",
       "at": "2026-10-03T11:37:12.442002+00:00"
+    },
+    {
+      "from": "screening",
+      "to": "repeat",
+      "usd": "0.25",
+      "reason": "Unused completed-screen capacity funds corrected saved-sheet evidence reviews; $5 and protected production cap unchanged.",
+      "at": "2026-10-03T12:51:03.208954+00:00"
     }
   ],
-  "provider_reported_usd": "1.964736624",
-  "unknown_reserved_usd": "0.1151746140",
-  "conservatively_committed_usd": "2.0799112380"
+  "saved_reviews": [
+    {
+      "run": "sheet-reviews-v4",
+      "review_version": "artifact-review-v4",
+      "judge_model": "openai/gpt-6-luna",
+      "writer_model_labels_hidden": true,
+      "fingerprint": "c8ca33292ba508b0c88553239b70615594169d01c2f27ed37e00d8a9d87bccfc",
+      "cases": [
+        {
+          "run": "round2-current-bm25-20261003",
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "output_hash": "4eac6426decba76462db79539e852953348af832c7b79098469644432e4ece9b",
+          "status": "failed",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": "LangSmithNotFoundError"
+        },
+        {
+          "run": "round2-current-bm25-20261003",
+          "case_id": "sheet-chapter-1",
+          "flow": "revision_sheet",
+          "output_hash": "8db18bf8ee9f742acbdb584ae08a5318d661f106ae820b0755763d4a2ec359f5",
+          "status": "failed",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": "LangSmithNotFoundError"
+        },
+        {
+          "run": "round2-current-bm25-20261003",
+          "case_id": "sheet-chapter-3",
+          "flow": "revision_sheet",
+          "output_hash": "a6c41b52baf5d87c075ab384804722f9861dd689e6c926831e5ed338bea32f69",
+          "status": "failed",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": "LangSmithNotFoundError"
+        },
+        {
+          "run": "round2-current-bm25-20261003",
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "output_hash": "66553fb7d8532357e72ce41fc836c4b035855ba474d3c56baba00376dd21b960",
+          "status": "failed",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": "LangSmithNotFoundError"
+        },
+        {
+          "run": "round2-current-bm25-20261003",
+          "case_id": "sheet-chapter-8",
+          "flow": "revision_sheet",
+          "output_hash": "03199f5d649fd410801ae09f901cc4840f86fa3ceec30ffa5f34c7ad389a0647",
+          "status": "failed",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": "LangSmithNotFoundError"
+        },
+        {
+          "run": "round2-current-bm25-20261003",
+          "case_id": "sheet-chapter-10",
+          "flow": "revision_sheet",
+          "output_hash": "cbcf502ab3b92d5cfd12c14cca1e50528d657f7fdbfc64f2b495800764ac1945",
+          "status": "judging",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "control-54",
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "output_hash": "53a6a015746e3c6725968109be11a2a37d3536f41def3c34969a324d73527104",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "control-54",
+          "case_id": "sheet-chapter-1",
+          "flow": "revision_sheet",
+          "output_hash": "bc811d28ae397911e39d060ce606ec3841c02c814c8d1f64c2d0657279b4c7c8",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "control-54",
+          "case_id": "sheet-chapter-3",
+          "flow": "revision_sheet",
+          "output_hash": "df4a9589de42d0b284583bea3fe692ea803c90c049e6f39f23dea2d454d794ae",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "control-54-tail",
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "output_hash": "ea42537ffe1550a963d9fa24c1f09c4f365a600a6966e8e7f92074473af3adae",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "control-54-tail",
+          "case_id": "sheet-chapter-8",
+          "flow": "revision_sheet",
+          "output_hash": "563784a0d9aa7976bb871db9ac0a3bb347295fdbe34dca23c8fd383d6c92f98b",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "control-54-tail",
+          "case_id": "sheet-chapter-10",
+          "flow": "revision_sheet",
+          "output_hash": "92966a25f369c659ca2696c8f19c4f33785758a6e32d4d3e79707b526acb345e",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "repeat-figures-tail-reporter-fixed",
+          "case_id": "sheet-chapter-8",
+          "flow": "revision_sheet",
+          "output_hash": "832cb9d55a955cc41d4e9f23596dde6ed5b16437ac286fa9d65505b17d0ef1d4",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "repeat-figures-tail-reporter-fixed",
+          "case_id": "sheet-chapter-10",
+          "flow": "revision_sheet",
+          "output_hash": "da49d6c8924a42325f17ba4aaf97b8957c0218e08c1512be88f87ca99c6c9e62",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "repeat-figures-b-reporter-fixed",
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "output_hash": "0092e6af8136e3f31500116d39b40107b399d7b15738dc66a6c836f278374f60",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        },
+        {
+          "run": "repeat-figures-b-reporter-fixed",
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "output_hash": "3930695813bf03f2804dd95ed494d1247b5afaf105ccd28a31a3ace5db6983b2",
+          "status": "queued",
+          "verdict": null,
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "error_kind": null
+        }
+      ]
+    }
+  ],
+  "budget_children": [
+    {
+      "run": "control-54",
+      "phase": "final",
+      "reported_usd": "0.429622960",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "control-54-tail",
+      "phase": "final",
+      "reported_usd": "0.475108305",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-09-screen",
+      "phase": "screening",
+      "reported_usd": "0.013519530",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-10-screen",
+      "phase": "screening",
+      "reported_usd": "0.018751760",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-11-screen",
+      "phase": "screening",
+      "reported_usd": "0.020025525",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-12-screen",
+      "phase": "screening",
+      "reported_usd": "0.011944760",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-13-screen",
+      "phase": "screening",
+      "reported_usd": "0.006245035",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-14-screen",
+      "phase": "screening",
+      "reported_usd": "0.016894300",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-15-screen",
+      "phase": "screening",
+      "reported_usd": "0.179282055",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-19-screen",
+      "phase": "screening",
+      "reported_usd": "0.007539550",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "flow-20-screen",
+      "phase": "screening",
+      "reported_usd": "0.006337100",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-01",
+      "phase": "screening",
+      "reported_usd": "0.014865954",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-02",
+      "phase": "screening",
+      "reported_usd": "0.018181750",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-03",
+      "phase": "screening",
+      "reported_usd": "0.020506485",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-04",
+      "phase": "screening",
+      "reported_usd": "0.032077870",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-05",
+      "phase": "screening",
+      "reported_usd": "0.009472155",
+      "unknown_reserved_usd": "0.0051698640"
+    },
+    {
+      "run": "model-06",
+      "phase": "screening",
+      "reported_usd": "0",
+      "unknown_reserved_usd": "0.0131036100"
+    },
+    {
+      "run": "model-06-json-fix",
+      "phase": "screening",
+      "reported_usd": "0.000607425",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-06-schema-fix",
+      "phase": "screening",
+      "reported_usd": "0.000767780",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-07",
+      "phase": "screening",
+      "reported_usd": "0.010402950",
+      "unknown_reserved_usd": "0.0208595400"
+    },
+    {
+      "run": "model-07-screen",
+      "phase": "screening",
+      "reported_usd": "0.022052505",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "model-08",
+      "phase": "screening",
+      "reported_usd": "0.030040950",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-control",
+      "phase": "repeat",
+      "reported_usd": "0.071513480",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-control-text-reporter-fixed",
+      "phase": "repeat",
+      "reported_usd": "0.073295170",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-figures-all",
+      "phase": "repeat",
+      "reported_usd": "0.191103530",
+      "unknown_reserved_usd": "0.060503100"
+    },
+    {
+      "run": "repeat-figures-b-reporter-fixed",
+      "phase": "repeat",
+      "reported_usd": "0.152089550",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-figures-tail-reporter-fixed",
+      "phase": "repeat",
+      "reported_usd": "0.274388120",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-pro-hard-a-reporter-fixed",
+      "phase": "repeat",
+      "reported_usd": "0.044417340",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-pro-hard-b-reporter-fixed",
+      "phase": "repeat",
+      "reported_usd": "0.045141380",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-summary-a-reporter-fixed",
+      "phase": "repeat",
+      "reported_usd": "0.039986050",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "repeat-summary-b-reporter-fixed",
+      "phase": "repeat",
+      "reported_usd": "0.040426125",
+      "unknown_reserved_usd": "0"
+    },
+    {
+      "run": "sheet-reviews-v4",
+      "phase": "repeat",
+      "reported_usd": "0.315025025",
+      "unknown_reserved_usd": "0.318686400"
+    }
+  ],
+  "provider_reported_usd": "2.591632474",
+  "unknown_reserved_usd": "0.4183225140",
+  "conservatively_committed_usd": "3.0099549880"
 }

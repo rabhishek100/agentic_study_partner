@@ -658,3 +658,27 @@ page images respectively. No source images or PDFs are regenerated.
 The approved temporary production key is now saved in ignored local .env.
 Authenticated readback confirms $0.75, no reset, zero usage and expiry
 2026-10-04 12:22:59.998 UTC. No Railway key replacement yet.
+
+### Unit 31 — bounded production windows and complete spend accounting
+
+The approved OpenRouter temporary key is created and saved only in local `.env`:
+$0.75 total, no reset, one-day expiry. Its zero-usage readback is retained privately.
+No production key change has occurred yet. The production-window operator keeps
+one shared $0.75 reservation across before/after, backs up the normal API key
+privately, and restores it after each window even when credential switching is
+interrupted. A window is completed only when the operator records finished calls;
+an interrupted window stays labelled interrupted. Deployment readback must observe
+a new deployment ID, rather than accepting the preceding successful deployment.
+After comparison, settle only stable aggregate key usage; unknown charges remain
+reserved. This is aggregate billing, not inferred per-flow production cost.
+
+Verification: 31 credential-window/round-budget tests pass without network or
+production mutation, including failure, interrupt, expiry, missing before-window,
+normal-key restoration and shared final settlement. The public scalar exporter
+now counts all registered child ledgers, including saved-output reviews and
+production windows; generation bundles alone undercounted those phases.
+
+Writer repeats are complete: Luna Pro improves the audit in both repetitions;
+summary allocation does not retain its initial paper gain. Corrected v4 saved
+sheet reviews are running under an audited $0.25 screening-to-repeat transfer.
+Production rollout, full finalist coverage and monthly affordability remain open.

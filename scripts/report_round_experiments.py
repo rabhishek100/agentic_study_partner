@@ -45,12 +45,38 @@ for directory in sorted(ROUND.iterdir()):
    'unknown_reserved_usd':str(sum((D(c['reserved_usd']) for c in calls if c['status']=='reserved'),D(0))),
    'artifact_recovery':(directory/'sheet-recovery.json').exists(),
    'cases':rows})
+# Saved reviews and production windows also spend from the round. Count every
+# registered child ledger once, including those without a generation bundle.
 ledger=json.loads((ROUND/'round-budget.json').read_text())
 result['allocations']=ledger['allocations'];result['allocation_transfers']=ledger.get('transfers',[])
-result['provider_reported_usd']=str(sum((D(r['reported_usd']) for r in result['runs']),D(0)))
-result['unknown_reserved_usd']=str(sum((D(r['unknown_reserved_usd']) for r in result['runs']),D(0)))
+result['saved_reviews']=[]
+result['budget_children']=[]
+for name, registration in sorted(ledger['runs'].items()):
+ directory=ROUND/registration['directory']
+ budget_path=directory/'budget.json'
+ if budget_path.exists():
+  calls=json.loads(budget_path.read_text())['calls']
+  reported=sum((D(c.get('cost_usd','0')) for c in calls),D(0))
+  held=sum((D(c['reserved_usd']) for c in calls if c['status']=='reserved'),D(0))
+ else:
+  reported=D(0);held=D(registration['committed_usd'])
+ result['budget_children'].append({'run':name,'phase':registration['phase'],
+     'reported_usd':str(reported),'unknown_reserved_usd':str(held)})
+ review_path=directory/'automated_reviews.json'
+ if review_path.exists():
+  review=json.loads(review_path.read_text());rows=[]
+  for row in review['cases']:
+   j=row.get('judgment') or {}
+   rows.append({**{k:row.get(k) for k in ('run','case_id','flow','output_hash','status','verdict')},
+       **{k:j.get(k) for k in ('grounding_status','correctness','coverage','usefulness','layout')},
+       'error_kind':(row.get('error') or {}).get('kind')})
+  result['saved_reviews'].append({'run':name,'review_version':review['config']['review_version'],
+       'judge_model':review['config']['judge_model'],
+       'writer_model_labels_hidden':review['config'].get('writer_model_labels_hidden',False),
+       'fingerprint':review['fingerprint'],'cases':rows})
+result['provider_reported_usd']=str(sum((D(r['reported_usd']) for r in result['budget_children']),D(0)))
+result['unknown_reserved_usd']=str(sum((D(r['unknown_reserved_usd']) for r in result['budget_children']),D(0)))
 result['conservatively_committed_usd']=str(D(result['provider_reported_usd'])+D(result['unknown_reserved_usd']))
-
 p=ROOT/'evaluation/round3_screen_results.json'
 p.write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps({k:result[k] for k in ('provider_reported_usd','unknown_reserved_usd','conservatively_committed_usd')}))
