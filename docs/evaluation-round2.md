@@ -30,7 +30,8 @@ labelled-general-knowledge policy is disclosed separately from grounded quality.
 | 16 | Quality candidate | Live comparison running at `f1e33f4` | Address measured missing details, exact claim citations, summary/sheet completeness and justified interview feedback; meaningful regression tests; unchanged-case full rerun |
 | 17 | Refined quality and speed candidate | Preparing full live comparison | Target measured repeated work and residual omissions; preserve dependencies, source isolation and bounded repairs; compare all 54 |
 | 18 | Bounded section context, citation metadata and source-bound image IDs | Preparing final trial | Address measured remaining definition/checklist gaps and one generation failure; preserve source isolation, pinned passages and evidence budget; all 54 cases |
-| 19 | Selection and final verification | Pending | Per-flow before/after evidence; repeat material regressions or close results; full relevant contracts/journeys; commit/push retained changes |
+| 19 | Bounded incomplete-image-inventory repair | Preparing recovery trial | Repair once using identical original images and exact ID list; never publish an incomplete image inventory; all 54 cases |
+| 20 | Selection and final verification | Pending | Per-flow before/after evidence; repeat material regressions or close results; full relevant contracts/journeys; commit/push retained changes |
 
 Quality comes before speed/cost. Confirmed new grounding, ownership or recovery
 failures block selection. A global average cannot hide regressions in a flow.
@@ -137,6 +138,31 @@ change passed 27 focused sheet tests and four transport-contract subtests checki
 the actual SDK request schema. Combined verification: 2,117 tests and 970 subtests
 passed (38 skipped), with generated graph/API reference checks. Final live run
 follows. Final directory: `evaluation/runs/round2-final-bm25-20261003`.
+
+### Incomplete image-reading recovery
+
+The refined run completed 53/54: Chapter 8 failed before composition because the
+visual reader did not return one inventory entry per original image. This is a
+different stage from the first candidate's invalid selected image ID. Preserve
+both initial failures in the comparison.
+
+For an omitted/duplicated/extra image ID, retry the complete small batch once with
+the same original images, expected IDs and prior inventory. Do not guess missing
+descriptions or drop images to obtain a successful result. A second incomplete
+inventory still fails. Ordinary valid batches add no calls; a repair call is covered
+by the experiment's shared dollar ceiling and is visible in its trace/capture.
+Prompt provenance becomes `revision-prompt-v12`. A transport/shape error retains
+the existing error behavior; this recovery targets the measured ID-set mismatch.
+Regression: omission followed by a complete result recovers, identical images stay
+in both requests, and a persistent omission fails after exactly two calls. The
+regression fails on `cda092f`. Combined checks and a full 54-case recovery run follow
+in `evaluation/runs/round2-recovery-bm25-20261003`.
+
+Combined recovery verification: 2,118 tests and 972 subtests passed (38 skipped).
+The repair regression covers both recovery and persistent failure without dropping
+an original image. The final bounded-context trial's initial quantization and audit
+answers now cover 4/4, compared with 2/4 before; retain this as preliminary until
+the full comparison and important repeat checks complete.
 
 ### Speed candidate prepared
 

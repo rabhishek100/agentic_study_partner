@@ -121,6 +121,34 @@ class ReviewTests(unittest.TestCase):
             with self.assertRaisesRegex(RevisionError, "cannot be read"):
                 read_all_figures(source, Mock(), lambda stage: None)
 
+    def test_missing_figure_inventory_repairs_once_with_same_original_images(self):
+        from copy import deepcopy
+        source = source_fixture()
+        source.figures = [{'block_id': i, 'node_id': 1, 'page': 1} for i in (1, 2)]
+        with pymupdf.open() as document:
+            payload = document.new_page(width=30, height=30).get_pixmap().tobytes('png')
+        complete = FigureBatch(figures=[FigureReading(block_id=i, description=f'Visible source {i}', role='concept') for i in (1, 2)])
+        missing = FigureBatch(figures=complete.figures[:1])
+        for repaired in (complete, missing):
+            with self.subTest(recovered=repaired is complete):
+                captured = []; responses = iter([missing, repaired])
+                def respond(messages):
+                    captured.append(deepcopy(messages))
+                    return next(responses)
+                client = Mock(invoke=Mock(side_effect=respond))
+                with patch('revision_sheets.generate.load_figure', return_value=payload):
+                    if repaired is complete:
+                        assets, readings = read_all_figures(source, client, lambda stage: None)
+                        self.assertEqual(set(assets), {1, 2})
+                        self.assertEqual({row['block_id'] for row in readings}, {1, 2})
+                    else:
+                        with self.assertRaisesRegex(RevisionError, 'after one repair'):
+                            read_all_figures(source, client, lambda stage: None)
+                self.assertEqual(client.invoke.call_count, 2)
+                images = lambda messages: [part['image_url']['url'] for part in messages[1].content if part['type']=='image_url']
+                self.assertEqual(len(images(captured[0])), 2)
+                self.assertEqual(images(captured[0]), images(captured[1]))
+
     def test_judge_revision_is_bounded_and_an_unsatisfied_review_still_publishes(self):
         """Revisions are bounded; running out of them no longer destroys the sheet.
 
