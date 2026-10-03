@@ -34,8 +34,12 @@ private media, or generated run directories that contain user content.
   methods, measurements and limits; do not append revision-history sections.
 - Add a guide only for a distinct topic that existing guides cannot reasonably
   cover. Follow their structure: purpose, behavior, code references, setup or
-  commands, verification and limits. Keep existing experiment/acceptance records
-  as supporting evidence rather than duplicating them in a new status overview.
+  commands, verification and limits.
+- Do not commit plans, delivery trackers, verification logs or per-round result
+  pages. Fold an experiment's outcome into [evaluation](docs/evaluation.md)
+  (what changed, what was measured, what was rejected) and commit its sanitized
+  result JSON under `evaluation/`; private run bundles stay in ignored
+  `evaluation/runs/`.
 
 ## Pull requests
 

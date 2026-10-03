@@ -16,7 +16,7 @@ judgment. Decisions prioritize grounding, inspectability, and measured value.
 | Durable worker queues | Long work survives reloads and process failure | Leases, checkpoints, and idempotency are required |
 | Supabase Auth | Managed sessions, refresh, and token verification | Identity is separate from database/storage deployment |
 | Optional LiveKit | Streaming speech without replacing interview logic | Separate media workers and configuration |
-| LangSmith for AI traces, shared runner for quality evals | Inspect prompts/evidence and compare frozen outputs without another eval platform | Quotas and model-review bias remain explicit; no additional Opik service |
+| LangSmith for AI traces, one in-repo runner for quality evals | Inspect prompts/evidence and compare frozen outputs without another eval platform | Same-family LLM judge without human calibration; hosted trace quota |
 | Direct OpenTelemetry export to Grafana Cloud | Logs, operational traces and process metrics without monitoring servers | Best-effort bounded queues can drop telemetry; no SQL/browser trace instrumentation |
 | PostHog with safe explicit UI events | Usage and event journeys without capturing study content | Replay disabled; generic actions do not prove feature completion |
 | Verified auth UUID across telemetry | Join logs, traces and product events without email | Anonymous/system work has no user; identity is not a metric/stream label |
@@ -44,27 +44,17 @@ Configuration: [.env.example](../.env.example).
 | LiveKit ideal interview | TTS `cartesia/sonic-3.6` | Two-voice saved-flow playback |
 
 Revision review is a separate pass using the composition model unless
-overridden. The twenty-candidate round compares answer, routing, grading,
-sheet and figure-reading roles; no alternative showed a reliable improvement
-worth promoting. Keep Luna, with larger citations and the earlier tested core
-fixes. Speech defaults were not compared in that round.
-[Selection evidence and limits](evaluation-round3-results.md).
+overridden.
 
-On October 1, 2026, active Luna defaults moved from GPT-5.6 Luna to GPT-6 Luna
-after checking the [OpenRouter model catalog](https://openrouter.ai/api/v1/models)
-and official OpenAI model pages for [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)
-and [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna).
-Standard rates per million tokens fell from $0.20 to $0.10 for input, $0.02
-to $0.01 for cached input, and $1.20 to $0.50 for output. Both retain text/image
-input, structured output, a 1,050,000-token context window, and a 128,000-token
-output limit. Prompts above 272,000 input tokens have higher rates. The switch
-preserves reasoning settings and output contracts; it is a cost decision,
-not a measured improvement in answer quality. Saved artifacts retain their
-original model provenance, and experiment/evaluation baselines remain pinned.
-Live smoke checks passed for cited text generation with reasoning disabled,
-structured interview output with low reasoning, and production frame analysis
-with recorded model provenance. These establish API compatibility, not
-comparative study quality.
+**Why Luna everywhere.** [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)
+replaced GPT-5.6 Luna as a cost decision: the same text/image input,
+structured output and context limits at roughly half the price ($0.10 input,
+$0.50 output per million tokens). It is not a measured quality improvement;
+saved artifacts keep their original model provenance. DeepSeek, Qwen, Luna Pro
+and Gemini were then screened as answer writers, router, grader, sheet author
+and figure reader; none showed a reliable improvement, so Luna stays the
+default for every generation role. Speech models were not compared.
+[Model experiments](evaluation.md#experiments-rejected).
 
 ### Where models are configured and called
 
@@ -152,5 +142,10 @@ duration boundaries. Full behavior: [study flows](flows.md).
 
 Hybrid reranking improved book recall; video balancing/rewriting improved
 evidence recall; bounded interview policies improved interaction cases; vision
-OCR beat Tesseract. A routing experiment reduced accuracy. Dataset sizes,
-review status, and results: [evaluation](evaluation.md).
+OCR beat Tesseract. In the five-flow suite, full-scope summary repair, larger
+sheet context, bounded neighbouring section context and sheet recomposition
+raised usable outputs from 24/45 to 34/45. Of twenty further candidates,
+including alternative models, title boosting and vector search without
+reranking, only larger sheet citations was kept; an earlier routing change that
+reduced accuracy was also rejected. Dataset
+sizes, review status and results: [evaluation](evaluation.md).

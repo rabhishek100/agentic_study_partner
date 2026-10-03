@@ -143,10 +143,9 @@ prove coverage. Book/paper summaries allow up to two repairs for citation or
 coverage defects. Coverage checks measure referenced source units, not
 claim-level truth. A citation-safe draft can retain coverage warnings after
 repairs; unsafe citations fail. Over-budget scopes are not silently truncated.
-Coverage addenda receive the full canonical scope and preserve the original
-answer. Oversized repair inputs fail before another model request. The
-[evaluation comparison](evaluation-round3-results.md) records measured coverage
-gains and remaining unsupported details.
+Coverage repairs receive the full canonical scope and preserve the original
+answer; oversized repair inputs fail before another model request. Measured
+coverage gains and remaining gaps: [evaluation](evaluation.md#changes-kept).
 
 Code: [scope loading](../study/scope.py), [summary checks and repair](../study/summarize.py),
 [lecture scope](../video/lecture.py).
@@ -281,10 +280,9 @@ existing item identities; saved artifacts include PDF/HTML, inventory, figure
 inspection, and review history. Follow-up QA reloads the original complete
 chapter/paper and validates its citations.
 
-The selected layout is `html-a4-flow-v5`, with larger citations. One Chromium
-process is reused within a layout search, with a fresh isolated context per
-attempt. Original figures remain distinct from generated preview pages in
-evaluation evidence. Opening a compatible saved sheet reuses it; explicit
+The layout is `html-a4-flow-v5`, with a raised citation font floor. One
+Chromium process is reused within a layout search, with a fresh isolated
+context per attempt. Opening a compatible saved sheet reuses it; explicit
 regeneration creates a new version and preserves the old one. Readability does
 not prove completeness: native content warnings remain visible.
 
@@ -354,12 +352,11 @@ flowchart TD
 This is a listen-only study artifact, without candidate grading. Each assigned
 topic appears once; failed exchanges allow at most two generation attempts.
 Reuse is keyed by scope, format, level, model, and prompt version.
-Matching concurrent generations serialize using an owner/scope/settings
+Matching concurrent generations serialize on an owner/scope/settings
 Postgres advisory lock; the waiting request reuses the saved result without
 another model call. The web proxy allows up to ten minutes for the synchronous
-response. This prevents the observed disconnect/duplicate-save race, but is
-not a resumable job and does not survive process restart. Verified through the
-real web origin in [production acceptance](production-verification.md).
+response. This prevents duplicate saves when a client disconnects and retries,
+but generation is not a resumable job and does not survive process restart.
 
 Code: [ideal generation](../interviews/ideal_generation.py), [ideal service](../interviews/ideal_service.py).
 

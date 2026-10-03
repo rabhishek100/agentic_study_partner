@@ -1,13 +1,38 @@
-# LangSmith observability
+# Observability
 
-Tracing is a repository-wide capability, independent of which flows have deep
-quality evaluations. [observability.py](../observability.py) supplies SDK run
-boundaries for ordinary Python work, HTTP requests and direct provider calls.
-Existing LangGraph and LangChain tracing supplies graph nodes and model calls.
+Three tools answer three different questions. Each is optional and disabled
+until configured; a telemetry failure never changes an application result.
 
-## Setup and organization
+| Tool | Question it answers | Signals |
+|---|---|---|
+| [LangSmith](#langsmith-ai-traces) | What did the model see, decide and cost? | Graph nodes, prompts, retrieved evidence, model calls, tokens, cost |
+| [Grafana Cloud](#grafana-cloud-operational-health) | Is the system healthy and where is time spent? | Structured logs (Loki), operational traces (Tempo), operation and process metrics |
+| [PostHog](#posthog-product-usage) | How is the interface used? | Page views, control activations, API outcomes, streamed-answer outcomes |
 
-Set these variables in each API, queue worker and optional voice worker process:
+```mermaid
+flowchart LR
+    UI[Next.js] -. safe events .-> P[PostHog]
+    UI --> API[FastAPI]
+    API --> W[Worker]
+    API -. runs .-> L[LangSmith]
+    W -. runs .-> L
+    V[Voice workers] -. runs .-> L
+    API -. OTLP .-> O[Grafana Cloud]
+    W -. OTLP .-> O
+    V -. OTLP .-> O
+```
+
+Shared boundaries live in [observability.py](../observability.py) (LangSmith
+runs for HTTP, Python workflows and direct provider calls) and
+[operations_telemetry.py](../operations_telemetry.py) (OpenTelemetry export and
+JSON logging). The browser side is
+[analytics.ts](../frontend/lib/analytics.ts) and the root
+[analytics observer](../frontend/components/analytics-observer.tsx).
+
+## LangSmith: AI traces
+
+Tracing is repository-wide, not limited to the flows with deep quality
+evaluation. Set these on the API, worker and any enabled voice worker:
 
 ```dotenv
 LANGSMITH_TRACING=true
@@ -15,163 +40,222 @@ LANGSMITH_API_KEY=your-key
 LANGSMITH_PROJECT=agentic-study-partner-local
 ```
 
-Use a distinct project suffix for local, staging and production. The shared
-helper respects an inherited LangSmith project, client, tags and evaluation
-metadata; it does not force experiment runs into the application's project.
-Set `LANGSMITH_TRACING=false` to disable these boundaries and provider captures.
+Use a distinct project per environment. `LANGSMITH_TRACING=false` disables all
+boundaries and provider captures. Routine notification polling and the
+reminder reconciler go to `<LANGSMITH_PROJECT>-operations` (override with
+`LANGSMITH_OPERATIONS_PROJECT`) so idle checks do not bury study traces.
+Evaluation runs use their own `study-partner-evals-<run>` projects.
 
-Routine `GET /api/notifications` polling and the periodic reminder reconciliation
-worker use a separate `<LANGSMITH_PROJECT>-operations` project. In production this
-is `agentic-study-partner-production-operations`, keeping idle checks from filling
-the main AI trace list and its frequent-name shortcuts. Complete traces, errors
-and HTTP correlation headers remain available there; Grafana exports are unchanged.
-Override the destination with `LANGSMITH_OPERATIONS_PROJECT` if needed. Notification
-read/dismiss actions remain in the main project. Existing parent traces and marked
-evaluation contexts retain their project and hierarchy instead of being split.
+### Trace organization
 
-Filter runs by `flow`, `thread_id`, `conversation_id`, `session_id`, `job_id`,
-`attempt_count`, `stage`, source IDs or `flow:*` tags. Names identify the real
-Python operation, such as `video.pipeline._run_transcript`. HTTP root names use
-route templates, such as `http.POST /api/conversations/{conversation_id}/turns`.
-The response includes `X-LangSmith-Trace-Id`, exposed through CORS.
+- **HTTP requests** are roots named by route template, such as
+  `http.POST /api/conversations/{conversation_id}/turns`. The root encloses
+  loading, routing, retrieval, LangGraph nodes, model calls and persistence;
+  for SSE it ends after the final event, not at the HTTP headers. Responses
+  expose `X-LangSmith-Trace-Id`.
+- **Queued jobs** get a separate root per worker attempt, joined to the
+  enqueue request by `job_id`. Queue wait is not counted as execution; no span
+  is held open during human outline review.
+- **Voice sessions** create roots per command, correlated by session,
+  conversation or ideal-flow ID rather than one span for the room's lifetime.
+- **Names** are real Python operations, such as
+  `video.pipeline._run_transcript`. Filter by `flow`, `thread_id`,
+  `conversation_id`, `session_id`, `job_id`, `attempt_count`, `stage`, source
+  IDs or `flow:*` tags.
 
-To inspect a request, select `agentic-study-partner-production`, clear stale
-run-name filters, choose **Traces**, and open the HTTP root. Expand its children
-for nested model calls, tools and LangGraph/Python stages. Use the response ID
-or metadata filters; sidebar frequent-name shortcuts are not an inventory.
+To inspect a request, open the project, choose **Traces**, and open the HTTP
+root by its response ID or a metadata filter; expand children for model calls,
+tools and graph stages.
 
-An HTTP request encloses loading, execution and persistence. LangGraph nodes,
-model calls and raw provider attempts appear beneath that request. Plain Python
-workflows keep their existing implementation. A queued job creates a separate
-execution root for each attempt: filter by the stable `job_id` to connect
-enqueue, execution, stages and retries across processes. Queue waiting is not
-included in execution latency; no span is held open during human outline review.
-This correlation does not manufacture one continuous cross-process span.
-
-## Coverage
+### Coverage
 
 | Path | Inspectable boundaries |
 |---|---|
-| All HTTP routes | Request lifetime, route, status, available entity IDs; includes CRUD, health and binary responses |
-| Book/paper chat and side chats | Load/execute/persist, routing, hierarchy or retrieval, graph nodes, model calls and streamed execution |
-| Summaries | Scope loading, draft, validation, repair and model calls |
-| Video and course study | Conversation execution, graph, evidence retrieval, complete lecture summarization and persistence |
-| Interviews | Source inventory, create/start/answer, hints, clarification, finish/report and adaptive graph |
-| Ideal interviews | Entire Python generation/persistence operation and individual generated exchanges |
-| Revision sheets | Worker attempt, source loading, figure reading, graph stages, render/quality repair, publish and follow-up QA |
-| Cards | Enqueue, worker, inventory, extraction, generation batches, validation results, persistence, reviews and grounded card conversation |
-| PDF ingestion | Enqueue, worker attempt, acquisition, validation, OCR/outline proposal, parsing, canonical persistence and verification |
-| Video/course ingestion | Creation/upgrade, worker attempts, media, transcript, resources, frames, OCR, visual/spatial analysis, indexing, embeddings, quality gates and publish |
-| Retrieval | BM25, hybrid selection, vector queries, rerank and external search; automatic retriever callbacks retained |
-| Direct OpenRouter calls | One `llm`, `embedding` or `tool` child per physical request for OCR, captions, vision, embeddings, rerank, STT and TTS |
-| Narration and dictation | Figure descriptions, audio cache decisions, synthesis/transcription and provider attempts |
-| LiveKit voice | Session setup, commands, capture/playback and SDK usage events, correlated by session/conversation/ideal-flow ID |
-| Reminders and CLIs | Python reconciliation, core study/ingestion/indexing command entrypoints and evaluation entrypoints; visual pilot providers and cache decisions |
+| All HTTP routes | Request lifetime, route, status, available entity IDs |
+| Book/paper chat and side chats | Load/execute/persist, routing, hierarchy or retrieval, graph nodes, model calls, streaming |
+| Summaries | Scope loading, draft, validation, repair, model calls |
+| Video and course study | Graph, evidence retrieval, complete lecture summarization, persistence |
+| Interviews and ideal interviews | Source inventory, create/start/answer, hints, clarification, report, adaptive graph; each generated exchange |
+| Revision sheets | Worker attempt, source loading, figure reading, graph stages, render/quality repair, publish, follow-up QA |
+| Cards | Enqueue, worker, inventory, extraction, generation batches, validation, reviews, card conversations |
+| PDF ingestion | Acquisition, validation, OCR/outline proposal, parsing, canonical persistence, verification |
+| Video/course ingestion | Media, transcript, resources, frames, OCR, visual analysis, indexing, embeddings, quality gates, publish |
+| Retrieval | BM25, hybrid selection, vector queries, rerank, external search |
+| Direct OpenRouter calls | One `llm`, `embedding` or `tool` child per physical request (OCR, captions, vision, embeddings, rerank, STT, TTS) |
+| Narration, dictation, LiveKit voice | Figure descriptions, audio cache decisions, synthesis/transcription, session commands, SDK usage events |
+| Reminders and CLIs | Reconciliation, core study/ingestion/indexing commands, evaluation entrypoints |
 
-Boundaries cover meaningful operations, rather than every utility function or
-individual SQL statement. Manual SSE threads and concurrent page OCR inherit
-the submitting context through `in_current_context`; async tasks and
-`asyncio.to_thread` retain Python's context propagation. Parser subprocess
-work is measured by its enclosing batch operation; it has no model calls.
-Independent voice callbacks share their persisted identity rather than keeping
-a startup span open for the entire room lifetime.
+Boundaries wrap meaningful operations, not every utility function or SQL
+statement. Threads used for SSE and concurrent OCR inherit the submitting
+context; async tasks keep Python's context propagation.
 
-## Usage, failures and capture
+### Usage, cost and capture
 
-Raw chat calls use `run_type="llm"`, OpenAI-shaped messages, model/provider
-metadata and `usage_metadata`. Embedding outputs retain vector counts and
-dimensions. Request failures and retries remain separate attempts. Existing
-LangChain model runs are not wrapped in a second billed model span.
+Raw chat calls use `run_type="llm"` with model/provider metadata and
+`usage_metadata`. Provider cost sits on the physical call; never add a root's
+aggregate to its children. Retries are separate attempts. Missing receipts
+stay `unreported`; configured speech rates are tagged as estimates. Cache hits
+add no provider cost.
 
-Reported provider usage/cost stays on the physical provider child; never add a
-root's aggregate cost to its child costs. Missing receipts remain `unreported`.
-Configured TTS and interview/ideal-voice rates are tagged as estimates, separate
-from receipts. Narration voice emits SDK usage events; pricing is not inferred
-when its provider does not supply a receipt. Cache hits create no new provider
-cost. CPU/RSS measurements and quality scores belong to the evaluation/metrics
-workstream and are not supplied by this tracing change.
+Captures omit dependency objects and authorization headers, redact credential
+fields and signed URL queries, replace inline media and bound text size.
+Prompts and bounded source evidence are still trace data, so set project access
+and retention accordingly. Incoming LangSmith trace headers are ignored at the
+public HTTP boundary.
 
-Handled worker failures remain failed traces. SSE failures are marked even
-when the transport has already returned HTTP 200. Deliberate task/job
-cancellation has a separate `outcome`. Delivery/capture errors log their type
-without changing application return values or exceptions. SDK queues flush on
-API shutdown, queue-worker exit, voice-job teardown and finite process exit.
+## Grafana Cloud: operational health
 
-Custom captures omit dependency objects and authorization headers, redact
-credential fields and signed URL queries, replace inline media, and bound
-captured text/collections. The shared SDK client's anonymizer also filters
-automatic model inputs/outputs. Prompt text and bounded source evidence are
-still trace data: use the appropriate project access and retention settings.
-The public HTTP boundary ignores incoming LangSmith trace headers.
+Python exports logs, traces and metrics directly over OTLP/HTTP; there is no
+collector container. Grafana documents
+[direct SDK export](https://grafana.com/docs/grafana-cloud/send-data/otlp/send-data-otlp/)
+for low-traffic setups. SDK queues are bounded and best-effort, so an outage
+can drop telemetry. Add Alloy or a collector only if durable buffering or
+central sampling becomes necessary. JSON logs also work locally without an
+account.
 
-## User identity
+### Setup
 
-Authenticated API requests carry `user_id`, the verified auth `sub` UUID, on
-Grafana JSON logs/Tempo span attributes and LangSmith run metadata. It is the
-same UUID used by PostHog `distinct_id`; email remains in the account registry.
-Headers, query strings and request-body identity fields do not establish this
-identity. Authentication failures and anonymous health checks have no user ID.
+1. Create a Grafana Cloud **Free** stack. In its OpenTelemetry tile, generate a
+   write token scoped to metrics, logs and traces.
+2. Set these on each API, worker and voice service (Compose passes `.env` to
+   backend services; the combined Railway service passes its environment to
+   both child processes):
 
-The HTTP scope lasts through streaming and restores context at completion.
-Native LangGraph/LangChain runs inherit the authenticated LangSmith context.
-Persisted worker `owner_id` and validated voice bindings provide the same field
-for independent job/voice traces. Manual lease-renewal threads copy context.
-Each job restores its previous identity, including on failure; reminder batches
-scope each owner's work without assigning a user to the multi-user batch root.
-Process startup and other system-wide logs have no individual user.
+   ```dotenv
+   OTEL_ENABLED=true
+   OTEL_EXPORTER_OTLP_ENDPOINT=<generated base endpoint, including /otlp>
+   OTEL_EXPORTER_OTLP_HEADERS=<generated encoded Authorization header>
+   OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+   APP_ENV=local
+   ```
 
-`user_id` is a searchable field, never a metric label or Loki stream label.
-For Grafana Explore/Loki, replace the UUID in this query:
+   Do not append `/v1/traces`; exporters add signal paths. Leave
+   `OTEL_SERVICE_NAME` unset so API and worker get distinct names. Never put
+   the token in browser variables or commits.
+3. Restart the processes. Import
+   [the dashboard template](../ops/observability/grafana-dashboard.json) and
+   select your Prometheus data source. Its Environment variable filters every
+   panel by `deployment_environment_name`.
+
+Rotate the write token in backend secrets and restart exporters before it
+expires. Management logins (for example `gcx`) are separate from this
+write-only application token.
+
+### What is measured
+
+| Signal | Meaning and limits |
+|---|---|
+| Access logs | Route template, status, correlation IDs; no query strings, authorization or bodies. Emitted after streaming finishes |
+| Operational traces | HTTP, Python workflow, provider, queue-attempt and voice boundaries. Responses expose `X-Trace-Id` |
+| `study.operation.count` | Completed root requests/jobs by flow and outcome, including retries |
+| `study.operation.duration` | Root wall-clock seconds; streaming includes the full response |
+| `process.cpu.time` | Cumulative user + system CPU seconds; rate × 100 is percent of one core |
+| `process.memory.usage` | Current process RSS per API, worker or voice process; not container memory |
+
+The dashboard shows throughput, p95 latency, failed-attempt fraction, CPU and
+memory. Metric labels never include job/session/book IDs, raw paths or
+prompts. Exception records carry type and status, not messages or locals. Not
+instrumented: individual SQL statements, external SDK internals, host metrics,
+browser spans and the Next.js server. AI tokens and cost stay in LangSmith.
+
+### Querying
+
+Use **Explore → Loki** for logs and **Explore → Tempo** with a response's
+`X-Trace-Id` for the span tree. Logs carry `trace_id`, `span_id` and, when
+LangSmith is enabled, `langsmith_trace_id`.
 
 ```logql
-{deployment_environment_name="production"} | json | user_id="<account-uuid>"
+{deployment_environment_name="production",service_name="study-partner-api"} | json | trace_id="<X-Trace-Id>"
 ```
 
-In Tempo search use `{ span.user_id = "<account-uuid>" }`. In LangSmith use
-**Filter → Metadata → user_id**, then select the account UUID and open the
-root trace to inspect its children. Older telemetry is not rewritten.
+A typical investigation: latency regression → slow operational stage in Tempo
+→ its retrieval/model trace in LangSmith. For retries or errors, filter by
+`job_id` and read the structured failure code.
+
+## PostHog: product usage
+
+Create a free PostHog Cloud project and configure the web build with its
+public project key:
+
+```dotenv
+NEXT_PUBLIC_ANALYTICS_ENABLED=true
+NEXT_PUBLIC_POSTHOG_KEY=<public project key>
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+# EU projects use https://eu.i.posthog.com
+```
+
+These are build-time variables: restart Next dev (`frontend/.env.local`),
+rebuild the Compose web image, or redeploy the web service after changing
+them. [The dashboard definition](../ops/observability/posthog-dashboard.json)
+contains page visitors, retention, API outcomes, streamed study outcomes and a
+chat funnel.
+
+| Event | Meaning |
+|---|---|
+| `$pageview` | Route visit, with dynamic IDs replaced by `:id` |
+| `ui_action` | Button, link, tab or menu activation with a static action/type label |
+| `signed_in`, `signed_out` | Auth lifecycle; identity resets on sign-out |
+| `api_action_started`, `api_action_response`, `api_action_failed` | Mutating API request start, status/time to headers with trace IDs, or network failure |
+| `study_answer_completed`, `study_answer_failed` | Final streamed answer or failed/cancelled stream for chat, side chat, video and course study |
+
+The root observer covers every page without reading visible text or form
+values; `trackedFetch` records mutating API calls while preserving the
+original response and errors. GET polling and image requests are excluded.
+An HTTP 200/202 means acceptance, not finished background generation; use
+backend traces for queued summaries, cards and sheets. Slider, media-time and
+individual source clicks are not semantic events yet.
+
+Privacy: autocapture and session recording are off. A `before_send` allowlist
+drops prompts, answers, source names, URLs and queries, form values, email,
+tokens, referrer/title fields and profile enrichment; geolocation is disabled.
+Collection respects Do Not Track, so counts are not an audit source.
+
+## Following one request across tools
+
+Authenticated API work carries `user_id`, the verified Supabase auth `sub`
+UUID, on Grafana logs and spans, LangSmith run metadata and as the PostHog
+`distinct_id`. Headers, query strings and request bodies cannot set it;
+anonymous, invalid-auth and system work has none. Workers take it from the
+job's persisted `owner_id`; voice workers from validated session bindings.
+Email never enters telemetry, and `user_id` is never a metric or Loki stream
+label.
+
+| Tool | Filter |
+|---|---|
+| Loki | `{deployment_environment_name="production"} \| json \| user_id="<uuid>"` |
+| Tempo | `{ span.user_id = "<uuid>" }` |
+| LangSmith | **Filter → Metadata → user_id** |
+| PostHog | **People** → the person whose ID is the UUID → activity |
+
+Per request, `X-Trace-Id` (Tempo) and `X-LangSmith-Trace-Id` (LangSmith) are
+exposed through CORS and recorded on `api_action_response` events.
 
 ## Verification
 
-Earlier production readback verified complete API/model trees, worker/voice
-correlation, notification-project isolation and authenticated identity. The
-latest evaluation round hit LangSmith's monthly unique-trace quota. Check
-account usage, exporter errors, project and time filters when traces are absent.
-Local captures and SDK timing do not establish hosted delivery. Validation
-history is in [observability verification](observability-verification.md);
-real-service acceptance is in [production verification](production-verification.md).
-
-No-network regression checks:
+No-network checks cover SDK/LangGraph parentage, threaded streaming, HTTP/SSE
+errors, provider retry receipts, disabled operation, redaction, OTLP wire
+format and exporter failure isolation. A coverage check rejects unwrapped raw
+inference calls in OpenRouter clients.
 
 ```bash
-LANGSMITH_TRACING=false LANGCHAIN_TRACING_V2=false \
-  uv run python -m unittest tests.test_observability -v
+uv run python -m pytest tests/test_operations_telemetry.py tests/test_observability.py \
+  tests/test_docker_image_contents.py tests/test_environment_contracts.py tests/test_serve.py -q
+npm --prefix frontend test
 ```
 
-These checks explicitly enable tracing with an in-memory recording client to
-verify SDK/LangGraph parentage, metadata, threaded streaming, HTTP/SSE errors,
-provider retry receipts, disabled operation and delivery failure isolation.
-A coverage check rejects unwrapped raw inference POSTs in OpenRouter clients.
-
-Verify actual hosted delivery with synthetic inputs and no paid inference:
+Hosted LangSmith delivery, with synthetic inputs and no paid inference:
 
 ```bash
 uv run python -m scripts.check_langsmith_tracing
 ```
 
-This creates five spans in `${LANGSMITH_PROJECT}-tracing-smoke`, flushes them,
-and reads them back to check nesting and correlation. It prints the run link.
-Synthetic plumbing validation is distinct from live quality or a real voice
-room test. The current validation record is in
-[observability verification](observability-verification.md).
+This writes five nested spans to `${LANGSMITH_PROJECT}-tracing-smoke`, reads
+them back and prints the link. For Grafana, request `/openapi.json` (200) and
+`/api/books` without auth (401), wait two 60-second export intervals, and find
+both `X-Trace-Id` values in Tempo and Loki. If data is missing, check process
+restart, exporter errors, endpoint/authorization, service filter, time range
+and, for LangSmith, the account's monthly trace quota.
 
-SDK details: [manual model traces](https://docs.langchain.com/langsmith/log-llm-trace),
-[thread metadata](https://docs.langchain.com/langsmith/threads), and
+SDK references: [manual model traces](https://docs.langchain.com/langsmith/log-llm-trace),
+[thread metadata](https://docs.langchain.com/langsmith/threads),
 [cost tracking](https://docs.langchain.com/langsmith/cost-tracking).
-
-## Operational telemetry and product usage
-
-Shared Python boundaries also export optional OpenTelemetry spans to Grafana.
-[Operational observability](operational-observability.md) covers JSON logs,
-CPU/RSS, root duration/outcomes, PostHog browser events and free hosted setup.
-LangSmith remains the model/cost/evidence source.

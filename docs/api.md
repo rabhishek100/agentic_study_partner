@@ -85,8 +85,7 @@ Authenticated operations propagate the verified JWT subject as `user_id` to
 logs and spans. Caller-supplied identity headers do not override authentication;
 anonymous/invalid-auth requests have no user ID. Queued execution has a separate
 worker root correlated by `job_id`, rather than a span held open during queue
-wait. [Trace organization and identity](observability.md),
-[operational queries](operational-observability.md).
+wait. [Trace organization, identity and queries](observability.md).
 
 Code: [HTTP middleware and trace context](../observability.py),
 [structured logging and operational spans](../operations_telemetry.py).
