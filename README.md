@@ -53,8 +53,8 @@ Evaluation drives the design:
   evidence. Measured fixes raised usable outputs from 24/45 to 34/45 on the same
   cases.
 - **Rejected changes.** Of twenty further single-change candidates, including
-  cheaper models and retrieval tweaks, only larger sheet citations survived
-  repeats and blinded review.
+  cheaper models and retrieval tweaks, only larger sheet citations was kept;
+  other initial gains did not survive repeats or independent review.
 - **Cost.** A light month of use is forecast at about $1.
 
 These are small, source-specific results with an uncalibrated LLM judge; see
@@ -130,6 +130,7 @@ Test database setup, browser journeys and generated-reference checks are in
 | `interviews/`, `narration/` | Interview reasoning, speech, read-aloud |
 | `evals/`, `evaluation/` | Evaluation harness and judges; datasets and sanitized results |
 | `observability.py`, `operations_telemetry.py` | LangSmith boundaries; OpenTelemetry export and JSON logging |
+| `model_routing.py` | Optional OpenRouter provider pinning and provider-specific structured-output hints |
 | `frontend/` | Next.js/React interface |
 | `supabase/migrations/`, `tests/` | Schema, ownership constraints, automated checks |
 | `scripts/`, `ops/` | Local/deploy/evaluation commands; database, storage and dashboard configuration |

@@ -47,7 +47,7 @@ application failures.
 | [Multi-turn](../evaluation/multiturn_gold.json) | 11 conversations / 44 turns | Synthetic, separately model-reviewed |
 | [Video](../evaluation/video_gold.json) | 47 turns | One lecture with linked slides |
 | [Source-first anchors](../evaluation/source_first_gold.json) | 8 cases | Author-labelled |
-| [Paper](../evaluation/paper_gold.json) | QA, complete-summary and sheet criteria | Authored from canonical content before generation |
+| [Paper](../evaluation/paper_gold.json) | 2 cases (QA, complete summary); also the source for the paper sheet case | Authored from canonical content before generation |
 | [Revision sheets](../evaluation/revision_sheet_gold.json) | 38 source-backed essential concepts across 5 chapters | Concept importance not human-calibrated |
 | [Interview answers](../evaluation/interview_answer_seed.json) | 30 cases | Knowledge-authored; most evidence anchors await human review |
 | [Interview interactions](../evaluation/interview_transcript_eval.json) | 8 cases | Synthetic turns based on public mock interviews |
@@ -93,7 +93,7 @@ compared separately below.
 The earliest saved run and the current code were judged with the same
 source-evidence rubric on fifty cases with identical inputs, sources and
 expected points. Five cases sit outside the quality denominator: three course
-cases need lectures that are not yet published, one expects abstention where
+cases need lecture evidence that is unpublished or not yet indexed, one expects abstention where
 the product deliberately offers labelled general-knowledge answers, and one
 deterministic listing has no generation to judge.
 
@@ -127,7 +127,7 @@ same frozen cases and judge.
 | Coverage repair falsely claimed details were absent | Repair receives the full canonical scope and the original answer; oversized repairs fail before a second call | Fixed-draft regression; live capture confirms full-source addendum |
 | Large chapter sheets exceeded a 64k context | Use the measured 128k capacity consistently | Same chapters: 0/3 → 3/3 generated |
 | Ideal dialogues rejected for missing citations | One bounded regeneration with explicit missing-marker feedback | Both cases pass nine deterministic dialogue/citation gates |
-| Definitions and checklists split across chunks | Bounded neighbouring chunks from the strongest section, within the existing evidence limit | Definition coverage 2/4 → 4/4, model-card checklist 1/4 → 4/4, both repeated; broad audits still unstable |
+| Definitions and checklists split across chunks | Bounded neighbouring chunks from the strongest section, within the existing evidence limit | Quantization definitions 2/4 → 4/4, model-card checklist 1/4 → 4/4, both repeated; broad audits still unstable |
 | Shortened answers kept stale citation records | Return metadata only for markers actually printed, with original bindings | Output-based regressions for both citation styles |
 | Sheets missing essential concepts or citing uninspected figures | Recompose when an edit cannot add a concept; bind image choices to inspected IDs; one retry for an incomplete image inventory | Bounded recovery and persistent failure both verified; general failure-rate reduction not established |
 | Chromium startup repeated for every layout attempt | Reuse one browser per layout search, fresh isolated context per attempt | Rendering median 4.468 s → 1.110 s, browser CPU 5.335 s → 1.479 s, identical output; no whole-sheet speedup in production |
@@ -173,7 +173,7 @@ Also rejected: an extra interview grading instruction (no reliable benefit;
 over-credited mixed answers, so the original prompt was restored) and an
 earlier routing change that lowered route accuracy 84.1% → 81.8%, scope
 accuracy 70.5% → 65.9% and outcome accuracy 81.8% → 79.5% on the multi-turn
-set. Luna therefore remains the default for every generation role.
+set. Luna therefore remains the default for answers, routing, grading and revision sheets.
 [All candidate measurements](../evaluation/round3_screen_results.json),
 [model screens](../evaluation/round3_model_screen_results.json),
 [paired renders](../evaluation/round3_free_render_results.json).
@@ -195,9 +195,9 @@ descriptive, not a percentile or causal benchmark.
 | Chapter-1 ideal interview | 85.7 s cold | 0.03 s cached | Saved flow reused; not faster fresh generation |
 
 Synchronous times are web HTTP completion; the sheet time is enqueue-to-ready.
-A complete adaptive interview on a 102k-character chapter finished naturally
-after 18 answers, covered 9/9 planned areas and cost $0.022 in 44 provider
-receipts. [Production pairs](../evaluation/round3_production_comparison.json).
+A complete adaptive interview on a 102k-character chapter, answered with
+synthetic weak answers, finished naturally after 18 answers, covered 9/9
+planned areas and cost $0.022 in 44 provider receipts. [Production pairs](../evaluation/round3_production_comparison.json).
 
 ### Cost
 
@@ -310,7 +310,7 @@ results; private run bundles are local. Each runner documents options with
 | Budgeted five-flow suite | `uv run --frozen --extra voice python -m scripts.run_evaluations --live --output evaluation/runs/NEW_RUN --max-usd 2` |
 | Re-review saved outputs | `uv run --frozen --extra voice python -m scripts.judge_saved_evaluations --output evaluation/runs/NEW_REVIEW --max-usd 1` |
 | Review viewer | `uv run --frozen --extra voice python -m scripts.review_evaluations evaluation/runs/RUN --port 8766` |
-| Retrieval | `uv run python -m scripts.evaluate_retrieval --all` |
+| Retrieval (all modes by default; `--modes` to select) | `uv run python -m scripts.evaluate_retrieval` |
 | Retrieval report | `uv run python -m scripts.build_retrieval_report`; `uv run python -m scripts.render_retrieval_report` |
 | Anchors / source-first | `uv run python -m scripts.evaluate_source_first --resolution-only --all`; omit `--resolution-only` for generation |
 | Multi-turn | `uv run python -m scripts.validate_multiturn_gold`; `uv run python -m scripts.evaluate_multiturn --all` |

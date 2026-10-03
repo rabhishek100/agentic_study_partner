@@ -38,11 +38,18 @@ flowchart TD
 | Video | yt-dlp, FFmpeg, OpenCV, Tesseract | Acquisition, audio, frames, frame text |
 | Data | Postgres, Psycopg, pgvector | Source hierarchy, search, jobs, conversations, study artifacts |
 | Files and identity | Supabase Auth; Supabase Storage, filesystem, or S3-compatible R2 | Verified identity and private source/media bytes |
-| Models and traces | OpenRouter, LangSmith | Hosted inference; graph/model traces when configured |
+| Models and traces | OpenRouter, LangSmith | Hosted inference with optional provider pinning; HTTP, workflow, graph, retrieval and provider traces |
 | Operational observability | OpenTelemetry, Grafana Cloud | Structured Loki logs, Tempo boundaries, operation/process metrics |
 | Product analytics | PostHog Cloud | Safe UI/API events and opaque authenticated identity; replay disabled |
 | Optional voice | LiveKit Inference and workers | Streaming speech recognition and playback |
-| Verification | Pytest including unittest cases, Vitest, Docker, GitHub Actions | Contracts, frontend behavior, integration and image checks; paid quality evals separate |
+| Verification | Pytest including unittest cases, Vitest, Docker, GitHub Actions | Contracts, frontend behavior, integration and image checks |
+| Quality evaluation | In-repo harness (`evals/`), LangSmith experiment projects | Calls native feature code on frozen sources under a per-experiment budget; source-backed LLM review |
+
+The evaluation harness is a separate client of the same feature code, not a
+second implementation: adapters call the production chat, summary, video/course,
+sheet and interview functions without persisting user artifacts, and an
+evaluation-only HTTP guard enforces the budget. It never runs inside the
+serving API. See [evaluation harness](evaluation.md#evaluation-harness).
 
 The Next.js interface prerenders its initial UI, then hydrates Client Components
 and loads authenticated study data in the browser. See
@@ -58,6 +65,9 @@ and applies an external rewrite configured in
 [next.config.mjs](../frontend/next.config.mjs). A rewrite proxies the request
 while keeping its frontend URL, as described in the
 [Next.js rewrite reference](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites).
+The proxy timeout is raised to ten minutes because complete ideal-interview
+generation is a long synchronous request; Next's 30-second default
+disconnected the browser while the API kept generating.
 
 For example, the library page calls `apiFetch("/books")`:
 
@@ -182,8 +192,11 @@ returns the hybrid ordering and records the failure.
 Lecture search combines transcript, frame OCR, visual observations, and
 supporting-PDF pages. Course search limits results per lecture. Complete
 summaries load the entire selected canonical scope instead of top-k matches.
+After ranking, book QA completes the strongest section with its nearest chunks
+from the same node and source build, bounded so other ranked sections keep at
+least two slots. Course answers receive each selected passage in full.
 
-Code: [retrieval](../retrieval/search.py), [lecture retrieval](../video/retrieval.py),
+Code: [retrieval](../retrieval/search.py), [section expansion](../study/query.py), [lecture retrieval](../video/retrieval.py),
 [course retrieval](../video/course_retrieval.py).
 
 ## Authentication and ownership
@@ -377,7 +390,10 @@ system without adding a separate queue broker.
 - Source hashes, build/dependency hashes, and idempotency keys prevent duplicate
   work and unsafe reuse. Partial ingestion is not published.
 - Network/model calls stay outside long database transactions. Cleanup has
-  grace periods and orphan-fraction guards.
+  grace periods and orphan-fraction guards. Synchronous ideal interview
+  generation is a deliberate exception: it holds a transaction-scoped Postgres advisory lock
+  keyed by owner, scope and settings so a concurrent identical request waits
+  and reuses the saved result instead of paying twice.
 - LangSmith records graph, model and retrieval decisions across HTTP,
   Python workflow, worker and voice boundaries; queued attempts correlate by
   job ID and authenticated work carries the verified user ID.
