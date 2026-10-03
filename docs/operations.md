@@ -39,9 +39,9 @@ or Storage. Logs: `scripts/local.sh logs app` and `scripts/local.sh logs web`.
 |---|---|
 | `DATABASE_URL`, `AUTH_*` | Application database and Supabase token issuer |
 | `OPENROUTER_*`, `TAVILY_API_KEY` | Model roles and optional web-search provider |
-| `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_*` | Optional Grafana Cloud Free logs/traces/CPU/RSS; see [operational observability](operational-observability.md) |
+| `LANGSMITH_*` | AI tracing project and key |
+| `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_*` | Optional Grafana Cloud logs, traces and process metrics |
 | `NEXT_PUBLIC_ANALYTICS_ENABLED`, `NEXT_PUBLIC_POSTHOG_*` | Optional PostHog browser events; web build-time variables |
-| `LANGSMITH_*` | Repository-wide HTTP/workflow/provider tracing and project; see [observability](observability.md) |
 | `SOURCE_*`, `BOOK_IMAGE_*`, `VIDEO_*` | Storage backends and ingestion settings |
 | `INGESTION_*` | Upload, page, lease, queue, and cleanup limits |
 | `SUMMARY_*`, `REVISION_*` | Context/output budgets |
@@ -51,19 +51,10 @@ Database, service-role, provider, and LiveKit secrets must not use
 `NEXT_PUBLIC_*`. Browser demo credentials must identify a restricted disposable
 account. Model selection: [design decisions](design-decisions.md#model-defaults).
 
-Hosted monitoring and analytics are configured in production. Manage Grafana
-through the authenticated `gcx` context and PostHog through `posthog-cli`; these
-management logins are separate from the application's OTLP write-only token and
-public analytics key. Rotate/redeploy the Grafana ingestion credential before
-its recorded **2026-12-30** expiry. Never copy its encoded authorization into
-browser settings or committed files. PostHog settings are build-time variables;
-backend exporters require process restart after configuration changes.
-
-Project organization and request/account filters: [LangSmith tracing](observability.md).
-Dashboard/log/trace queries and UI event coverage:
-[Grafana and PostHog](operational-observability.md).
-Actual hosted readback, releases and remaining checks:
-[production verification](production-verification.md).
+Backend telemetry settings take effect after a process restart; PostHog
+settings require a web rebuild. The Grafana write token expires, so rotate it
+in backend secrets before then. Setup, dashboards and queries:
+[observability](observability.md).
 
 ## Processes
 
@@ -112,6 +103,58 @@ Table inventory and applied-schema inspection: [database schema](database.md).
 
 Publication paths: [ingestion](ingestion.md). Worker code: [worker/main.py](../worker/main.py).
 
+## Testing
+
+Backend tests mutate the database they point at, so run them against a
+dedicated, migrated test database with no worker attached, separate from the
+application corpus and queues. Create it once in local Postgres, then apply
+the schema:
+
+```bash
+export TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/study_partner_eval_test
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c 'create database study_partner_eval_test'
+uv run --frozen --extra voice python -m scripts.bootstrap_postgres --url-env TEST_DATABASE_URL
+uv run --frozen --extra voice python -m playwright install chromium
+uv run --frozen --extra voice python -m pytest tests -q -ra
+```
+
+[tests/conftest.py](../tests/conftest.py) points `DATABASE_URL` at
+`TEST_DATABASE_URL`, forces filesystem media backends, clears inference keys,
+disables hosted telemetry and rejects hosted Storage endpoints before
+application imports load `.env`. Queue tests skip, rather than claim foreign
+work, when the database already holds live jobs. Storage integration tests
+also need a loopback `SUPABASE_URL` and its local development service-role key;
+without them they skip. Inspect skip reasons with `-ra` instead of comparing
+counts.
+
+```bash
+npm --prefix frontend ci
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+npm --prefix frontend run lint:tokens
+npm --prefix frontend run build
+uv run --frozen --extra voice python -m scripts.export_api_reference --check
+uv run --frozen --extra voice python -m scripts.export_langgraph_diagrams --check
+```
+
+The generator checks confirm that the [endpoint catalog](api.md) and
+[workflow diagrams](langgraph.md) match the code. Two slower checks run
+outside CI:
+
+| Command | Checks |
+|---|---|
+| `uv run --frozen --extra voice python -m tests.check_five_flow_journeys` | Chromium → FastAPI → isolated Postgres for chat/summary, revision sheet, lecture, course and interview journeys: reopen, exclusions, pause/resume, PDF bytes, no JS errors or 5xx, keyboard focus, reduced motion, 390px fit |
+| `npm --prefix frontend run verify:proxy` | Real Next server proxies a deliberately slow (>30 s) long-running POST with body and authorization intact |
+
+Both use fixture auth, models and speech, so they prove wiring and recovery,
+not provider quality, real sign-in or audio devices. Quality evaluation and
+hosted telemetry checks are run explicitly with their own budgets:
+[evaluation](evaluation.md#reproduce), [observability](observability.md#verification).
+
+While editing, run the tests for the changed behavior and its callers, plus
+typecheck/build when an interface contract changes. Keep database and queue
+tests sequential; do not use pytest-xdist.
+
 ## Deployment and CI
 
 Railway uses `web`, combined `api`/worker, and optional voice services. API and
@@ -124,9 +167,11 @@ web at the same revision → check `/api/health`, `/api/health/queue`, an
 authenticated read, and a queued job. Provider-account provisioning is outside
 the repository.
 
-[CI](../.github/workflows/ci.yml) checks locked Python dependencies, optional
-voice tests, migrated Supabase/backend tests, frontend audit/typecheck/tests/build,
-and the production Docker image with a real PDF parse.
+[CI](../.github/workflows/ci.yml) runs on pushes to `main` and on pull
+requests. It checks locked Python dependencies, generated API/graph references,
+the full pytest suite against an empty migrated Supabase instance, frontend
+audit/typecheck/tests/build, and the production Docker image with a real
+digital-PDF parse.
 
 The frontend manifest requires Next.js 16.3.6 or newer within major version 16,
 and the lockfile selects 16.3.6. This is the patched release for

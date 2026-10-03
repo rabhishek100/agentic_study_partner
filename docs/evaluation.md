@@ -202,9 +202,10 @@ receipts. [Production pairs](../evaluation/round3_production_comparison.json).
 ### Cost
 
 Each experiment ran under a $1–2 ceiling enforced before every request.
-Recorded provider receipts across the evaluation work are $1.02 for the first
-baseline and fixes, $3.90 for the second comparison round and $3.87 for the
-twenty-candidate round (plus $0.10 still reserved for unknown receipts).
+Recorded provider receipts are $1.02 for the first baseline and its fixes,
+$3.90 for the five-variant comparison that selected most kept changes, and
+$3.87 for the twenty-candidate screen and production comparison (plus $0.10
+still reserved for unknown receipts).
 
 For a light month of 100 chats, five summaries, three sheets, two interviews
 and twenty video/course questions, the forecast is **about $0.93** with one
@@ -292,7 +293,7 @@ ingestion default. Embedding size and precision measurements are in
   behavior.
 - LangSmith's monthly unique-trace quota blocked hosted readback in the last
   experiments; those report local SDK intervals and provider receipts, labelled
-  as such. 47 trace costs in the second round are lower than provider receipts
+  as such. 47 trace costs in the five-variant comparison are lower than provider receipts
   and remain unreconciled; receipts are used for spend.
 
 ## Reproduce

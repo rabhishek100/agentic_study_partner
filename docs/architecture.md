@@ -378,14 +378,13 @@ system without adding a separate queue broker.
   work and unsafe reuse. Partial ingestion is not published.
 - Network/model calls stay outside long database transactions. Cleanup has
   grace periods and orphan-fraction guards.
-- LangSmith records graph/model decisions when enabled; structured logs and
-  saved job/session state support recovery. HTTP, ordinary Python, worker and
-  voice boundaries retain context and verified user identity. Notifications
-  use a separate operations project; queued attempts correlate by job ID.
-- Grafana exports operation outcomes/durations and process CPU/RSS, plus logs
-  and operational traces. PostHog records safe browser events; playback recording
-  is disabled. Telemetry failures preserve application outcomes. Setup and
-  limits: [operational observability](operational-observability.md).
+- LangSmith records graph, model and retrieval decisions across HTTP,
+  Python workflow, worker and voice boundaries; queued attempts correlate by
+  job ID and authenticated work carries the verified user ID.
+- Grafana receives structured logs, operational traces, operation
+  outcomes/durations and process CPU/RSS. PostHog records privacy-filtered
+  browser events with session recording disabled. Telemetry failures never
+  change application outcomes. Setup and limits: [observability](observability.md).
 - Models never execute unrestricted SQL or shell commands.
 
 Selection rationale and model defaults: [design decisions](design-decisions.md).
