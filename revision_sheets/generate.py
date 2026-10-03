@@ -301,6 +301,14 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
                     f"{SCHEMA_ATTEMPTS} attempts. Last error: "
                     f"{type(error).__name__}: {str(error)[:400]}",
                 ) from error
+            if state.get("quality_patch"):
+                # An invalid targeted edit (for example a note over the field
+                # limit) is retried as a full recomposition that still carries
+                # the review findings. Retrying the patch with only the schema
+                # error lost those findings and repeated the same oversize edit.
+                return {"feedback": (feedback + "\nThe targeted edit was invalid; recompose the sheet. "
+                                     + str(error)[:2000])[:5000], "quality_patch": False,
+                        "content_repairs": state.get("content_repairs", 0) + 1, "next": "compose"}
             return {"feedback": str(error)[:5000],
                     "content_repairs": state.get("content_repairs", 0) + 1, "next": "compose"}
         if draft.sheet is None:

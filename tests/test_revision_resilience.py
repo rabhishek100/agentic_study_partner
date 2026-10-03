@@ -199,9 +199,6 @@ class ReviewDoesNotGateTests(unittest.TestCase):
             self.assertEqual(provenance["page_count"], len(document))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class ReviewItemIdTests(unittest.TestCase):
     """The diagram has no ID in the sheet JSON; citing it as "diagram" is valid."""
@@ -252,3 +249,44 @@ class ReviewItemIdTests(unittest.TestCase):
             judge_sheet(source_fixture(), sheet, inventory, pdf, Client())
         self.assertIn("VALID COVERAGE ITEM IDS", captured["text"])
         self.assertIn('"diagram_description"', captured["text"])
+
+
+class InvalidTargetedEditTests(unittest.TestCase):
+    setUp = ReviewDoesNotGateTests.setUp
+
+    def test_an_invalid_targeted_edit_falls_back_to_recomposition(self) -> None:
+        import sys
+        sys.path.insert(0, "tests")
+        from revision_sheets.generate import Draft, generate
+        from test_revision_sheets import fixture, source_fixture
+
+        patch_calls, draft_calls = [], []
+
+        class Client:
+            def __init__(self, schema):
+                self.schema = schema
+
+            def invoke(self, messages):
+                if self.schema.__name__ == "SheetPatch":
+                    patch_calls.append(messages)
+                    return self.schema.model_validate({})  # always invalid
+                draft_calls.append(messages)
+                return Draft(sheet=fixture(), missing_evidence="")
+
+        with (patch("revision_sheets.generate.revision_model",
+                    side_effect=lambda schema=Draft, **_: Client(schema)),
+              patch("revision_sheets.generate.judge_sheet", side_effect=[self.failing, self.passing])):
+            _, pdf, provenance = generate(source_fixture(), model=None, images=([], [], []),
+                                          review_clients=(None, None, None))
+
+        self.assertTrue(pdf.startswith(b"%PDF"))
+        self.assertEqual(len(patch_calls), 1)
+        self.assertEqual(len(draft_calls), 2)
+        retry = draft_calls[-1][-1].content[0]["text"]
+        self.assertIn("Independent review failures", retry)
+        self.assertIn("targeted edit was invalid", retry)
+        self.assertEqual(provenance["outstanding_findings"], [])
+
+
+if __name__ == "__main__":
+    unittest.main()
