@@ -119,3 +119,19 @@ def test_ideal_guidance_covers_all_contract_phases():
     from interviews.ideal_contracts import IdealPhase
     from evals.flow_candidates import PHASE_GUIDANCE
     assert set(get_args(IdealPhase)) == set(PHASE_GUIDANCE)
+
+
+def test_repeat_plan_covers_every_affected_sheet_and_summary_without_model_bundles():
+    from scripts.repeat_round_candidates import TRIALS
+    from scripts.screen_model_candidates import candidate_environment, LUNA, GEMINI
+    manifest = json.loads(open("evaluation/five_flow_manifest.json").read())
+    sheets = {case["id"] for case in manifest["cases"] if case["flow"] == "revision_sheet"}
+    summaries = {case["id"] for case in manifest["cases"] if case["flow"] == "summary"}
+    assert set(TRIALS["figures-all"][2]) == sheets
+    assert set(TRIALS["summary-a"][2]) == summaries
+    assert set(TRIALS["summary-b"][2]) == summaries
+    figure_env = candidate_environment(TRIALS["figures-all"][0], base={})
+    assert figure_env["OPENROUTER_REVISION_FIGURE_MODEL"] == GEMINI
+    assert figure_env["OPENROUTER_REVISION_AUTHOR_MODEL"] == LUNA
+    assert figure_env["OPENROUTER_REVISION_INVENTORY_MODEL"] == LUNA
+    assert figure_env["OPENROUTER_REVISION_JUDGE_MODEL"] == LUNA

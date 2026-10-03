@@ -588,3 +588,13 @@ stay untouched. Preserve SDK-produced root timestamps locally, explicitly apart
 from hosted metrics. Validation: 59 suite, integrity, budget and saved-review
 checks passed. Production uses a different authenticated account from the native
 fixture owner; the demo preflight is not the user's production comparison.
+
+### Unit 26 — explicit matched repeat block
+
+Prepared resumable, serial repeat specifications for fixed Luna controls,
+all six affected figure-reader sheets, all seven affected summaries, hard-sheet
+replication and conditional Pro-writer checks. Each gets a separate immutable
+output and dynamically bounded child reservation. A specification mismatch on
+resume is rejected. Tests verify complete affected-flow coverage and unchanged
+independent inventory/author/reviewer roles. Wait for the frozen control tail,
+then audit the planned unused-screening transfer before paid repeats.

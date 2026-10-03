@@ -178,3 +178,13 @@ matched local timing observations during the hosted quota outage. It is not
 hosted trace delivery, first-token timing or billing, and it does not recover
 timings for earlier runs. Hosted metrics remain unavailable until actual
 readback succeeds. No speed improvement is claimed from these initial screens.
+
+The next repeat block adds a fresh matched Luna control over all seven summaries,
+the two difficult sheets and hard/passing chat controls. It then tests Gemini
+figure reading on all six sheets, two independent summary-allocation repeats,
+and hard-sheet / Pro-writer repeats. All remain the original hypotheses; model
+roles are isolated and failed outputs remain visible. After the control-tail
+lease finishes, move $0.50 of unused screening capacity into repeats if the
+reconciled ledger permits it. That changes effective phases to screening $0.75,
+repeat $1.50, final $2 and production $0.75, still exactly $5. Record that transfer
+before any repeat call, not by editing existing child ceilings.
