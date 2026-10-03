@@ -37,6 +37,7 @@ Never equate fixture tests, hosted telemetry delivery, and live output quality.
 | 16 | Twenty-candidate model/change experiment design | Approved | New $5 includes production comparisons; confirmed monthly usage; individual changes and cost gates specified |
 | 17 | Round-three shared budget and preflight | Budget guard verified; execution active | User approved the plan; parent reservations protect phase/round caps across interruptions; 51 targeted checks passed; new trace delivery rejected by monthly quota; $0 provider spend |
 | 18 | Independent model-stage configuration and screens | Plumbing verified; ready to run | Default models unchanged; provider pinning, sheet author/inventory/figure isolation, grader isolation and cache provenance; 144 checks / 48 subtests passed; eight independent screens defined |
+| 19 | Free rendering/cache screens | Complete; citation change shortlisted | Six sheets × control/balance/citation variants; candidate 16 no gain, candidate 17 measured 9→10pt with identical text/page counts; extra cache not justified; $0 provider spend |
 
 The confirmed flows are chat, complete summaries, dedicated video/course study,
 revision sheets, and interviews. The detailed criteria are in
@@ -420,6 +421,16 @@ derived-cache key. Defaults are unchanged. Eight model screens are defined in
 passed 144 checks / 48 subtests, with nine deprecation warnings.
 Next: execute model screens under the coordinator, save scalar findings and
 screen deterministic retrieval/render changes independently.
+
+Round-three free screens are published in
+[evaluation-round3-results.md](evaluation-round3-results.md). All 18 renders
+preserve original source labels/pixels and pass existing renderer checks;
+matched text/page-count/font measurements and local evidence hashes were
+verified. The eight model screens are active at runtime checkpoint `c2d0ee9`;
+do not edit their imported runtime code until they finish. Saved stage plans,
+ledgers, requests, output hashes and private session state remain under
+`evaluation/runs/round3/`. Next checkpoint is settled model findings and the
+independent flow-change screens. Production remains at `0983a1c`.
 
 Round-two comparison and selection are complete; supporting evidence is in
 [evaluation-round2-results.md](evaluation-round2-results.md) and
