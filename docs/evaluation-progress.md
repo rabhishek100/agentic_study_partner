@@ -716,3 +716,24 @@ or other candidate defaults are promoted. Full isolated verification passes:
 before window is active on unchanged `0983a1c`; chat and whole-paper summary have
 completed in the user's actual account. Runtime production retrieval is
 `hybrid_rerank`, while local native gold comparisons use BM25; report separately.
+
+### Unit 34 — production before window completed and restored
+
+All six prepared real-account scenarios completed on unchanged `0983a1c`:
+chat, complete paper summary, cold paper sheet, native video abstention,
+selected-course answer and cold chapter ideal interview. The sheet completes
+in 182.520 seconds, and the ideal covers all 15 topics in 85.745 seconds.
+Synchronous durations come from Railway web HTTP logs; enqueue duration is
+not job completion time. Cloud canonical bindings and outputs are captured
+privately. Aggregate capped-key usage is $0.04421037 after verified restoration
+of the normal key; the shared $0.75 remains reserved for the after comparison.
+Saved video/course zero-cost fields are missing-metadata observations, not
+proof of free inference. TrueTime source completeness and an unrelated audit
+figure remain observed limitations.
+
+The final 54-case combined run is active with corrected v4 source-image review.
+All models remain Luna. The selection is limited to larger sheet citations;
+model, routing, retrieval and prompt experiments are not promoted. Independent
+review disagreement and repeat evidence are preserved. Production deployment,
+the after window, full-interview monthly sizing and historical-output review
+remain open. The latest full verification is 2181 tests + 973 subtests, 38 skips.

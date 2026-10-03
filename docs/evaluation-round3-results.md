@@ -1,9 +1,52 @@
 # Round-three evaluation checkpoints
 
-Execution is in progress under the approved [twenty-candidate plan](evaluation-round3-plan.md).
-The new $5 includes production comparisons. No production deployment has been
-made in this round. Automated model review is used; no human calibration is
-claimed. This file records completed checkpoints, not a final selection.
+All twenty candidates have been screened under the approved
+[plan](evaluation-round3-plan.md). Matched repeats and an alternate-model
+review reject the model and prompt switches. Retain candidate 17, larger
+sheet citations, for final verification. The fresh combined 54-case suite is
+running; deployment and the after-production comparison remain pending.
+Automated model review replaces required human review; no human calibration
+is claimed. The new $5 includes both production windows. The sections below
+preserve checkpoints and their limitations, rather than a final comparison.
+
+## Current selection and production baseline
+
+Luna Pro's audit gain under the Luna judge was not corroborated by the blinded,
+counterbalanced Gemini review: both Luna controls and both Pro repeats receive
+coverage 4. Pro costs more and generally runs more slowly. Summary budget
+allocation did not repeat its first paper gain. Gemini figure reading has no
+stable paper saving and retains a native chapter-8 failure. None is promoted.
+Larger citations preserve the same content, original figures and page counts
+in all six paired free renders, with no added provider call.
+
+The unchanged production `0983a1c` before window is complete in the verified
+real account. Chat, whole-paper summary, cold paper sheet, video abstention,
+selected-course answer and cold complete-chapter ideal generation completed.
+Provider key usage after normal-key restoration is **$0.04421037**, held inside
+the shared $0.75 before/after reservation. This is aggregate billing, not an
+allocation to individual requests. Some saved video/course rows report zero
+when cost metadata is absent; those zeros do not establish free inference.
+
+| Production before case | Observed completion |
+| --- | ---: |
+| Responsible-AI audit chat | 9.571 s |
+| Complete Transformer-paper summary | 25.688 s |
+| Cold paper revision sheet | 182.520 s from enqueue to ready |
+| Video question requiring an absent BLEU score | 5.768 s; abstains |
+| Spanner consistency / TrueTime question | 3.463 s; identifies missing mechanism evidence |
+| Complete chapter-1 ideal interview | 85.745 s; 15/15 topics |
+
+Synchronous timings are Railway web HTTP completion durations; sheet time is
+the persisted job interval, including waiting and generation. Its 45 ms enqueue
+response is not its completion time. One sample per scenario cannot establish
+a reliable speed percentile. Production uses `hybrid_rerank`; the native gold
+suite uses BM25. Canonical cloud source bindings and artifacts are retained
+privately for the paired comparison. An unrelated image attached to the audit
+and incomplete TrueTime course evidence remain limitations.
+
+Full isolated backend verification at `d8c9dda`: **2181 tests + 973 subtests,
+38 skips, no failures**. No voice changes are selected. The production normal
+key is restored; the capped key will be reused only during the after window.
 
 ## Free rendering screens
 
