@@ -40,8 +40,13 @@ def saved_cases(selection, runs_root):
     return result
 
 
+# Internal planner labels the reader never sees. Their consequences (route,
+# scope, retrieved evidence, the answer) are gated by other checks and the judge.
+DIAGNOSTIC_CHECKS = frozenset({'standalone_exact', 'history_dependency'})
+
+
 def review_verdict(judgment, checks=None, *, flow=None):
-    if any(value is False for key, value in (checks or {}).items() if key != 'standalone_exact'):
+    if any(value is False for key, value in (checks or {}).items() if key not in DIAGNOSTIC_CHECKS):
         return 'needs_work'
     if judgment.get('grounding_status') == 'unsupported' or judgment.get('layout') == 'needs_fix':
         return 'needs_work'

@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-REVIEW_VERSION = "artifact-review-v4"
+REVIEW_VERSION = "artifact-review-v5"
 
 
 class Criterion(BaseModel):
@@ -145,7 +145,11 @@ class SuiteJudge:
             "means unknown/insufficient_evidence, never a perfect score. Empty sheet coverage_points means independent "
             "concept coverage is unknown. Be explicit about unsupported claims and evidence gaps. "
             "Abstention is correct for an unanswerable question. Return a criterion row for every expected coverage point. "
-            "A valid locator can still accompany an unsupported claim. Do not grade reference wording matches."
+            "A valid locator can still accompany an unsupported claim. Do not grade reference wording matches. "
+            "List in unsupported_claims only statements the OUTPUT actually makes; an expected point or reference "
+            "sentence the output does not contain is a coverage gap, never an unsupported claim. "
+            "For a prior_answer_transform, evidence.source_passages holds the full original source text behind "
+            "the earlier answer; use it, not truncated excerpts, to verify carried-over claims."
         )
         with tracing_context(project_name=self.project, client=self.client, enabled=True,
                              metadata={"case_id": case.id, "experiment_id": self.experiment_id, "phase": "judging"},

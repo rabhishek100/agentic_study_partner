@@ -1,5 +1,6 @@
 """Independent source inventory and screenshot-aware, bounded quality review."""
 from base64 import b64encode
+import json
 import os
 import tiktoken
 from typing import Literal
@@ -10,7 +11,8 @@ from pydantic import Field
 
 from .contracts import Contract, RevisionError
 
-RUBRIC_VERSION = "revision-review-v4"
+RUBRIC_VERSION = "revision-review-v5"
+DIAGRAM_ITEM = "diagram_description"
 
 class EvidenceConcept(Contract):
     id: str
@@ -67,7 +69,10 @@ class Review(Contract):
             failures.append("Review must account for every independent inventory concept exactly once.")
         for concept in inventory.concepts:
             row = rows.get(concept.id)
-            if row and (not set(row.item_ids) <= rendered or (row.status == "covered" and not row.item_ids)):
+            # The diagram as a whole has no ID in the sheet JSON; reviewers
+            # naturally call it "diagram". Its rendered item is the description.
+            cited = {DIAGRAM_ITEM if item == "diagram" else item for item in row.item_ids} if row else set()
+            if row and (not cited <= rendered or (row.status == "covered" and not row.item_ids)):
                 failures.append(f"Invalid rendered evidence for {concept.id}.")
             if concept.importance == "essential" and (not row or row.status != "covered"):
                 failures.append(f"Essential concept incomplete: {concept.id} {concept.label}.")
@@ -151,7 +156,9 @@ def judge_sheet(source, sheet, inventory, pdf, client):
             b64encode(page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5)).tobytes("png")).decode()}}
             for page in document]
     evidence = ("CANONICAL SOURCE\n" + source.text + "\nINDEPENDENT INVENTORY\n" + inventory.model_dump_json()
-                + "\nRENDERED CONTENT\n" + sheet.model_dump_json())
+                + "\nRENDERED CONTENT\n" + sheet.model_dump_json()
+                + "\nVALID COVERAGE ITEM IDS (cite only these; the whole diagram is " + DIAGRAM_ITEM + ")\n"
+                + json.dumps([item.id for item in sheet.items()]))
     reserved = len(tiktoken.get_encoding("cl100k_base").encode(evidence + JUDGE_PROMPT + str(Review.model_json_schema()))) + 16000 + 4000 * len(images)
     if reserved > int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "128000")):
         raise RevisionError("scope_too_large", "Complete evidence and visual review exceed the configured context budget. No evidence was truncated.")

@@ -577,6 +577,57 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertLessEqual(len(result.evidence), 8)
         self.assertTrue(all(item.book_id == book_id for item in result.evidence))
 
+    def test_interview_answer_keeps_second_section_neighbors(self):
+        from parsing.models import ParsedBook, Section, TextBlock
+        from retrieval.langchain import document_from_result
+        from retrieval.models import ChunkingConfig
+        from retrieval.postgres import rebuild, search_result_from_row
+        from study.query import _section_neighborhood
+        from uuid import uuid4
+        # A long first section must not crowd out the passages adjacent to the
+        # second section's hit (here, the proxy and fatigue points), as long as
+        # the eight-item budget has room. The quick budget keeps its old policy.
+        words = " ".join(["data"] * 32)
+        paths = {"first": "Detecting Shifts", "second": "Monitoring Metrics"}
+        texts = {"first": [f"Section one part {index}. {words}" for index in range(8)],
+                 "second": [f"Proxy point. {words}", f"Second section hit. {words}", f"Fatigue point. {words}"]}
+        others = [f"Other {index}" for index in range(3)]
+        sections = [Section(path=["Chapter 1"], level=1, start_page=1, end_page=1,
+                            texts=[TextBlock(text="Overview.", category="NarrativeText", page=1)])]
+        sections += [Section(path=["Chapter 1", paths[key]], level=2, start_page=1, end_page=1,
+                             texts=[TextBlock(text=text, category="NarrativeText", page=1) for text in texts[key]])
+                     for key in ("first", "second")]
+        sections += [Section(path=["Chapter 1", name], level=2, start_page=1, end_page=1,
+                             texts=[TextBlock(text=f"{name}. {words}", category="NarrativeText", page=1)])
+                     for name in others]
+        source = ParsedBook(source="fixture.pdf", toc=[(section.level, section.path[-1], 1) for section in sections],
+                            sections=sections)
+        with database_connection(self.database_url) as db:
+            book_id = ingest_book(db, source, owner_id=self.owner_id, title="Shifts",
+                author="Fixture", file_hash=uuid4().hex * 2, page_count=1, parser_version="fixture")
+            rebuild(db, book_id, owner_id=self.owner_id,
+                    config=ChunkingConfig(target_tokens=40, max_tokens=60, overlap_tokens=0))
+            rows = db.execute("select * from chunks where owner_id = %s and source_book_id = %s order by toc_index, chunk_index",
+                              (self.owner_id, book_id)).fetchall()
+        by_section = {}
+        for row in rows:
+            by_section.setdefault(row["section_title"], []).append(row)
+        self.assertEqual(len(by_section["Detecting Shifts"]), 8)
+        self.assertEqual(len(by_section["Monitoring Metrics"]), 3)
+        document = lambda row: document_from_result(search_result_from_row(row, score=1.0, retrieval_method="bm25"))
+        proxy, hit, fatigue = by_section["Monitoring Metrics"]
+        ranked = [document(by_section["Detecting Shifts"][3]), document(hit),
+                  *(document(by_section[name][0]) for name in others)]
+        for limit, keeps_neighbors in ((8, True), (5, False)):
+            with self.subTest(limit=limit):
+                expanded = _section_neighborhood(ranked, database_url=self.database_url, owner=self.owner_id,
+                                                 scope=[book_id], limit=limit)
+                ids = [item.metadata["chunk_id"] for item in expanded]
+                self.assertLessEqual(len(ids), limit)
+                self.assertIn(hit["id"], ids)
+                self.assertEqual({proxy["id"], fatigue["id"]} <= set(ids), keeps_neighbors)
+                self.assertEqual(sum(row["id"] in ids for row in by_section["Detecting Shifts"]), min(5, limit - 2))
+
     def test_system_design_allows_several_chunks_from_one_scope_node(self):
         document = SimpleNamespace(
             page_content="A supported architecture.",

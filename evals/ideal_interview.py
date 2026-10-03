@@ -73,7 +73,7 @@ def score_ideal_flow(
             50 <= len(value.split()) <= 260 for value in answers
         )),
         "human_reasoning_signals": float(bool(answers) and all(
-            INTERVIEW_SIGNALS.search(value) for value in answers
+            INTERVIEW_SIGNALS.search(value.replace("\u2019", "'")) for value in answers
         )),
         "system_design_progression": float(
             not system_design

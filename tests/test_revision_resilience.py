@@ -201,3 +201,54 @@ class ReviewDoesNotGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewItemIdTests(unittest.TestCase):
+    """The diagram has no ID in the sheet JSON; citing it as "diagram" is valid."""
+
+    def test_diagram_reference_is_accepted_and_unknown_items_are_not(self) -> None:
+        import sys
+        sys.path.insert(0, "tests")
+        from revision_sheets.review import Coverage, EvidenceConcept, Inventory, Review, Score
+        from test_revision_sheets import fixture
+
+        sheet = fixture()
+        concept = EvidenceConcept(id="c1", label="Flow", explanation="Flow",
+                                  citations=["[N1:P1]"], importance="essential")
+        inventory = Inventory(concepts=[concept], contradictions=[], source_coverage=[])
+        good = Score(score=4, rationale="Fine")
+
+        def review(item_ids):
+            return Review(beauty=good, presentation=good, concept_coverage=good, conciseness=good,
+                          coverage=[Coverage(concept_id="c1", item_ids=item_ids, status="covered", reason="Covered")],
+                          unsupported_claims=[], unresolved_contradictions=[], revision_instructions=[])
+
+        self.assertEqual(review([sheet.central_idea.id, "diagram"]).failures(inventory, sheet), [])
+        self.assertEqual(review(["diagram_description"]).failures(inventory, sheet), [])
+        self.assertEqual(review(["not_a_rendered_item"]).failures(inventory, sheet),
+                         ["Invalid rendered evidence for c1."])
+
+    def test_reviewer_is_shown_the_valid_item_ids(self) -> None:
+        import sys
+        sys.path.insert(0, "tests")
+        from revision_sheets.review import EvidenceConcept, Inventory, judge_sheet
+        from test_revision_sheets import fixture, source_fixture
+
+        sheet = fixture()
+        inventory = Inventory(concepts=[EvidenceConcept(id="c1", label="Flow", explanation="Flow",
+                              citations=["[N1:P1]"], importance="essential")], contradictions=[], source_coverage=[])
+        captured = {}
+
+        class Client:
+            def invoke(self, messages):
+                captured["text"] = messages[1].content[0]["text"]
+                raise RuntimeError("stop after capture")
+
+        import pymupdf
+        document = pymupdf.open()
+        document.new_page()
+        pdf = document.tobytes()
+        with self.assertRaises(RuntimeError):
+            judge_sheet(source_fixture(), sheet, inventory, pdf, Client())
+        self.assertIn("VALID COVERAGE ITEM IDS", captured["text"])
+        self.assertIn('"diagram_description"', captured["text"])

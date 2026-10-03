@@ -239,19 +239,16 @@ def retrieve_video_evidence(
     if not any(item.is_visual for item in selected):
         expansion_modalities.extend(("visual_frame", "visual_event"))
     if anchor_timestamps and expansion_modalities and timeline_window_ms:
-        expanded_rows = connection.execute(
+        candidate_rows = connection.execute(
             """
-            select evidence.*,
-                   min(abs(evidence.start_ms - anchor.value)) as distance_ms
+            select evidence.*, anchor.position,
+                   abs(evidence.start_ms - anchor.value) as distance_ms
             from video.evidence_units as evidence
-            cross join unnest(%s::bigint[]) as anchor(value)
+            cross join unnest(%s::bigint[]) with ordinality as anchor(value, position)
             where evidence.owner_id = %s and evidence.video_id = %s
               and evidence.ingestion_version_id = %s
               and evidence.modality = any(%s::text[])
               and abs(evidence.start_ms - anchor.value) <= %s
-            group by evidence.id, evidence.owner_id
-            order by distance_ms, evidence.start_ms, evidence.id
-            limit %s
             """,
             (
                 anchor_timestamps,
@@ -260,9 +257,9 @@ def retrieve_video_evidence(
                 version_id,
                 expansion_modalities,
                 timeline_window_ms,
-                max(2, limit // 2),
             ),
         ).fetchall()
+        expanded_rows = _round_robin_by_anchor(candidate_rows, limit=max(2, limit // 2))
         existing = {item.id for item in selected}
         for row in expanded_rows:
             if row["id"] in existing:
@@ -287,6 +284,29 @@ def retrieve_video_evidence(
     return version_id, tuple(
         replace(item, rank=index) for index, item in enumerate(selected, start=1)
     )
+
+
+def _round_robin_by_anchor(rows, *, limit):
+    """Take the nearest unused evidence around each anchor, in anchor rank order.
+
+    Ordering by distance to any anchor let a weak frame that happened to sit on
+    a caption cue claim every slot; giving the top anchor every slot left the
+    next relevant moment unread. Each round takes one item per anchor.
+    """
+    by_anchor: dict[int, list] = {}
+    for row in sorted(rows, key=lambda row: (row["distance_ms"], row["start_ms"], str(row["id"]))):
+        by_anchor.setdefault(row["position"], []).append(row)
+    chosen, seen = [], set()
+    queues = [by_anchor[position] for position in sorted(by_anchor)]
+    while len(chosen) < limit and any(queues):
+        for queue in queues:
+            while queue and queue[0]["id"] in seen:
+                queue.pop(0)
+            if queue and len(chosen) < limit:
+                row = queue.pop(0)
+                seen.add(row["id"])
+                chosen.append(row)
+    return chosen
 
 
 def _expand_transcript(

@@ -53,6 +53,27 @@ def experiment_lock(directory):
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+# OpenRouter lists rerank models at $0 per token and publishes no per-request
+# price; the provider bills per search unit and returns that receipt. Observed
+# receipt 2026-10-04: usage {"search_units": 1, "cost": 0.0025}. Frozen into each
+# experiment; a receipt above its reservation still blocks the experiment.
+RERANK_SEARCH_UNIT_USD = {"cohere/rerank-4-pro": "0.0025"}
+# Cohere bills one search unit per 100 documents, splitting long documents into
+# chunks. A byte is at least one token, so bytes over this size bound the chunks.
+RERANK_CHUNK_TOKENS = 500
+
+
+def rerank_reservation(payload, unit_price):
+    documents = [str(item) for item in payload.get("documents") or []]
+    if not documents:
+        raise BudgetStop("A rerank request must contain documents")
+    query = len(str(payload.get("query", "")).encode())
+    room = max(1, RERANK_CHUNK_TOKENS - query)
+    chunks = sum(max(1, -(-len(document.encode()) // room)) for document in documents)
+    units = -(-chunks // 100)
+    return units * money(unit_price) * Decimal("1.2")
+
+
 def pricing_snapshot():
     """Read-only public metadata; freeze in the experiment before any paid call."""
     result = {}
@@ -63,7 +84,8 @@ def pricing_snapshot():
             for model in response.json()["data"]:
                 result[model["id"]] = {key: model.get(key) for key in
                                       ("pricing", "context_length", "top_provider", "canonical_slug")}
-    return {"fetched_at": datetime.now(UTC).isoformat(), "models": result}
+    return {"fetched_at": datetime.now(UTC).isoformat(), "models": result,
+            "rerank_search_unit_usd": dict(RERANK_SEARCH_UNIT_USD)}
 
 
 class Budget:
@@ -114,7 +136,7 @@ class Budget:
             if isinstance(usage, dict) and usage.get("cost") is not None:
                 reported = money(usage["cost"])
                 call.update(cost_usd=str(reported), status="settled", cost_kind="provider_reported",
-                            usage={key: usage.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens", "cost")})
+                            usage={key: usage.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens", "search_units", "cost")})
                 atomic_json(self.path, self.data)
                 if reported > money(call["reserved_usd"]) or self.committed > money(self.data["cap_usd"]):
                     self.data["blocked"] = "Provider receipt exceeded its reservation; pricing investigation required"
@@ -142,6 +164,16 @@ class Budget:
             atomic_json(self.path, self.data)
 
     def prepare(self, request):
+        if request.url.host == "openrouter.ai" and request.url.path == "/api/v1/rerank":
+            try:
+                payload = json.loads(request.content)
+                unit_price = self.data["pricing"]["rerank_search_unit_usd"][payload["model"]]
+            except (KeyError, ValueError, httpx.RequestNotRead) as error:
+                raise BudgetStop("Unpriced rerank model or unreadable request") from error
+            if payload.get("models") or payload.get("plugins") or payload.get("stream"):
+                raise BudgetStop("Fallback models, paid plugins and streaming require separate budgeting")
+            call_id = self.reserve(rerank_reservation(payload, unit_price), model=payload["model"], request=payload)
+            return call_id, request
         if request.url.host != "openrouter.ai" or request.url.path not in {"/api/v1/chat/completions", "/api/v1/embeddings"}:
             raise BudgetStop("Unpriced inference endpoint")
         try:
