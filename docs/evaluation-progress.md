@@ -598,3 +598,23 @@ output and dynamically bounded child reservation. A specification mismatch on
 resume is rejected. Tests verify complete affected-flow coverage and unchanged
 independent inventory/author/reviewer roles. Wait for the frozen control tail,
 then audit the planned unused-screening transfer before paid repeats.
+
+### Unit 27 — reporter integration repair and artifact recovery
+
+The SDK timing addition passed a helper check but its top-level adapter field
+violated the suite return contract. Repeats were paused after this systemic
+failure. Put timing inside metrics and independently checkpoint the completed
+adapter return. An offline integration regression now runs traced adapters
+through the real suite validator, including failed hosted readback.
+
+Recover only fully saved and reviewed sheets from this exact reporter failure,
+without generation or rendering. Check unchanged owned canonical bindings,
+validated draft, final PDF/provenance and settled generation receipts. Preserve
+the original bundle and a hashed amendment journal. Two control and four Gemini
+sheets were recovered; interrupted chapter 8 and queued chapter 10 are not
+recovered. Their costs and unresolved reserve remain held. New paid attempts use
+an explicit suffix, and a failed matched control now stops the repeat batch.
+
+Validation: 48 targeted suite, round-budget and flow-candidate tests passed.
+Next: judge recovered outputs, complete the two Gemini sheets, repeat summaries
+and the conditional writer, then select settings only from matched evidence.

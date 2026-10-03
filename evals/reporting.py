@@ -129,7 +129,9 @@ def traced_adapters(adapters, *, budget, project, experiment_id, client):
             from hashlib import sha256
             value.setdefault("evidence", {})["generation_capture_hashes"] = {
                 relative: sha256((Path(directory) / relative).read_bytes()).hexdigest() for relative in captures}
-            value.update(trace, metrics=metrics)
+            value.update({key: trace[key] for key in ("trace_id", "trace_url", "request_capture")}, metrics=metrics)
+            # Preserve completed generation independently of suite bookkeeping.
+            atomic_json(Path(directory) / "artifacts" / case.id / "adapter-result.json", value)
             return value
         result[name] = execute
     return result

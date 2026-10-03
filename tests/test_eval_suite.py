@@ -116,3 +116,37 @@ def test_sdk_root_interval_is_recorded_without_claiming_hosted_delivery():
     assert metrics["hosted_delivery_verified"] is False
     assert "cost_usd" not in metrics and "total_tokens" not in metrics
     assert sdk_span_metrics(None) is None
+
+
+def test_traced_adapter_timing_survives_suite_validation_and_is_checkpointed(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    from langsmith.run_trees import RunTree
+    import langsmith
+    import observability
+    import evals.reporting as reporting
+
+    @contextmanager
+    def context(*args, **kwargs):
+        yield
+
+    @contextmanager
+    def span(*args, **kwargs):
+        run = RunTree(name='offline integration')
+        yield run
+        run.end()
+
+    monkeypatch.setattr(langsmith, 'tracing_context', context)
+    monkeypatch.setattr(observability, 'span', span)
+    monkeypatch.setattr(observability, 'flush_traces', lambda: None)
+    monkeypatch.setattr(reporting, 'read_trace', lambda *args: (_ for _ in ()).throw(RuntimeError('quota')))
+    adapters = reporting.traced_adapters({'test': lambda *args: {'output': {'answer': 'saved'}, 'evidence': {}}},
+        budget=SimpleNamespace(data={'calls': []}), project='offline', experiment_id='fixture', client=None)
+    bundle = run_suite(manifest(), tmp_path, adapters=adapters, config={})
+    assert all(row['status'] == 'completed' for row in bundle['cases'])
+    for row in bundle['cases']:
+        assert 'local_sdk_span' not in row
+        assert row['metrics']['local_sdk_span']['latency_seconds'] >= 0
+        saved = json.loads((tmp_path / 'artifacts' / row['id'] / 'adapter-result.json').read_text())
+        assert saved['output'] == row['output']
+        assert saved['metrics']['status'] == 'unavailable'
