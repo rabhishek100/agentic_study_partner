@@ -197,6 +197,30 @@ class ConversationTests(PostgresOwnerMixin, unittest.TestCase):
         self.assertEqual(len(state.messages), 2)
         self.assertEqual(state.previous_answer, result.answer)
 
+    def test_shortening_keeps_only_citations_used_in_the_new_answer(self):
+        from types import SimpleNamespace
+        from study.contracts import CitationRef
+        from evals.scoring import book_citations
+        for retained in ('[S1]', f'[N{self.chapter["id"]}:P1]'):
+            with self.subTest(marker=retained):
+                citations = [CitationRef(marker=retained, node_id=self.chapter['id'], page=1,
+                                         book_id=self.book_id, evidence_rank=1),
+                             CitationRef(marker='[S2]', node_id=self.chapter['id'], page=1,
+                                         book_id=self.book_id, evidence_rank=2)]
+                evidence = [EvidenceRef(node_id=self.chapter['id'], pages=[1], path='Foundations',
+                                        book_id=self.book_id, rank=rank) for rank in (1, 2)]
+                previous = self.state(active_scope=self.scope(), previous_answer=f'Main claim {retained}. Optional example [S2].',
+                                      previous_citations=citations, previous_evidence=evidence)
+                result, updated = execute_conversation_turn('Make that one sentence.', previous,
+                    database_url=self.database_url, owner_id=self.owner_id,
+                    analysis_model=FakeModel({'route':'prior_answer_transform','history_dependency':'dependent',
+                                             'standalone_query':'Make the previous answer one sentence.','reason':'Shorten only.'}),
+                    generation_model=FakeModel(SimpleNamespace(content=f'Main claim {retained}.')))
+                self.assertEqual(result.citations, [citations[0]])
+                self.assertEqual(updated.previous_citations, result.citations)
+                self.assertEqual(result.evidence, evidence)
+                self.assertTrue(book_citations(result, required=True))
+
     def test_library_listing_uses_ready_selected_canonical_metadata(self):
         with database_connection(self.database_url) as connection:
             connection.execute(

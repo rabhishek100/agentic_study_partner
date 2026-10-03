@@ -23,7 +23,7 @@ from .review import (Inventory, FigureBatch, Review, RUBRIC_VERSION, make_invent
 from .source import Source
 from .validate import validate_sheet, resolve_disposition_concepts
 
-PROMPT_VERSION = "revision-prompt-v10"
+PROMPT_VERSION = "revision-prompt-v11"
 PROMPT = """Create an A4 revision sheet of at most five pages for a reader who already studied
 this complete chapter or paper. Optimize for rapid recall and reconstruction
 of its mental model, with one clear overview diagram and compact notes.
@@ -154,11 +154,20 @@ def judge_model_name():
     return os.getenv("OPENROUTER_REVISION_JUDGE_MODEL") or model_name()
 
 
-def revision_model(schema=Draft, *, judge=False):
+def revision_model(schema=Draft, *, judge=False, allowed_figures=None):
     from langchain_openai import ChatOpenAI
     key = os.getenv("OPENROUTER_API_KEY")
     if not key:
         raise RevisionError("model_unconfigured", "Configure OPENROUTER_API_KEY to generate revision sheets.")
+    if allowed_figures is not None:
+        # Offer only canonical images inspected for this exact source scope.
+        # The application validator remains authoritative after decoding.
+        schema = schema.model_json_schema()
+        figures = schema["$defs"]["Diagram"]["properties"]["source_figure_ids"]
+        if allowed_figures:
+            figures["items"]["enum"] = sorted(set(allowed_figures))
+        else:
+            figures["maxItems"] = 0
     return ChatOpenAI(model=judge_model_name() if judge else model_name(), api_key=key, base_url="https://openrouter.ai/api/v1",
                       temperature=0.2, max_tokens=16000, max_retries=2,
                       timeout=float(os.getenv("OPENROUTER_REQUEST_TIMEOUT_SECONDS", "120")),
@@ -225,12 +234,13 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
     window = int(os.getenv("REVISION_CONTEXT_WINDOW_TOKENS", "128000"))
     if budget > window:
         raise RevisionError("scope_too_large", f"Complete source needs approximately {budget:,} reserved tokens; configured limit is {window:,}. No evidence was truncated.")
-    client = model or revision_model()
+    client = model
 
     def inventory(state: State):
-        nonlocal assets, readings, inspected, human_text, budget
+        nonlocal assets, readings, inspected, human_text, budget, client
         assets, readings = read_all_figures(source, figure_client, progress)
         inspected = list(assets)
+        client = model or revision_model(allowed_figures=inspected)
         progress("inventorying_concepts")
         independent = make_inventory(source, readings, inventory_client)
         human_text += "\nINDEPENDENT INVENTORY\n" + independent.model_dump_json() + "\nINSPECTED FIGURES\n" + json.dumps(readings)
@@ -252,7 +262,7 @@ def generate(source: Source, *, model=None, progress=lambda stage: None,
         try:
             if state.get("quality_patch") and model is None:
                 instructions = PROMPT + "\nTARGETED REVISION: Return only edits to existing notes needed to fix the listed review or page-fit issues. Prioritize essential failures only; do not restore supporting details suggested as optional or if space permits. Unedited notes and coverage ledgers are preserved automatically. Keep every previously correct mechanism and condition inside edited notes; add missing details without replacing them. Keep note IDs. Return diagram=null unless its labels, relationships or original figure selection need correction; if changing it preserve all node and edge IDs. Do not rewrite the whole sheet."
-                raw = revision_model(SheetPatch).invoke([SystemMessage(content=instructions), HumanMessage(content=text)])
+                raw = revision_model(SheetPatch, allowed_figures=inspected).invoke([SystemMessage(content=instructions), HumanMessage(content=text)])
                 patch = raw if isinstance(raw, SheetPatch) else SheetPatch.model_validate(raw)
                 draft = Draft(sheet=apply_sheet_patch(state["sheet"], patch), missing_evidence="")
             else:

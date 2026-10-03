@@ -544,10 +544,38 @@ class QueryRoutingTests(PostgresOwnerMixin, unittest.TestCase):
                     model=model, force_retrieval=True, retrieval_mode="bm25")
                 self.assertIn(tail, model.invoke.call_args.args[0][-1][1])
                 self.assertEqual(len(result.evidence), 2)
-                self.assertEqual(result.evidence[1].retrieval_method, "hierarchy_continuation")
+                self.assertEqual(result.evidence[1].retrieval_method, "hierarchy_expansion")
                 self.assertEqual(result.evidence[0].node_id, result.evidence[1].node_id)
                 self.assertEqual(result.citations[0].evidence_rank, 2)
                 self.assertEqual(result.citations[0].book_id, book_id)
+
+    def test_explanation_receives_definition_before_matching_middle_chunk(self):
+        from parsing.models import ParsedBook, Section, TextBlock
+        from retrieval.models import ChunkingConfig
+        from retrieval.postgres import rebuild
+        from uuid import uuid4
+        definition = 'A model uses 32-bit floating point parameters. Quantization can halve memory by using 16-bit representation. Post-training and quantization-aware training are distinct approaches.'
+        condition = 'Lower precision can reduce runtime and memory, with a possible accuracy tradeoff. Measure quality before deployment. This condition applies to the same compression mechanism described above.'
+        source = ParsedBook(source='fixture.pdf', toc=[(1, 'Chapter 1. Compression', 1)],
+            sections=[Section(path=['Chapter 1. Compression'], level=1, start_page=1, end_page=1,
+                texts=[TextBlock(text=text, category='NarrativeText', page=1)
+                       for text in (definition, 'Quantization example. ' * 12, condition)])])
+        with database_connection(self.database_url) as db:
+            book_id = ingest_book(db, source, owner_id=self.owner_id, title='Compression',
+                author='Fixture', file_hash=uuid4().hex * 2, page_count=1, parser_version='fixture')
+            rebuild(db, book_id, owner_id=self.owner_id,
+                    config=ChunkingConfig(target_tokens=40, max_tokens=60, overlap_tokens=0))
+        model = MagicMock()
+        model.invoke.return_value = SimpleNamespace(content='Use 16-bit parameters with measured accuracy tradeoffs [S2] [S3].')
+        result = execute_query('Explain quantization.', database_url=self.database_url,
+            book_id=book_id, owner_id=self.owner_id, model=model, force_retrieval=True, retrieval_mode='bm25')
+        request = model.invoke.call_args.args[0][-1][1]
+        self.assertIn(definition, request)
+        self.assertIn(condition, request)
+        self.assertEqual(result.evidence[0].chunk_index, 1)
+        self.assertEqual([item.chunk_index for item in result.evidence], [1, 0, 2])
+        self.assertLessEqual(len(result.evidence), 8)
+        self.assertTrue(all(item.book_id == book_id for item in result.evidence))
 
     def test_system_design_allows_several_chunks_from_one_scope_node(self):
         document = SimpleNamespace(

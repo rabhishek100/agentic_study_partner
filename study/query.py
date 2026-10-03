@@ -102,54 +102,39 @@ def retrieval_limit(response_depth: ResponseDepth) -> int:
     return RETRIEVAL_LIMIT_BY_DEPTH[response_depth]
 
 
-CHECKLIST_REQUEST = re.compile(
-    r"\bchecklist\b|\bwhat\b.{0,100}\b(?:include[ds]?|go\s+into|contains?|cover(?:s|ed)?)\b",
-    re.IGNORECASE,
-)
+@traced("study.query.expand_section_context", flow="chat")
+def _section_neighborhood(documents, *, database_url, owner, scope, limit):
+    """Complete a short strongest section, or keep its nearest bounded neighbors.
 
-
-def _checklist_continuations(documents, question, *, database_url, owner, scope, limit):
-    """Keep a selected list's next chunk before lower-ranked unrelated nodes.
-
-    Follow at most two strongest hits that have a continuation, within the
-    same owner/book/node/build.
-    No extra model call or larger context-item budget is introduced.
+    Keep at least two context slots for other ranked sections. Source ownership,
+    book, node and build are fixed by the seed; no model call is added.
     """
-    if not CHECKLIST_REQUEST.search(question):
+    if not documents or not documents[0].metadata.get("chunk_id"):
         return documents
-    following = {}
+    seed = documents[0]
+    pack_limit = min(5, max(1, limit - 2))
     with database_connection(database_url, readonly=True) as source:
-        for document in documents:
-            if len(following) == 2:
-                break
-            chunk_id = document.metadata.get("chunk_id")
-            if not chunk_id:
-                continue
-            row = source.execute(
-                """select following.* from chunks as seed join chunks as following
-                on following.owner_id = seed.owner_id
-                  and following.source_book_id = seed.source_book_id
-                  and following.source_node_id = seed.source_node_id
-                  and following.build_id = seed.build_id
-                  and following.chunk_index = seed.chunk_index + 1
-                where seed.owner_id = %s and seed.id = %s
-                  and (%s::bigint[] is null or seed.source_book_id = any(%s))""",
-                (owner, chunk_id, scope, scope),
-            ).fetchone()
-            if row:
-                following[chunk_id] = document_from_result(search_result_from_row(
-                    row, score=document.metadata.get("score") or 0,
-                    retrieval_method="hierarchy_continuation"))
+        rows = source.execute(
+            """select neighbor.* from chunks as seed join chunks as neighbor
+            on neighbor.owner_id = seed.owner_id
+              and neighbor.source_book_id = seed.source_book_id
+              and neighbor.source_node_id = seed.source_node_id
+              and neighbor.build_id = seed.build_id
+            where seed.owner_id = %s and seed.id = %s
+              and (%s::bigint[] is null or seed.source_book_id = any(%s))
+            order by abs(neighbor.chunk_index - seed.chunk_index), neighbor.chunk_index
+            limit %s""", (owner, seed.metadata["chunk_id"], scope, scope, pack_limit),
+        ).fetchall()
+    neighbors = [document_from_result(search_result_from_row(row,
+        score=seed.metadata.get("score") or 0, retrieval_method="hierarchy_expansion"))
+        for row in rows if row["id"] != seed.metadata["chunk_id"]]
     expanded, seen = [], set()
-    for document in documents:
-        for item in (document, following.get(document.metadata.get("chunk_id"))):
-            if item is None:
-                continue
-            key = item.metadata.get("chunk_id")
-            if key is not None and key in seen:
-                continue
-            seen.add(key)
-            expanded.append(item)
+    for item in [seed, *neighbors, *documents[1:]]:
+        key = item.metadata.get("chunk_id")
+        if key is not None and key in seen:
+            continue
+        seen.add(key)
+        expanded.append(item)
     return expanded[:limit]
 
 
@@ -629,9 +614,12 @@ def _answer_retrieval_question(
         # discards most of that design while admitting unrelated chapters.
         unique_nodes=archetype != "system_design",
     ).invoke(question)
-    retrieved = _checklist_continuations(retrieved, question,
-        database_url=database_url, owner=owner, scope=scope,
-        limit=retrieval_limit(response_depth))
+    # Side chats already carry explicit pinned context; their ranking contract
+    # and system-design's multi-chunk retrieval remain unchanged in this trial.
+    if archetype != "system_design" and not pinned_chunk_ids:
+        retrieved = _section_neighborhood(retrieved,
+            database_url=database_url, owner=owner, scope=scope,
+            limit=retrieval_limit(response_depth))
     pinned = _pinned_documents(
         pinned_chunk_ids,
         database_url=database_url,

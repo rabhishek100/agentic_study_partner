@@ -182,14 +182,16 @@ def _transform(
         ),
         token_callback=token_callback,
     )
+    answer = str(response.content)
+    used_markers = set(re.findall(r"\[S\d+\]|\[N\d+:P\d+\]", answer))
     return TurnResult(
         question=question,
-        answer=str(response.content),
+        answer=answer,
         route="prior_answer_transform",
         history_dependency="dependent",
         resolved_scope=state.active_scope,
         evidence=list(state.previous_evidence),
-        citations=list(state.previous_citations),
+        citations=[citation for citation in state.previous_citations if citation.marker in used_markers],
         outcome="answer",
         answer_archetype="answer_transform",
         response_depth=response_depth,

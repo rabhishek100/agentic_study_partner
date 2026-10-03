@@ -29,7 +29,8 @@ labelled-general-knowledge policy is disclosed separately from grounded quality.
 | 15 | Freeze comparison and fresh current-code baseline | Complete; corrected review running | All 54 generated/judged; $0.83691825; 54 trace latencies/token/cost measurements; no unknown receipts |
 | 16 | Quality candidate | Live comparison running at `f1e33f4` | Address measured missing details, exact claim citations, summary/sheet completeness and justified interview feedback; meaningful regression tests; unchanged-case full rerun |
 | 17 | Refined quality and speed candidate | Preparing full live comparison | Target measured repeated work and residual omissions; preserve dependencies, source isolation and bounded repairs; compare all 54 |
-| 18 | Selection and final verification | Pending | Per-flow before/after evidence; repeat material regressions or close results; full relevant contracts/journeys; commit/push retained changes |
+| 18 | Bounded section context, citation metadata and source-bound image IDs | Preparing final trial | Address measured remaining definition/checklist gaps and one generation failure; preserve source isolation, pinned passages and evidence budget; all 54 cases |
+| 19 | Selection and final verification | Pending | Per-flow before/after evidence; repeat material regressions or close results; full relevant contracts/journeys; commit/push retained changes |
 
 Quality comes before speed/cost. Confirmed new grounding, ownership or recovery
 failures block selection. A global average cannot hide regressions in a flow.
@@ -104,6 +105,38 @@ quality candidate and passes with this refinement. Sheet recomposition now has
 an output-based regression checking an added note/coverage ledger and the complete
 new condition in the rendered PDF, while preserving existing notes.
 Refined live directory: `evaluation/runs/round2-refined-bm25-20261003`.
+
+### Final candidate from measured residual failures
+
+The first quality candidate completed 53/54; Chapter 10 failed with an uninspected
+figure ID. Its initial failure remains recorded, not replaced by a favorable retry.
+The refined candidate restored the model card but the broader audit remained
+incomplete. Canonical chunk inspection explains why: the ranked middle chunk
+omits preceding bias categories; quantization's preceding chunk contains its
+precision definitions and post-training/aware approaches.
+
+- Replace forward-only checklist matching with one scoped query for the strongest
+  section's nearest chunks. Complete sections of at most five chunks; otherwise
+  keep a bounded neighborhood. Leave at least two retrieval slots for other ranked
+  sections and keep the overall depth-specific evidence limit unchanged. Owner,
+  book, node and build stay fixed. Pinned side chats and multi-chunk system-design
+  retrieval retain their existing behavior. Trace this expansion as a named child.
+- A shortened answer may remove an optional example and its citation. Filter
+  returned citation metadata to markers actually present, retaining their original
+  source/rank bindings; never invent a new locator. The first candidate's text kept
+  three markers but returned four prior citation records, causing the check failure.
+- Bind draft and patch image-selection schemas to IDs actually inspected for the
+  selected canonical source. Empty scopes require an empty image list. Keep local
+  validation; a provider ignoring the schema must still fail. Version sheet prompt
+  provenance as `revision-prompt-v11`.
+
+Two new behavioral regressions fail against `6149df3`: omitted earlier definition
+and stale rewritten-answer citation metadata (both rank and node/page styles).
+The context/metadata change passed 2,116 tests and 966 subtests; the image-selection
+change passed 27 focused sheet tests and four transport-contract subtests checking
+the actual SDK request schema. Combined verification: 2,117 tests and 970 subtests
+passed (38 skipped), with generated graph/API reference checks. Final live run
+follows. Final directory: `evaluation/runs/round2-final-bm25-20261003`.
 
 ### Speed candidate prepared
 

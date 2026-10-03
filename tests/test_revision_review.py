@@ -24,6 +24,46 @@ def review(status="covered"):
 
 
 class ReviewTests(unittest.TestCase):
+    def test_provider_schema_offers_only_inspected_source_images(self):
+        import json, os
+        import httpx
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage
+        from revision_sheets.generate import revision_model
+        requests = []
+        def respond(request):
+            payload = json.loads(request.content)
+            requests.append(payload)
+            schema = payload['response_format']['json_schema']['schema']
+            draft = (SheetPatch(edits=[], diagram=None) if 'edits' in schema['properties']
+                     else Draft(sheet=fixture(), missing_evidence='')).model_dump(mode='json')
+            return httpx.Response(200, json={'id':'fixture', 'model':'fixture', 'choices':[
+                {'index':0, 'finish_reason':'stop', 'message':{'role':'assistant','content':json.dumps(draft)}}],
+                'usage':{'prompt_tokens':1,'completion_tokens':1,'total_tokens':2}})
+        with httpx.Client(transport=httpx.MockTransport(respond)) as client, \
+             patch.dict(os.environ, {'OPENROUTER_API_KEY':'fixture-key'}), \
+             patch('langchain_openai.ChatOpenAI', side_effect=lambda **kwargs: ChatOpenAI(**kwargs, http_client=client)):
+            for schema in (Draft, SheetPatch):
+                for allowed in ([11, 12], []):
+                    with self.subTest(schema=schema.__name__, allowed=allowed):
+                        model = revision_model(schema, allowed_figures=allowed)
+                        # Inspect the actual SDK request, not the helper's input schema.
+                        model.invoke([HumanMessage(content='Fixture request')])
+                        rules = []
+                        def visit(value):
+                            if isinstance(value, dict):
+                                if 'source_figure_ids' in value.get('properties', {}):
+                                    rules.append(value['properties']['source_figure_ids'])
+                                for child in value.values(): visit(child)
+                            elif isinstance(value, list):
+                                for child in value: visit(child)
+                        visit(requests[-1]['response_format']['json_schema']['schema'])
+                        self.assertEqual(len(rules), 1)
+                        if allowed:
+                            self.assertEqual(rules[0]['items']['enum'], allowed)
+                        else:
+                            self.assertEqual(rules[0]['maxItems'], 0)
+
     def test_high_scores_cannot_override_missing_concept_or_invalid_mapping(self):
         result = review("partial")
         self.assertTrue(result.failures(inventory(), fixture()))
