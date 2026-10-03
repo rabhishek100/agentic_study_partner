@@ -1,6 +1,6 @@
 {
   "version": "round3-experiments-v2",
-  "status": "native selection complete; production comparison ready",
+  "status": "native selection complete; production comparison closed",
   "human_calibration": false,
   "hosted_trace_delivery": "unavailable: monthly unique-trace quota",
   "special_cases": {
@@ -14494,8 +14494,8 @@
     {
       "run": "production-paired",
       "phase": "production",
-      "reported_usd": "0",
-      "unknown_reserved_usd": "0.75"
+      "reported_usd": "0.10556099",
+      "unknown_reserved_usd": "0"
     },
     {
       "run": "repeat-control",
@@ -14558,9 +14558,9 @@
       "unknown_reserved_usd": "0"
     }
   ],
-  "provider_reported_usd": "3.761579609",
-  "unknown_reserved_usd": "0.8496361140",
-  "conservatively_committed_usd": "4.6112157230",
+  "provider_reported_usd": "3.867140599",
+  "unknown_reserved_usd": "0.0996361140",
+  "conservatively_committed_usd": "3.9667767130",
   "selection": {
     "retained_candidates": [
       17

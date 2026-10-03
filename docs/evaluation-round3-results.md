@@ -1,287 +1,178 @@
-# Round-three evaluation checkpoints
+# Evaluation results and production comparison
 
-All twenty candidates have been screened under the approved
-[plan](evaluation-round3-plan.md). Matched repeats and an alternate-model
-review reject the model and prompt switches. Retain candidate 17, larger
-sheet citations, for final verification. The fresh combined 54-case suite is
-running; deployment and the after-production comparison remain pending.
-Automated model review replaces required human review; no human calibration
-is claimed. The new $5 includes both production windows. The sections below
-preserve checkpoints and their limitations, rather than a final comparison.
+The twenty-candidate round is complete. **Keep Luna; retain larger sheet
+citations.** The earlier verified retrieval, summary and sheet-generation
+changes, plus the citation change, are deployed to the combined production
+API/worker at `d8c9dda`. No model or additional prompt experiment is promoted.
+Required human review has been replaced by LLM review. Scores are automated,
+without human calibration.
 
-## Current selection and production baseline
+Reported provider spend is **$3.867140599**. Another **$0.099636114** remains
+reserved for earlier requests whose bills are unknown. Conservative commitment
+is **$3.966776713**, within the new $5 ceiling. This includes controls, failed
+requests, protocol corrections, repeats, two reviewer models, final generation,
+saved-output review and both production windows. The previous round's
+$3.904616935 is separate. Every child stayed within its original cap.
 
-Luna Pro's audit gain under the Luna judge was not corroborated by the blinded,
-counterbalanced Gemini review: both Luna controls and both Pro repeats receive
-coverage 4. Pro costs more and generally runs more slowly. Summary budget
-allocation did not repeat its first paper gain. Gemini figure reading has no
-stable paper saving and retains a native chapter-8 failure. None is promoted.
-Larger citations preserve the same content, original figures and page counts
-in all six paired free renders, with no added provider call.
+## Before evaluation work versus current results
 
-The unchanged production `0983a1c` before window is complete in the verified
-real account. Chat, whole-paper summary, cold paper sheet, video abstention,
-selected-course answer and cold complete-chapter ideal generation completed.
-Provider key usage after normal-key restoration is **$0.04421037**, held inside
-the shared $0.75 before/after reservation. This is aggregate billing, not an
-allocation to individual requests. Some saved video/course rows report zero
-when cost metadata is absent; those zeros do not establish free inference.
+Rejudge the earliest preserved outputs with the same v4 source-evidence rubric
+used for the final run. All fifty shared cases have identical input, source
+and expected fields. Four subsequently added cases are excluded. The same five
+source/policy/capture cases stay visible outside the quality denominator.
 
-| Production before case | Observed completion |
-| --- | ---: |
-| Responsible-AI audit chat | 9.571 s |
-| Complete Transformer-paper summary | 25.688 s |
-| Cold paper revision sheet | 182.520 s from enqueue to ready |
-| Video question requiring an absent BLEU score | 5.768 s; abstains |
-| Spanner consistency / TrueTime question | 3.463 s; identifies missing mechanism evidence |
-| Complete chapter-1 ideal interview | 85.745 s; 15/15 topics |
+| Flow | Earliest saved evaluation | Current, including separate retry |
+| --- | ---: | ---: |
+| Chat | 10/17 | 12/17 |
+| Summaries | 3/6 | 6/6 |
+| Video/course | 6/9 | 8/9 |
+| Revision sheets | 0/5 | 3/5 |
+| Interviews | 5/8 | 5/8 |
+| **Shared quality cases clearing every check** | **24/45** | **34/45** |
 
-Synchronous timings are Railway web HTTP completion durations; sheet time is
-the persisted job interval, including waiting and generation. Its 45 ms enqueue
-response is not its completion time. One sample per scenario cannot establish
-a reliable speed percentile. Production uses `hybrid_rerank`; the native gold
-suite uses BM25. Canonical cloud source bindings and artifacts are retained
-privately for the paired comparison. An unrelated image attached to the audit
-and incomplete TrueTime course evidence remain limitations.
+The earliest run completed 43/50 requests. The final run completes 49/50 shared
+requests on its first attempt; one provider failure passes a separate retry.
+Across the full later manifest, the first attempt completes 53/54 and clears
+35/49 eligible quality cases, or 36/49 with that retry. Preserve both attempts;
+the retry is not a clean first-pass success.
 
-Full isolated backend verification at `d8c9dda`: **2181 tests + 973 subtests,
-38 skips, no failures**. No voice changes are selected. The production normal
-key is restored; the capped key will be reused only during the after window.
+The earlier fixes help complete chapter summaries, previously context-limited
+large sheets, valid citations and source context around retrieved definitions.
+Interviews still have reasoning/support gaps. Better execution does not mean
+all outputs meet the quality bar. All six final PDFs are readable, but three
+retain native content warnings.
 
-## Free rendering screens
+This is the **earliest measured evaluation**, not an exact reconstruction of
+pre-evaluation production. It already used Luna 6. Historical code `f705751`
+precedes the Luna-default change, but actual pre-chat production bills and
+latencies were not saved comprehensively and remain **unavailable**. No old
+buggy version was deployed to fabricate that comparison.
 
-Six identical saved sheets were rendered with their original source/scope
-titles, original figure pixels and unchanged generated content. The controls
-use the current renderer. Every candidate still passes its existing clipping,
-page ceiling, image loading and text-preservation checks. Provider spend: $0.
+The start-of-this-round frozen control clears 41/49 under v3; its sheet source
+images needed measurement correction. The current run is not a demonstrated
+broad quality gain over that control. Generation and judge variation are
+material. Font selection rests on six paired renders of **identical content**:
+9-point citations become approximately 10 points, with identical extracted
+text, original figures, page counts and fit checks, for $0 inference spend.
+Correcting source-image provenance is a measurement repair, not a generator win.
 
-| Candidate | Observation | Decision |
-| --- | --- | --- |
-| 16: expanded first-page note choices | Additional 10/12-note choices select exactly the same layouts and scores on all six sheets. | Reject this variant: more layout attempts without a measured benefit. Page balance remains an open problem. |
-| 17: citation font floor | Citation text measures 9 points in controls and approximately 10 points in candidates. All six keep identical extracted text and the same 3/4-page counts. | Carry forward for combined PDF review; no content or page-count cost in this sample. |
-| 18: additional preparation cache | `revision_sheets.store.enqueue` already returns the same owner's complete saved sheet when scope, canonical source fingerprint and configuration match. This screen is code-path analysis, not a paid cache benchmark. | Do not add another cache for normal repeated opens; no additional production benefit established. Explicit regeneration remains separately scoped. |
+Evidence: [shared historical comparison](../evaluation/round3_historical_comparison.json),
+[all candidate/final measurements](../evaluation/round3_screen_results.json),
+[paired rendering](../evaluation/round3_free_render_results.json).
 
-The single render-search times are descriptive and may overlap independent
-model calls; no CPU or whole-flow speed improvement is claimed. Public
-measurements/hashes: [round3_free_render_results.json](../evaluation/round3_free_render_results.json).
-Original PDFs/HTML, image captures and the reproduction script remain under
-ignored `evaluation/runs/round3/free-render/`. An earlier exploratory render
-with substituted source labels remains separate and is not this evidence.
+## What the twenty experiments established
 
-## Model screens and remaining work
+| # | Plain-language change | Result / decision |
+| ---: | --- | --- |
+| 1 | DeepSeek writes answers | Coverage and source-support gaps; keep Luna. |
+| 2 | Qwen writes answers | Coverage and source-support gaps; keep Luna. |
+| 3 | Luna Pro writes difficult answers | Luna judge favours its audit, but a blinded Gemini review does not confirm the gain. More expensive and usually slower; reject. |
+| 4 | Gemini writes answers | Some good answers, but incomplete summaries/course coverage; no default switch. |
+| 5 | DeepSeek chooses the chat route | Structured-response failure and provider overload break the conversation chain; reject. |
+| 6 | Qwen grades answers | All six cases fail in each of three preserved protocol attempts; reject this route/settings combination. |
+| 7 | Qwen drafts sheets | Draft compatibility improves, but repair structures still fail; reject. |
+| 8 | Gemini reads source figures | First paper gain does not repeat consistently; chapter-8 warning remains. Reject. |
+| 9 | Preserve important query words | Does not repair broad audit coverage; reject. |
+| 10 | Boost exact section titles | Hurts the definition/control cases; reject. |
+| 11 | Split context between two sections | Broad audit remains incomplete; reject. |
+| 12 | Add vector search without reranking | Does not fix the target audit omission; reject. |
+| 13 | Include neighboring lecture passages | Spanner mechanism coverage remains incomplete; reject. |
+| 14 | Allocate the summary word budget by section | Initial paper gain does not survive matched repeats; reject. |
+| 15 | Carry sheet qualifications separately | Native content warning remains; reject. |
+| 16 | Try more balanced sheet layouts | Same selected layouts on six sheets, with extra attempts; reject. |
+| 17 | Make citations larger | Same content and pages, readable citations, no added model call; **retain**. |
+| 18 | Add another preparation cache | Existing validated saved-sheet reuse already covers normal repeated opens; no extra cache. |
+| 19 | Make grading list requested points first | Uncertain RAG judgments and a fabricated literal-quotation rejection; reject. |
+| 20 | Add concrete reasoning guidance to ideal answers | Both outputs retain the native reasoning-signal failure; reject. |
 
-Eight initial model-role screens completed at `c2d0ee9`. Provider receipts total
-**$0.135548114**; unsuccessful requests retain **$0.039133014** in unresolved
-reservations. Conservative round commitment for these eight screens is
-**$0.174681128**. These amounts exclude the separate fresh control now running.
-Unresolved reservations are not zero charges or confirmed actual bills.
+Nine blinded, counterbalanced alternate-model reviews preserve disagreements
+with the Luna judge. No human agreement is claimed. Original paid failures and
+protocol corrections remain in immutable private bundles.
 
-| Candidate | Initial observation | Next decision |
-| --- | --- | --- |
-| 1: DeepSeek writer | Four outputs complete. Audit and course coverage remain weak; attention answer has a source-support failure; paper summary clears the score floor. | No default switch; cheap token prices do not compensate for these gaps. |
-| 2: Qwen writer | Four outputs complete. Audit/course answers lack enough evidence, paper coverage is incomplete and the attention answer has a support failure. | No default switch on this evidence. |
-| 3: Luna Pro writer | Two hard outputs complete; audit scores 4/3 and paper summary 3/3 for correctness/coverage. | Compare with matched Luna control and actual generation costs; no isolated gain established yet. |
-| 4: Gemini writer | Four outputs complete. Audit and attention clear the score floor; full paper and course coverage remain weak. | Only consider a narrowly scoped use after cost/repeat checks. |
-| 5: DeepSeek router | Three dependency-chain outputs complete; quantization fails schema validation, ambiguous-reference turn fails with upstream overload and its follow-up cannot run. | Reject this router trial; keep schema validation and original failures. |
-| 6: Qwen grader | All six initial structured requests fail; no quality score is inferred. | Test a necessary provider-format correction before judging model quality. |
-| 7: Qwen sheet author | Figure/source preparation runs; author request fails because upstream JSON mode requires the word JSON in messages. | Correct the format hint, then retest independently with original attempt preserved. |
-| 8: Gemini figure reader | Paper sheet completes and is supported, with correctness/coverage 4/4. | Compare full-flow cost and quality with the fresh Luna control; one passing sample is not a gain. |
+## Same real account, before and after deployment
 
-Public scalar evidence: [round3_model_screen_results.json](../evaluation/round3_model_screen_results.json).
-Actual prompts, outputs and provider error details remain private. A provider
-compatibility correction now adds a format-only JSON hint for Qwen structured
-clients while retaining the exact schema and native validators. It adds no
-model call; other models retain their existing client. A real SDK/mock transport
-test reproduces the missing-hint rejection and verifies successful parsing
-with the hint. Original failed paid attempts will not be overwritten.
+The production account, questions, source selections and canonical fingerprints
+match. Production uses `hybrid_rerank`; native gold tests use BM25. These are
+separate comparisons. One observation per scenario is descriptive, not a
+reliable speed percentile or an isolated causal benchmark.
 
-The fresh 54-case Luna control uses the frozen `c2d0ee9` attached checkout so
-later candidate code changes cannot alter its generation. All paid children
-share the same round ledger and run serially. Control timing cannot be read
-back from LangSmith while its quota is exhausted; do not substitute inferred
-hosted timings. If a conservative image reservation blocks the individual
-control ceiling, keep its completed outputs and record the incomplete state.
+| Production scenario | Before `0983a1c` | After `d8c9dda` | What happened |
+| --- | ---: | ---: | --- |
+| Responsible-AI audit | 9.571 s | 16.117 s | Fuller model-card checklist, seven cited sources; unrelated CI/CD image remains. |
+| Complete Transformer-paper summary | 25.688 s | 30.165 s | Both complete; no speed gain in this pair. |
+| Cold paper sheet | 182.520 s | 184.892 s | Both three pages; current citations use v5. Before has no native warning; after has one. |
+| Video BLEU question | 5.768 s | 4.725 s | Both correctly admit the lecture lacks the score. |
+| Selected Spanner lecture | 3.463 s | 3.127 s | Both cite consistency and admit the missing TrueTime mechanism. |
+| Chapter-1 ideal interview | 85.745 s cold | 0.034 s cached | Same saved 15/15-topic flow reused. **Not faster fresh generation.** |
 
-Next: publish settled model findings; run independent retrieval/completeness/
-grading candidates; repeat promising settings; run a fresh control/finalist on
-all 54 cases; measure current production before rollout and the final deployed
-version afterward. Model compatibility is a selection criterion, not a reason
-to quietly change deadlines or remove schema validation.
+Synchronous times are Railway web HTTP completion durations. Sheet time is the
+persisted enqueue-to-ready interval, including waiting, generation and rendering;
+its 45/57 ms enqueue responses are not completion time. The after sheet is
+explicit regeneration, preserving baseline version 1 beside version 2. Its
+known gap is retained rather than regenerated until it appears to pass.
 
-LangSmith's zero-inference preflight still fails with the monthly unique-trace
-quota error. Hosted timing/token trees remain unavailable for new runs. Saved
-outputs, requests and provider receipts support quality/spend observations;
-they are not a substitute for successful hosted trace readback. Old trace-cost
-discrepancies remain preserved. Reranker pricing is published at
-[$0.0025/search](https://openrouter.ai/cohere/rerank-4-pro), while its endpoint
-metadata reports zero token prices; token metadata cannot be used as a zero
-search charge.
+The before window bills **$0.04421037**. The after window bills **$0.06135062**,
+including a separate complete adaptive-interview cost sample. That sample has
+44 exact receipts totalling **$0.022431575**. Subtracting those leaves a window
+remainder of **$0.038919045**; it is not a precise bill for each UI request or
+proof of a settings-driven saving. Cache state and variable repair calls differ.
+Total production key usage is **$0.10556099**, inside its $0.75 cap. The normal
+production key is restored and read back on the healthy new build.
 
-## Isolated flow experiments
+The native cost sample uses typed synthetic weak answers on the larger
+chapter-6 source (102,554 evidence characters, including topic overlap).
+It finishes naturally after **18 answers**, covers **9/9 planned areas** from
+39 source topics, and creates the report. It includes questions, grading,
+follow-ups and repairs, with no web research or voice. It is cost/completion
+evidence, not a human interview-quality study or coverage of all 39 topics.
 
-Candidates 9–11, 13–15 and 19–20 now have opt-in evaluation implementations;
-12 uses the existing hybrid retrieval mode. They are not application defaults.
-Each process can enable only one candidate, and its identity plus implementation
-hash is recorded with the immutable run. Native ownership/build checks and the
-fixed external reviewer remain in place. The screen runner now supports distinct
-attempt suffixes so protocol corrections/repeats cannot overwrite prior results.
+Evidence: [production pairs and cost sample](../evaluation/round3_production_comparison.json).
+Actual outputs, PDFs, logs and screenshots stay private under ignored
+`evaluation/runs/round3/production-paired/`.
 
-The grader experiment adds an internal account of requested points and literal
-candidate quotes in the existing call. A fabricated quotation is rejected before
-returning the original public grading contract. It does not credit private
-expected points that were never asked. The sheet-inventory experiment requires
-an explicit source-supported qualification, allowing an empty value when the
-source states none. These are hypotheses awaiting paid results, not improvements.
+## Cost and speed limits
 
-### Budget checkpoint: full control continuation
+The fixed 54-case native control's generation/necessary-review bill is
+$0.356304615, including its continuation. The current generation bill, including
+the separate retry, is $0.301071610. External evaluation judges are excluded
+from this product-usage comparison, but included in the $5 experiment ledger.
+This observation does not prove font size reduces generation cost: repair
+counts and continuation overhead vary. The retained font change adds no
+provider call or model-price increase.
 
-The first control child completed 43 cases and stopped before an image request
-at its original $0.75 ceiling. Settled receipts: $0.429622960, zero unresolved
-request reservations. The blocked sheet has no final artifact; its partial
-preparation charges remain in the ledger. The eleven unfinished cases will run
-in a separate, registered continuation from the same frozen code and sources;
-completed outputs will not be regenerated or overwritten.
+For the confirmed light profile, the forecast is **about $0.93/month**, including
+20% headroom, cold/cache-write token rates, maximum observed per-flow costs,
+100 chats, five summaries, three sheets, two interviews and twenty video/course
+questions. Adaptive sizing allows twenty answers at the most expensive observed
+turn rate; the entire before-window bill conservatively bounds the selected
+cold ideal interview because unsuccessful ideal receipts were not separately
+captured. Voice and arbitrary larger ideal chapters are outside this sizing.
 
-Before continuation, the approved $0.50 contingency moves to final evaluations.
-Effective allocations are screening $1.25, repeats $1.00, final $2.00 and
-production $0.75. The total remains $5 and every child remains at most $2.
-The parent ledger preserves the original allocations and an explicit transfer
-history; transfers cannot consume active leases or unresolved charges. The
-separate continuation is disclosed rather than presented as one uninterrupted run.
+The $0.93 scenario assumes one rerank search per chat and allows one entire
+8,192-token embedding context per search. At two searches per chat the forecast
+becomes **$1.25/month**. This is a stated usage assumption, not a hard application
+spending limit or a promise that every month stays under $1. Rejected models
+are not adopted on price alone. [Forecast and assumptions](../evaluation/round3_monthly_forecast.json).
 
-### Qwen grader protocol retest
+An earlier controlled rendering benchmark reduced median render-search time
+from 4.468 to 1.110 seconds (75.2%), and browser CPU from 5.335 to 1.479 seconds.
+That is **rendering only**; the production sheet pair shows no whole-flow speed
+win. Historical production first-content latency, per-request server CPU/RSS
+and remote model CPU are unmeasured. Native local process measurements retain
+scope labels. [Controlled benchmark](../evaluation/round2_comparison_results.json).
 
-The first JSON-hint retest received six billable responses, but all six failed
-the unchanged grading structure. Therefore it is not a successful grader trial.
-Qwen structured clients now also include the exact Pydantic/figure-constrained
-JSON schema in the format instruction, so translation into upstream JSON mode
-cannot leave the model without its required contract. This adds input tokens,
-which must be included in affordability checks. The prior six responses were
-not captured and their exact malformed structure is unknown; no quality verdict
-is inferred from it. A new immutable attempt will test the complete schema hint.
+## Verification and remaining limits
 
-Budgeted calls now preserve private response bodies and hashes without headers.
-Missing usage still holds its original reservation. This permits diagnosis of
-future rejected or malformed responses without paying to reconstruct them.
+The isolated full backend suite passes **2181 tests + 973 subtests**, with
+38 skips and no failures. The clean image deploys successfully; health confirms
+canonical/retrieval databases, and worker readback confirms v5 layout and Luna.
+Both capped windows close with normal-key restoration verified. No frontend or
+voice change is selected in this round.
 
-## Text-flow screening checkpoint
-
-Candidates 9–12 did not repair the broad audit in their first native slices.
-The exact-title boost also reduced quantization-definition coverage from 4 to
-2 and the audit from 2 to 1. These are rejection signals, not reasons to add
-another search layer. Candidate 13 retains the timestamp/source controls but
-Spanner coverage remains 2/4; an improved score on the source-incomplete course
-case is not counted as a comparable gain. Candidate 14 raises paper correctness
-and usefulness to 4/4, with coverage still 3/4; the chapter control stays 4/4.
-A repeat and cost check are required before retaining it.
-
-Candidate 19 passes all three proximity cases, has uncertain source judgments
-on two RAG cases and rejects a strong-answer response whose quotations are not
-literal candidate text. Candidate 20 has supported, well-covered answers but
-fails the existing interview-reasoning signal check in both cases. Neither is
-selected on this evidence. Complete matched control grading/ideal results are
-still pending in the control continuation. Preserve strict validators and both
-uncertain judgments.
-
-The isolated full backend run found two checks to resolve: the image omitted
-`model_routing.py`, and the default-model scan treated the explicitly approved
-experiment script as production defaults. The Docker import is included now;
-only that non-shipped experiment script receives the exploratory model allowlist.
-The application default allowlist remains unchanged.
-
-## Completed initial screens and shortlist
-
-All twenty approved hypotheses have an initial result: seventeen native paid
-candidate screens, plus the three free rendering/cache checks. Separate Qwen
-protocol attempts are retained under the original hypotheses, not new candidates.
-Initial screens alone are not the final comparison or a production rollout.
-Scalar case checks, judgments, output/source hashes and generation/review receipts
-are in [round3_screen_results.json](../evaluation/round3_screen_results.json).
-That file is a checkpoint and clearly identifies the incomplete control.
-
-The strongest new candidate is **8, Gemini for original figure reading**. The
-paper sheet passes its native findings check and external 4/4 review; the Luna
-control has lingering native findings despite an external 4/4 review. This
-single native run uses five generation requests costing $0.016925400 versus
-ten costing $0.036443445 in control. Fewer downstream repairs may explain the
-saving; stochastic composition also varies, so this is not an isolated causal
-estimate or evidence for every sheet. Test all six sheets and repeat the paper /
-large chapter before choosing it.
-
-Carry forward **14, summary budget allocation**, for matched summary repeats,
-and **17, larger citations**, for combined PDF validation. Keep **3, Luna Pro
-writer**, conditional until its targeted gain is replicated and whole-flow /
-monthly cost is bounded. No default model switch is selected. Qwen's sheet
-draft can be structured, but its repair calls return invalid structures and
-the native flow fails. Reject that author trial; do not disable repair checks.
-
-New evaluations also save the root interval already produced by the LangSmith
-SDK, separately labelled `local_langsmith_sdk_run_tree`. This permits future
-matched local timing observations during the hosted quota outage. It is not
-hosted trace delivery, first-token timing or billing, and it does not recover
-timings for earlier runs. Hosted metrics remain unavailable until actual
-readback succeeds. No speed improvement is claimed from these initial screens.
-
-The next repeat block adds a fresh matched Luna control over all seven summaries,
-the two difficult sheets and hard/passing chat controls. It then tests Gemini
-figure reading on all six sheets, two independent summary-allocation repeats,
-and hard-sheet / Pro-writer repeats. All remain the original hypotheses; model
-roles are isolated and failed outputs remain visible. After the control-tail
-lease finishes, move $0.50 of unused screening capacity into repeats if the
-reconciled ledger permits it. That changes effective phases to screening $0.75,
-repeat $1.50, final $2 and production $0.75, still exactly $5. Record that transfer
-before any repeat call, not by editing existing child ceilings.
-
-## Fresh combined control and repeat checkpoint
-
-The frozen control and same-code continuation now complete all 54 cases. Both
-have identical implementation hash, canonical bindings, model settings, provider
-routes and BM25 mode. The eleven-case continuation preserves the original
-partial sheet preparation cost. Combined reported spend is $0.904731265.
-
-| Flow | Eligible cases clearing review |
-| --- | ---: |
-| Chat | 16/18 |
-| Summaries | 7/7 |
-| Video/course | 8/10 |
-| Revision sheets | 4/6 |
-| Interviews | 6/8 |
-| Total | 41/49 |
-
-These are fresh automated native results, not production user accuracy. The
-same five special cases remain separately visible. The earlier round's selected
-component counts also total 41/49, with different per-flow outcomes: stochastic
-variation is material, and an isolated score improvement is not enough to select
-a technique.
-
-The initial repeat block encountered a reporter defect: its extra top-level SDK
-timing field violated the adapter contract. Pause the batch, retain all bills,
-fix the contract and add a traced-adapter/suite integration regression. Two
-control and four Gemini sheets have fully saved drafts, final PDFs and native
-review provenance. Restore those artifacts without inference, retaining the
-original bundle and hashed recovery journal. Interrupted or incomplete artifacts
-are not restored. New generation attempts have a distinct `reporter-fixed` tag.
-
-The repeat control paper clears native findings at $0.014719875; Gemini's
-recovered paper also clears them at $0.027938130. Therefore the first paper's
-apparent Gemini saving is not a consistent model effect. Gemini's fresh chapter
-8 still has native findings, while the fixed Luna control cleared them. Remaining
-summary, writer and common-model reviews are pending. No new default is chosen.
-
-Saved-output reviewers can hide writer model labels in memory while preserving
-all original captures. Both judgments and factual disagreements remain visible;
-this does not constitute human calibration. The temporary production key form is
-approved, but OpenRouter requires the user's email verification before issuing
-it. Production settings and code are still unchanged at this checkpoint.
-
-### Measurement correction before selection
-
-Review protocol v4 distinguishes original source figure pixels from generated
-PDF pages in native review captures. Previously, detached images of earlier
-sheet drafts entered the external source-image collection. Text prompts labelled
-those drafts as rendered content, but their detached pixels were ambiguous.
-Require the original-figure label plus a bound source marker; keep the final PDF
-pages explicitly labelled as output. Every original capture and v3 judgment is
-preserved. The sheet counts above and historical sheet comparisons remain
-provisional until saved outputs are reviewed with v4. This does not show that
-the generator improved; it improves the validity of the measurement.
+Remaining work is concrete: broad-answer support/coverage, incomplete course
+sources and TrueTime evidence, sheet content warnings, unrelated chat figures,
+and interview reasoning consistency. Those need further measured experiments;
+they are not fixed by changing a model indiscriminately. LangSmith's monthly
+unique-trace quota still blocks hosted readback. Local SDK intervals, captured
+outputs and provider bills remain available, but they do not establish new
+hosted trace delivery. No manual review is required to close this round.

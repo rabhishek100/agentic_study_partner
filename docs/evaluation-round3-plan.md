@@ -1,8 +1,10 @@
 # Twenty-candidate evaluation plan
 
-Status: approved; execution started 2026-10-03. Shared budget/preflight are
-verified; all twenty initial hypotheses are screened and production is unchanged.
-Shortlist/repeat evidence is tracked in `evaluation-round3-results.md`. The previous round's
+Status: completed 2026-10-03. All twenty hypotheses are screened, repeats and
+alternate-model review are complete, and the selected citation change plus
+earlier verified core changes are deployed at `d8c9dda`. Both real-account
+production windows are closed with the normal key restored. Final quality,
+cost, timing and monthly assumptions are in `evaluation-round3-results.md`. The previous round's
 $3.904616935 is separate from the **new $5 ceiling**, which includes the final
 production comparison. Automated LLM review replaces required human review.
 
@@ -16,8 +18,8 @@ or benchmark score does not establish its quality, speed or total cost here.
 Start-of-round code control: `aefe246ec6c196c16148af80170b7842d39006e9`.
 This contains the selected round-two components and restored original interview
 grader. Its fresh combined control and same-code continuation have now completed all 54 cases. Production
-health was read back on 2026-10-03: API `0983a1c`, healthy canonical and retrieval
-databases. Production has not received the round-two changes.
+before health was read back on 2026-10-03: API `0983a1c`, healthy canonical and
+retrieval databases. The paired after build is `d8c9dda`, also healthy.
 
 Freeze the [54-case manifest](../evaluation/five_flow_manifest.json), canonical
 source/build bindings and the fixed external review rubric. Protocol v4 corrects source-image provenance; preserve v3 judgments and rejudge saved sheets before comparing them. Give changed
@@ -287,10 +289,12 @@ render-only speed gains must not become whole-flow speed claims.
 
 ## Resume and approval boundary
 
-The user gave go-ahead. Execute: preflight/ledger → independent
-screens → repeat/select → combined suite → bounded old-production measurement
-→ deploy → matched production recheck → final report. Runtime implementation,
-paid candidate trials and deployment have not started for this round.
+The authorized sequence is complete: preflight/ledger → independent screens
+→ repeat/select → combined suite → bounded old-production measurement → deploy
+→ matched production recheck → final report. Preserve immutable original
+failures and the separate final provider retry. Human review is optional.
+Hosted LangSmith readback remains blocked by its account quota; this is a
+separate observability acceptance limit, not an unfinished manual review.
 
 Use the coordinator for every paid local run, for example:
 

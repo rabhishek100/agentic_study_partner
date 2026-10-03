@@ -770,3 +770,34 @@ All cloud source bindings, including the actual paper's canonical snapshot,
 match the before window. Finish the remaining paired journeys and native
 adaptive cost sample, restore the normal key, settle aggregate billing and
 publish the final comparison.
+
+### Unit 36 — real-account comparison, monthly sizing and closure
+
+Both capped production windows are complete. The after API/worker remains
+healthy at `d8c9dda`, and the normal key is restored with verified readback.
+Total capped-key usage settles at $0.10556099. The same six UI scenarios
+complete; the ideal reuses the exact saved 15-topic flow (34 ms), while the
+explicit fresh sheet completes in 184.892 seconds and retains one native
+warning. Chat/summary are slower in the observed pairs; video/course are
+slightly faster. No whole-flow speed gain or causal cost saving is claimed.
+Bounded historical HTTP snapshots preserve all pairs without dropping older
+POST rows as polling fills the recent-log window.
+
+The separate native production cost sample completes naturally after 18
+synthetic answers, with 44 exact receipts totalling $0.022431575, all 9 planned
+areas covered from 39 source topics, and a report produced. No voice or web
+research is used. Cold twenty-answer sizing uses the highest observed turn
+cost, and the whole before-window bill conservatively bounds the selected
+cold ideal. The confirmed light profile forecasts $0.93 with 20% headroom
+assuming one rerank/embedding search per chat; two searches forecast $1.25.
+This is a scoped forecast, not a hard monthly spending limit or an arbitrary
+larger-chapter guarantee. The selected font change adds no provider call.
+
+Round reported spend is $3.867140599; unresolved earlier requests retain
+$0.099636114, for $3.966776713 conservative commitment under $5. Publish
+`round3_production_comparison.json`, `round3_monthly_forecast.json` and the final
+plain-language report. Retain all captured failures, review disagreements and
+private source artifacts. No required human review remains. LangSmith hosted
+acceptance still requires an account-quota reset/readback; course sources,
+sheet warnings, unrelated chat figures and interview reasoning remain
+documented follow-ups, without starting an unapproved twenty-first candidate.
