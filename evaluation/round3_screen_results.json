@@ -38,6 +38,7 @@
       },
       "reported_usd": "0.429622960",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-001-t1",
@@ -80,6 +81,7 @@
             "6a12d4b959222974e9ae76bcdcd063733846cd765ce9feec231f75342de0c03c"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5908134399999998,
             "peak_rss_bytes": 398639104,
@@ -129,6 +131,7 @@
             "f8e11d81b60edaf1f1476bbe725b7e7f354ddea18adddbb0680e699c6515cf62"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2830161280000002,
             "peak_rss_bytes": 173801472,
@@ -178,6 +181,7 @@
             "8fe07f3393f2f9b964a4a3b1e2c2c097b1f188df637f22e79c5c346e06c1db2c"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2799964800000002,
             "peak_rss_bytes": 172310528,
@@ -227,6 +231,7 @@
             "8067c7122d7d74a6208f5ddd1ab3b38de5ccf6e3eeb6e4461840fe1f1d5cfed7"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.26601689599999934,
             "peak_rss_bytes": 167198720,
@@ -273,6 +278,7 @@
           "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.03192876800000011,
             "peak_rss_bytes": 163823616,
@@ -322,6 +328,7 @@
             "ed12eef44e7ab53b4d616b54cce8ba61e0037ca2fff9c374a29d77333aaea666"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.26542355200000034,
             "peak_rss_bytes": 163856384,
@@ -371,6 +378,7 @@
             "95554cdae7be790643c90a7981722e663586f0ccc06c0b39018e132d1a60f506"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.1746721280000001,
             "peak_rss_bytes": 164397056,
@@ -420,6 +428,7 @@
             "e428f69a7135d81f867e995466226bf4a5177b98f6bf20e029cdc91dd9e9a0ad"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.20140953600000033,
             "peak_rss_bytes": 167280640,
@@ -469,6 +478,7 @@
             "492a38aec69d8d3f50b3ec3bbf41f4bcd225d85ede489b0e28b7f54761fa69b5"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.28101171200000086,
             "peak_rss_bytes": 167411712,
@@ -518,6 +528,7 @@
             "7c4b03d0ddcba4a1846a39899ffff651b4e719c1472416d14873e2f07a35d4e7"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.23149427199999928,
             "peak_rss_bytes": 169050112,
@@ -567,6 +578,7 @@
             "6f31550d619582651f4939509128b320b1e8d2fa71df62ed28119109d73f2b3b"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.26769305599999993,
             "peak_rss_bytes": 176013312,
@@ -616,6 +628,7 @@
             "987a6344d564741b98b4f403d6ef06e8eda765b9111a57aaaf1a6a13ca008382"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.18658163199999978,
             "peak_rss_bytes": 174014464,
@@ -665,6 +678,7 @@
             "1eb437e340de6f82cf6a47e8621bd42394d444cccf49d3115ece90baa81fbc42"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2655125760000001,
             "peak_rss_bytes": 168329216,
@@ -714,6 +728,7 @@
             "afe107f9c01f5caf47a50ef3d8e975a8bd57727d77cd134ff3354b556c22d3fa"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.24235328000000056,
             "peak_rss_bytes": 167149568,
@@ -763,6 +778,7 @@
             "24e3952b6b68247efa21fb5ef69f1a981e10d95bd412d4c70f30139a8fd8ae36"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.24156876800000027,
             "peak_rss_bytes": 168148992,
@@ -812,6 +828,7 @@
             "074c1dad30cb046a069756ac6e2d687737b7fbffbb72e92bd384512a3c66295e"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3089333759999999,
             "peak_rss_bytes": 174948352,
@@ -861,6 +878,7 @@
             "152b72e7ce8a3efba04457f6a3c44006845cad9f0f5a1cbc953df643e02c8ff6"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2322992639999999,
             "peak_rss_bytes": 169885696,
@@ -910,6 +928,7 @@
             "687314bd88470696dfaa989f9c6ed1aca9ac5180cea04e91a486524722067f06"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2620355840000006,
             "peak_rss_bytes": 168378368,
@@ -959,6 +978,7 @@
             "52a357e621f94cf95aa3e4de18d67cda83a648a84dc3d4ea56b85c6ec0bbd8a4"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.23452326400000056,
             "peak_rss_bytes": 169246720,
@@ -1008,6 +1028,7 @@
             "15060c8bd7358eda7b4ea3ef3a86f46dc686eb7b07bfd4bd2eda6e89650a3b3b"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.16406105600000043,
             "peak_rss_bytes": 164986880,
@@ -1055,6 +1076,7 @@
             "609cfcd2211bf0721fcd774eb4c84bf0b8c47b132366b7b0172a3c72e0fa1b95"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.07621324800000018,
             "peak_rss_bytes": 156647424,
@@ -1104,6 +1126,7 @@
             "b475f547c7f07606baa364bfe15869fb253d9c04ad7853d14f2b816c593bace2"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2664316159999993,
             "peak_rss_bytes": 167854080,
@@ -1154,6 +1177,7 @@
             "e82359e3c5a0291dcb1349fc1dfb8c151a991f09a2a84669bb7ff74557b668a2"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3703237119999985,
             "peak_rss_bytes": 168738816,
@@ -1202,6 +1226,7 @@
             "930319e428098607ff75094d99ea167ed69ac113a2cd147abdf0c28b704dbac9"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.22465740799999967,
             "peak_rss_bytes": 167133184,
@@ -1251,6 +1276,7 @@
             "1b5ff8fe2ca2dd055db549fb4eecd207ca2a617ae1be0e578ebf58aa272c9de3"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3590044159999999,
             "peak_rss_bytes": 168853504,
@@ -1300,6 +1326,7 @@
             "1c6c44c355b333097f65406f091306315d97fa73d8091e4826d970a31ec42893"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.1636418559999986,
             "peak_rss_bytes": 160956416,
@@ -1349,6 +1376,7 @@
             "33965cc370ad1c2382f014978a706c211e1adaecb5d03ee2cb3d5ecdf38a5bd3"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.374172928000001,
             "peak_rss_bytes": 166281216,
@@ -1402,6 +1430,7 @@
             "e791beb92de257a903f7c826faade635947de9aef811b5e62927bfe7d6c8a073"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 5.122581503999999,
             "peak_rss_bytes": 359202816,
@@ -1451,6 +1480,7 @@
             "1fdbd48539250c4a2f4e5e493328259f39267d8840b162cbf3e8832f0348d6d8"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.45114700799999685,
             "peak_rss_bytes": 274661376,
@@ -1500,6 +1530,7 @@
             "34b744ca18692fbc4d35dcb1a2ab6d909f6786b9fd252908c11388c6072ed0b3"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.30896384000000143,
             "peak_rss_bytes": 222396416,
@@ -1549,6 +1580,7 @@
             "60efe4a4f0957e2a37f983c20258b3fb856ab3d2ac33946e7bbc75a706659f43"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2771095039999998,
             "peak_rss_bytes": 204308480,
@@ -1599,6 +1631,7 @@
             "005a9e9e368c796a2c4b25646dfe9c3a820af0e7808547616ff200ebdd546e85"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.32753075199999904,
             "peak_rss_bytes": 198328320,
@@ -1647,6 +1680,7 @@
             "e0f4c802119d20b068beb777e3e08a5e1335240654c866475f2556ebfae992b0"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.27447321600000096,
             "peak_rss_bytes": 200327168,
@@ -1696,6 +1730,7 @@
             "fc8cd86819e01a364d93867eb693a503fc3cba3182d9699c359b7262b5c3b437"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3047810559999995,
             "peak_rss_bytes": 199245824,
@@ -1743,6 +1778,7 @@
             "bf7b4b463b7215d2717ef9b1c80ab75c54a643bee346d309073c74f2e4e335fe"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.11957632000000018,
             "peak_rss_bytes": 197984256,
@@ -1792,6 +1828,7 @@
             "2f1e3c0b49acc7c2afc4ea31fd9cce896db02a53170d1f708fc2cdba676dcd62"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.46547942400000064,
             "peak_rss_bytes": 363560960,
@@ -1839,6 +1876,7 @@
             "f4e799f473603b3d8f7fe40239274580b84283501ccfa6d4fa3b1b900d836162"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.30601830400000196,
             "peak_rss_bytes": 365576192,
@@ -1887,6 +1925,7 @@
             "946eb590d88f308e2fbfd836a069a2b860c52b191b52a6280a25e7ee637d021a"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.24630016000000232,
             "peak_rss_bytes": 185794560,
@@ -1934,6 +1973,7 @@
             "bfac591d54a5ff641e7e69b849231d6030e32a05eca423f29131db37281ba4c8"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2969902080000004,
             "peak_rss_bytes": 187023360,
@@ -1982,6 +2022,7 @@
             "bc3b6f58726434199a94d03b4ffe5dddebc7d9fa3da6df9c915b7728d21c7f5f"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3817328640000017,
             "peak_rss_bytes": 185729024,
@@ -2029,6 +2070,7 @@
             "5d642b49e8dfcea4ca122ef5989dfab8b287de39e6a633ff8f6691db685ed1dd"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2797870079999969,
             "peak_rss_bytes": 180699136,
@@ -2080,6 +2122,7 @@
             "5f318ae1d033e827e05b02545993690e7122e99b266d9dfbbc7da77bbd3a71cb"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 3.6102968320000004,
             "peak_rss_bytes": 254984192,
@@ -2134,6 +2177,7 @@
             "96afae3ab2897a3156f2f59543de23afac350f64968369eee25ffdf7521f22aa"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 5.636130815999999,
             "peak_rss_bytes": 323895296,
@@ -2172,6 +2216,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -2201,41 +2246,560 @@
         "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
         "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna"
       },
-      "reported_usd": "0.030884920",
+      "reported_usd": "0.475108305",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "sheet-chapter-6",
           "flow": "revision_sheet",
-          "status": "generating",
+          "status": "completed",
           "error_kind": null,
-          "output_hash": null,
-          "checks": null,
-          "verdict": "unavailable",
-          "grounding_status": null,
-          "correctness": null,
-          "coverage": null,
-          "usefulness": null,
-          "layout": null,
+          "output_hash": "ea42537ffe1550a963d9fa24c1f09c4f365a600a6966e8e7f92074473af3adae",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "layout": "readable",
           "unsupported_claim_count": 0,
           "costs": {
             "generation": {
-              "reported_usd": "0.030884920",
+              "reported_usd": "0.052989315",
               "unknown_reserved_usd": "0",
-              "physical_requests": 7,
-              "reported_tokens": 218688
+              "physical_requests": 10,
+              "reported_tokens": 379594
             },
             "judging": {
-              "reported_usd": "0",
+              "reported_usd": "0.1058881",
               "unknown_reserved_usd": "0",
-              "physical_requests": 0,
-              "reported_tokens": 0
+              "physical_requests": 1,
+              "reported_tokens": 420941
             }
           },
-          "source_fingerprint": null,
-          "generation_capture_hashes": [],
+          "source_fingerprint": "0d779ab3d3be6da247074c3b890da6e559df86bba40a19e77c6b25e599327081",
+          "generation_capture_hashes": [
+            "c6cc16b3c173baf3c6af6062b1e4e3001ee140fe9ce3426c9ddc6be61049e17f",
+            "88cb002030981ccad002ddceb05cc401e4636b7e6c8db65ddfb0bca5cfec0af0",
+            "ec459192c25360d0afd1f005ab443f200b270d44b4d80c24f107320a93205fca",
+            "cd834fc7d95a5b55809e68c3fc8c41c1ea49c09fb2387448de153b1e138ba511",
+            "0c967230b44e898f7a564f8e54c24c3a3854ea94c55c3617060dffb6319c5d3e",
+            "027d6c39c03823e850e584505c7faac63ce4752036f2f8760c3b018a4584ffd9",
+            "d147a4e91a058fd89144cbccbd2b506283f77079db6d6d268c66da96a4d02d12",
+            "58bebd88a0699a919bbb9d59c3aaf743dc11d4c8ed3f1994144c755a7b2a7bad",
+            "d51a4e021d3b337bce7abe37126ceadc539dd8d6586d96e87b61a9e2479d33d8",
+            "660033e96798fbd3c1fe3acac0603e661e4b683275878d32b1b28300a4d5671b"
+          ],
           "latency_seconds": null,
-          "resources": null
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 6.498987647999999,
+            "peak_rss_bytes": 483868672,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "sheet-chapter-8",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "563784a0d9aa7976bb871db9ac0a3bb347295fdbe34dca23c8fd383d6c92f98b",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "layout": "readable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.053484030",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 9,
+              "reported_tokens": 354870
+            },
+            "judging": {
+              "reported_usd": "0.09881435",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 392942
+            }
+          },
+          "source_fingerprint": "ed91937c788dbcb0a970036157fcaadcb78ff593c8a3e5e116653efc0b9bfb1a",
+          "generation_capture_hashes": [
+            "6fbff18e8c82df030a55efad14696b26ff09aa7fb48707825ffdfe2ba5b65284",
+            "b0e35621e4eae4fb0295a3561e73ce69d6be9b89387b4661f32b162ef583321c",
+            "03aa44e07c34acecd3c3cbf3280918dd11fa00aa65f2fcd864805f828747d806",
+            "aed1eaae60c8b44c5f0c1e7291d6fc233f7f4ff420bc1e0d651831a27831be5f",
+            "9abbaebc44004683fc9a8df4c8e4333ccdf585f9b1157136c9b7840504e18dd2",
+            "973f84badd0a0e126cafaa1d68c8f6fce274474b99fbda3d6eee0d9aad270a95",
+            "aefeca365915188ad2edf6bdc0075966fd24881ef11f80949a1b71e66d165614",
+            "bfd7181edefe4a1db37e944d19ad9a9b8c780a2e47d094c3b377104c1b55a25d",
+            "cd5a2110b53b1137c3eec65d0cf1ba89b16bc43e3d8b41c55970ff19fe92fd9b"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 4.539629312000001,
+            "peak_rss_bytes": 376832000,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "sheet-chapter-10",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "92966a25f369c659ca2696c8f19c4f33785758a6e32d4d3e79707b526acb345e",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "readable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.051618435",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 10,
+              "reported_tokens": 350850
+            },
+            "judging": {
+              "reported_usd": "0.0986366",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 392253
+            }
+          },
+          "source_fingerprint": "170c1395e26137557c1fcd07584085afa8f0c3a61e72dd9eeb17151105c99c92",
+          "generation_capture_hashes": [
+            "42bac056d0b5bf111c84aa234e1131cb3a5779e6562ea1e4f7955444d9524f93",
+            "efacae4ad5d9679e7f62324b1ce62b14c8f3ac14e1f4f033dbf4760495e057e6",
+            "1f2445428717e50a0d4822eb28fbb6f20ce233eb94f18db72618ee5d270eaa2d",
+            "747cddc665d222ff3d7187f9777501c656197643484d9785c79ad651df090935",
+            "620d291bdeb15448797ad5e8059f00b4b0a519dea446c2c7c86f059416e556ea",
+            "9f1e3b2a18f8e351054ed319d2bf58204bc0138371fba8c6d091b09225e35e34",
+            "bc8047eb571afefe302e00422ef53e00f3c596d484aa2c433bb2e2d72cb90e8b",
+            "c664fcf3948e3cb1e658ef76650e88051515c0943fa09bd62f8d2f706b8eb73b",
+            "d10ccff0c4862be3097f53c7561c3710b6961c712be4c464f429367eeed4c7a6",
+            "7f6a8bac37830ff44c958e830d938426b4eccd56e7bb82a29327729bc55d7a7f"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 4.879577343999999,
+            "peak_rss_bytes": 315523072,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "proximity-weak",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "d68f8c6514af4e8784e1f73da93034ed2b789ef9c809f9f774f1b4d5ffd90a6e",
+          "checks": {
+            "score_in_predeclared_band": true,
+            "question_completion_matches": true,
+            "route_allowed": true,
+            "citations_resolve": true
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.0004698",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 2286
+            },
+            "judging": {
+              "reported_usd": "0.0007578",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 3969
+            }
+          },
+          "source_fingerprint": "758c539f3068df6e0e7df2d8aa112b139cda3cca0f3a5e68833065b83e91aa3f",
+          "generation_capture_hashes": [
+            "84a0efc234d767974d5073ebbad773d0af87a1a492cd901ba023bfb9d9998d96"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.13735449600000083,
+            "peak_rss_bytes": 306610176,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "proximity-mixed",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "49e120d823b5f129fcfaaaa8c1f639eb1882826cf92684d2bfbc4cebdaa9436d",
+          "checks": {
+            "score_in_predeclared_band": true,
+            "question_completion_matches": true,
+            "route_allowed": true,
+            "citations_resolve": true
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.000501675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 2379
+            },
+            "judging": {
+              "reported_usd": "0.000858175",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 4271
+            }
+          },
+          "source_fingerprint": "758c539f3068df6e0e7df2d8aa112b139cda3cca0f3a5e68833065b83e91aa3f",
+          "generation_capture_hashes": [
+            "66962ff1d3402c926b0a28a6d95e5d36ad3bc9e1ccfa30b1ba08d2162cab7d58"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.0758341120000039,
+            "peak_rss_bytes": 163397632,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "proximity-strong",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "a4fe5ffa500dbe56c0a5b2ac015cf312108845e13fd90c0506379c5532fe8074",
+          "checks": {
+            "score_in_predeclared_band": true,
+            "question_completion_matches": true,
+            "route_allowed": true,
+            "citations_resolve": true
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.000479925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 2370
+            },
+            "judging": {
+              "reported_usd": "0.000832925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 4366
+            }
+          },
+          "source_fingerprint": "758c539f3068df6e0e7df2d8aa112b139cda3cca0f3a5e68833065b83e91aa3f",
+          "generation_capture_hashes": [
+            "8099148566bb568a4ddbad95c51ab39b37c8b6f8597b8ea567d67bac1187c1cb"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.10752051200000068,
+            "peak_rss_bytes": 160956416,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "rag-weak",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "e2191205be111cbc1ddc9be721032e2312eea0f6c378efc1b14f92e15cedc9df",
+          "checks": {
+            "score_in_predeclared_band": true,
+            "question_completion_matches": true,
+            "route_allowed": true,
+            "citations_resolve": true
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00061755",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 2568
+            },
+            "judging": {
+              "reported_usd": "0.0008613",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 4233
+            }
+          },
+          "source_fingerprint": "c451b465780cf736a567b0d9bdb5aa0fe204a4c34c29156121c120b2d9a25d5e",
+          "generation_capture_hashes": [
+            "b33cda67fc6de109dc8877f5c8c3d410a7f0c549bb2763a98fa7af2225453745"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.1097451519999999,
+            "peak_rss_bytes": 161153024,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "rag-mixed",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "154014262ef3566205aacd98471d69af0420562c76cc71e9a7dce8b297eb8577",
+          "checks": {
+            "score_in_predeclared_band": true,
+            "question_completion_matches": true,
+            "route_allowed": true,
+            "citations_resolve": true
+          },
+          "verdict": "unsure",
+          "grounding_status": "insufficient_evidence",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 2,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00049605",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 2358
+            },
+            "judging": {
+              "reported_usd": "0.00096955",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 4520
+            }
+          },
+          "source_fingerprint": "c451b465780cf736a567b0d9bdb5aa0fe204a4c34c29156121c120b2d9a25d5e",
+          "generation_capture_hashes": [
+            "9e3cf874066274ac061ae9f97f883224be312f20bf63875ca962ecd3cd764bee"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.10017894400000449,
+            "peak_rss_bytes": 162037760,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "rag-strong",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "291bf917a1067e8d93a96b912607c583aee4190785e4b1aea8ebd9cf2ab05bd5",
+          "checks": {
+            "score_in_predeclared_band": true,
+            "question_completion_matches": true,
+            "route_allowed": true,
+            "citations_resolve": true
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.000528925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 2441
+            },
+            "judging": {
+              "reported_usd": "0.0007958",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 4255
+            }
+          },
+          "source_fingerprint": "c451b465780cf736a567b0d9bdb5aa0fe204a4c34c29156121c120b2d9a25d5e",
+          "generation_capture_hashes": [
+            "789b21fa81fd66bea2effc940f7b5bc0594dd7dd859cbefa8708327d4583fb6c"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.13161113599999785,
+            "peak_rss_bytes": 160710656,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "ideal-notification-system",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "2b3471f90da01aa8d14b02bd53e999be55b76cbb52f08f99152f1eee4fc1b228",
+          "checks": {
+            "exact_topic_coverage": true,
+            "citation_presence": true,
+            "citation_marker_coverage": true,
+            "citation_locator_validity": true,
+            "spoken_text_has_no_markers": true,
+            "questions_are_interview_shaped": true,
+            "answers_are_speakable": true,
+            "human_reasoning_signals": true,
+            "system_design_progression": true,
+            "human_interview_usefulness": null
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00177260",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 7,
+              "reported_tokens": 8695
+            },
+            "judging": {
+              "reported_usd": "0.0014308",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 9728
+            }
+          },
+          "source_fingerprint": "3465a546fa7ea5114efafb0fbda083ee2c9318cc31ab2969bc93f44f103b0b74",
+          "generation_capture_hashes": [
+            "7dc5e0165af4035233f0ff0bff1fcda442bca5bc4443749002f1780cd520f644",
+            "dc387732f663f6432b2d9579b399235c04647cc8ab764d9de3cad8f756e4d71b",
+            "a68a6158bfc56e92554e63e8d80eb89b33b1d1c5034cca6a969ac1ef70dbbef8",
+            "a7eb028b105853fa0503827c0ff65b90373ba470bd30b1d996be86242c3b4eaa",
+            "0f378d28a1cea023159f1ee55c05f3cc07b54fd1d51bfa1c786bef49c0e6cdf6",
+            "91de99d85b3fd1c4120cf75ff53cb9d8639e926c412c8a6482b8a2c3a728ee1c",
+            "f5ec00f297905c3dd4b13f6175c4343aa866e0d6e6e3d00f772e0a0d88bba19f"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.5554434559999999,
+            "peak_rss_bytes": 168394752,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "ideal-rag-platform",
+          "flow": "interview",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "893bff9690c1a2de8d56e9b5cb1ab215e361b085b2523fe1d5ada73506c3bde0",
+          "checks": {
+            "exact_topic_coverage": true,
+            "citation_presence": true,
+            "citation_marker_coverage": true,
+            "citation_locator_validity": true,
+            "spoken_text_has_no_markers": true,
+            "questions_are_interview_shaped": true,
+            "answers_are_speakable": true,
+            "human_reasoning_signals": false,
+            "system_design_progression": true,
+            "human_interview_usefulness": null
+          },
+          "verdict": "needs_work",
+          "grounding_status": "insufficient_evidence",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 4,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.0010913",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 5,
+              "reported_tokens": 5525
+            },
+            "judging": {
+              "reported_usd": "0.0012133",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 7379
+            }
+          },
+          "source_fingerprint": "f2065fd704f34dff53583a469afac3bd40f1b567164a29379038333e4120b9f5",
+          "generation_capture_hashes": [
+            "873ce025e3df55ca247f31cfc8ebed2510ee978bb902f1ad9d699503e9dbba3a",
+            "76d8acf99db46fdb5e17ef057ac2dd19507809e4ed72c3c124081256048cd0c3",
+            "9e22920de1659b28e4670b87c82d6a259947dd6913e1fd86f83843c92913e018",
+            "5f4936d3a7f7025b8edadc0af5a91b0272f7e6a2719a452137e5c0fca92418c4",
+            "6d8fc2e7e985b87554ebe08c70bc0f0f651862fdd590a79cc9c2fbe134a3536b"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": {
+            "cpu_seconds": 0.46789375999999905,
+            "peak_rss_bytes": 163430400,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
         }
       ]
     },
@@ -2269,6 +2833,7 @@
       },
       "reported_usd": "0.013519530",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-005-t1",
@@ -2312,6 +2877,7 @@
             "987a6344d564741b98b4f403d6ef06e8eda765b9111a57aaaf1a6a13ca008382"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.4793744639999997,
             "peak_rss_bytes": 361529344,
@@ -2361,6 +2927,7 @@
             "1eb437e340de6f82cf6a47e8621bd42394d444cccf49d3115ece90baa81fbc42"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3151811200000001,
             "peak_rss_bytes": 285818880,
@@ -2410,6 +2977,7 @@
             "f5e172a6de46099d6d658eb5adc74d80dc3430afea9064d1dea1dcc5280715b7"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2962651519999998,
             "peak_rss_bytes": 171687936,
@@ -2459,6 +3027,7 @@
             "1356ef6a1787139066ab6813dd998ff17ce33a4d990156c4126a2d5b49dd47bb"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.28874508799999943,
             "peak_rss_bytes": 164282368,
@@ -2498,6 +3067,7 @@
       },
       "reported_usd": "0.018751760",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-003-t1",
@@ -2541,6 +3111,7 @@
             "793ab4b6520f490c05316c704bb563bc8fbf68c3583e2f1639df8082164f81f5"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.47625132800000025,
             "peak_rss_bytes": 360857600,
@@ -2590,6 +3161,7 @@
             "d7f6b7febc94cbc550f754519a7bd3fe1431d8c0562de4640eb14a2428179a26"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.30742604800000006,
             "peak_rss_bytes": 182075392,
@@ -2639,6 +3211,7 @@
             "94cbb05515f20ce32e2d29ca2c2cfd7beb7fa1ef8722a8fff350f84365e34d65"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.27085247999999973,
             "peak_rss_bytes": 165249024,
@@ -2688,6 +3261,7 @@
             "e72c1b215c1d5f60087ea2481c75e39c3a603fff8a13c516549feb509c0c842b"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3128554879999996,
             "peak_rss_bytes": 166100992,
@@ -2737,6 +3311,7 @@
             "987a6344d564741b98b4f403d6ef06e8eda765b9111a57aaaf1a6a13ca008382"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.24138675199999904,
             "peak_rss_bytes": 165167104,
@@ -2786,6 +3361,7 @@
             "087d2ede901e6b7bce8cdd5baae3f91c4ac9bccd2e4b3534384b5a982a71ba63"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.30133753600000035,
             "peak_rss_bytes": 165560320,
@@ -2825,6 +3401,7 @@
       },
       "reported_usd": "0.020025525",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-003-t1",
@@ -2868,6 +3445,7 @@
             "06ec63e6d64e72a3e996ce20b921b0f67e284a82115c0c2323a92a724628bb79"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.37765139199999986,
             "peak_rss_bytes": 364314624,
@@ -2917,6 +3495,7 @@
             "ae74dd2db6d5abd2ca325818f587eb23b3bab45433406358c845e764c0140366"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2699240959999998,
             "peak_rss_bytes": 273711104,
@@ -2966,6 +3545,7 @@
             "babcaa74c423949c63475456a6cb5e4783e962ec0bf67aa2bc7bbb6dbb2ca9e8"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.31813951999999945,
             "peak_rss_bytes": 272809984,
@@ -3015,6 +3595,7 @@
             "81079d83f0138dd1e799aa5a210490531b95b4fc279716d5d99df8a1b52a1b57"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2918054400000002,
             "peak_rss_bytes": 165920768,
@@ -3064,6 +3645,7 @@
             "f28da6b395584155fd879410f25a8d9c7b6bb9ef67d3e0362bb927c6dedbca8d"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2856763519999995,
             "peak_rss_bytes": 165969920,
@@ -3113,6 +3695,7 @@
             "18880a95da2aabc2b18e68ce1ce0c20455c8159a889713b129e45eb8683a182e"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.26504569600000094,
             "peak_rss_bytes": 166805504,
@@ -3149,6 +3732,7 @@
       },
       "reported_usd": "0.011944760",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-005-t1",
@@ -3193,6 +3777,7 @@
             "e48e95f3d2d038038c7008e6f9ad3eaa16b33e20edfdeda177509dad0d8ff95e"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5818360639999997,
             "peak_rss_bytes": 380813312,
@@ -3243,6 +3828,7 @@
             "689973d5248de82ed73e82647f23bc026e3a9e4027c13f9c97623905429ca5f9"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.4082694400000001,
             "peak_rss_bytes": 344440832,
@@ -3293,6 +3879,7 @@
             "4c08e1de40b4aa52aa8b38f1c4c23b14e1e46e20f66e865462804118dcb0b8ce"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3603488640000002,
             "peak_rss_bytes": 341688320,
@@ -3343,6 +3930,7 @@
             "e89c03686bc56cd33070941f6da74e45dcaf9df6ae3570fe79d7262c6233e0c0"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.32477375999999913,
             "peak_rss_bytes": 160235520,
@@ -3382,6 +3970,7 @@
       },
       "reported_usd": "0.006245035",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "vc-011-t1",
@@ -3423,6 +4012,7 @@
             "bf7b4b463b7215d2717ef9b1c80ab75c54a643bee346d309073c74f2e4e335fe"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5384884480000002,
             "peak_rss_bytes": 375914496,
@@ -3470,6 +4060,7 @@
             "f4e799f473603b3d8f7fe40239274580b84283501ccfa6d4fa3b1b900d836162"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.3501713279999996,
             "peak_rss_bytes": 178012160,
@@ -3518,6 +4109,7 @@
             "84c84e43017b15b3ec14384c254dfdb5e6c7e1551f1872463e53dadcedb78284"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.41508672000000024,
             "peak_rss_bytes": 180305920,
@@ -3565,6 +4157,7 @@
             "5d642b49e8dfcea4ca122ef5989dfab8b287de39e6a633ff8f6691db685ed1dd"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2913231359999998,
             "peak_rss_bytes": 180535296,
@@ -3604,6 +4197,7 @@
       },
       "reported_usd": "0.016894300",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-006-t1",
@@ -3647,6 +4241,7 @@
             "6dfa212b2d8bb2dc8454dec43aafc5a601c59cbb3c9f009060294b1c5f2e0ec6"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5744429440000001,
             "peak_rss_bytes": 369836032,
@@ -3696,6 +4291,7 @@
             "847bfb65881b3285b2e40b40ffb43016b4730e1dc78726efd0b6a232e3f4375f"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.4326635520000002,
             "peak_rss_bytes": 168001536,
@@ -3735,6 +4331,7 @@
       },
       "reported_usd": "0.179282055",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "sheet-chapter-6",
@@ -3783,6 +4380,7 @@
             "b433e7b13c2c6d18ba0a3a2259599aee3cc963bb9eb3b448fb9628988e3e7028"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 6.396000000000001,
             "peak_rss_bytes": 502087680,
@@ -3822,6 +4420,7 @@
       },
       "reported_usd": "0.007539550",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "proximity-weak",
@@ -3861,6 +4460,7 @@
             "45d070dadaa1c5218875969ff08a1d82b40dd28c601fe3c1207845a7427ff4f3"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.19008787200000044,
             "peak_rss_bytes": 350371840,
@@ -3906,6 +4506,7 @@
             "d5307f9da0b3d1ba1778a14a2f7e205ef388f9ca34e1d6753042ab92401c7f10"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.09271769600000002,
             "peak_rss_bytes": 140378112,
@@ -3951,6 +4552,7 @@
             "4945c6d735cfed681a2314a8d65478f1bbb68dd38d8653d7e216d78463b72221"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.08262444799999968,
             "peak_rss_bytes": 143212544,
@@ -3996,6 +4598,7 @@
             "16ae1052d088bede9101b11ecd934835beb3b39d32ff66f6500118823b52a621"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.0794504319999998,
             "peak_rss_bytes": 143409152,
@@ -4041,6 +4644,7 @@
             "17d4c8275d5cf10babe97e22491eddd0c859805264b258ee15590adf78f8a057"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.12608972799999996,
             "peak_rss_bytes": 141639680,
@@ -4079,6 +4683,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -4113,6 +4718,7 @@
       },
       "reported_usd": "0.006337100",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "ideal-notification-system",
@@ -4163,6 +4769,7 @@
             "cbdf91cecc9ccd3721cddacda1e9bb0b1946b82b216f0a86c9b9324c65c9dcc1"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.7287375039999998,
             "peak_rss_bytes": 359170048,
@@ -4219,6 +4826,7 @@
             "bc0193e7ff400f6b5ff3aa2eb303b7457f2554d5d701d946fbd055af854ed736"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.6104433279999999,
             "peak_rss_bytes": 151420928,
@@ -4255,6 +4863,7 @@
       },
       "reported_usd": "0.014865954",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-008-t1",
@@ -4298,6 +4907,7 @@
             "a2eff28066761613353b3e413842c8393a3b6c1a76c9e5bf921737f2abd51fb4"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.588980672,
             "peak_rss_bytes": 357171200,
@@ -4347,6 +4957,7 @@
             "5059086abb7aacfdff39ba7bc678baeada71ec87dd94896924efbf6b51f49c9c"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2443843200000001,
             "peak_rss_bytes": 160645120,
@@ -4397,6 +5008,7 @@
             "f24548eef9259ea7b95a75bb9f03159ddf2ffe1ed5c89fe0d3afec588e9fb643"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.6501725439999998,
             "peak_rss_bytes": 201228288,
@@ -4444,6 +5056,7 @@
             "f2e4cb7b4c5aff44a5a5b3db10378056ea4a8aff8e037d13906bb54bb6f29bfb"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.462915776,
             "peak_rss_bytes": 214990848,
@@ -4480,6 +5093,7 @@
       },
       "reported_usd": "0.018181750",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-008-t1",
@@ -4523,6 +5137,7 @@
             "4f3ffbb6d2145cf7c471a61c7ea007afa034efcf96c1e39382f5c82d806024eb"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5275484800000005,
             "peak_rss_bytes": 356188160,
@@ -4572,6 +5187,7 @@
             "e41923d3d2f13e181bf08e5ac7e1586f08ef80001c2dd536e077bc233b131284"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.2395816959999998,
             "peak_rss_bytes": 174735360,
@@ -4622,6 +5238,7 @@
             "8902b2c5c869080b996dfb79285ebc1993eba3e43dd054370eb60988ba09ca62"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5484820479999999,
             "peak_rss_bytes": 203145216,
@@ -4669,6 +5286,7 @@
             "9dbdac124f7784a79faf4d91bb82514d69551ea0b03c7ee3f849fd69dc887c68"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5019753599999999,
             "peak_rss_bytes": 221347840,
@@ -4705,6 +5323,7 @@
       },
       "reported_usd": "0.020506485",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-008-t1",
@@ -4748,6 +5367,7 @@
             "dbe57fdf6fa8d96c53eefbe9443367e6eecd887f63bf8977905fe38f39fa9bda"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.46239712,
             "peak_rss_bytes": 352075776,
@@ -4797,6 +5417,7 @@
             "707db2ccfca59896c99258c5ac83329d75b3f0c2e576120ce806b03e43e493b9"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.36542649599999943,
             "peak_rss_bytes": 198393856,
@@ -4833,6 +5454,7 @@
       },
       "reported_usd": "0.032077870",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-008-t1",
@@ -4876,6 +5498,7 @@
             "a3ed7ad5fe29d8f276830a68b21c78878171a7e76cc2949707e3ecf2369c48e4"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.4466991360000001,
             "peak_rss_bytes": 358350848,
@@ -4925,6 +5548,7 @@
             "b7aff4a3b4a8f94cc29e74b38f9504087849a9c8547c4fd8ab99e501b3687f65"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.19680883199999977,
             "peak_rss_bytes": 325533696,
@@ -4975,6 +5599,7 @@
             "02b1a8a7c43c88a0dcd40ec045111270992b7442b9273165ad5ed7b0930b7f69"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.41696537600000005,
             "peak_rss_bytes": 203751424,
@@ -5022,6 +5647,7 @@
             "d61875d5b569cf3b60fc72dafe212c560051d04ba06948947d43cd49029ff32c"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.4783678079999991,
             "peak_rss_bytes": 212647936,
@@ -5058,6 +5684,7 @@
       },
       "reported_usd": "0.009472155",
       "unknown_reserved_usd": "0.0051698640",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "mt-003-t1",
@@ -5101,6 +5728,7 @@
             "9235f772aa8ecf5b1a4ec8ed1db68de415f591b9e615f320697832b4a075de8e"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.5619822719999996,
             "peak_rss_bytes": 371474432,
@@ -5151,6 +5779,7 @@
             "ef2b60559539981659af375b6faa2485e341ae1a09535a72a81c8abf706d38f7"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 1.007027136,
             "peak_rss_bytes": 168853504,
@@ -5200,6 +5829,7 @@
             "1fb6c3f371391903d9bcc5f629c63b89317feee41eeae441e32cb040def66b6a"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 0.24253279999999944,
             "peak_rss_bytes": 154370048,
@@ -5238,6 +5868,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5271,6 +5902,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5304,6 +5936,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -5335,6 +5968,7 @@
       },
       "reported_usd": "0",
       "unknown_reserved_usd": "0.0131036100",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "proximity-weak",
@@ -5367,6 +6001,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5400,6 +6035,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5433,6 +6069,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5466,6 +6103,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5499,6 +6137,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5532,6 +6171,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -5563,6 +6203,7 @@
       },
       "reported_usd": "0.000607425",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "proximity-weak",
@@ -5595,6 +6236,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5628,6 +6270,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5661,6 +6304,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5694,6 +6338,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5727,6 +6372,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5760,6 +6406,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -5791,6 +6438,7 @@
       },
       "reported_usd": "0.000767780",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "proximity-weak",
@@ -5823,6 +6471,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5856,6 +6505,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5889,6 +6539,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5922,6 +6573,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5955,6 +6607,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         },
         {
@@ -5988,6 +6641,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -6019,6 +6673,7 @@
       },
       "reported_usd": "0.010402950",
       "unknown_reserved_usd": "0.0208595400",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "sheet-chapter-6",
@@ -6051,6 +6706,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -6082,6 +6738,7 @@
       },
       "reported_usd": "0.022052505",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "sheet-chapter-6",
@@ -6114,6 +6771,7 @@
           "source_fingerprint": null,
           "generation_capture_hashes": [],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": null
         }
       ]
@@ -6145,6 +6803,7 @@
       },
       "reported_usd": "0.030040950",
       "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
       "cases": [
         {
           "case_id": "sheet-attention-paper",
@@ -6187,12 +6846,2057 @@
             "f2875201e53e8e2186a98c74215f1d60a2824068fe8073e3d2baa2efb30e0880"
           ],
           "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
           "resources": {
             "cpu_seconds": 2.6601567360000002,
             "peak_rss_bytes": 460472320,
             "sample_interval_seconds": 0.1,
             "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
           }
+        }
+      ]
+    },
+    {
+      "run": "repeat-control",
+      "experiment_fingerprint": "f78b7140a3691c4edc9d57b7f2e6d97b011bb7207c057c73d324f8cca067c672",
+      "implementation_sha256": "6d889ae46c34dd0f6edb6c5a9eb6e0e26fca1975ef66f2dc20eeb8193c19c8a4",
+      "retrieval_mode": "bm25",
+      "candidate": null,
+      "review_version": "artifact-review-v3",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.071513480",
+      "unknown_reserved_usd": "0",
+      "artifact_recovery": true,
+      "cases": [
+        {
+          "case_id": "mt-001-t1",
+          "flow": "summary",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.004200425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 22990
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-002-t1",
+          "flow": "chat",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-002-t2",
+          "flow": "summary",
+          "status": "dependency_unavailable",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-003-t1",
+          "flow": "chat",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.000924975",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 6219
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-003-t2",
+          "flow": "chat",
+          "status": "dependency_unavailable",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-003-t3",
+          "flow": "chat",
+          "status": "dependency_unavailable",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-003-t4",
+          "flow": "chat",
+          "status": "dependency_unavailable",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-004-t1",
+          "flow": "summary",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001745975",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 8362
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-005-t1",
+          "flow": "chat",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.000827495",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 7122
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-005-t2",
+          "flow": "chat",
+          "status": "dependency_unavailable",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-006-t1",
+          "flow": "summary",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.002876225",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 15886
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00092007",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 6975
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-011-t1",
+          "flow": "summary",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.003429675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 18087
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "mt-011-t2",
+          "flow": "summary",
+          "status": "dependency_unavailable",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "failed",
+          "error_kind": "ValueError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.005002725",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 29844
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "status": "generated",
+          "error_kind": null,
+          "output_hash": "ee4ad6efd4bad8716097d453022503312d2d2d3d4f2e1f0b8b3ba1e89f01d513",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.014719875",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 5,
+              "reported_tokens": 83049
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": "5029870b7ae7de30f37da9d38e4b2f710dfc4f897b556e70724ede3907337c4f",
+          "generation_capture_hashes": [
+            "f992cdcce57cd58835b59871a6362c5d9ec7ec0cbc63cc62c1dca1de3e5075f5",
+            "8028dc4ba31af019a16be0c511405a880c9ebe7f8adb4f857518356670154f52",
+            "5c7484385b04d8f5040b4175d4c239b2ac3994059e9cf88401be9edc25bade83",
+            "f3d2107de55cc3acda9406f4916e66239f09d62324828c8f2697a569c0d05832",
+            "0eafbdcd6b820f328eac08d9f956aeb074de97214edfd90ee03faedad4abe79d"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 119.373081,
+          "resources": null
+        },
+        {
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "status": "generated",
+          "error_kind": null,
+          "output_hash": "decc7761846f9ee34e2dcb4f8c76ddb97a28bd00c5bbd149a9e894c55221e32c",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.036866040",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 8,
+              "reported_tokens": 265735
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": "0d779ab3d3be6da247074c3b890da6e559df86bba40a19e77c6b25e599327081",
+          "generation_capture_hashes": [
+            "c6cc16b3c173baf3c6af6062b1e4e3001ee140fe9ce3426c9ddc6be61049e17f",
+            "88cb002030981ccad002ddceb05cc401e4636b7e6c8db65ddfb0bca5cfec0af0",
+            "ec459192c25360d0afd1f005ab443f200b270d44b4d80c24f107320a93205fca",
+            "747c0f0b32753c55f4d477c090db2ca81d359b0f99e726b0a412c611d3a17d60",
+            "a82927ae78884afd091c81a46dfe44ab9b9fce03e1c163649a36421b9d95bbe9",
+            "7d3d295125baee88aa22f124b1947452808055924f17a65e77396c9c3ef8c23e",
+            "a9d3619f157c5e915be12d007fcffb9f40019d7ddf89b7020741bbb47142e5e4",
+            "1437a61e5056e7c36ed1c3b574e56e47d52166c07057b3a6f9b0c9120d1fd66e"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 183.652587,
+          "resources": null
+        }
+      ]
+    },
+    {
+      "run": "repeat-control-text-reporter-fixed",
+      "experiment_fingerprint": "055e29ce1f7a8677db9f81aefb6e60ddec127da637046e4dbc57204576ac18f9",
+      "implementation_sha256": "eb007c0e192be9b58b7a744285bf7b329d0617c069202a66d418722f19b2f261",
+      "retrieval_mode": "bm25",
+      "candidate": null,
+      "review_version": "artifact-review-v3",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.073295170",
+      "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
+      "cases": [
+        {
+          "case_id": "mt-001-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "bbe9d1e9347471dfebfa66af266bee2856de305792d48f651f821a9a29e3cbce",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.003725425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 22040
+            },
+            "judging": {
+              "reported_usd": "0.004187425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 31448
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "6a12d4b959222974e9ae76bcdcd063733846cd765ce9feec231f75342de0c03c"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 24.441831,
+          "resources": {
+            "cpu_seconds": 0.5955235840000002,
+            "peak_rss_bytes": 405045248,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-002-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "a5e06fc001cdea9471f79a1e67c3dc5d0316740ed1f778307c506e7e1e2d0453",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": null,
+            "standalone_exact": false,
+            "evidence_recall": null
+          },
+          "verdict": "unsure",
+          "grounding_status": "insufficient_evidence",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 1,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0.0007748",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 3208
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 0.253434,
+          "resources": {
+            "cpu_seconds": 0.05839168000000017,
+            "peak_rss_bytes": 156155904,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-002-t2",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "fe950cb47160c754f3b6f90d321fad1886716e528b924c7e490d9bfae69c02d8",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001520600",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 8443
+            },
+            "judging": {
+              "reported_usd": "0.0019893",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13941
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "5ff7a47fefa1ac63dc82c39faadb61dfdf17784271b5cb721b18ceebbbb98ab5",
+            "ed12eef44e7ab53b4d616b54cce8ba61e0037ca2fff9c374a29d77333aaea666"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 12.764119,
+          "resources": {
+            "cpu_seconds": 0.29813376000000036,
+            "peak_rss_bytes": 169033728,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "ae3e7aa6dfacebffa039e07883aaa9002da5aa1fbcf04ecd8936d21f08d488f0",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00097635",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 6186
+            },
+            "judging": {
+              "reported_usd": "0.001865675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 12379
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "5c7c880892bee7d3ed6216f018afb13ab88ca500e83fb839e015d0ca22067403",
+            "cfdaa031a5877e8379915566f053e77af193146d790c534b540c64799f5f294a"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 7.468404,
+          "resources": {
+            "cpu_seconds": 0.2938081920000001,
+            "peak_rss_bytes": 165445632,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t2",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "749dc789a9d9e662b5e5626ba03bdad0dee0e998d95b11ec391b6c0848ecc7c4",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001078070",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 7930
+            },
+            "judging": {
+              "reported_usd": "0.002340425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 17116
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "e679d9423d191e0df2b9b721af953384ad81859d2db97b6e223965bb55d37db3",
+            "7c3cc03a3dc572b19fc4a1ba74fbc8fc2d0b7fb655dcbe16ffeeee42d05ba883"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 7.248454,
+          "resources": {
+            "cpu_seconds": 0.2961194879999992,
+            "peak_rss_bytes": 162627584,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t3",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "fe17ba2fef1ecb45c2eaaf52037a47eae6818e0c3118c4c6c4f686e811d7d8d3",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 3,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001109195",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 8497
+            },
+            "judging": {
+              "reported_usd": "0.002534425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 18137
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "72a028ab9f3b8119adcba342eddeb374e48c4de2298038a32ce4005d86dda916",
+            "f9424ce68af786d636302704ef26c2526582b0eefb2464be4aa6bfd5a95f3fa1"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 6.710318,
+          "resources": {
+            "cpu_seconds": 0.2869887360000005,
+            "peak_rss_bytes": 165380096,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-003-t4",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "c3a3c43d37f4274392a3b4efe68e073efe397d5753679ff4ca305266c02a9b09",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001293945",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 9648
+            },
+            "judging": {
+              "reported_usd": "0.0027698",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 19807
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "2706234ffa128dcd917ac54e1b84b4a3bd934267134a639c14fa19fca688059e",
+            "ffc34796071dd065f690d9b06a83b5e94cd4d24a70c524ac84e30b9f1dbfa448"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 7.198198,
+          "resources": {
+            "cpu_seconds": 0.3112277759999993,
+            "peak_rss_bytes": 165773312,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-004-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "c078fbc9a9478a44343b84c699c689bbd63483bb8104d430d360f756d9c7ea3d",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001441475",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 7753
+            },
+            "judging": {
+              "reported_usd": "0.001891675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 12776
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "c45a53292b7668acac5dcc0259e609ab04365e1ed205710b9af1df4bdff2982c",
+            "6f31550d619582651f4939509128b320b1e8d2fa71df62ed28119109d73f2b3b"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 13.024248,
+          "resources": {
+            "cpu_seconds": 0.27839040000000015,
+            "peak_rss_bytes": 163463168,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-005-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "515771620b6d45e6644dcec57fc0ac53c0098a253778b0a971f0674a72d8f3e8",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.000864495",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 7196
+            },
+            "judging": {
+              "reported_usd": "0.00181605",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13071
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "3be712687883f54d88d01c9bebbb712154ca8af6e4c2c03f174b3b6ee22be5b2",
+            "987a6344d564741b98b4f403d6ef06e8eda765b9111a57aaaf1a6a13ca008382"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 5.344016,
+          "resources": {
+            "cpu_seconds": 0.28201075200000014,
+            "peak_rss_bytes": 163364864,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-005-t2",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "4fad3d02c26a4b82283a9e1b061343434414a1f25fb6f47283047bfc3527f3e0",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "needs_work",
+          "grounding_status": "unsupported",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 1,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001263695",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 9016
+            },
+            "judging": {
+              "reported_usd": "0.002663175",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 18768
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "20e3a9e25b94ffd5b3235af65e191ac0cc5d37e3bd40e9fd52b0e703e8779538",
+            "1eb437e340de6f82cf6a47e8621bd42394d444cccf49d3115ece90baa81fbc42"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 8.315425,
+          "resources": {
+            "cpu_seconds": 0.2715518720000003,
+            "peak_rss_bytes": 164888576,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-006-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "f4022bd6982f35082cf319248994704aadedfdd96edfce73957ec0cf125e6389",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.003020725",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 16175
+            },
+            "judging": {
+              "reported_usd": "0.003232675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 22838
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "689058584e85848c8bda8459fd9ccab3e9e33ac60471885f6501a9d4d8a9bc57",
+            "074c1dad30cb046a069756ac6e2d687737b7fbffbb72e92bd384512a3c66295e"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 23.553946,
+          "resources": {
+            "cpu_seconds": 0.30726310399999957,
+            "peak_rss_bytes": 163250176,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-008-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "f41bc85f114e95c86bc12dce062a8653a8ca120e893383e9ec81e198ce1c5bfa",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "needs_work",
+          "grounding_status": "supported",
+          "correctness": 2,
+          "coverage": 1,
+          "usefulness": 2,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00091057",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 6956
+            },
+            "judging": {
+              "reported_usd": "0.001946925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 13494
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "0cd29ee52b6784fb9497bfa99fdcf512c906b05e2c45ad15e3530241d2a77ec8",
+            "542304b69850a2b9ca1a0a5c790f20694834d19f752532c811e5ab195c6f0e22"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 6.149751,
+          "resources": {
+            "cpu_seconds": 0.2742616320000002,
+            "peak_rss_bytes": 167575552,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-011-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "b36bd373e46d1c1b35ae78c4e61a6ff42846594d1fd7b19be446538ea8ab48ed",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 3,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.003215675",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 17659
+            },
+            "judging": {
+              "reported_usd": "0.0034393",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 24758
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "930319e428098607ff75094d99ea167ed69ac113a2cd147abdf0c28b704dbac9"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 22.319679,
+          "resources": {
+            "cpu_seconds": 0.24249011200000092,
+            "peak_rss_bytes": 173096960,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-011-t2",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "da408d072c536e12b4aa89e28fa1094f40b850daa991a3e98d17810955484bf2",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.004992350",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 30319
+            },
+            "judging": {
+              "reported_usd": "0.006295425",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 47097
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "0a77ae65c41c139e5e31c841fd295389622c155a4d2b430b8ee86b658bb61b37",
+            "1b5ff8fe2ca2dd055db549fb4eecd207ca2a617ae1be0e578ebf58aa272c9de3"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 23.149962,
+          "resources": {
+            "cpu_seconds": 0.3726415359999995,
+            "peak_rss_bytes": 163266560,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "paper-complete-summary",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "624310c208b82e57f949132e34c9fdef814483a922541c672d237f6aa644dacf",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": null,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.004909975",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 29636
+            },
+            "judging": {
+              "reported_usd": "0.00522555",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 38997
+            }
+          },
+          "source_fingerprint": "45becc697a7122b656670628ce7ca9ff7d81dea2db6d0146998e9ee9e3252c42",
+          "generation_capture_hashes": [
+            "9cbcf29151a50ba0532c577b69d0020e1c2a3712a1b2f01ade4ff2dff1337706",
+            "6addeb44dd0cc39dd9953529ae1f97f99df2632252f9f46b23b7b8e3bc03f7ae"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 28.07668,
+          "resources": {
+            "cpu_seconds": 0.35168640000000084,
+            "peak_rss_bytes": 164904960,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        }
+      ]
+    },
+    {
+      "run": "repeat-figures-all",
+      "experiment_fingerprint": "8748dc824f6299fced198ca56d7bcaf6c909e6ad51bfb9c7fadd9d2047593aec",
+      "implementation_sha256": "6d889ae46c34dd0f6edb6c5a9eb6e0e26fca1975ef66f2dc20eeb8193c19c8a4",
+      "retrieval_mode": "bm25",
+      "candidate": null,
+      "review_version": "artifact-review-v3",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "google/gemini-3.1-flash-lite",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.191103530",
+      "unknown_reserved_usd": "0.060503100",
+      "artifact_recovery": true,
+      "cases": [
+        {
+          "case_id": "sheet-attention-paper",
+          "flow": "revision_sheet",
+          "status": "generated",
+          "error_kind": null,
+          "output_hash": "1516487e263184dd6260989abacd24df290d69d9563e8a997ce18794031168c8",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.027938130",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 8,
+              "reported_tokens": 161609
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": "5029870b7ae7de30f37da9d38e4b2f710dfc4f897b556e70724ede3907337c4f",
+          "generation_capture_hashes": [
+            "76a5dac379796b171c44b50f220ac918092e7845c0a9ddb2552a650fb6d41ab9",
+            "c5089248017f9d890f466a80c06ddc8b3846e5b14a930b9f4ac2a0b9f00e2e71",
+            "750ccef418e47f0cb2238ac040e03531d84e3de64ced0df6c95f70a47b832282",
+            "159dcc7176580f3b5304d26d7daae1a9837fa2e5d1ae9e7850603d800f29a51c",
+            "e166fcd870afc264293798d77b658024446d9a3da8d4a088cf343a94cfed0e44",
+            "895cccfa2191279cee25bc5913691e5ff0a2afc39dbad763f396e5ed02a5da4f",
+            "e40de67b6d06e2049d0cdcbe8d0c6829edec4195bfd81fad4f6a2cc30dd33112",
+            "2398a3b10c66710717cde951d14736683b661c9cf979573f2e652df5e487b7f0"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 184.203459,
+          "resources": null
+        },
+        {
+          "case_id": "sheet-chapter-1",
+          "flow": "revision_sheet",
+          "status": "generated",
+          "error_kind": null,
+          "output_hash": "0a0e5c08ff750bd41b97b73b00fd3eceb967c742c6517e75194bcd051c54948d",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.028483000",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 7,
+              "reported_tokens": 169155
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": "539eed62881ceeb35077d681377e5c056d6d141889425af55ac7c8ae1ac0ece2",
+          "generation_capture_hashes": [
+            "95fa652f07b995557d17690a6407a9e6ce31450e9405c831b7c5a221d55c0f97",
+            "0f9b480c5b8cce38117446378d160e46510dbf4d0a93b44a4520d7b35b3a2193",
+            "71f3f581540fb61902a857d4b3c825b30f2931016b147e1bd6c432e01cb5bf27",
+            "4044c6d89556ede64edc4d51aaabdf145ed50e0503ad02cf3388a23cf503cb2b",
+            "4738785d5b5b8cf125f05c8f5d7a7553467d3452adf74d6ac2e47503700c8241",
+            "f6f97768c2825f4419edc4ee5be7a67b6458bf26c87babd696a3fd2cc4ff4532",
+            "3e8fb49ad38442ec2067cbb13e0449231ed7fcdda5d959ae2daeb0ac5182babd"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 148.09429,
+          "resources": null
+        },
+        {
+          "case_id": "sheet-chapter-3",
+          "flow": "revision_sheet",
+          "status": "generated",
+          "error_kind": null,
+          "output_hash": "871da8d3b3ee83fe868a2f041711288f7d139259e826881460f7fce8100de447",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.025965400",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 6,
+              "reported_tokens": 133384
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": "e148893f89df5dcc25ffb2496f088463cf00cbabe0c1385885ec5067d18af988",
+          "generation_capture_hashes": [
+            "9020c5e4e6b69f2e74fc683f1108437a879f35e728ad4064750af85097ba1857",
+            "f79bdcf76fbeaefd06f114e542486688e3bf7b248a29159ca476d2294b1b226d",
+            "65f5036c2d750d39efee2c9ba47f6fd0d4331a885b1b87b3fd96097acb5c93cd",
+            "d115c94ef9aad4391e7a264477c9e974376b5b86aa88b9a2a727ad548eda5fa8",
+            "2f4d03d099012a587524450683b43ecef32473a0d65f2f8fa62541c2081537a7",
+            "d4708ae6d9c21d02d91139788ed13e683bc4af8ed26df4b454301ddab69df857"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 146.637414,
+          "resources": null
+        },
+        {
+          "case_id": "sheet-chapter-6",
+          "flow": "revision_sheet",
+          "status": "generated",
+          "error_kind": null,
+          "output_hash": "b2fc40b519a5ea152a9e564ebaf72f17961e0dcacd8cbab3309f517854d2f3d9",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.050868445",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 9,
+              "reported_tokens": 315787
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": "0d779ab3d3be6da247074c3b890da6e559df86bba40a19e77c6b25e599327081",
+          "generation_capture_hashes": [
+            "a223e13a3b99fa5628aec568c2d7207c11e307a7d88f08fefcadfa240f146d06",
+            "b13be33b113e61bd8d8a521a3c51b1f07ba9f9061d8c573e97d8b4d450e44bdf",
+            "a84426c2edaaeb382ab2723e49da1eb9fd1574858e9563ad6956444902b88619",
+            "85fa9b465116c1aea021b0b0705e8bfd690395d3a4dc384785f0baa9c1ace5ba",
+            "d112f90bf5bde886067f2ba8cc1dc267d9e43f2e35e9be2a2d878e38997660e1",
+            "815918a2730a32b6bcaf95a48080f4773bf3237b9a121983c05e7d862d8c0f5f",
+            "c29c3fb32a4e70e84453e8b33a4922598a16529dadb94e0b1eb382de6a5ff864",
+            "7fb5217cbc1ea2b9fd7fd54c33fa1323f511bea9b659177f454396d24dc46409",
+            "8348736da0881ea61d4226d32ea99d40cac0d9e6ab8fa1b56b2bf581646cbaf9"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 219.888526,
+          "resources": null
+        },
+        {
+          "case_id": "sheet-chapter-8",
+          "flow": "revision_sheet",
+          "status": "failed",
+          "error_kind": "RevisionError",
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.053038305",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 9,
+              "reported_tokens": 343647
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        },
+        {
+          "case_id": "sheet-chapter-10",
+          "flow": "revision_sheet",
+          "status": "generating",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00481025",
+              "unknown_reserved_usd": "0.060503100",
+              "physical_requests": 4,
+              "reported_tokens": null
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
+        }
+      ]
+    },
+    {
+      "run": "repeat-figures-tail-reporter-fixed",
+      "experiment_fingerprint": "2f227899a9256117014e4ac5c44e4284f6e94478df0a5f7d28155ccfb5ba9b92",
+      "implementation_sha256": "010facf4b730cf824659fbffd65f3633ab9ef1de8769742c86e5434221dd1bb3",
+      "retrieval_mode": "bm25",
+      "candidate": null,
+      "review_version": "artifact-review-v3",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "google/gemini-3.1-flash-lite",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.274388120",
+      "unknown_reserved_usd": "0",
+      "artifact_recovery": false,
+      "cases": [
+        {
+          "case_id": "sheet-chapter-8",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "832cb9d55a955cc41d4e9f23596dde6ed5b16437ac286fa9d65505b17d0ef1d4",
+          "checks": {
+            "production_findings_clear": false,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "needs_work",
+          "grounding_status": "supported",
+          "correctness": 3,
+          "coverage": 3,
+          "usefulness": 3,
+          "layout": "readable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.083384445",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 12,
+              "reported_tokens": 528507
+            },
+            "judging": {
+              "reported_usd": "0.1395331",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 555283
+            }
+          },
+          "source_fingerprint": "ed91937c788dbcb0a970036157fcaadcb78ff593c8a3e5e116653efc0b9bfb1a",
+          "generation_capture_hashes": [
+            "0bc056630b94895b59fe39a0f017fd66b10e257d0eae337f9b3a1547f1c033c4",
+            "805eede01abd704cc37c11db5abd5e68091bce0965f711caffad61b0c5efa58a",
+            "9a2d1f3fea239c7c2e9328938f01206e12a5a7c446b22a838c228748aba74ff0",
+            "cf866bea75cb58c0301b3a3903a662f955767cf56b347d44f816751d1e00d646",
+            "6e9fa4629224aa704cb8ee215a304958b350a89ad6e053b435148e4cbf27e829",
+            "66b665fc1a3de528a4939f24acef8794793f2f388c8ecd3e5a5e4af14ddaa4de",
+            "3bca6adfb0e2076d2f9e9783651c1acbddefe310ec4cbc1d152229888e0c74d6",
+            "a6e12895d6bc8c422f56192a0785f91c8a4016c244d8817f4de8ba8fca909bdb",
+            "9e3eadef48759684475b076b731e9ec1dceaa2537d0b03a55a013d0702c1e90c",
+            "23fba64ab5ba3b7638960919d528a418392bda43bfa26ce892993b211ac7a7cf",
+            "4f0c47a6c0a002085bcd52038585cc268ea98c4f6254322f19099d256bdc2478",
+            "d9dc1b343dd31d874a0272a145d56b12fb9714dde5827a1775f7157ce4feece1"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 403.971059,
+          "resources": {
+            "cpu_seconds": 7.283198528,
+            "peak_rss_bytes": 457474048,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "sheet-chapter-10",
+          "flow": "revision_sheet",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "da49d6c8924a42325f17ba4aaf97b8957c0218e08c1512be88f87ca99c6c9e62",
+          "checks": {
+            "production_findings_clear": true,
+            "independent_concept_coverage": null,
+            "human_layout_review": null
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "readable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.026622275",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 6,
+              "reported_tokens": 148681
+            },
+            "judging": {
+              "reported_usd": "0.0248483",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 195373
+            }
+          },
+          "source_fingerprint": "170c1395e26137557c1fcd07584085afa8f0c3a61e72dd9eeb17151105c99c92",
+          "generation_capture_hashes": [
+            "37877e162cbe9cd06c6f35a75b74d5d2be750827bfb880531d05fe3732bb3ea9",
+            "53d90766e5bc9368c85ba3bdee8b82f7d7c9dbe1ae48f68edd2e796eeae361f1",
+            "0b0e8e04c97fabc1d1ccec413e93994820dd5e583a4dd63823231a8ac007fece",
+            "5b43be96857b7e1bea2aed0604d551a7f9e889b82c7e58a23245caee93fd318d",
+            "5551ba90124ecb455f600fabe8c50d60d8efad8bc7d879f3efb44a01570d30b0",
+            "63a6121b9599a6402616e941c7f714827d6df1c4a9388c67a8c4e4c64f6b747c"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 136.828363,
+          "resources": {
+            "cpu_seconds": 3.2666918400000005,
+            "peak_rss_bytes": 314966016,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        }
+      ]
+    },
+    {
+      "run": "repeat-summary-a-reporter-fixed",
+      "experiment_fingerprint": "146497ddb6941a33c6130eaaae578cf49cf251da92d20c59bee6dd4801f1eebe",
+      "implementation_sha256": "eb007c0e192be9b58b7a744285bf7b329d0617c069202a66d418722f19b2f261",
+      "retrieval_mode": "bm25",
+      "candidate": {
+        "id": "14",
+        "version": "flow-candidates-v1"
+      },
+      "review_version": "artifact-review-v3",
+      "bindings_fingerprint": "f6cdb8c0da322e179a7b4c02ecca28905a0be5c2fe09356197a4f47d365e8339",
+      "model_environment": {
+        "OPENROUTER_GENERATION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_VIDEO_ANSWER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_CONTROL_REASONING": "low",
+        "OPENROUTER_GENERATION_REASONING": "none",
+        "OPENROUTER_INTERVIEW_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_INTERVIEW_GRADER_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_AUTHOR_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_INVENTORY_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_FIGURE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_REVISION_JUDGE_MODEL": "openai/gpt-6-luna",
+        "OPENROUTER_MODEL": "deepseek/deepseek-v4-flash",
+        "OPENROUTER_JUDGE_MODEL": "google/gemini-3-flash-preview",
+        "OPENROUTER_JUDGE_REASONING": "high"
+      },
+      "reported_usd": "0.010189620",
+      "unknown_reserved_usd": "0.015538500",
+      "artifact_recovery": false,
+      "cases": [
+        {
+          "case_id": "mt-001-t1",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "f72c08362fd20077c67c0abd83704f5ed9d8168f9784ebfc712a180330065c27",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.001971415",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 23069
+            },
+            "judging": {
+              "reported_usd": "0.004570925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 33034
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "8d1d65f9d568768e25d15b67228dcb06f8ead486904e4472e36b96f2661a3c9f"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 31.122259,
+          "resources": {
+            "cpu_seconds": 0.568767552,
+            "peak_rss_bytes": 401620992,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-002-t1",
+          "flow": "chat",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "a5e06fc001cdea9471f79a1e67c3dc5d0316740ed1f778307c506e7e1e2d0453",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": null,
+            "standalone_exact": false,
+            "evidence_recall": null
+          },
+          "verdict": "unsure",
+          "grounding_status": "insufficient_evidence",
+          "correctness": 3,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 1,
+          "costs": {
+            "generation": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            },
+            "judging": {
+              "reported_usd": "0.00048788",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 3142
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 0.236436,
+          "resources": {
+            "cpu_seconds": 0.04693151999999989,
+            "peak_rss_bytes": 163659776,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-002-t2",
+          "flow": "summary",
+          "status": "completed",
+          "error_kind": null,
+          "output_hash": "6489ca17bd59a554f95256aa18d87d44adc9d2fcc15420ffc52d11ce3eb30d40",
+          "checks": {
+            "route": true,
+            "history_dependency": true,
+            "scope": true,
+            "outcome": true,
+            "citations_valid": true,
+            "standalone_exact": false,
+            "evidence_recall": 1.0
+          },
+          "verdict": "usable",
+          "grounding_status": "supported",
+          "correctness": 4,
+          "coverage": 4,
+          "usefulness": 4,
+          "layout": "not_applicable",
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.000993755",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 2,
+              "reported_tokens": 8567
+            },
+            "judging": {
+              "reported_usd": "0.002109925",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 1,
+              "reported_tokens": 14249
+            }
+          },
+          "source_fingerprint": "3504cc4f6231ab89293e08edf2fc5b1ff8540d7eb51cadcdd7327479cf4f4b04",
+          "generation_capture_hashes": [
+            "2538e4775afcc3c802b34c6e6cdff5f7a44b965fbcf56f0408d1c505bb903e83",
+            "bdf385ce1d48827eb6a8b374657f645dd346fdde6d4684aa372574d80bf61f74"
+          ],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": 14.240302,
+          "resources": {
+            "cpu_seconds": 0.2932448639999995,
+            "peak_rss_bytes": 163807232,
+            "sample_interval_seconds": 0.1,
+            "scope": "eval Python process; includes background telemetry, excludes child processes and remote model compute"
+          }
+        },
+        {
+          "case_id": "mt-004-t1",
+          "flow": "summary",
+          "status": "generating",
+          "error_kind": null,
+          "output_hash": null,
+          "checks": null,
+          "verdict": "unavailable",
+          "grounding_status": null,
+          "correctness": null,
+          "coverage": null,
+          "usefulness": null,
+          "layout": null,
+          "unsupported_claim_count": 0,
+          "costs": {
+            "generation": {
+              "reported_usd": "0.00005572",
+              "unknown_reserved_usd": "0.015538500",
+              "physical_requests": 2,
+              "reported_tokens": null
+            },
+            "judging": {
+              "reported_usd": "0",
+              "unknown_reserved_usd": "0",
+              "physical_requests": 0,
+              "reported_tokens": 0
+            }
+          },
+          "source_fingerprint": null,
+          "generation_capture_hashes": [],
+          "latency_seconds": null,
+          "local_sdk_latency_seconds": null,
+          "resources": null
         }
       ]
     }
@@ -6211,9 +8915,16 @@
       "usd": "0.50",
       "reason": "Fresh control hit conservative image reservation; preserve completed outputs and fund remaining control/finalist cases",
       "at": "2026-10-03T10:46:07.460292+00:00"
+    },
+    {
+      "from": "screening",
+      "to": "repeat",
+      "usd": "0.50",
+      "reason": "All twenty initial hypotheses are screened; fund matched controls, six-sheet figure-reader coverage and targeted repeats",
+      "at": "2026-10-03T11:37:12.442002+00:00"
     }
   ],
-  "provider_reported_usd": "0.900023319",
-  "unknown_reserved_usd": "0.0391330140",
-  "conservatively_committed_usd": "0.9391563330"
+  "provider_reported_usd": "1.964736624",
+  "unknown_reserved_usd": "0.1151746140",
+  "conservatively_committed_usd": "2.0799112380"
 }

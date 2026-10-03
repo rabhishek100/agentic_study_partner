@@ -188,3 +188,45 @@ lease finishes, move $0.50 of unused screening capacity into repeats if the
 reconciled ledger permits it. That changes effective phases to screening $0.75,
 repeat $1.50, final $2 and production $0.75, still exactly $5. Record that transfer
 before any repeat call, not by editing existing child ceilings.
+
+## Fresh combined control and repeat checkpoint
+
+The frozen control and same-code continuation now complete all 54 cases. Both
+have identical implementation hash, canonical bindings, model settings, provider
+routes and BM25 mode. The eleven-case continuation preserves the original
+partial sheet preparation cost. Combined reported spend is $0.904731265.
+
+| Flow | Eligible cases clearing review |
+| --- | ---: |
+| Chat | 16/18 |
+| Summaries | 7/7 |
+| Video/course | 8/10 |
+| Revision sheets | 4/6 |
+| Interviews | 6/8 |
+| Total | 41/49 |
+
+These are fresh automated native results, not production user accuracy. The
+same five special cases remain separately visible. The earlier round's selected
+component counts also total 41/49, with different per-flow outcomes: stochastic
+variation is material, and an isolated score improvement is not enough to select
+a technique.
+
+The initial repeat block encountered a reporter defect: its extra top-level SDK
+timing field violated the adapter contract. Pause the batch, retain all bills,
+fix the contract and add a traced-adapter/suite integration regression. Two
+control and four Gemini sheets have fully saved drafts, final PDFs and native
+review provenance. Restore those artifacts without inference, retaining the
+original bundle and hashed recovery journal. Interrupted or incomplete artifacts
+are not restored. New generation attempts have a distinct `reporter-fixed` tag.
+
+The repeat control paper clears native findings at $0.014719875; Gemini's
+recovered paper also clears them at $0.027938130. Therefore the first paper's
+apparent Gemini saving is not a consistent model effect. Gemini's fresh chapter
+8 still has native findings, while the fixed Luna control cleared them. Remaining
+summary, writer and common-model reviews are pending. No new default is chosen.
+
+Saved-output reviewers can hide writer model labels in memory while preserving
+all original captures. Both judgments and factual disagreements remain visible;
+this does not constitute human calibration. The temporary production key form is
+approved, but OpenRouter requires the user's email verification before issuing
+it. Production settings and code are still unchanged at this checkpoint.

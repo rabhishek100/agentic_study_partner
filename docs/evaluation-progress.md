@@ -628,3 +628,13 @@ unknown receipt. Added optional writer-label blinding for saved-output reviews,
 without changing the fixed rubric or frozen provider captures, and provider
 routing for the second reviewer. Validation: 37 saved-review / adapter / suite
 checks passed. Publish scalar checkpoints with the committed report script.
+
+### Unit 29 — completed combined control and repeat checkpoint
+
+Publish the frozen 54-case combined control: 41/49 eligible cases clear review,
+with all five excluded-policy/source/capture cases still reported separately.
+Control and tail code/settings/bindings match. First replication shows Luna's
+paper can pass more cheaply than Gemini, and Gemini regresses the native findings
+check on chapter 8. Do not select a model from the initial favorable paper alone.
+Production key creation is approved but awaits OpenRouter email verification;
+no production key replacement, code deployment or paid API comparison yet.

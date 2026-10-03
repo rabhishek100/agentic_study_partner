@@ -15,7 +15,7 @@ or benchmark score does not establish its quality, speed or total cost here.
 
 Start-of-round code control: `aefe246ec6c196c16148af80170b7842d39006e9`.
 This contains the selected round-two components and restored original interview
-grader. It has not had a fresh combined 54-case paid evaluation. Production
+grader. Its fresh combined control and same-code continuation have now completed all 54 cases. Production
 health was read back on 2026-10-03: API `0983a1c`, healthy canonical and retrieval
 databases. Production has not received the round-two changes.
 
