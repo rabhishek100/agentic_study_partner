@@ -31,11 +31,16 @@ follow-ups. Quick QA uses 5 chunks; deeper/interview answers use 8. Citations
 resolve to source sections/pages, not generated prose.
 
 After ranking, the strongest hit is completed with its nearest chunks from the
-same section and source build (up to five, leaving at least two slots for
-other ranked sections), so a definition or checklist split across chunks
-arrives whole. This adds no model call and is skipped for side chats with
-pinned evidence and for system-design answers. Answers must cover every
-explicitly requested part or name the specific part the evidence lacks.
+same section and source build (up to five, leaving at least two slots free),
+so a definition or checklist split across chunks arrives whole. In 8-item
+answers the free slots go first to the second-strongest section's hit and its
+adjacent chunks, so a question spanning two sections keeps both; quick answers
+fill them with the next ranked hits. This adds no model call and is skipped
+for side chats with pinned evidence and for system-design answers. Answers
+must cover every explicitly requested part or name the specific part the
+evidence lacks. Generated text is cut at any leaked chat-template control
+token (such as `<|im_end|>`), so a provider's trailing scratch reasoning is
+neither streamed nor saved.
 
 When the planner chooses a complete scope, execution uses its owner-checked
 canonical book/node IDs rather than re-parsing the display title. Requests to
@@ -91,7 +96,10 @@ flowchart TD
 ```
 
 Visual questions require visual or supporting-page evidence. Lecture retrieval
-widens from 8 to 16 items and a 60- to 180-second window. Course QA searches
+widens from 8 to 16 items and a 60- to 180-second window. When the ranked
+evidence lacks a modality (usually transcript), it is borrowed from around the
+selected items in rank order, one per item per round, and caption cues are
+widened into passages. Course QA searches
 published lectures with per-lecture caps: 12/4 initially, 20/6 on retry. Course
 answers receive each selected passage in full, not a shortened preview. Excluded
 lectures and source versions are recorded. Prior-answer transforms and
@@ -302,7 +310,10 @@ for this source. Sheet length follows the source's essential concepts (up to
 
 When independent review finds an essential concept missing, the sheet is
 recomposed, because a patch to existing notes cannot add one; narrower
-explanation gaps get targeted note edits. Context overflow, invalid content,
+explanation gaps get targeted note edits. An invalid targeted edit (such as a
+note over the field limit) falls back to recomposition that keeps the review
+findings. The reviewer is given the exact list of rendered item IDs it may
+cite, and citing the diagram as a whole is accepted. Context overflow, invalid content,
 and unrecoverable layout failures fail the job. Unresolved quality findings
 after the repair budget remain visible in provenance. Repairs preserve
 existing item identities; saved artifacts include PDF/HTML, inventory, figure

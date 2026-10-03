@@ -26,7 +26,8 @@ calibration is claimed; manual labels are optional.
 
 An output is **usable** only when the judge finds source support; correctness,
 coverage and usefulness each score at least 3/4; no required contract check
-fails; and, for sheets, the layout is readable. Missing support, a missing
+fails (internal planner labels and the strict rewrite text are reported as
+diagnostics); and, for sheets, the layout is readable. Missing support, a missing
 score or an unknown layout is reported as uncertain, never as a pass. A
 completed request is not a quality pass.
 
@@ -84,36 +85,52 @@ summaries, lecture/course study, revision sheets and interviews. Other
 features (flashcards, suggestions, reminders, narration) have contract tests
 and smoke checks, not equivalent gold-set coverage.
 
-Book cases use BM25 in the native suite, because the evaluation budget guard
-cannot bound the reranker's price; production uses `hybrid_rerank`. The two are
-compared separately below.
+Book cases default to BM25 in the native suite for comparability with earlier
+runs; production uses `hybrid_rerank`, which the suite can now also run. The
+two are reported separately below.
 
 ### Results
 
-The earliest saved run and the current code were judged with the same
-source-evidence rubric on fifty cases with identical inputs, sources and
+All three columns are judged by the same corrected rubric (`artifact-review-v5`,
+blind to the writer model) on fifty cases with identical inputs, sources and
 expected points. Five cases sit outside the quality denominator: three course
-cases need lecture evidence that is unpublished or not yet indexed, one expects abstention where
-the product deliberately offers labelled general-knowledge answers, and one
-deterministic listing has no generation to judge.
+cases need lecture evidence that is unpublished or not yet indexed, one expects
+abstention where the product deliberately offers labelled general-knowledge
+answers, and one deterministic listing has no generation to judge.
 
-| Flow | Earliest saved run | Current |
-|---|---:|---:|
-| Chat | 10/17 | 12/17 |
-| Summaries | 3/6 | 6/6 |
-| Video/course | 6/9 | 8/9 |
-| Revision sheets | 0/5 | 3/5 |
-| Interviews | 5/8 | 5/8 |
-| **Usable** | **24/45** | **34/45** |
+| Flow | Earliest saved run | Previous code | Current code |
+|---|---:|---:|---:|
+| Chat | 12/17 | 14/17 | 15/17 |
+| Summaries | 3/6 | 6/6 | 6/6 |
+| Video/course | 7/9 | 7/9 | 8/9 |
+| Revision sheets | 0/5 | 3/5 | 3/5 |
+| Interviews | 5/8 | 6/8 | 6/8 |
+| **Usable** | **27/45** | **36/45** | **38/45** |
 
-The earliest run completed 43/50 requests; the current code completes 49/50 on
-the first attempt, and the remaining provider failure passes a separate retry
-(counted in "Current"). Across the full 54-case manifest, the current code
-clears 36/49 eligible cases. All six current sheet PDFs are readable; three
-retain native content warnings. The earliest saved run is the first measured
+"Previous code" is the round-three final run (the code deployed as `d8c9dda`);
+its one provider failure passes a separate retry, counted here. "Current code"
+is one new 54-case run: 53/54 requests completed, and 41 of the 49 eligible
+cases are usable. Book retrieval in these runs is BM25. The chat flow in the
+production `hybrid_rerank` mode is also 15/17, with different misses. Under the
+earlier, defective rubric the same earliest and previous outputs scored 24/45
+and 34/45 (next section). The earliest saved run is the first measured
 evaluation, not a reconstruction of production before this work: historical
 production bills and latencies were not recorded.
-[Shared comparison](../evaluation/round3_historical_comparison.json).
+[Shared comparison](../evaluation/round4_results.json),
+[earlier rubric](../evaluation/round3_historical_comparison.json).
+
+### Evaluation defects found
+
+Reading every non-usable case showed that several failures came from the
+evaluation, not the product. Each was fixed before the comparison above.
+
+| Defect | Effect | Fix |
+|---|---|---|
+| The ideal-dialogue reasoning check matched only straight apostrophes | Every "I’d …" answer failed; both ideal dialogues were rejected on this alone, and experiment 20 below chased it | Normalize typographic apostrophes |
+| The judge listed expected points the output never made as "unsupported claims" | A correct answer was marked unsupported | Unsupported claims must be statements the output makes |
+| Prior-answer transforms were judged against 400-character evidence previews | Carried-over claims could not be verified | The judge receives the full source passages behind the earlier answer |
+| An internal planner label (`history_dependency`) gated the verdict | A fully supported 3/4/4 answer failed on a debatable hidden label | Reported as a diagnostic, like the strict rewrite text; route, scope and outcome still gate |
+| The budget guard could not price reranking | Book retrieval could only be evaluated in BM25, not the production mode | Rerank is reserved per search unit from its provider receipt ($0.0025) |
 
 ### Changes kept
 
@@ -132,6 +149,11 @@ same frozen cases and judge.
 | Sheets missing essential concepts or citing uninspected figures | Recompose when an edit cannot add a concept; bind image choices to inspected IDs; one retry for an incomplete image inventory | Bounded recovery and persistent failure both verified; general failure-rate reduction not established |
 | Chromium startup repeated for every layout attempt | Reuse one browser per layout search, fresh isolated context per attempt | Rendering median 4.468 s → 1.110 s, browser CPU 5.335 s → 1.479 s, identical output; no whole-sheet speedup in production |
 | Sheet citations hard to read | Raise the citation font floor (~9 → 10 pt) | Six paired renders of identical content: same pages, figures and fit; no extra inference |
+| Expansion filled eight-item answers from one section, dropping the second section's adjacent passages | Free slots go first to the second-strongest section's hit and neighbours | Offline page recall over 16 chat cases: BM25 86.7% → 93.3%, `hybrid_rerank` 91.1% → 95.6%, no case worse |
+| Lecture transcript was borrowed from around the weakest frames | Borrow one item per ranked item, in rank order | Required-window recall over 34 video turns 91.4% → 94.3%, no turn worse |
+| The sheet reviewer cited the diagram by an ID the validator rejected | Reviewer gets the valid IDs; "diagram" accepted | Saved chapter-6 review re-checks with no findings; paper and chapter-3 sheets publish without warnings |
+| A provider leaked `</\|im_end\|>` and its scratch reasoning into a saved answer | Cut generated text at the first control token, and stop streaming it | Regression with the token split across chunks |
+| An over-long targeted sheet edit was retried with only the schema error | Fall back to full recomposition that keeps the review findings | Regression reproduces the production failure on the old code |
 
 The summary and sheet gains in the results table come from these changes
 combined; individual causal contributions are not isolated. Evaluation also
@@ -167,7 +189,7 @@ looked promising. Only larger citations was adopted.
 | 17 | Larger sheet citations | **Kept** (above) |
 | 18 | Cache figure readings and inventories | Existing saved-sheet reuse already covers repeated opens |
 | 19 | Grader lists requested points before scoring | Uncertain judgments and a fabricated quotation rejection |
-| 20 | Concrete reasoning guidance for ideal answers | Reasoning-signal failure remained |
+| 20 | Concrete reasoning guidance for ideal answers | The failing reasoning check was the apostrophe defect above; the guidance itself was not re-tested |
 
 Also rejected: an extra interview grading instruction (no reliable benefit;
 over-credited mixed answers, so the original prompt was restored) and an
@@ -205,7 +227,10 @@ Each experiment ran under a $1–2 ceiling enforced before every request.
 Recorded provider receipts are $1.02 for the first baseline and its fixes,
 $3.90 for the five-variant comparison that selected most kept changes, and
 $3.87 for the twenty-candidate screen and production comparison (plus $0.10
-still reserved for unknown receipts).
+still reserved for unknown receipts), and $1.57 for the defect-fix round
+(re-judging, one full run, the production-mode chat run and a partial sheet
+run). That last sheet run stopped when the OpenRouter account ran out of
+credit; its three blocked calls remain conservatively reserved.
 
 For a light month of 100 chats, five summaries, three sheets, two interviews
 and twenty video/course questions, the forecast is **about $0.93** with one
@@ -240,7 +265,7 @@ flowchart TD
   builds, datasets, implementation bytes and prompt-affecting settings are
   fingerprinted. Any drift rejects a resume; a changed experiment needs a new
   output directory.
-- **Budget.** Generation, judging, embeddings and retries share one ledger.
+- **Budget.** Generation, judging, embeddings, reranking and retries share one ledger.
   Each reservation is written before the request; timeouts and missing receipts
   keep their reservation rather than becoming zero. During a run an httpx
   transport guard bounds output tokens and provider price and refuses unpriced
@@ -281,9 +306,28 @@ ingestion default. Embedding size and precision measurements are in
 
 ## Limitations and open failures
 
-- Remaining five-flow failures: support and coverage on broad answers,
-  unrelated figures in chat, unpublished course lectures and missing TrueTime
-  evidence, sheet content warnings, and interview reasoning consistency.
+- Remaining non-usable eligible cases in the current run:
+  - **Ideal dialogues (2):** both score 4/4/4, but their seed evidence is a
+    one-line synthetic summary per topic, so the judge cannot ground any
+    elaboration. This is a dataset limit; real-source ideal cases are needed.
+  - **Positional encodings (`vc-012-t1`):** the right transcript region is
+    retrieved, but the 45-second passage starts after the lecturer's
+    RNN/word-order explanation. Caption cues are 2–4 seconds long, so lexical
+    matching cannot see "position encodings" as one phrase.
+  - **Dataflow mode (`mt-009-t2`):** omits the REST/RPC examples. Two of its
+    gold points are about where the ordering comes from, not the concept.
+  - **Chapter sheets 3 and 8:** in this run, chapter 3 kept a native reviewer
+    finding and chapter 8 hit the invalid-edit failure since fixed. In the
+    later partial run, chapter 3 is usable and chapter 1 hit the 16,000-token
+    output limit once.
+  - **Leaked control tokens (`mt-003-t2`):** the corrupted answer since guarded
+    against.
+  - **Indexed Spanner course:** the retrieved transcript cuts off before the
+    throughput and leader/ordered-log explanation, so the answer correctly
+    declines to supply it (coverage 2/4).
+- The judge still occasionally attributes gold wording to the output (for
+  example "diverse candidates"); quoting the output for each unsupported claim
+  would make this checkable.
 - The judge is from the same model family as the generator and has no human
   calibration; generation and judge variation between runs is material.
 - Samples are small: no representative latency/cost percentiles, no
@@ -322,7 +366,7 @@ results; private run bundles are local. Each runner documents options with
 | OCR | `uv run python -m scripts.evaluate_transcription select`; then `transcribe`, then `score` |
 
 Use `--case` or `--flow` to select a subset; `--retrieval-mode` defaults to
-`bm25`. Harness integrity, budget and viewer tests run without paid calls:
+`bm25`, and `hybrid_rerank` reproduces production book retrieval. Harness integrity, budget and viewer tests run without paid calls:
 
 ```bash
 LANGSMITH_TRACING=false OTEL_ENABLED=false uv run --frozen --extra voice \

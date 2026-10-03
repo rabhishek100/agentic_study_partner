@@ -50,8 +50,9 @@ Evaluation drives the design:
   (BM25) to 100% on 12 answerable gold questions.
 - **Five-flow quality.** A 54-case suite covers chat, complete summaries,
   lecture/course study, revision sheets and interviews, judged against source
-  evidence. Measured fixes raised usable outputs from 24/45 to 34/45 on the same
-  cases.
+  evidence. Measured fixes raised usable outputs from 27/45 to 38/45 on the same
+  cases. Reading every failure also exposed evaluation bugs (a broken regex, an
+  over-strict label, judge misattribution), which were fixed before comparing.
 - **Rejected changes.** Of twenty further single-change candidates, including
   cheaper models and retrieval tweaks, only larger sheet citations was kept;
   other initial gains did not survive repeats or independent review.

@@ -278,7 +278,8 @@ selecting only inspected figures; `validate` checks content/citations;
 Schema/content errors retry composition within the shared content-repair
 budget; rendering permits one fit repair; judging permits two quality repairs.
 A quality repair returns to `compose` either as a full recomposition, when an
-essential concept is missing, or as a targeted patch to existing notes. Exceptions stop the job for
+essential concept is missing, or as a targeted patch to existing notes; an
+invalid patch falls back to recomposition. Exceptions stop the job for
 unsafe content, unavailable evidence, or unrecoverable layout. A sheet that
 reaches the quality-repair limit can finish with recorded outstanding findings.
 Exceptions are not graph edges. Publishing and job persistence happen in the

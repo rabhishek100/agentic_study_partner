@@ -154,8 +154,9 @@ duration boundaries. Full behavior: [study flows](flows.md).
 Hybrid reranking improved book recall; video balancing/rewriting improved
 evidence recall; bounded interview policies improved interaction cases; vision
 OCR beat Tesseract. In the five-flow suite, full-scope summary repair, larger
-sheet context, bounded neighbouring section context and sheet recomposition
-raised usable outputs from 24/45 to 34/45. Of twenty further candidates,
+sheet context, bounded neighbouring section context, sheet recomposition and
+the later retrieval and reviewer fixes raised usable outputs from 27/45 to 38/45
+under the corrected judge. Of twenty further candidates,
 including alternative models, title boosting and vector search without
 reranking, only larger sheet citations was kept; an earlier routing change that
 reduced accuracy was also rejected. Dataset

@@ -1,0 +1,2585 @@
+{
+ "version": "round4-v1",
+ "review_version": "artifact-review-v5",
+ "judge_model": "openai/gpt-6-luna",
+ "human_calibration": false,
+ "shared_cases": 45,
+ "verdict_rule": "supported grounding; correctness, coverage and usefulness >= 3; no failed gating check; readable sheet layout. Diagnostic checks (history_dependency, standalone_exact) are reported but do not gate.",
+ "runs": {
+  "earliest_saved_outputs": {
+   "source": "earliest saved native run, rejudged blind",
+   "usable": {
+    "summary": "3/6",
+    "chat": "12/17",
+    "video_course": "7/9",
+    "revision_sheet": "0/5",
+    "interview": "5/8",
+    "total": "27/45"
+   }
+  },
+  "previous_code": {
+   "source": "round-three final run (code deployed as d8c9dda), rejudged blind; separate provider retry counted",
+   "usable": {
+    "summary": "6/6",
+    "chat": "14/17",
+    "video_course": "7/9",
+    "revision_sheet": "3/5",
+    "interview": "6/8",
+    "total": "36/45"
+   }
+  },
+  "current_code_bm25": {
+   "source": "new full 54-case run at commit 159694c, BM25 book retrieval",
+   "usable": {
+    "summary": "6/6",
+    "chat": "15/17",
+    "video_course": "8/9",
+    "revision_sheet": "3/5",
+    "interview": "6/8",
+    "total": "38/45"
+   },
+   "full_manifest_usable": 42
+  },
+  "current_code_chat_hybrid_rerank": {
+   "source": "chat flow at commit 159694c, production hybrid_rerank retrieval",
+   "usable": {
+    "chat": "15/17",
+    "total": "15/17"
+   }
+  },
+  "latest_code_sheets": {
+   "source": "sheet flow at commit 5b61034 (adds invalid-edit recomposition); stopped early when the OpenRouter account ran out of credit",
+   "usable": {
+    "revision_sheet": "1/5",
+    "total": "1/5"
+   }
+  }
+ },
+ "spend_usd": {
+  "earliest_rejudge": "0.188831025",
+  "previous_rejudge": "0.470510175",
+  "current_full_run": "0.617661120",
+  "chat_hybrid_rerank": "0.112204340",
+  "sheets_latest": "0.179049330",
+  "unknown_reservations": 3
+ },
+ "cases": {
+  "earliest_saved_outputs": {
+   "sheet-chapter-3": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [
+     "production_findings_clear"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [
+     "production_findings_clear"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-exclusion": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 2,
+     "coverage": 0,
+     "usefulness": 1,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "citations_valid",
+     "outcome"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-followup": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "outcome"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-synthesis": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "citations_valid",
+     "outcome"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-unanswerable": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-001-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-003-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t2": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t4": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-006-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "scope"
+    ],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t2": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 1,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "history_dependency",
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t4": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "citations_valid"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-010-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "outcome"
+    ],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-011-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-011-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "proximity-mixed": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-strong": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-weak": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-mixed": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-strong": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-weak": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-002-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-003-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-004-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-005-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-006-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-007-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-011-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-012-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   }
+  },
+  "previous_code": {
+   "mt-001-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-002-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t4": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-004-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-006-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "history_dependency",
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t4": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t2": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-010-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "unsupported",
+     "correctness": 1,
+     "coverage": 1,
+     "usefulness": 2,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "outcome",
+     "route"
+    ],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-011-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-011-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "paper-scaled-attention": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "paper-complete-summary": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-attention-paper": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [
+     "production_findings_clear"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "vc-002-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-003-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-004-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-005-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-006-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-007-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-011-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-012-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "course-synthesis": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "course-exclusion": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 1,
+     "coverage": 1,
+     "usefulness": 1,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "citations_valid",
+     "outcome"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-unanswerable": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "course-followup": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "outcome"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-spanner-indexed": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-3": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [
+     "production_findings_clear"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-6": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [
+     "production_findings_clear"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-8": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-10": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-mixed": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-strong": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-weak": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-mixed": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 2,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-strong": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "ideal-notification-system": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "ideal-rag-platform": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-weak": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   }
+  },
+  "current_code_bm25": {
+   "mt-001-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-002-t1": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-002-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t2": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 1,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-004-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-006-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "history_dependency",
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t2": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-010-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "unsupported",
+     "correctness": 1,
+     "coverage": 2,
+     "usefulness": 2,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "outcome",
+     "route"
+    ],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-011-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-011-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "paper-scaled-attention": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "paper-complete-summary": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-attention-paper": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-002-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-003-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-004-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-005-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-006-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-007-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-011-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "vc-012-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 2,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "course-synthesis": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "course-exclusion": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 1,
+     "coverage": 0,
+     "usefulness": 1,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "citations_valid",
+     "outcome"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-unanswerable": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "course-followup": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "outcome"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "course-spanner-indexed": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 2,
+     "usefulness": 2,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-3": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [
+     "production_findings_clear"
+    ],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-6": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-8": {
+    "status": "failed",
+    "verdict": "not_completed",
+    "scores": {
+     "grounding_status": null,
+     "correctness": null,
+     "coverage": null,
+     "usefulness": null,
+     "layout": null
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [],
+    "failure": "invalid_sheet_schema"
+   },
+   "sheet-chapter-10": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-weak": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-mixed": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "proximity-strong": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-weak": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-mixed": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "rag-strong": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "ideal-notification-system": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "ideal-rag-platform": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   }
+  },
+  "current_code_chat_hybrid_rerank": {
+   "mt-001-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-001-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-002-t1": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-003-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t3": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 2,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-005-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t3": {
+    "status": "completed",
+    "verdict": "unsure",
+    "scores": {
+     "grounding_status": "insufficient_evidence",
+     "correctness": 3,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-008-t4": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t1": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "mt-009-t2": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "mt-010-t1": {
+    "status": "completed",
+    "verdict": "needs_work",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 3,
+     "coverage": 3,
+     "usefulness": 3,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [
+     "outcome"
+    ],
+    "failed_diagnostic_checks": [
+     "standalone_exact"
+    ]
+   },
+   "paper-scaled-attention": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "not_applicable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   }
+  },
+  "latest_code_sheets": {
+   "sheet-attention-paper": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-1": {
+    "status": "failed",
+    "verdict": "not_completed",
+    "scores": {
+     "grounding_status": null,
+     "correctness": null,
+     "coverage": null,
+     "usefulness": null,
+     "layout": null
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [],
+    "failure": "output_token_limit"
+   },
+   "sheet-chapter-3": {
+    "status": "completed",
+    "verdict": "usable",
+    "scores": {
+     "grounding_status": "supported",
+     "correctness": 4,
+     "coverage": 4,
+     "usefulness": 4,
+     "layout": "readable"
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": []
+   },
+   "sheet-chapter-6": {
+    "status": "failed",
+    "verdict": "not_completed",
+    "scores": {
+     "grounding_status": null,
+     "correctness": null,
+     "coverage": null,
+     "usefulness": null,
+     "layout": null
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [],
+    "failure": "provider_credit_exhausted"
+   },
+   "sheet-chapter-8": {
+    "status": "failed",
+    "verdict": "not_completed",
+    "scores": {
+     "grounding_status": null,
+     "correctness": null,
+     "coverage": null,
+     "usefulness": null,
+     "layout": null
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [],
+    "failure": "provider_credit_exhausted"
+   },
+   "sheet-chapter-10": {
+    "status": "failed",
+    "verdict": "not_completed",
+    "scores": {
+     "grounding_status": null,
+     "correctness": null,
+     "coverage": null,
+     "usefulness": null,
+     "layout": null
+    },
+    "failed_gating_checks": [],
+    "failed_diagnostic_checks": [],
+    "failure": "provider_credit_exhausted"
+   }
+  }
+ },
+ "limitations": [
+  "Automated judgments from the same model family as the generator, without human calibration.",
+  "One run per configuration; generation and judge variation can flip individual cases.",
+  "Ideal-dialogue seed evidence is a one-line synthetic summary per topic, so elaborations cannot be grounded.",
+  "Hosted LangSmith readback was unavailable (monthly trace quota); spend uses provider receipts.",
+  "These changes are not deployed; production comparisons in round3_production_comparison.json are unchanged."
+ ]
+}
