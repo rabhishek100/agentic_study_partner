@@ -45,6 +45,12 @@ if [[ "$service" != "api" && "$service" != "web" && "$service" != "voice" && "$s
     exit 2
 fi
 
+# Upload from the same checkout the revision is read from. Without an explicit
+# path, `railway up` archives the directory recorded in the Railway link
+# (`projectPath` in ~/.railway/config.json), not the shell's directory, so a
+# deploy from another worktree or clone could build different code than the
+# commit recorded below.
+root="$(git rev-parse --show-toplevel)"
 revision="$(git rev-parse --short HEAD)"
 if ! git diff --quiet || ! git diff --cached --quiet; then
     revision="${revision}-dirty"
@@ -79,13 +85,14 @@ railway variable set --skip-deploys --service "$service" \
 
 case "$service" in
     web)
-        # The link that decides the upload root lives at the repository root,
-        # so the path has to be made explicit; see the comment above.
-        railway up ./frontend --path-as-root --service web \
+        # The web image builds from frontend/, not the repository root; see
+        # the comment above.
+        railway up "${root}/frontend" --path-as-root --service web \
             ${environment_args[@]+"${environment_args[@]}"} --detach
         ;;
     *)
-        railway up --service "$service" ${environment_args[@]+"${environment_args[@]}"} --detach
+        railway up "$root" --path-as-root --service "$service" \
+            ${environment_args[@]+"${environment_args[@]}"} --detach
         ;;
 esac
 

@@ -165,7 +165,9 @@ services. The standalone Railway worker definition is vestigial.
 [scripts/deploy.sh](../scripts/deploy.sh)
 `<api|web|voice|ideal-interview-voice|narration-voice> [environment]` sets
 `BUILD_REVISION`/`BUILD_TIME` on one Railway service and uploads it with
-`railway up`; merging to `main` deploys nothing. A release runs: back up
+`railway up --path-as-root` from the checkout it runs in (`frontend/` for
+`web`), so the recorded revision and the uploaded code always match, including
+from a separate worktree. Merging to `main` deploys nothing. A release runs: back up
 database/object ledgers → apply migrations → deploy `api` → deploy `web` at
 the same revision → check `/api/health`, `/api/health/queue`, an authenticated
 read and a queued job. Voice services are deployed with the same script when
