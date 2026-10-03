@@ -737,3 +737,36 @@ model, routing, retrieval and prompt experiments are not promoted. Independent
 review disagreement and repeat evidence are preserved. Production deployment,
 the after window, full-interview monthly sizing and historical-output review
 remain open. The latest full verification is 2181 tests + 973 subtests, 38 skips.
+
+### Unit 35 — final native checks, historical review and rollout
+
+The fresh final suite completes 53/54 requests. Preserve the original
+`proximity-weak` provider failure and its bills; a separate same-settings
+retry completes and clears review. All six final PDFs are readable, with
+three clearing every native/content check and three retaining native warnings.
+The final first attempt clears 35/49 eligible cases; the separate successful
+retry brings the combined count to 36/49. This is not a reliable overall gain
+over the frozen control, and no model/prompt switch is selected. Citation-font
+selection is supported by the six identical-content paired renders, rather
+than attributing stochastic fresh-answer differences to font size.
+
+All 42 captured outputs from the earliest 50-case evaluation have been
+rejudged under v4 without regeneration ($0.188863900). The shared fifty cases
+have identical inputs, sources and expected fields. Excluding the same five
+special cases, earliest outputs clear 24/45; final first outputs clear 33/45,
+or 34/45 with the separate provider retry. Summaries improve from 3/6 to 6/6,
+video/course from 6/9 to 8/9, sheets from 0/5 to 3/5 and chat from 10/17 to
+12/17. Interviews remain 5/8 after retry. These are automated observations,
+not historical production accuracy or human calibration. Actual pre-eval
+production billing/timing remains unavailable. Sanitized evidence is in
+`evaluation/round3_historical_comparison.json`.
+
+Deploy the clean tested `d8c9dda` checkout to the combined API/worker service.
+Railway reports SUCCESS, health confirms both databases, and worker SSH
+readback reports `html-a4-flow-v5` with Luna. No frontend or voice change is
+selected. The capped after window is ready; audit and summary complete on
+the same verified sources, and explicit fresh sheet regeneration is running.
+All cloud source bindings, including the actual paper's canonical snapshot,
+match the before window. Finish the remaining paired journeys and native
+adaptive cost sample, restore the normal key, settle aggregate billing and
+publish the final comparison.

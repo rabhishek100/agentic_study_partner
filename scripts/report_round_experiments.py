@@ -9,7 +9,7 @@ from evals.automated_reviews import review_verdict
 from evals.suite import fingerprint
 ROUND=ROOT/'evaluation/runs/round3'
 SPECIAL=json.loads((ROOT/'evaluation/round2_comparison_results.json').read_text())['special_cases']
-result={'version':'round3-screens-v1','status':'in progress; no final selection or production rollout',
+result={'version':'round3-experiments-v2','status':'in progress; inspect immutable run statuses',
         'human_calibration':False,'hosted_trace_delivery':'unavailable: monthly unique-trace quota',
         'special_cases':SPECIAL,'runs':[]}
 for directory in sorted(ROUND.iterdir()):
@@ -77,6 +77,16 @@ for name, registration in sorted(ledger['runs'].items()):
 result['provider_reported_usd']=str(sum((D(r['reported_usd']) for r in result['budget_children']),D(0)))
 result['unknown_reserved_usd']=str(sum((D(r['unknown_reserved_usd']) for r in result['budget_children']),D(0)))
 result['conservatively_committed_usd']=str(D(result['provider_reported_usd'])+D(result['unknown_reserved_usd']))
+final = next((run for run in result['runs'] if run['run'] == 'final-54'), None)
+if final and len(final['cases']) == 54 and all(row['status'] in {'completed', 'failed'} for row in final['cases']):
+ result['selection']={'retained_candidates':[17], 'new_model_defaults':[],
+     'reason':'Larger citations preserve content and page counts in six paired renders; model/prompt gains did not reliably replicate.'}
+ result['status']='native selection complete; production comparison pending'
+ window=ROUND/'production-paired/after-window.json'
+ if window.exists():
+  state=json.loads(window.read_text())
+  result['production_revision']=(state.get('health') or {}).get('build_revision')
+  result['status']='native selection complete; production comparison '+state['status']
 p=ROOT/'evaluation/round3_screen_results.json'
 p.write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps({k:result[k] for k in ('provider_reported_usd','unknown_reserved_usd','conservatively_committed_usd')}))
