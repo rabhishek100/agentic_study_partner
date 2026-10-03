@@ -1,0 +1,96 @@
+{
+  "version": "round3-production-pairs-v1",
+  "status": "before complete; after pending",
+  "account_verified": true,
+  "retrieval_mode": "hybrid_rerank",
+  "sample_size_per_scenario": 1,
+  "hosted_trace_delivery": "unavailable: monthly unique-trace quota",
+  "first_content_seconds": null,
+  "per_request_provider_costs": "unavailable except explicit captured native sample; aggregate key bill is spending authority",
+  "stages": {
+    "before": {
+      "revision": "0983a1c",
+      "normal_key_restored": true,
+      "tests_finished": true,
+      "aggregate_key_usage_usd": 0.04421037,
+      "source_bindings_hash": "0d0d6860999544370a517c712ab2c1507fe1ce033d302994f47b631e5d3cb70d",
+      "actual_paper_source": {
+        "fingerprint": "631bc6c523d7a473c02a4a1b02584cd0e18f55037185a367a93751c401efdf62",
+        "source_text_chars": 46444,
+        "source_text_hash": "37a686ba1cb8e30cbe913d1ed26f0e27e4ca655565e8742b33725a1ebc8b9999",
+        "original_figures": 3,
+        "source_units": 33,
+        "verified_against_before_sheet": true
+      },
+      "cases": [
+        {
+          "flow": "chat",
+          "http_status": 200,
+          "http_completion_seconds": 9.571,
+          "request_id_hash": "bbb752935433f3adfe387bb0eb0306a7dfa21337c242e9026eaaa2e569e253e4"
+        },
+        {
+          "flow": "summary",
+          "http_status": 200,
+          "http_completion_seconds": 25.688,
+          "request_id_hash": "023dc36c89b71873d859d7288ac29c7d486f567014d63d0d31cd6c35e044963e"
+        },
+        {
+          "flow": "revision_sheet_enqueue",
+          "http_status": 202,
+          "http_completion_seconds": 0.045,
+          "request_id_hash": "8b88c19c84ce7a394e901bce66b7c344eced117664d63f480f33945572682aba"
+        },
+        {
+          "flow": "video",
+          "http_status": 200,
+          "http_completion_seconds": 5.768,
+          "request_id_hash": "94e83226ce8233fba5c5d4e7e21b004af5caef13934af121cd51092055772627"
+        },
+        {
+          "flow": "course",
+          "http_status": 200,
+          "http_completion_seconds": 3.463,
+          "request_id_hash": "fda5ab95da09f698d17301a43aeae246481bf09adcf54a7ce1185edbdda24572"
+        },
+        {
+          "flow": "ideal_interview",
+          "http_status": 201,
+          "http_completion_seconds": 85.745,
+          "request_id_hash": "983bcdb78b06fe47c3320c6a2c3cff510d07aea66311af1188356336044e4c6b"
+        },
+        {
+          "flow": "revision_sheet",
+          "status": "ready",
+          "enqueue_to_ready_seconds": 182.520149,
+          "source_fingerprint": "631bc6c523d7a473c02a4a1b02584cd0e18f55037185a367a93751c401efdf62"
+        }
+      ],
+      "sheets": [
+        {
+          "model": "openai/gpt-6-luna",
+          "judge_model": "openai/gpt-6-luna",
+          "layout_version": "html-a4-flow-v3",
+          "page_count": 3,
+          "fit_repairs": 0,
+          "content_repairs": 2,
+          "quality_repairs": 1,
+          "source_fingerprint": "631bc6c523d7a473c02a4a1b02584cd0e18f55037185a367a93751c401efdf62",
+          "outstanding_finding_count": 0,
+          "output_hash": "8033ff45ba92f0d6961402833294ebbaa8b01efce091f0e7609713082c9b56a7",
+          "source_reference_count": 33
+        }
+      ],
+      "cold_ideal_generation": [
+        {
+          "generation_model": "openai/gpt-6-luna",
+          "prompt_version": "ideal-chapter-interview-v2:04bd67052fe3",
+          "topic_count": 15,
+          "covered_topic_count": 15,
+          "estimated_duration_seconds": 1149,
+          "total_cost_usd": "0.006628"
+        }
+      ]
+    }
+  }
+}
