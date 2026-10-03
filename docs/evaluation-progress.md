@@ -381,12 +381,24 @@ and stay ignored. Public setup templates contain placeholders only.
 
 ## Next action
 
-Round-two quality/speed comparison is authorized and in progress; resume from
-[evaluation-round2.md](evaluation-round2.md). Unit 15 freezes all 54 cases and
-starts a fresh current-code, BM25 baseline under $2. Quality, then speed,
-candidates follow only after the baseline is complete. The production reranker
-remains outside the priced budget guard, and missing course evidence and the
-retained labelled-general-knowledge policy remain disclosed separately.
+Round-two comparison and selection are complete; resume from
+[evaluation-round2-results.md](evaluation-round2-results.md) and
+[evaluation-round2.md](evaluation-round2.md). Five versions attempted the same
+54 cases, followed by nine repeats and six restored-grader validations. Retain
+the core context/citation/image/rendering changes and the original native grading
+prompt; external review stays automated v3. Total receipts $3.904616935, each full
+run below $2, no unsettled reservation. Selected code: 2,118 tests / 972 subtests
+passed, 38 skipped. Production was not changed in this round.
+
+Next: resolve LangSmith's exhausted monthly unique-trace quota before verifying
+new trace delivery; reconcile 47 trace-cost differences against captured receipts.
+Then improve rewrite/section-ranking stability, bounded course-passage continuation,
+sheet omissions/page balance/citation legibility, and interview grading/routes.
+No manual rating is required. The production reranker remains outside the priced
+budget guard; missing course evidence and the retained labelled-general-knowledge
+policy are disclosed separately. The final six grading checks lack hosted trace
+metrics, while all five full trials have preserved trace observations. Private
+originals and resumable session details remain under ignored `evaluation/runs/`.
 
 Unit 14 is complete. API/combined worker and all three voice services now run
 `0983a1c`; production health reports that revision. Verified `user_id` is present

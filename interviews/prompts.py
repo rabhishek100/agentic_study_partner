@@ -22,7 +22,7 @@ from .contracts import (
 )
 
 
-PROMPT_VERSION = "adaptive-interview-v14"
+PROMPT_VERSION = "adaptive-interview-v13"
 
 LOCKED_INTERVIEW_PROMPT = """
 You are conducting one technical interview over exactly one supplied chapter or
@@ -327,12 +327,6 @@ clearly requested.
 
 Score all six dimensions from 1 to 5 against that explicit scope. Independence
 must reflect actual hints used, not ordinary interviewer follow-ups.
-Check each explicitly requested expected point against the actual candidate
-answer. Record demonstrated points in strengths and scoped omissions or
-mistakes in gaps; never credit a point supplied only by your recommended
-answer. The recommended answer should cover supported requested points and
-show how to improve this particular answer. Keep unasked extensions out of
-both gaps and scoring penalties.
 For a coding question, inspect the submitted code itself. Treat browser-reported
 test output as supporting evidence rather than a trusted grading authority.
 Distinguish a sound implementation with a weak explanation from an incorrect

@@ -26,12 +26,12 @@ labelled-general-knowledge policy is disclosed separately from grounded quality.
 
 | Unit | Change | State | Acceptance |
 | --- | --- | --- | --- |
-| 15 | Freeze comparison and fresh current-code baseline | Complete; corrected review running | All 54 generated/judged; $0.83691825; 54 trace latencies/token/cost measurements; no unknown receipts |
-| 16 | Quality candidate | Live comparison running at `f1e33f4` | Address measured missing details, exact claim citations, summary/sheet completeness and justified interview feedback; meaningful regression tests; unchanged-case full rerun |
-| 17 | Refined quality and speed candidate | Preparing full live comparison | Target measured repeated work and residual omissions; preserve dependencies, source isolation and bounded repairs; compare all 54 |
-| 18 | Bounded section context, citation metadata and source-bound image IDs | Preparing final trial | Address measured remaining definition/checklist gaps and one generation failure; preserve source isolation, pinned passages and evidence budget; all 54 cases |
-| 19 | Bounded incomplete-image-inventory repair | Preparing recovery trial | Repair once using identical original images and exact ID list; never publish an incomplete image inventory; all 54 cases |
-| 20 | Selection and final verification | Pending | Per-flow before/after evidence; repeat material regressions or close results; full relevant contracts/journeys; commit/push retained changes |
+| 15 | Freeze comparison and fresh current-code baseline | Complete | All 54 generated/judged; $0.83691825; 54 trace latencies/token/cost measurements; no unknown receipts. Additional corrected review: 53 captured outputs, $0.52333135; no human review required |
+| 16 | Quality candidate | Complete at `f1e33f4` | 54 initial attempts: 53 completed and one preserved generation failure; $0.61964958; no unknown receipts |
+| 17 | Refined quality and speed candidate | Complete at `6149df3` | 54 initial attempts: 53 completed and one preserved generation failure; $0.53941067; no unknown receipts |
+| 18 | Bounded section context, citation metadata and source-bound image IDs | Complete at `cda092f` | 54/54 generated and judged; $0.73977044; no unknown receipts |
+| 19 | Bounded incomplete-image-inventory repair | Complete at `754681b` | 54/54 generated and judged; $0.610470125; no unknown receipts; bounded recovery and persistent failure verified |
+| 20 | Selection and final verification | Complete | Retain core changes, reject added native grading instruction; nine fresh repeat cases plus six restored-grader checks; combined selected code passed 2,118 tests / 972 subtests; sanitized results published |
 
 Quality comes before speed/cost. Confirmed new grounding, ownership or recovery
 failures block selection. A global average cannot hide regressions in a flow.
@@ -46,9 +46,14 @@ The runner fingerprints application code/configuration and sources; finish a
 variant before changing Python code. Saved outputs are never regenerated on
 resume. Budget stops and unknown receipts must remain explicit.
 
-Source readiness, model configuration and results will be recorded below after
-the baseline. Existing operational telemetry and user identity work is complete;
-this round changes evaluation/quality behavior rather than hosted setup.
+This round is complete. Results, per-component selection, receipt budgets and
+remaining limitations are in [evaluation-round2-results.md](evaluation-round2-results.md).
+Private resumable run/session records remain under ignored `evaluation/runs/`.
+Production was not changed. New LangSmith ingestion is blocked by the account's
+monthly unique-trace quota; the six final grading validations have unknown hosted
+trace metrics. All five full trials have trace observations, but 47 costs differ
+from provider receipts and remain explicitly unreconciled. Existing operational
+telemetry and user identity code is unchanged.
 
 ### Quality candidate prepared
 
@@ -179,4 +184,27 @@ This measures rendering only, not total sheet generation or remote model speed.
 Median browser child CPU time fell from 5.335 to 1.479 seconds in this local fixture;
 existing suite process-CPU metrics do not include these browser children.
 Verification: 26 sheet tests, including a real-browser overflow/recovery and
-context-cleanup regression. Full live five-flow speed comparison remains pending.
+context-cleanup regression. Full live comparisons and selection are complete;
+their overlapping generation latencies do not isolate rendering's causal effect.
+
+### Final selection
+
+Retain bounded section context, actual-marker citation metadata, source-bound
+image selection, bounded inventory recovery and Chromium reuse. Quantization and
+model-card completeness gains repeat; the broad audit still fails when a neighboring
+section ranks first. Video/course completeness and sheet presentation gaps remain.
+
+Reject the added `adaptive-interview-v14` grading instruction and restore the exact
+baseline `adaptive-interview-v13` file. It showed no reliable benefit; the recovery
+trial's mixed-answer grade omitted scoped gaps and its weak-RAG recommendation
+included unsupported advice. Fresh selected-code checks: four of six cleared,
+one routing/completion mismatch and one uncertain evidence judgment. Both ideal
+generation cases retain their unchanged implementation and recovery-run observations.
+The corrected external judge stays `artifact-review-v3`; no human review is required.
+
+Total provider receipts: $3.904616935 across all five trials, corrected baseline
+review, nine repeats and six selection checks. No unsettled reservation remains.
+The final combined code was rechecked: 2,118 tests and 972 subtests passed, 38 skipped.
+This is a component selection with six grading-specific delta checks, not a new
+full 54-case run of the combined code. Original failures and all source/policy gaps
+remain in the published comparison.
